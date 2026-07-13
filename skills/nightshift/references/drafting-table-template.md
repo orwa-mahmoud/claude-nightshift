@@ -1,0 +1,22 @@
+# Drafting Table
+
+> A staging file, not the enforced list. The clock-out gate reads only `punch-list.md` — nothing
+> here is gated. Draft and agree items here first, then promote them into `punch-list.md` under
+> `## Items` to start the shift.
+
+**Item shape** — one top-level checkbox per item; all detail as indented plain `-` sub-bullets
+(never a nested checkbox — only the top line is a box, so the gate counts one open item per task).
+Every item carries its own **Verify** and **Commit** line.
+
+```text
+- [ ] **1. <title>.**
+  - <what to build, plainly>
+  - Verify: <the commands that must pass before ticking>
+  - Commit: `<type: message>`
+```
+
+**Order = dependency order.** Top → bottom; nothing is built twice.
+
+---
+
+(empty — draft items here, then promote the agreed ones into the punch list)
