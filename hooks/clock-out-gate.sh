@@ -10,6 +10,9 @@
 #
 # Quitting time and the stall guard are a whistle, not an axe: a Stop hook can only run at
 # a stop attempt, so neither can ever interrupt work mid-item.
+#
+# Morning whistle: if NIGHTSHIFT_NOTIFY_CMD is set, any shift-ending release fires it exactly
+# once with a one-line summary (both $NIGHTSHIFT_SUMMARY and $1). Unset -> silent no-op.
 set -u
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -18,8 +21,10 @@ PUNCH="$NS/punch-list.md"
 STOP="$NS/STOP"
 DEADLINE="$NS/deadline"
 STALL="$NS/.stall"
+NOTIFIED="$NS/.notified"
 LOG="$NS/shift-log.md"
 STALL_MAX="${NIGHTSHIFT_STALL_MAX:-3}"
+NOTIFY="${NIGHTSHIFT_NOTIFY_CMD:-}"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
@@ -49,22 +54,38 @@ deadline_passed() {
   [ "$now" -ge "$target" ]
 }
 
-# 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
-[ -f "$STOP" ] && exit 0
+# Morning whistle — fires at most once per shift; $1 is the summary line.
+whistle() {
+  [ -n "$NOTIFY" ] || return 0
+  [ -f "$NOTIFIED" ] && return 0
+  : >"$NOTIFIED"
+  NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
+}
 
-# 2. Done — no punch list, or every box ticked.
-if [ ! -f "$PUNCH" ] || [ "$(open_boxes)" -eq 0 ]; then
+if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
+TOTAL=$((OPEN + TICKED))
+
+# 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
+if [ -f "$STOP" ]; then
+  if [ -f "$PUNCH" ]; then
+    reason="$(head -n1 "$STOP" 2>/dev/null | tr -d '[:space:]')"
+    whistle "shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
+  fi
   exit 0
 fi
 
-OPEN="$(open_boxes)"
-TICKED="$(ticked_boxes)"
-TOTAL=$((OPEN + TICKED))
+# 2. Done — no punch list at all, or every box ticked.
+[ -f "$PUNCH" ] || exit 0
+if [ "$OPEN" -eq 0 ]; then
+  whistle "shift done: $TICKED/$TOTAL"
+  exit 0
+fi
 
 # 3. Quitting time — mechanical deadline.
 if [ -f "$DEADLINE" ] && deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
+  whistle "quitting time: $TICKED/$TOTAL done, items left open"
   exit 0
 fi
 
@@ -86,6 +107,7 @@ fi
 if [ "$attempts" -ge "$STALL_MAX" ]; then
   log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
   printf 'stalled\n' >"$STOP"
+  whistle "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
   exit 0
 fi
 printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
