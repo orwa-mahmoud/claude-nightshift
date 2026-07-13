@@ -1,0 +1,14 @@
+{
+  "name": "nightshift",
+  "owner": {
+    "name": "Orwa Mahmoud",
+    "url": "https://github.com/orwa-mahmoud"
+  },
+  "plugins": [
+    {
+      "name": "nightshift",
+      "source": "./",
+      "description": "Claude works the night shift: accountable autonomous runs that can't clock out until the punch list is done."
+    }
+  ]
+}
