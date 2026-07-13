@@ -32,8 +32,11 @@ if command -v jq >/dev/null 2>&1; then
   TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
   CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
 else
-  TOOL=""
-  CMD=""
+  # No jq: pull the fields out of the raw JSON with sed so the guard still works. Extract the
+  # command value rather than falling back to the whole payload — the quote-scrub below would
+  # otherwise strip the command string itself and a push would slip through.
+  TOOL="$(printf '%s' "$INPUT" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  CMD="$(printf '%s' "$INPUT" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')"
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
 
