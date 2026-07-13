@@ -26,14 +26,27 @@ deny() {
   exit 0
 }
 
-# Extract the command. jq preferred; the raw payload is the fallback so a missing jq
+# Extract tool + command. jq preferred; the raw payload is the fallback so a missing jq
 # can never silently disable the guard.
 if command -v jq >/dev/null 2>&1; then
+  TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
   CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
 else
+  TOOL=""
   CMD=""
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
+
+# Park, don't ask — during an active shift, deny AskUserQuestion so a 2:40am question
+# cannot kill the run. No active shift -> questions flow normally. (Raw grep backs up the
+# jq path so the rule holds even without jq.)
+if [ "$TOOL" = "AskUserQuestion" ] || printf '%s' "$INPUT" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then
+  if [ -f "$PUNCH" ] && [ ! -f "$STOP" ] \
+     && grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
+    deny "BLOCKED (park, don't ask): a shift is active and the owner is asleep. Choose the most sensible production-grade default yourself, record the decision and your reasoning in .nightshift/parking-lot.md, and KEEP WORKING. The owner reviews it in the morning."
+  fi
+  exit 0
+fi
 
 # Quoted spans hold commit messages and the like — a message containing "push" must not
 # read as a push. Strip them before matching git subcommands.
