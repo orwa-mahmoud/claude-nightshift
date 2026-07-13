@@ -35,6 +35,14 @@ load helpers
   [ "$status" -eq 0 ]
 }
 
+@test "flags malformed YAML when yamllint is available" {
+  command -v yamllint >/dev/null 2>&1 || skip "yamllint not installed"
+  f="$BATS_TEST_TMPDIR/bad.yaml"
+  printf 'a: [1, 2\n' >"$f"
+  run spotcheck "$f"
+  [ "$status" -eq 2 ]
+}
+
 @test "degrades to bash -n when shellcheck is absent" {
   f="$BATS_TEST_TMPDIR/plain.sh"
   printf '#!/usr/bin/env bash\nx=1\n' >"$f"

@@ -89,3 +89,26 @@ load helpers
   [ -z "$output" ]
   [ ! -f "$p/.nightshift/.notified" ]
 }
+
+@test "morning whistle fires on a stall red-tag release" {
+  p="$(new_project)"
+  punch_open "$p"
+  wl="$BATS_TEST_TMPDIR/w.log"
+  nc="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  [ -z "$output" ]
+  grep -q 'stalled' "$wl"
+  [ "$(wc -l <"$wl" | tr -d ' ')" -eq 1 ]
+}
+
+@test "morning whistle fires on a stop-work release" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/STOP"
+  wl="$BATS_TEST_TMPDIR/w.log"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  [ -z "$output" ]
+  grep -q 'shift ended' "$wl"
+}

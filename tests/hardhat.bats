@@ -95,6 +95,19 @@ load helpers
   ! is_deny "$output"
 }
 
+@test "denies push even when jq is absent (raw sed fallback)" {
+  p="$(new_project)"
+  punch_open "$p"
+  bindir="$BATS_TEST_TMPDIR/nojq"
+  mkdir -p "$bindir"
+  for b in bash grep sed printf cat head git env; do
+    src="$(command -v "$b")" && ln -sf "$src" "$bindir/$b"
+  done
+  input="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}')"
+  out="$(printf '%s' "$input" | env PATH="$bindir" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+}
+
 @test "shift-scoped rules are inert under a STOP marker but push stays denied" {
   p="$(new_project)"
   punch_open "$p"
