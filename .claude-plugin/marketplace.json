@@ -4,6 +4,9 @@
     "name": "Orwa Mahmoud",
     "url": "https://github.com/orwa-mahmoud"
   },
+  "metadata": {
+    "description": "Home of nightshift: accountable autonomous runs for Claude Code — the agent can't clock out until the punch list is done."
+  },
   "plugins": [
     {
       "name": "nightshift",
