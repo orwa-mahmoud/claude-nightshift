@@ -2,3 +2,5 @@
 .claude/
 CLAUDE.md
 .nightshift/
+coverage/
+.scannerwork/

@@ -170,6 +170,7 @@ Read this before you trust it overnight:
 ```bash
 bats tests/                          # test suite — brew install bats-core / apt-get install bats
 shellcheck hooks/*.sh adapters/*.sh  # lint
+tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
 ```
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs both on every push.
