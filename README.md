@@ -165,6 +165,15 @@ Read this before you trust it overnight:
 - **The stop-work order is always available** — `/nightshift:stop` or `touch .nightshift/STOP` — so a
   shift can never trap you.
 
+## Development
+
+```bash
+bats tests/                          # test suite — brew install bats-core / apt-get install bats
+shellcheck hooks/*.sh adapters/*.sh  # lint
+```
+
+CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs both on every push.
+
 ## Prior art
 
 Anthropic's official **ralph-loop** plugin (after Geoffrey Huntley's *ralph* technique) proved both
