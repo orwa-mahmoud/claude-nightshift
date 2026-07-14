@@ -20,9 +20,9 @@ makes autonomy **accountable**:
 
 - **Completion lives in a file, not a phrase.** The shift ends when every `- [ ]` in the punch list
   is ticked — per-item, persistent, greppable. A crash resumes from the file.
-- **Safety is enforced, not requested.** Hooks mechanically deny `git push`, protected-folder
-  commits, and secret-pattern leaks — the agent *can't* do the dangerous thing, not merely
-  *shouldn't*.
+- **Safety is enforced, not requested.** Hooks mechanically deny `git push` (by default — only
+  you can grant it), protected-folder commits, secret-pattern leaks, and any command on your own
+  forbidden list — the agent *can't* do the dangerous thing, not merely *shouldn't*.
 - **A question can't kill the run.** During a shift, asking the user is denied; decisions get parked
   with a sensible default chosen and reviewed over coffee.
 - **A stuck run ends honestly.** Repeated stop-attempts with zero progress red-tag the stuck item
@@ -85,7 +85,7 @@ Everything is named from a real construction site — learn one term, guess the 
 # write your items in the punch list — one checkbox per task
 /nightshift:start      # hours asked only for open-ended work; then go to sleep
 /nightshift:status     # morning: what got done, what got parked, what got stuck
-# you review the local commits — and YOU push; the agent can't
+# you review the local commits — and YOU push (the agent can't, unless you grant it)
 ```
 
 Panic button, any time, from any terminal: `touch .nightshift/STOP`.
@@ -106,6 +106,8 @@ Zero-config by default; every guard below is off until you set it (unset ⇒ sil
 
 | Env var | Effect |
 |---|---|
+| `NIGHTSHIFT_ALLOW_PUSH` | let the agent `git push` (default: denied whenever a punch list exists — and env vars are fixed at session start, so only you can grant this, never the agent mid-run) |
+| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules (`rm -rf\|docker\|terraform`, …) |
 | `NIGHTSHIFT_EXPECTED_EMAIL` | deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | deny a commit whose staged diff matches this `grep -E` pattern |
@@ -162,6 +164,8 @@ Read this before you trust it overnight:
   without a deadline), and the gate enforces quitting time mechanically.
 - **The stall guard reads ticks + commits as progress** — so an agent that commits failed attempts
   can look alive. Your item gate mitigates this; the deadline caps it regardless.
+- **The guards are pattern matches, not a sandbox.** Deny rules match the command text — they stop
+  an honest agent from drifting, not a determined adversary.
 - **The stop-work order is always available** — `/nightshift:stop` or `touch .nightshift/STOP` — so a
   shift can never trap you.
 
