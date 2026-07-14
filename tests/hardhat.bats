@@ -117,3 +117,38 @@ load helpers
   run hardhat_bash "$p" "git push"
   is_deny "$output"
 }
+
+@test "push is allowed when the owner grants NIGHTSHIFT_ALLOW_PUSH" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_ALLOW_PUSH=1
+  ! is_deny "$output"
+}
+
+@test "push stays denied when NIGHTSHIFT_ALLOW_PUSH is empty" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_ALLOW_PUSH=
+  is_deny "$output"
+}
+
+@test "forbidden-commands pattern denies during an active shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "docker system prune -af" NIGHTSHIFT_FORBIDDEN_COMMANDS='rm -rf|docker|kubectl'
+  is_deny "$output"
+}
+
+@test "forbidden-commands rule is shift-scoped: inert once every box is ticked" {
+  p="$(new_project)"
+  punch_done "$p"
+  run hardhat_bash "$p" "docker ps" NIGHTSHIFT_FORBIDDEN_COMMANDS='docker'
+  ! is_deny "$output"
+}
+
+@test "a scary-looking command passes when the forbidden list is unset" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "docker compose down"
+  ! is_deny "$output"
+}
