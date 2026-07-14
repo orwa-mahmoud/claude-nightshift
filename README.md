@@ -3,6 +3,17 @@
 > **Claude works the night shift: it can't clock out until the punch list is done — and the site
 > has safety rules.**
 
+## What it does
+
+nightshift lets Claude Code work through a local punch list unattended. It adds:
+
+- a **completion gate** — the session cannot end while the list has open items
+- **mechanical safety hooks** — no `git push` by default, no secrets in commits, no mid-run questions
+- **stall and deadline protection** — a stuck or overlong run ends itself with a written reason
+- **local receipts** for every run — commits, timestamps, cycle logs
+
+## Why
+
 Two nights every developer knows:
 
 **The question that killed the run.** You planned ten hours of overnight work with Claude — and
@@ -165,7 +176,8 @@ Read this before you trust it overnight:
 - **The stall guard reads ticks + commits as progress** — so an agent that commits failed attempts
   can look alive. Your item gate mitigates this; the deadline caps it regardless.
 - **The guards are pattern matches, not a sandbox.** Deny rules match the command text — they stop
-  an honest agent from drifting, not a determined adversary.
+  an honest agent from drifting, not a determined adversary. Keep reviewing commits, and try your
+  first shift on a scratch repo before pointing it at anything sensitive.
 - **The stop-work order is always available** — `/nightshift:stop` or `touch .nightshift/STOP` — so a
   shift can never trap you.
 
@@ -175,9 +187,14 @@ Read this before you trust it overnight:
 bats tests/                          # test suite — brew install bats-core / apt-get install bats
 shellcheck hooks/*.sh adapters/*.sh  # lint
 tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
+claude plugin validate . --strict    # manifest + marketplace validation
 ```
 
-CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs both on every push.
+CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin
+validation on every push.
+
+**Releasing:** installs are pinned to `version` in `.claude-plugin/plugin.json` — users receive
+updates only when it changes. Bump the version, then tag.
 
 ## Prior art
 
