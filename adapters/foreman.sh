@@ -46,7 +46,7 @@ STOP="$PROJECT/.nightshift/STOP"
 LOG="$PROJECT/.nightshift/shift-log.md"
 [ -f "$PUNCH" ] || { printf 'foreman: no punch list at %s\n' "$PUNCH" >&2; exit 1; }
 
-PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Never push. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists."
+PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists."
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }

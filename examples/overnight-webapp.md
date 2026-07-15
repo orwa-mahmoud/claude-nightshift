@@ -8,8 +8,8 @@ writes the full one.
 ---
 
 > Contract (abbreviated): work items top to bottom, one at a time; run the item gate before each
-> commit; tick only when the work is real; never push; park owner decisions; deletion is not
-> completion; history is append-only on shift.
+> commit; tick only when the work is real; pushing is the owner's; park owner decisions; deletion
+> is not completion; history is append-only on shift.
 
 ## Gates
 

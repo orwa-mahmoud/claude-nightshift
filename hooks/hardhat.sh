@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
 # hardhat.sh — PreToolUse guard. Mechanical safety, zero-config core.
 #
-# no-push is punch-list-scoped: denied whenever a punch list EXISTS — even all ticked,
-# even under a STOP marker. In a nightshift project the owner reviews and pushes, unless
-# the owner grants NIGHTSHIFT_ALLOW_PUSH: env vars are fixed when the session starts, so
-# only a human can flip it — never the agent mid-run.
-#
-# The remaining rules are shift-scoped and opt-in — each empty by default, so an unset
-# one is skipped silently (a one-account developer configures nothing):
-#   NIGHTSHIFT_ALLOW_PUSH            non-empty lets the agent git push (default: denied)
+# One zero-config rule: AskUserQuestion is denied during an active shift — park, don't
+# ask. Every other rule is shift-scoped and opt-in — each empty by default, so an unset
+# one is skipped silently (a one-account developer configures nothing). Env vars are
+# fixed when the session starts, so only a human can set them — never the agent mid-run:
 #   NIGHTSHIFT_PROTECTED_DIRS        space/pipe-separated dir names never to git add/commit/tag/remote
 #   NIGHTSHIFT_EXPECTED_EMAIL        commits must be authored by this identity
 #   NIGHTSHIFT_NEVER_COMMIT_PATTERNS staged diff (git diff --cached) must not match this grep -E pattern
 #   NIGHTSHIFT_FORBIDDEN_COMMANDS    deny any command matching this grep -E pattern during a shift
+#                                    (the no-push recipe: set it to 'git push')
 set -u
 
 INPUT="$(cat)"
@@ -21,7 +18,6 @@ NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 STOP="$NS/STOP"
 
-ALLOW_PUSH="${NIGHTSHIFT_ALLOW_PUSH:-}"
 PROTECTED_DIRS="${NIGHTSHIFT_PROTECTED_DIRS:-}"
 EXPECTED_EMAIL="${NIGHTSHIFT_EXPECTED_EMAIL:-}"
 NEVER_COMMIT_PATTERNS="${NIGHTSHIFT_NEVER_COMMIT_PATTERNS:-}"
@@ -57,17 +53,11 @@ if [ "$TOOL" = "AskUserQuestion" ] || printf '%s' "$INPUT" | grep -q '"tool_name
   exit 0
 fi
 
-# Quoted spans hold commit messages and the like — a message containing "push" must not
-# read as a push. Strip them before matching git subcommands.
+# Quoted spans hold commit messages and the like — a message merely containing a
+# forbidden word must not read as that command. Strip them before matching.
 SCRUBBED="$(printf '%s' "$CMD" | sed "s/'[^']*'//g; s/\"[^\"]*\"//g")"
 
-# 1) No push — punch-list-scoped: the file merely existing is enough. Only the owner can
-#    lift it (NIGHTSHIFT_ALLOW_PUSH), and only from outside the session.
-if [ -z "$ALLOW_PUSH" ] && [ -f "$PUNCH" ] && printf '%s' "$SCRUBBED" | grep -qE '(^|[^[:alnum:]_-])git([[:space:]]+[^;&|]*)?[[:space:]]+push([[:space:]]|$)'; then
-  deny "BLOCKED: git push is forbidden in a nightshift project — commit locally; the owner reviews and pushes. Do not retry a rephrased form."
-fi
-
-# The remaining rules are shift-scoped: inert unless a shift is truly active.
+# Every remaining rule is shift-scoped: inert unless a shift is truly active.
 if [ ! -f "$PUNCH" ] || [ -f "$STOP" ] \
    || ! grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
   exit 0
@@ -78,7 +68,7 @@ git_verb() { printf '%s' "$SCRUBBED" | grep -qE "(^|[^[:alnum:]_-])git([^[:alnum
 is_git_write() { git_verb add || git_verb commit || git_verb tag || git_verb remote; }
 is_commit()    { git_verb commit; }
 
-# 2) Protected dirs — never stage/commit/tag/remote inside them.
+# 1) Protected dirs — never stage/commit/tag/remote inside them.
 if [ -n "$PROTECTED_DIRS" ] && is_git_write; then
   IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
   for d in "${_dirs[@]}"; do
@@ -89,7 +79,7 @@ if [ -n "$PROTECTED_DIRS" ] && is_git_write; then
   done
 fi
 
-# 3) Expected identity — commits must be authored by the configured email.
+# 2) Expected identity — commits must be authored by the configured email.
 if [ -n "$EXPECTED_EMAIL" ] && is_commit; then
   email="$(git -C "$PROJECT_DIR" config user.email 2>/dev/null || true)"
   if [ "$email" != "$EXPECTED_EMAIL" ]; then
@@ -97,14 +87,14 @@ if [ -n "$EXPECTED_EMAIL" ] && is_commit; then
   fi
 fi
 
-# 4) Never-commit patterns — the staged diff must be clean.
+# 3) Never-commit patterns — the staged diff must be clean.
 if [ -n "$NEVER_COMMIT_PATTERNS" ] && is_commit; then
   if git -C "$PROJECT_DIR" diff --cached 2>/dev/null | grep -qiE "$NEVER_COMMIT_PATTERNS"; then
     deny "BLOCKED: the staged diff matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list."
   fi
 fi
 
-# 5) Forbidden commands — the owner's own site rules for this run.
+# 4) Forbidden commands — the owner's own site rules for this run.
 if [ -n "$FORBIDDEN_COMMANDS" ] && printf '%s' "$SCRUBBED" | grep -qE "$FORBIDDEN_COMMANDS"; then
   deny "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
 fi

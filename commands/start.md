@@ -31,5 +31,6 @@ what the last shift parked. Append a `shift started` line to `.nightshift/shift-
 ## 4. Work
 
 Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit, tick
-honestly, park don't ask, never push. From here the clock-out gate owns the session — it will not let
+honestly, park don't ask, leave pushing to the owner unless the punch list says otherwise. From
+here the clock-out gate owns the session — it will not let
 you stop while any box is open.

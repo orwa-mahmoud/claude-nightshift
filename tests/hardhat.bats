@@ -1,25 +1,17 @@
 load helpers
 
-@test "denies push while a box is open (punch-list-scoped)" {
+@test "push is allowed by default during an active shift" {
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git push origin main"
-  is_deny "$output"
+  ! is_deny "$output"
 }
 
-@test "denies push when every box is ticked (punch-list-scoped)" {
+@test "push is allowed by default when every box is ticked" {
   p="$(new_project)"
   punch_done "$p"
   run hardhat_bash "$p" "git push"
-  is_deny "$output"
-}
-
-@test "denies push under a STOP marker (punch-list-scoped)" {
-  p="$(new_project)"
-  punch_open "$p"
-  : >"$p/.nightshift/STOP"
-  run hardhat_bash "$p" "git push"
-  is_deny "$output"
+  ! is_deny "$output"
 }
 
 @test "allows push when there is no punch list" {
@@ -28,10 +20,17 @@ load helpers
   ! is_deny "$output"
 }
 
-@test "a commit message containing the word push is allowed" {
+@test "the no-push recipe denies push during an active shift" {
   p="$(new_project)"
   punch_open "$p"
-  run hardhat_bash "$p" "git commit -m 'push it real good'"
+  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+}
+
+@test "a commit message containing a forbidden word is not a match" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git commit -m 'push it real good'" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
   ! is_deny "$output"
 }
 
@@ -95,7 +94,7 @@ load helpers
   ! is_deny "$output"
 }
 
-@test "denies push even when jq is absent (raw sed fallback)" {
+@test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
   p="$(new_project)"
   punch_open "$p"
   bindir="$BATS_TEST_TMPDIR/nojq"
@@ -104,32 +103,18 @@ load helpers
     src="$(command -v "$b")" && ln -sf "$src" "$bindir/$b"
   done
   input="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}')"
-  out="$(printf '%s' "$input" | env PATH="$bindir" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  out="$(printf '%s' "$input" | env PATH="$bindir" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
 }
 
-@test "shift-scoped rules are inert under a STOP marker but push stays denied" {
+@test "shift-scoped rules are inert under a STOP marker" {
   p="$(new_project)"
   punch_open "$p"
   : >"$p/.nightshift/STOP"
   run hardhat_bash "$p" "git add ai_docs/x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
   ! is_deny "$output"
-  run hardhat_bash "$p" "git push"
-  is_deny "$output"
-}
-
-@test "push is allowed when the owner grants NIGHTSHIFT_ALLOW_PUSH" {
-  p="$(new_project)"
-  punch_open "$p"
-  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_ALLOW_PUSH=1
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
   ! is_deny "$output"
-}
-
-@test "push stays denied when NIGHTSHIFT_ALLOW_PUSH is empty" {
-  p="$(new_project)"
-  punch_open "$p"
-  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_ALLOW_PUSH=
-  is_deny "$output"
 }
 
 @test "forbidden-commands pattern denies during an active shift" {

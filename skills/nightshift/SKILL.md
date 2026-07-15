@@ -28,7 +28,8 @@ Top to bottom, one item, no batching:
    do it now.
 3. **Gate** — run the item gate (the `## Gates` commands) right before the commit. It must be green.
    No suppressions without a written reason beside them.
-4. **Commit** — one conventional commit, local only. **Never push** — the owner reviews and pushes.
+4. **Commit** — one conventional commit, local by default: the owner reviews and pushes. Push
+   yourself only when the punch list explicitly says to.
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is real.
 
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own

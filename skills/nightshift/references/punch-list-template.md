@@ -37,7 +37,8 @@
   either is ever altered, restore it, then tick honestly.
 - **History is append-only on shift** — no `reset --hard`, no `rebase`, no `commit --amend`, no
   force operations. The night's receipts must survive to morning.
-- **Never push** — commit locally; the owner reviews and pushes.
+- **Pushing is the owner's** — commit locally; the owner reviews and pushes. Push only where an
+  item explicitly says to.
 
 ## Immutable
 
@@ -47,11 +48,11 @@ or reword it. The owner may edit the `## Gates` block anytime, so re-read it eac
 
 ## Gates
 
-<!-- /nightshift:setup fills this from your stack, or leaves it empty (spot-check only).
+<!-- /nightshift:setup fills this from your stack, or leaves it empty (no automated checks).
      Item gate: runs every item, right before its commit — must be green to tick.
      Site inspection: the heavier batch (coverage, dead code, Sonar), every N items or H hours. -->
 
-_None configured — spot-check only._
+_None configured._
 
 ## Items
 
