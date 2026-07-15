@@ -1,13 +1,12 @@
 # Gates Catalog
 
-How `/nightshift:setup` proposes quality gates from a project's stack. **Detection only ever
-proposes — the user decides**: accept, edit (any shell command is a valid gate), or decline (no
-gates is a first-class answer; the shift runs with spot-check only). Explicit user config always
-beats detection.
+How `/nightshift:setup` proposes quality gates from a project's stack, and how `/nightshift:quality`
+surveys existing debt with the same table. **Detection only ever proposes — the user decides**:
+accept, edit (any shell command is a valid gate), or decline (no gates is a first-class answer;
+the shift runs without automated checks). Explicit user config always beats detection.
 
-Three tiers, cheapest first:
+Two tiers, cheapest first:
 
-- **spot-check** — every edit (a hook; instant syntax/lint). Always on, nothing to configure.
 - **item gate** — runs ONCE per item, right before its commit; must be green to tick. Fast.
 - **site inspection** — the heavier batch at an interval (every N items or every H hours); coverage,
   dead-code, Sonar.
@@ -22,7 +21,7 @@ Three tiers, cheapest first:
 | `Cargo.toml` | `cargo clippy` + `cargo test` | coverage (`tarpaulin`) |
 | `Chart.yaml` / kustomize | `helm template \| kubeconform` (changed charts) | full catalog render |
 | `Makefile` (fallback) | `make lint test` if those targets exist | — |
-| nothing detected | — (spot-check only) | — |
+| nothing detected | — | — |
 
 ## Site-inspection interval
 
@@ -42,8 +41,10 @@ hourly-batch pattern). Coverage there is a tripwire (a gate on new code), never 
 
 ## Notes
 
-- Zero-config holds: nothing detected → the tiers silently shrink to spot-check only, and declining
-  the proposal shrinks them identically. Gates are opt-in, never a requirement.
+- Zero-config holds: nothing detected → nothing proposed, and declining the proposal lands in the
+  same place. Gates are opt-in, never a requirement.
+- `/nightshift:quality` runs the item-gate commands from this table in report-only mode to survey
+  existing debt, then proposes punch-list items the owner may accept, edit, or decline.
 - The `## Gates` block lives in `punch-list.md` and stays owner-editable between and during shifts;
   hooks and the skill re-read it, so an edit takes effect from the next item. Only the agent is
   barred from editing it.

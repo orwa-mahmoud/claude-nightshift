@@ -32,7 +32,7 @@ Detect the stack from the table in `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/refe
 
 - **accept** the proposal as-is,
 - **edit** it — add, remove, or replace with THEIR own commands (any shell command is a valid gate),
-- **none** — fully respected: the shift runs with spot-check only.
+- **none** — fully respected: the shift runs without automated checks.
 
 If gates were accepted or edited, also ask the **site-inspection interval** (every N items or every
 H hours). Write the result into the `## Gates` block of `.nightshift/punch-list.md`, replacing the
@@ -44,5 +44,6 @@ re-detect after a stack change. The contract's immutability binds the agent, not
 ## 4. Summarize
 
 Print what was scaffolded, whether a receipts repo was created, and the gates that were written (or
-that the run is spot-check only). Tell the user to draft items in `.nightshift/drafting-table.md`,
-promote them into the punch list, then run `/nightshift:start`.
+that none were). Tell the user to draft items in `.nightshift/drafting-table.md`, promote them into
+the punch list, then run `/nightshift:start` — and that `/nightshift:quality` can turn existing
+lint/type debt into proposed items whenever they want it.

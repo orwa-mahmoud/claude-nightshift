@@ -39,11 +39,5 @@ hardhat_ask() {
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
 }
 
-# spotcheck <file>
-spotcheck() {
-  jq -nc --arg f "$1" '{tool_name:"Write",tool_input:{file_path:$f}}' |
-    bash "$HOOKS/spot-check.sh"
-}
-
 is_block() { printf '%s' "$1" | grep -q '"decision":"block"'; }
 is_deny() { printf '%s' "$1" | grep -q '"permissionDecision":"deny"'; }

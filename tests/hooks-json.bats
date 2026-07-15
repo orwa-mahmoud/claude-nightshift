@@ -3,9 +3,9 @@ load helpers
 # The plugin root can live at a path containing spaces (e.g. a local marketplace checkout);
 # an unquoted ${CLAUDE_PLUGIN_ROOT} makes the shell split the path and every hook fails.
 
-@test "hooks.json declares all four hook commands" {
+@test "hooks.json declares all three hook commands" {
   n="$(jq -r '[.. | .command? // empty] | length' "$BATS_TEST_DIRNAME/../hooks/hooks.json")"
-  [ "$n" -eq 4 ]
+  [ "$n" -eq 3 ]
 }
 
 @test "every hooks.json command quotes the plugin root (spaced-path safe)" {
