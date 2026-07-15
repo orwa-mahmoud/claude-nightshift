@@ -8,7 +8,8 @@
 nightshift lets Claude Code work through a local punch list unattended. It adds:
 
 - a **completion gate** — the session cannot end while the list has open items
-- **mechanical safety hooks** — no `git push` by default, no secrets in commits, no mid-run questions
+- **mechanical safety hooks** — your own site rules, enforced: forbidden commands, no secrets in
+  commits, no mid-run questions
 - **stall and deadline protection** — a stuck or overlong run ends itself with a written reason
 - **local receipts** for every run — commits, timestamps, cycle logs
 
@@ -31,11 +32,15 @@ makes autonomy **accountable**:
 
 - **Completion lives in a file, not a phrase.** The shift ends when every `- [ ]` in the punch list
   is ticked — per-item, persistent, greppable. A crash resumes from the file.
-- **Safety is enforced, not requested.** Hooks mechanically deny `git push` (by default — only
-  you can grant it), protected-folder commits, secret-pattern leaks, and any command on your own
-  forbidden list — the agent *can't* do the dangerous thing, not merely *shouldn't*.
-- **A question can't kill the run.** During a shift, asking the user is denied; decisions get parked
-  with a sensible default chosen and reviewed over coffee.
+- **Safety is enforced, not requested — and every rule is yours.** Nothing is blocked out of the
+  box. Whatever you forbid, hooks mechanically deny: any command on your forbidden list
+  (`git push` is the classic one-liner), protected-folder commits, secret-pattern leaks, commits
+  under the wrong identity — the agent *can't* do the dangerous thing, not merely *shouldn't*.
+- **A question can't kill the run — and you lose no control.** During a shift the ask-the-user tool
+  is denied; the question is parked in `parking-lot.md` instead, with the most defensible default
+  chosen, and the work continues. Watching the run live? Type an answer into the session at any
+  moment — the agent picks it up and applies it directly. Asleep? Review the parked decisions over
+  coffee.
 - **A stuck run ends honestly.** Repeated stop-attempts with zero progress red-tag the stuck item
   and end the shift — no credit furnace burning until dawn.
 - **You're never trapped.** `touch .nightshift/STOP` from any terminal ends the shift at once;
@@ -73,15 +78,15 @@ Everything is named from a real construction site — learn one term, guess the 
 |---|---|---|
 | **punch list** | `.nightshift/punch-list.md` | construction's final acceptance list — the job isn't done until every item is cleared and signed off |
 | **clock-out gate** | Stop hook | you can't clock out while the punch list has open items |
-| **hardhat** | PreToolUse hook | mandatory safety equipment — no push, no protected-dir commits, no secrets; denied, not discouraged |
-| **spot-check** | PostToolUse hook | the inspector checks each piece of work as it lands |
+| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns; denied, not discouraged |
 | **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
 | **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
 | **coverage hunt** · **defect hunt** | walkthrough presets | the two famous overnight jobs, ready to run |
 | **snag log** | `.nightshift/snag-log.md` | findings ledger across runs — cycle 4 never re-reports cycle 1 |
 | **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
-| **park, don't ask** | hardhat rule | during a shift, asking the user is denied — the owner is asleep |
+| **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
+| **quality survey** | `/nightshift:quality` | the optional debt audit — existing lint/type findings become proposed items; accept, edit, or decline |
 | **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
 | **quitting time** | `.nightshift/deadline` | when the whistle blows, the gate clocks the shift out — "4 hours of credit" is enforced, not hoped |
 | **red-tag** | stall guard | a stuck item is pulled out of service and parked, so the shift ends instead of looping to dawn |
@@ -93,10 +98,11 @@ Everything is named from a real construction site — learn one term, guess the 
 
 ```text
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)
+/nightshift:quality    # optional: turn existing lint/type debt into proposed items
 # write your items in the punch list — one checkbox per task
 /nightshift:start      # hours asked only for open-ended work; then go to sleep
 /nightshift:status     # morning: what got done, what got parked, what got stuck
-# you review the local commits — and YOU push (the agent can't, unless you grant it)
+# you review the local commits and push — or forbid pushing outright (one env line below)
 ```
 
 Panic button, any time, from any terminal: `touch .nightshift/STOP`.
@@ -117,8 +123,7 @@ Zero-config by default; every guard below is off until you set it (unset ⇒ sil
 
 | Env var | Effect |
 |---|---|
-| `NIGHTSHIFT_ALLOW_PUSH` | let the agent `git push` (default: denied whenever a punch list exists — and env vars are fixed at session start, so only you can grant this, never the agent mid-run) |
-| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules (`rm -rf\|docker\|terraform`, …) |
+| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules. `git push` keeps pushing yours for the night; `rm -rf\|docker\|terraform` fences the rest. Env vars are fixed at session start, so only you can set or lift a rule — never the agent mid-run |
 | `NIGHTSHIFT_EXPECTED_EMAIL` | deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | deny a commit whose staged diff matches this `grep -E` pattern |
@@ -160,8 +165,8 @@ They compose: run foreman around `claude -p` for a truly bulletproof overnight.
 
 Two different guarantees, never confused:
 
-- **Mechanical** (hooks): *when* the agent may stop, and *what* it may never do — push, leak, ask, or
-  quietly clock out with work outstanding.
+- **Mechanical** (hooks): *when* the agent may stop, and *what* you forbade — leak a secret, ask
+  mid-run, touch a command on your list, or quietly clock out with work outstanding.
 - **Convention** (contract + skill): the quality of the work behind a tick. The item gate raises the
   bar where you have tooling — and **no lint / no tests is a first-class path**, not a degraded one.
 
