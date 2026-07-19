@@ -71,8 +71,9 @@ at a serious product — not a half-done prototype full of shortcuts.
 - **The wall of warnings everyone scrolls past.** No lint, no types, or a thousand findings
   nobody owns. `/nightshift:quality` turns the debt into punch-list items — accept the ones you
   care about, decline the rest, and let the night clear them.
-- **The two classics.** Add real test coverage overnight, or ride the review → fix loop until a
-  full pass finds nothing new. Both ship as ready-made walkthroughs.
+- **The classics.** Add real test coverage overnight, ride the review → fix loop until it
+  converges, or run the standing loop until the whistle. All ready-made — `/nightshift:hunt`
+  stages one in seconds.
 
 If you can write it as a checklist, you can hand it to the night.
 
@@ -90,6 +91,7 @@ Then:
 ```text
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)
 /nightshift:quality    # optional: turn existing lint/type debt into proposed items
+/nightshift:hunt       # optional: stage a ready-made overnight job (tests / defects / standing loop)
 # write your items in the punch list — one checkbox per task
 /nightshift:start      # hours asked only for open-ended work; then go to sleep
 /nightshift:status     # morning: what got done, what got parked, what got stuck
@@ -127,7 +129,8 @@ Everything is named from a real construction site — learn one term, guess the 
 | **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
 | **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
-| **coverage hunt** · **defect hunt** | walkthrough presets | the two famous overnight jobs, ready to run |
+| **coverage hunt** · **defect hunt** · **standing loop** | walkthrough presets | the three famous overnight jobs, ready to run |
+| **hunt** | `/nightshift:hunt` | stages a ready-made walkthrough into the drafting table; enters the punch list only on your word |
 | **snag log** | `.nightshift/snag-log.md` | findings ledger across runs — cycle 4 never re-reports cycle 1 |
 | **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
 | **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
@@ -139,7 +142,7 @@ Everything is named from a real construction site — learn one term, guess the 
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
 | **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
 
-## The two famous shifts
+## The three famous shifts
 
 **Defect hunt** — the twenty-findings-every-pass loop from the story above, ridden for you. You
 stop playing mailman: every fix goes behind your gates, a snag log makes sure cycle 4 never
@@ -150,10 +153,16 @@ cleaner than you left it.
 **Coverage hunt** — "add test coverage overnight": meaningful tests until the whistle — coverage
 is a tripwire, never a target, so no padding tests just to move a number.
 
-Neither is a command — both ship as ready-made items in
-[`walkthrough-item.md`](skills/nightshift/references/walkthrough-item.md): paste one into your
-punch list, and `/nightshift:start` will demand the hours (a walkthrough may not start without a
-deadline — that's your cost cap).
+**Standing loop** — the greedy one, for when there's credit and hours: improve and discover until
+the clock says stop. Every cycle rotates a fresh lens — real-bug traces, UX friction, performance,
+contract drift, dead code — walks the live UI, and runs your quality tooling at every site
+inspection. An empty cycle doesn't end it; it means dig deeper. Only the whistle ends it.
+
+None of them is a command you babysit — `/nightshift:hunt` stages the one you pick into the
+drafting table (never touching drafts already there), you promote it to the punch list with a
+word, and `/nightshift:start` demands the hours (a walkthrough may not start without a deadline —
+that's your cost cap). Prefer to hand-roll? The items live in
+[`walkthrough-item.md`](skills/nightshift/references/walkthrough-item.md) — paste and tweak.
 
 ## Owner knobs
 

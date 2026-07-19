@@ -58,6 +58,10 @@ honestly:
 - **Defect hunt** — review, dedupe against the snag log, fix behind the gate, re-review. Stop when a
   full pass finds nothing NEW (converged) or at quitting time. **Zero new findings is success** —
   stop honestly even with time on the clock.
+- **Standing loop** — improve and discover: rotate 1–2 fresh lenses per cycle (bugs, UX,
+  performance, contracts, dead code), walk the live UI every few cycles, run the quality tooling
+  at each site inspection. No convergence ending — an empty cycle means a deeper lens, and only
+  quitting time ends the item.
 
 Log one line per cycle to `shift-log.md`. A cycle that finds nothing new is success, not idleness.
 

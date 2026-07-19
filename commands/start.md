@@ -14,7 +14,7 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 
 ## 2. Deadline — asked only when it means something
 
-- If `## Items` contains a **walkthrough** (coverage hunt / defect hunt), a deadline is REQUIRED —
+- If `## Items` contains a **walkthrough** (coverage hunt / defect hunt / standing loop), a deadline is REQUIRED —
   the walkthrough has no natural end but the clock. Ask "how many hours of credit?" and write
   `.nightshift/deadline` as a UNIX epoch timestamp (`now + hours*3600`). Refuse to start a
   walkthrough without one.
