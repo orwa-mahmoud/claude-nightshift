@@ -41,7 +41,21 @@ EOF
   grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
 }
 
-@test "stops at its own stall guard on a no-progress agent (exit 4, writes STOP)" {
+@test "a no-progress agent is held by default: no STOP, warnings logged, counter resets" {
+  run "$FOREMAN" --agent "bash $BIN/noop.sh" --project "$P" --max-iterations 7
+  [ "$status" -eq 3 ]
+  [ ! -f "$P/.nightshift/STOP" ]
+  [ "$(grep -c 'stall warning' "$P/.nightshift/shift-log.md")" -eq 2 ]
+  grep -q 'keeping shift open' "$P/.nightshift/shift-log.md"
+}
+
+@test "the stall opt-in stops a no-progress agent (exit 4, writes STOP)" {
+  run env NIGHTSHIFT_STALL_MAX=3 "$FOREMAN" --agent "bash $BIN/noop.sh" --project "$P" --max-iterations 50
+  [ "$status" -eq 4 ]
+  grep -q 'stalled' "$P/.nightshift/STOP"
+}
+
+@test "the --stall flag is the CLI form of the same opt-in" {
   run "$FOREMAN" --agent "bash $BIN/noop.sh" --project "$P" --max-iterations 50 --stall 3
   [ "$status" -eq 4 ]
   [ -f "$P/.nightshift/STOP" ]

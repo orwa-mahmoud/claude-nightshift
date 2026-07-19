@@ -72,7 +72,7 @@ finite item list ends at its last tick; never start a walkthrough without one.
 
 If you catch yourself unable to finish an item — looping, blocked on something real — **red-tag it
 yourself**: park it in `parking-lot.md` as `stalled — needs human`, note why, and move to the next
-item. Do not loop. The gate's stall guard is the backstop, not the plan.
+item. Do not loop. The gate's stall warning is the backstop, not the plan.
 
 ## Ending the shift
 

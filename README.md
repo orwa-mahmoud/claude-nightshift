@@ -10,7 +10,8 @@ nightshift lets Claude Code work through a local punch list unattended. It adds:
 - a **completion gate** — the session cannot end while the list has open items
 - **mechanical safety hooks** — your own site rules, enforced: forbidden commands, no secrets in
   commits, no mid-run questions
-- **stall and deadline protection** — a stuck or overlong run ends itself with a written reason
+- **stall and deadline protection** — a stuck run is red-flagged and held for your review; an
+  overlong one clocks out at the deadline you set
 - **local receipts** for every run — commits, timestamps, cycle logs
 
 ## Why
@@ -41,8 +42,10 @@ makes autonomy **accountable**:
   chosen, and the work continues. Watching the run live? Type an answer into the session at any
   moment — the agent picks it up and applies it directly. Asleep? Review the parked decisions over
   coffee.
-- **A stuck run ends honestly.** Repeated stop-attempts with zero progress red-tag the stuck item
-  and end the shift — no credit furnace burning until dawn.
+- **A stuck run is held, not sent home.** Repeated stop-attempts with zero progress red-flag the
+  shift in the log while the gate keeps it open — you wake to a flagged stall, never to an early
+  clock-out with work outstanding. Want a hard cap instead? `NIGHTSHIFT_STALL_MAX=N` clocks the
+  shift out after N stuck attempts, and the deadline bounds the night regardless.
 - **You're never trapped.** `touch .nightshift/STOP` from any terminal ends the shift at once;
   unfinished boxes stay honestly unfinished.
 - **Every run leaves receipts — without polluting your repo.** Timestamps, per-item commits, cycle
@@ -89,7 +92,7 @@ Everything is named from a real construction site — learn one term, guess the 
 | **quality survey** | `/nightshift:quality` | the optional debt audit — existing lint/type findings become proposed items; accept, edit, or decline |
 | **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
 | **quitting time** | `.nightshift/deadline` | when the whistle blows, the gate clocks the shift out — "4 hours of credit" is enforced, not hoped |
-| **red-tag** | stall guard | a stuck item is pulled out of service and parked, so the shift ends instead of looping to dawn |
+| **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
 | **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — halts the site at once |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
 | **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
@@ -117,9 +120,9 @@ stops at one of two honest endings: a full pass finds nothing new (converged), o
 **Coverage hunt** — "add test coverage overnight": meaningful tests until the whistle — coverage is a
 tripwire, never a target, so no padding tests just to move a number.
 
-## Optional configuration
+## Owner knobs
 
-Zero-config by default; every guard below is off until you set it (unset ⇒ silently skipped):
+Zero-config by default; every knob below is off until you set it (unset ⇒ the default described):
 
 | Env var | Effect |
 |---|---|
@@ -127,8 +130,12 @@ Zero-config by default; every guard below is off until you set it (unset ⇒ sil
 | `NIGHTSHIFT_EXPECTED_EMAIL` | deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | deny a commit whose staged diff matches this `grep -E` pattern |
-| `NIGHTSHIFT_STALL_MAX` | no-progress stop attempts before the stall red-tag (default 3) |
+| `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. The foreman honors the same knob for its loop (`--stall N` is the CLI form) |
 | `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`) |
+
+**Changed in v0.3.0:** by default a stalled agent is now held and red-flagged, never clocked out —
+in the clock-out gate and in the foreman loop alike. Set `NIGHTSHIFT_STALL_MAX=N` to restore
+auto-clock-out after N stuck attempts.
 
 ## Recommended layout
 
@@ -175,9 +182,11 @@ Read this before you trust it overnight:
 - **Ticks are self-certified.** The gate checks *boxes*, not *work* — it guarantees the agent can't
   quietly stop with work outstanding, not that a ticked box is truly done. The contract and your item
   gate raise that bar; they don't eliminate the gap.
-- **Cost is bounded, two ways.** A finite item list ends at its last tick, with the stall red-tag
-  bounding the stuck case. An open-ended walkthrough *requires* hours (`start` refuses to run one
-  without a deadline), and the gate enforces quitting time mechanically.
+- **Completion beats cost by default.** A stuck run is held and red-flagged, not ended — so a
+  finite list with no deadline can keep retrying until you look in. Bound it when cost matters
+  more: `NIGHTSHIFT_STALL_MAX=N` clocks out a stuck run, an open-ended walkthrough *requires*
+  hours (`start` refuses to run one without a deadline), and the gate enforces quitting time
+  mechanically.
 - **The stall guard reads ticks + commits as progress** — so an agent that commits failed attempts
   can look alive. Your item gate mitigates this; the deadline caps it regardless.
 - **The guards are pattern matches, not a sandbox.** Deny rules match the command text — they stop

@@ -18,9 +18,9 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
   the walkthrough has no natural end but the clock. Ask "how many hours of credit?" and write
   `.nightshift/deadline` as a UNIX epoch timestamp (`now + hours*3600`). Refuse to start a
   walkthrough without one.
-- If the list is entirely finite items, do NOT nag: its natural end is the last tick and the stall
-  guard bounds the stuck case. Offer an optional budget cap in one line; only write a deadline if the
-  user asks for one.
+- If the list is entirely finite items, do NOT nag: its natural end is the last tick, and a stuck
+  run is red-flagged in the shift log and held for review. Offer an optional budget cap in one
+  line; only write a deadline if the user asks for one.
 - Mixed list: ONE deadline for the whole shift — items first, the walkthrough soaks up the rest.
 
 ## 3. Heads-up
