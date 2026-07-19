@@ -7,8 +7,7 @@ checkable in the public pull request, its commits, and the npm registry.
 
 ## The punch list, as the shift left it
 
-Nine top-level boxes (sub-bullets, Verify and Commit lines omitted here — the item anatomy is in
-[`overnight-webapp.md`](overnight-webapp.md)):
+Nine top-level boxes (sub-bullets, Verify and Commit lines omitted here):
 
 ```markdown
 - [x] **1. CSV export button on the toolbar (issue #61).**
@@ -39,10 +38,6 @@ One branch, one conventional commit per item (plus one lockfile chore), timestam
 04:18  feat(grouping): docs, e2e smoke, showcase demo + changesets (closes #62)
 ```
 
-Every overnight commit carries the driving agent's `Co-authored-by` trailer (a Cursor agent, in
-this run); two daytime follow-up commits on the same branch carry Claude Code's — two different
-agents, one punch list, one gate.
-
 ## What the contract enforced
 
 - **One gate-green commit per item** — the repo's own `pnpm check` (format, lint, typecheck, 95%+
@@ -63,7 +58,5 @@ agents, one punch list, one gate.
   <https://github.com/orwa-mahmoud/adapttable/commit/e36b3eec5adae638cc528bf141a1d27f97455cfd>
 - Last overnight commit (04:18, closes the grouping RFC):
   <https://github.com/orwa-mahmoud/adapttable/commit/4546dcdde4654c45e940bff0bebbb650dd3228ba>
-- A daytime follow-up carrying the other agent's trailer:
-  <https://github.com/orwa-mahmoud/adapttable/commit/4236aaffe1f2fdcfcc105a4448e3aac3921f2c80>
 - Outcome: issues #61, #25, #60, #62 closed by the merge; the standing locale issue #24 got a
   progress comment and stays open; v1.2.0 published to npm the same day.
