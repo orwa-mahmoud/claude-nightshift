@@ -137,3 +137,20 @@ load helpers
   run hardhat_bash "$p" "docker compose down"
   ! is_deny "$output"
 }
+
+@test "deny stays valid JSON when the committer email contains a quote" {
+  p="$(new_project)"
+  punch_open "$p"
+  git -C "$p" config user.email 'we"ird@example.com'
+  run hardhat_bash "$p" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="owner@nope.io"
+  is_deny "$output"
+  printf '%s' "$output" | jq -e . >/dev/null
+}
+
+@test "deny stays valid JSON when a protected dir name contains a quote" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" 'git add we"ird/x' NIGHTSHIFT_PROTECTED_DIRS='we"ird'
+  is_deny "$output"
+  printf '%s' "$output" | jq -e . >/dev/null
+}

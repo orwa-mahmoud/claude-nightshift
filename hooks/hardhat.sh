@@ -23,8 +23,11 @@ EXPECTED_EMAIL="${NIGHTSHIFT_EXPECTED_EMAIL:-}"
 NEVER_COMMIT_PATTERNS="${NIGHTSHIFT_NEVER_COMMIT_PATTERNS:-}"
 FORBIDDEN_COMMANDS="${NIGHTSHIFT_FORBIDDEN_COMMANDS:-}"
 
+# Reasons interpolate owner config and git output; escape them so a stray quote or
+# backslash can never break the JSON and void the deny.
 deny() {
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$1"
+  reason="$(printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$reason"
   exit 0
 }
 

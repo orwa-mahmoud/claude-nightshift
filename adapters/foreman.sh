@@ -21,7 +21,7 @@ MAX_ITER=50
 STALL_MAX=3
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
   exit 1
 }
 
@@ -41,15 +41,16 @@ done
 [ -n "$AGENT" ] || { printf 'foreman: --agent is required\n' >&2; usage; }
 cd "$PROJECT" || { printf 'foreman: cannot cd to %s\n' "$PROJECT" >&2; exit 1; }
 PROJECT="$PWD"
-[ -n "$PUNCH" ] || PUNCH="$PROJECT/.nightshift/punch-list.md"
-STOP="$PROJECT/.nightshift/STOP"
-LOG="$PROJECT/.nightshift/shift-log.md"
+NS="$PROJECT/.nightshift"
+[ -n "$PUNCH" ] || PUNCH="$NS/punch-list.md"
+STOP="$NS/STOP"
+LOG="$NS/shift-log.md"
 [ -f "$PUNCH" ] || { printf 'foreman: no punch list at %s\n' "$PUNCH" >&2; exit 1; }
 
 PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists."
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
-log_line() { printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
+log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 
 open_boxes() {
   local n
@@ -101,7 +102,7 @@ while :; do
   if [ "$iter" -gt 0 ]; then
     if [ "$fp" = "$prev_fp" ]; then stall_n=$((stall_n + 1)); else stall_n=0; fi
     if [ "$stall_n" -ge "$STALL_MAX" ]; then
-      printf 'stalled\n' >"$STOP"
+      printf 'stalled\n' >"$STOP" 2>/dev/null || true
       reason="stalled"
       code=4
       break

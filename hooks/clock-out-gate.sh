@@ -13,6 +13,10 @@
 #
 # Morning whistle: if NIGHTSHIFT_NOTIFY_CMD is set, any shift-ending release fires it exactly
 # once with a one-line summary (both $NIGHTSHIFT_SUMMARY and $1). Unset -> silent no-op.
+#
+# Receipts: any shift-ending release also snapshots .nightshift/ into its local receipts repo
+# (the one /nightshift:setup created). No receipts repo -> no-op; a failed commit never blocks
+# the release.
 set -u
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -62,14 +66,25 @@ whistle() {
   NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
 }
 
+# Receipts snapshot — $1 is the commit subject. Transient markers stay out via the
+# receipts repo's own .gitignore; the pinned identity keeps this working headless.
+receipts_commit() {
+  [ -d "$NS/.git" ] || return 0
+  git -C "$NS" add -A >/dev/null 2>&1 || true
+  git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
+    commit -q -m "$1" >/dev/null 2>&1 || true
+}
+
 if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
 TOTAL=$((OPEN + TICKED))
 
 # 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
 if [ -f "$STOP" ]; then
   if [ -f "$PUNCH" ]; then
-    reason="$(head -n1 "$STOP" 2>/dev/null | tr -d '[:space:]')"
-    whistle "shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
+    reason="$(head -n1 "$STOP" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
+    receipts_commit "$summary"
+    whistle "$summary"
   fi
   exit 0
 fi
@@ -77,6 +92,7 @@ fi
 # 2. Done — no punch list at all, or every box ticked.
 [ -f "$PUNCH" ] || exit 0
 if [ "$OPEN" -eq 0 ]; then
+  receipts_commit "shift done: $TICKED/$TOTAL"
   whistle "shift done: $TICKED/$TOTAL"
   exit 0
 fi
@@ -85,6 +101,7 @@ fi
 if [ -f "$DEADLINE" ] && deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
+  receipts_commit "quitting time: $TICKED/$TOTAL done, items left open"
   whistle "quitting time: $TICKED/$TOTAL done, items left open"
   exit 0
 fi
@@ -107,6 +124,7 @@ fi
 if [ "$attempts" -ge "$STALL_MAX" ]; then
   log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
   printf 'stalled\n' >"$STOP"
+  receipts_commit "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
   whistle "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
   exit 0
 fi

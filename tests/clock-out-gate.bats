@@ -112,3 +112,35 @@ load helpers
   [ -z "$output" ]
   grep -q 'shift ended' "$wl"
 }
+
+@test "a done release commits the receipts repo when one exists" {
+  p="$(new_project)"
+  punch_open "$p"
+  receipts_init "$p"
+  punch_done "$p"
+  run gate "$p"
+  [ -z "$output" ]
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
+  git -C "$p/.nightshift" log -1 --format=%s | grep -q 'shift done: 2/2'
+}
+
+@test "a stop-work release snapshots the receipts repo" {
+  p="$(new_project)"
+  punch_open "$p"
+  receipts_init "$p"
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  printf 'parked: pick the DB\n' >"$p/.nightshift/parking-lot.md"
+  run gate "$p"
+  [ -z "$output" ]
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
+}
+
+@test "the stop reason keeps its spacing in the whistle summary" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'stopped by owner · 2026-07-19T02:40:00\n' >"$p/.nightshift/STOP"
+  wl="$BATS_TEST_TMPDIR/w.log"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  [ -z "$output" ]
+  grep -q 'stopped by owner' "$wl"
+}

@@ -12,6 +12,14 @@ new_project() {
   printf '%s' "$p"
 }
 
+# Give <project>/.nightshift its own local receipts repo, as /nightshift:setup does.
+receipts_init() {
+  printf 'STOP\n.stall\n.notified\ndeadline\n' >"$1/.nightshift/.gitignore"
+  git -C "$1/.nightshift" init -q
+  git -C "$1/.nightshift" add -A
+  git -C "$1/.nightshift" -c user.name=t -c user.email=t@example.com commit -q -m init
+}
+
 # A punch list with one open and one ticked box (TICKED=1, TOTAL=2).
 punch_open() { printf '## Items\n- [ ] **1. first.**\n- [x] **2. done.**\n' >"$1/.nightshift/punch-list.md"; }
 punch_done() { printf '## Items\n- [x] **1. first.**\n- [x] **2. done.**\n' >"$1/.nightshift/punch-list.md"; }
