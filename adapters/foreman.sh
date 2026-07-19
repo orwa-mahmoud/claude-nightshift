@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # foreman.sh — the universal outer loop. Keeps sending ANY headless agent CLI back into the
-# project until the punch list is clear, the deadline passes, the iteration cap is hit, the run
-# stalls, or a stop-work order lands. Enforcement lives OUTSIDE the agent, so it works with any
-# CLI (codex exec, cursor-agent, aider, opencode run, claude -p, ...).
+# project until the punch list is clear, the deadline passes, the iteration cap is hit, or a
+# stop-work order lands. Enforcement lives OUTSIDE the agent, so it works with any CLI
+# (codex exec, cursor-agent, aider, opencode run, claude -p, ...).
 #
 #   foreman.sh --agent "codex exec --full-auto" \
 #     [--project DIR] [--punch-list PATH] [--deadline "07:00"|EPOCH] \
-#     [--max-iterations 50] [--stall 3]
+#     [--max-iterations 50] [--stall N]
 #
 # The agent is invoked as:  <agent command> "<continuation prompt>"
-# Deadline and cap are checked BETWEEN iterations only — a running agent is never killed (a
-# whistle, not an axe). Exit: 0 done · 2 deadline · 3 cap · 4 stalled · 5 stop-work · 1 usage.
+# A no-progress run is HELD by default — every 3 stuck iterations a stall warning lands in
+# the shift log and the loop keeps going; --stall N (or NIGHTSHIFT_STALL_MAX=N) opts into
+# stopping after N stuck iterations instead. Deadline and cap are checked BETWEEN iterations
+# only — a running agent is never killed (a whistle, not an axe).
+# Exit: 0 done · 2 deadline · 3 cap · 4 stalled (opt-in) · 5 stop-work · 1 usage.
 set -u
 
 AGENT=""
@@ -18,10 +21,11 @@ PROJECT="$PWD"
 PUNCH=""
 DEADLINE_RAW=""
 MAX_ITER=50
-STALL_MAX=3
+STALL_MAX="${NIGHTSHIFT_STALL_MAX:-0}" # 0 = hold a stalled run, never stop the loop
+STALL_WARN=3
 
 usage() {
-  sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
   exit 1
 }
 
@@ -41,19 +45,25 @@ done
 [ -n "$AGENT" ] || { printf 'foreman: --agent is required\n' >&2; usage; }
 cd "$PROJECT" || { printf 'foreman: cannot cd to %s\n' "$PROJECT" >&2; exit 1; }
 PROJECT="$PWD"
-[ -n "$PUNCH" ] || PUNCH="$PROJECT/.nightshift/punch-list.md"
-STOP="$PROJECT/.nightshift/STOP"
-LOG="$PROJECT/.nightshift/shift-log.md"
+NS="$PROJECT/.nightshift"
+[ -n "$PUNCH" ] || PUNCH="$NS/punch-list.md"
+STOP="$NS/STOP"
+LOG="$NS/shift-log.md"
 [ -f "$PUNCH" ] || { printf 'foreman: no punch list at %s\n' "$PUNCH" >&2; exit 1; }
 
 PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists."
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
-log_line() { printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
+log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 
 open_boxes() {
   local n
   n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null || true)"
+  printf '%s' "${n:-0}"
+}
+ticked_boxes() {
+  local n
+  n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[xX]\]' "$PUNCH" 2>/dev/null || true)"
   printf '%s' "${n:-0}"
 }
 project_head() { git -C "$PROJECT" rev-parse HEAD 2>/dev/null || printf 'nohead'; }
@@ -97,14 +107,22 @@ while :; do
   if [ "$iter" -ge "$MAX_ITER" ]; then reason="cap"; code=3; break; fi
   if [ -n "$DEADLINE_EPOCH" ] && [ "$(date +%s)" -ge "$DEADLINE_EPOCH" ]; then reason="deadline"; code=2; break; fi
 
+  # Stall guard — held by default: warn every STALL_WARN stuck iterations and keep looping.
+  # Only the --stall/NIGHTSHIFT_STALL_MAX opt-in stops the loop; garbage fails safe to hold.
   fp="$(open_boxes):$(project_head)"
   if [ "$iter" -gt 0 ]; then
     if [ "$fp" = "$prev_fp" ]; then stall_n=$((stall_n + 1)); else stall_n=0; fi
-    if [ "$stall_n" -ge "$STALL_MAX" ]; then
-      printf 'stalled\n' >"$STOP"
-      reason="stalled"
-      code=4
-      break
+    if [ "$STALL_MAX" -gt 0 ] 2>/dev/null; then
+      if [ "$stall_n" -ge "$STALL_MAX" ]; then
+        printf 'stalled\n' >"$STOP" 2>/dev/null || true
+        reason="stalled"
+        code=4
+        break
+      fi
+    elif [ "$stall_n" -ge "$STALL_WARN" ]; then
+      t="$(ticked_boxes)"
+      log_line "stall warning — $stall_n attempts no progress, $t/$((t + $(open_boxes))) done; keeping shift open"
+      stall_n=0
     fi
   fi
   prev_fp="$fp"

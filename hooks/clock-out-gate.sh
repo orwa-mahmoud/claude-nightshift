@@ -5,14 +5,23 @@
 #   1. stop-work order — .nightshift/STOP exists              -> release (open boxes stay open)
 #   2. done            — zero open "- [ ]" (or no punch list) -> release
 #   3. quitting time   — now past .nightshift/deadline        -> write STOP, log, release
-#   4. stall red-tag   — N stop attempts, no progress         -> write STOP, log, release
-#   5. otherwise       — block, re-injecting the contract
+#   4. otherwise       — block, re-injecting the contract
 #
-# Quitting time and the stall guard are a whistle, not an axe: a Stop hook can only run at
+# Stall guard: consecutive stop attempts with no progress are counted (progress = a tick or a
+# commit). By default a stalled shift is HELD — every 3 stuck attempts a stall warning lands
+# in the shift log and the gate keeps blocking; only STOP, done, or the deadline release.
+# Owner opt-in: NIGHTSHIFT_STALL_MAX=N auto-ends the shift (write STOP, log, release) after N
+# stuck attempts. Env is fixed at session start, so only a human can choose that.
+#
+# Quitting time and the stall opt-in are a whistle, not an axe: a Stop hook can only run at
 # a stop attempt, so neither can ever interrupt work mid-item.
 #
 # Morning whistle: if NIGHTSHIFT_NOTIFY_CMD is set, any shift-ending release fires it exactly
 # once with a one-line summary (both $NIGHTSHIFT_SUMMARY and $1). Unset -> silent no-op.
+#
+# Receipts: any shift-ending release also snapshots .nightshift/ into its local receipts repo
+# (the one /nightshift:setup created). No receipts repo -> no-op; a failed commit never blocks
+# the release.
 set -u
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -23,7 +32,8 @@ DEADLINE="$NS/deadline"
 STALL="$NS/.stall"
 NOTIFIED="$NS/.notified"
 LOG="$NS/shift-log.md"
-STALL_MAX="${NIGHTSHIFT_STALL_MAX:-3}"
+STALL_MAX="${NIGHTSHIFT_STALL_MAX:-0}" # 0 = hold a stalled shift, never auto-end
+STALL_WARN=3
 NOTIFY="${NIGHTSHIFT_NOTIFY_CMD:-}"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
@@ -62,14 +72,25 @@ whistle() {
   NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
 }
 
+# Receipts snapshot — $1 is the commit subject. Transient markers stay out via the
+# receipts repo's own .gitignore; the pinned identity keeps this working headless.
+receipts_commit() {
+  [ -d "$NS/.git" ] || return 0
+  git -C "$NS" add -A >/dev/null 2>&1 || true
+  git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
+    commit -q -m "$1" >/dev/null 2>&1 || true
+}
+
 if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
 TOTAL=$((OPEN + TICKED))
 
 # 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
 if [ -f "$STOP" ]; then
   if [ -f "$PUNCH" ]; then
-    reason="$(head -n1 "$STOP" 2>/dev/null | tr -d '[:space:]')"
-    whistle "shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
+    reason="$(head -n1 "$STOP" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
+    receipts_commit "$summary"
+    whistle "$summary"
   fi
   exit 0
 fi
@@ -77,6 +98,7 @@ fi
 # 2. Done — no punch list at all, or every box ticked.
 [ -f "$PUNCH" ] || exit 0
 if [ "$OPEN" -eq 0 ]; then
+  receipts_commit "shift done: $TICKED/$TOTAL"
   whistle "shift done: $TICKED/$TOTAL"
   exit 0
 fi
@@ -85,12 +107,15 @@ fi
 if [ -f "$DEADLINE" ] && deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
+  receipts_commit "quitting time: $TICKED/$TOTAL done, items left open"
   whistle "quitting time: $TICKED/$TOTAL done, items left open"
   exit 0
 fi
 
-# 4. Stall red-tag — N consecutive stop attempts with no progress. Progress = a box ticked
-#    OR a commit landed, captured in the fingerprint; either resets the counter.
+# Stall guard — consecutive stop attempts with no progress. Progress = a box ticked OR a
+# commit landed, captured in the fingerprint; either resets the counter. Held by default:
+# warn in the shift log every STALL_WARN stuck attempts and keep blocking. Auto-end only on
+# the owner's NIGHTSHIFT_STALL_MAX=N opt-in.
 FP="$TICKED:$(project_head)"
 prev_fp=""
 prev_n=0
@@ -104,15 +129,21 @@ if [ "$prev_fp" = "$FP" ]; then
 else
   attempts=1
 fi
-if [ "$attempts" -ge "$STALL_MAX" ]; then
-  log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
-  printf 'stalled\n' >"$STOP"
-  whistle "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
-  exit 0
+if [ "$STALL_MAX" -gt 0 ] 2>/dev/null; then
+  if [ "$attempts" -ge "$STALL_MAX" ]; then
+    log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
+    printf 'stalled\n' >"$STOP"
+    receipts_commit "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
+    whistle "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
+    exit 0
+  fi
+elif [ "$attempts" -ge "$STALL_WARN" ]; then
+  log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
+  attempts=0
 fi
 printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 
-# 5. Block, and re-inject the contract so the next turn resumes the shift.
+# 4. Block, and re-inject the contract so the next turn resumes the shift.
 cat <<'JSON'
 {"decision":"block","reason":"DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them top to bottom, ONE at a time, each to its own Verify. Per item: implement fully — no stubs, no deferrals, no 'documented for later'; run the item gate right before its commit and require it GREEN; make ONE commit; then tick the box to '- [x]'. Never fake a tick. Deletion is not completion — never remove an item or edit the contract above '## Items'. Park any decision that is genuinely the owner's in .nightshift/parking-lot.md with a sensible default chosen, and KEEP WORKING — never ask, never wait. A walkthrough cycle that finds nothing new is SUCCESS, not idleness. You may stop only when zero '- [ ]' remain, or the owner issues a stop-work order (.nightshift/STOP)."}
 JSON

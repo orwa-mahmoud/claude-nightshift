@@ -38,17 +38,37 @@ load helpers
   grep -q 'quitting time' "$p/.nightshift/shift-log.md"
 }
 
-@test "stall red-tag ends the shift after N no-progress stop attempts" {
+@test "a stalled shift is held by default: block stands, no STOP, warning logged" {
   p="$(new_project)"
   punch_open "$p"
   run gate "$p"
-  is_block "$output"
+  run gate "$p"
   run gate "$p"
   is_block "$output"
-  run gate "$p"
+  [ ! -f "$p/.nightshift/STOP" ]
+  grep -q 'stall warning' "$p/.nightshift/shift-log.md"
+}
+
+@test "the hold-mode warning repeats every third stuck attempt" {
+  p="$(new_project)"
+  punch_open "$p"
+  for _ in 1 2 3 4 5 6; do run gate "$p"; done
+  is_block "$output"
+  [ ! -f "$p/.nightshift/STOP" ]
+  [ "$(grep -c 'stall warning' "$p/.nightshift/shift-log.md")" -eq 2 ]
+}
+
+@test "the stall opt-in ends the shift after N no-progress stop attempts" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=3
+  is_block "$output"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=3
+  is_block "$output"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=3
   [ -z "$output" ]
-  [ -f "$p/.nightshift/STOP" ]
-  grep -q 'stalled' "$p/.nightshift/shift-log.md"
+  grep -q 'stalled' "$p/.nightshift/STOP"
+  grep -q 'stalled — auto-ended' "$p/.nightshift/shift-log.md"
 }
 
 @test "a ticked box resets the stall counter" {
@@ -90,17 +110,29 @@ load helpers
   [ ! -f "$p/.nightshift/.notified" ]
 }
 
-@test "morning whistle fires on a stall red-tag release" {
+@test "morning whistle fires on an opted-in stall release" {
   p="$(new_project)"
   punch_open "$p"
   wl="$BATS_TEST_TMPDIR/w.log"
   nc="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
-  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
-  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
-  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=3
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=3
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=3
   [ -z "$output" ]
   grep -q 'stalled' "$wl"
   [ "$(wc -l <"$wl" | tr -d ' ')" -eq 1 ]
+}
+
+@test "hold mode never fires the whistle" {
+  p="$(new_project)"
+  punch_open "$p"
+  wl="$BATS_TEST_TMPDIR/held.log"
+  nc="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc"
+  is_block "$output"
+  [ ! -f "$wl" ]
 }
 
 @test "morning whistle fires on a stop-work release" {
@@ -111,4 +143,36 @@ load helpers
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
   [ -z "$output" ]
   grep -q 'shift ended' "$wl"
+}
+
+@test "a done release commits the receipts repo when one exists" {
+  p="$(new_project)"
+  punch_open "$p"
+  receipts_init "$p"
+  punch_done "$p"
+  run gate "$p"
+  [ -z "$output" ]
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
+  git -C "$p/.nightshift" log -1 --format=%s | grep -q 'shift done: 2/2'
+}
+
+@test "a stop-work release snapshots the receipts repo" {
+  p="$(new_project)"
+  punch_open "$p"
+  receipts_init "$p"
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  printf 'parked: pick the DB\n' >"$p/.nightshift/parking-lot.md"
+  run gate "$p"
+  [ -z "$output" ]
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
+}
+
+@test "the stop reason keeps its spacing in the whistle summary" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'stopped by owner · 2026-07-19T02:40:00\n' >"$p/.nightshift/STOP"
+  wl="$BATS_TEST_TMPDIR/w.log"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  [ -z "$output" ]
+  grep -q 'stopped by owner' "$wl"
 }

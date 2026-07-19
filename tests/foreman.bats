@@ -41,7 +41,21 @@ EOF
   grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
 }
 
-@test "stops at its own stall guard on a no-progress agent (exit 4, writes STOP)" {
+@test "a no-progress agent is held by default: no STOP, warnings logged, counter resets" {
+  run "$FOREMAN" --agent "bash $BIN/noop.sh" --project "$P" --max-iterations 7
+  [ "$status" -eq 3 ]
+  [ ! -f "$P/.nightshift/STOP" ]
+  [ "$(grep -c 'stall warning' "$P/.nightshift/shift-log.md")" -eq 2 ]
+  grep -q 'keeping shift open' "$P/.nightshift/shift-log.md"
+}
+
+@test "the stall opt-in stops a no-progress agent (exit 4, writes STOP)" {
+  run env NIGHTSHIFT_STALL_MAX=3 "$FOREMAN" --agent "bash $BIN/noop.sh" --project "$P" --max-iterations 50
+  [ "$status" -eq 4 ]
+  grep -q 'stalled' "$P/.nightshift/STOP"
+}
+
+@test "the --stall flag is the CLI form of the same opt-in" {
   run "$FOREMAN" --agent "bash $BIN/noop.sh" --project "$P" --max-iterations 50 --stall 3
   [ "$status" -eq 4 ]
   [ -f "$P/.nightshift/STOP" ]
@@ -75,4 +89,31 @@ EOF
 @test "requires --agent" {
   run "$FOREMAN" --project "$P"
   [ "$status" -eq 1 ]
+}
+
+@test "a custom punch-list path with no .nightshift dir runs without error spam" {
+  P2="$BATS_TEST_TMPDIR/bare"
+  mkdir -p "$P2"
+  git -C "$P2" init -q
+  git -C "$P2" config user.email dev@example.com
+  git -C "$P2" config user.name tester
+  git -C "$P2" commit -q --allow-empty -m init
+  pl="$BATS_TEST_TMPDIR/list.md"
+  printf -- '- [ ] **1.**\n' >"$pl"
+  cat >"$BIN/tick_custom.sh" <<EOF
+#!/usr/bin/env bash
+sed -i.bak 's/\[ \]/[x]/' "$pl"
+EOF
+  chmod +x "$BIN/tick_custom.sh"
+  run "$FOREMAN" --agent "bash $BIN/tick_custom.sh" --project "$P2" --punch-list "$pl" --max-iterations 5
+  [ "$status" -eq 0 ]
+  ! printf '%s' "$output" | grep -qi 'no such file'
+}
+
+@test "usage prints the header only, no stray code lines" {
+  run "$FOREMAN" --help
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q -- '--agent'
+  ! printf '%s' "$output" | grep -q 'set -u'
+  ! printf '%s' "$output" | grep -q 'AGENT='
 }
