@@ -1,46 +1,49 @@
 ---
-description: Stage a ready-made overnight job — coverage hunt, defect hunt, or the standing loop — into the drafting table; promoted to the punch list only on the owner's word.
+description: Write a ready-made overnight job — coverage hunt, defect hunt, or the standing loop — as a work order with its hours; cut into the punch list only when the owner says start.
 ---
 
-Stage a walkthrough for `$CLAUDE_PROJECT_DIR`. Propose, never impose: the punch list changes only
+Prepare a work order for `$CLAUDE_PROJECT_DIR`. Propose, never impose: the punch list changes only
 on an explicit yes. If `.nightshift/` does not exist, stop and point to `/nightshift:setup` first.
 
 ## 1. Offer the jobs
 
 Present the three presets from
 `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/walkthrough-item.md`, one line each, and ask
-which one:
+which one — and how many hours it gets (every preset is open-ended; the hours are its only cost
+cap):
 
 - **Coverage hunt** — meaningful tests until the whistle.
 - **Defect hunt** — review → fix until a full pass finds nothing new, or the whistle.
 - **Standing loop** — improve and discover; only the clock ends it.
 
-## 2. Stage it — never clobber
+## 2. Write the work order
 
-Append the chosen preset item to `.nightshift/drafting-table.md`, wrapped in a session banner so
-this staging can never tangle with drafts already sitting there:
+Append the chosen preset and its hours to `.nightshift/work-orders.md` — hunt's own file; the
+drafting table stays the owner's room. Never clobber orders already sitting there — append below
+them:
 
 ```text
-— staged by /nightshift:hunt · <ISO date time> · start —
+## Work order — <ISO date time>
+Hours: <N>
+
 - [ ] **<the preset item, verbatim>**
   ...
-— staged by /nightshift:hunt · <ISO date time> · end —
 ```
 
-Existing drafts stay untouched, wherever they are in the file. The drafting table is the owner's
-room: they may edit the staged item directly, or ask you to reorganize the whole table — do it
-with them, then continue.
+The hours are inert while the order sits here — the clock starts only at the cut.
 
-## 3. Promote on the owner's word
+## 3. Ask: start now?
 
-Show the staged item and ask, with three first-class answers:
+One question. On **yes**:
 
-- **promote** — copy the item under `## Items` in `.nightshift/punch-list.md`, exactly as staged
-  (banners stay behind in the drafting table),
-- **edit** — rework it with the owner first, then promote what they approve,
-- **leave** — it stays drafted; nothing enters the punch list; fully respected.
+- **cut** the item — move it from `work-orders.md` under `## Items` in
+  `.nightshift/punch-list.md`; the order entry is removed, the punch list is the only place it
+  lives now,
+- write `.nightshift/deadline` as a UNIX epoch: `now + hours*3600`,
+- append a `shift started · work order · <preset> · <N>h` line to `.nightshift/shift-log.md`.
 
-## 4. Point at the clock
+From that second the site is live: the clock-out gate holds every session here — this one
+included — until the list is done, a stop-work order lands, or the whistle blows.
 
-Remind the owner: `/nightshift:start` demands hours for any walkthrough — the deadline is the cost
-cap, and the standing loop ends at nothing else.
+On **no**: the order stays parked with its hours, costing nothing; `/nightshift:start` offers it
+when the owner is ready. Fully respected either way.

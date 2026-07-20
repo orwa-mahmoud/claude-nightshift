@@ -130,7 +130,8 @@ Everything is named from a real construction site — learn one term, guess the 
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
 | **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
 | **coverage hunt** · **defect hunt** · **standing loop** | walkthrough presets | the three famous overnight jobs, ready to run |
-| **hunt** | `/nightshift:hunt` | stages a ready-made walkthrough into the drafting table; enters the punch list only on your word |
+| **hunt** | `/nightshift:hunt` | writes a ready-made walkthrough as a work order; cuts it into the punch list only on your word |
+| **work order** | `.nightshift/work-orders.md` | a prepared job ticket — the item plus its hours, clock not running until the cut |
 | **snag log** | `.nightshift/snag-log.md` | findings ledger across runs — cycle 4 never re-reports cycle 1 |
 | **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
 | **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
@@ -158,11 +159,13 @@ the clock says stop. Every cycle rotates a fresh lens — real-bug traces, UX fr
 contract drift, dead code — walks the live UI, and runs your quality tooling at every site
 inspection. An empty cycle doesn't end it; it means dig deeper. Only the whistle ends it.
 
-None of them is a command you babysit — `/nightshift:hunt` stages the one you pick into the
-drafting table (never touching drafts already there), you promote it to the punch list with a
-word, and `/nightshift:start` demands the hours (a walkthrough may not start without a deadline —
-that's your cost cap). Prefer to hand-roll? The items live in
-[`walkthrough-item.md`](skills/nightshift/references/walkthrough-item.md) — paste and tweak.
+None of them is a command you babysit — `/nightshift:hunt` writes the one you pick as a **work
+order**: the item plus its hours, parked in `.nightshift/work-orders.md` with the clock not
+running. Say "start now" and it cuts the order into the punch list, arms the deadline, and the
+gate takes over — or leave it parked and `/nightshift:start` offers it when you're ready. Either
+way a walkthrough never runs without its cost cap. Prefer to hand-roll? The items live in
+[`walkthrough-item.md`](skills/nightshift/references/walkthrough-item.md) — paste and tweak, and
+`start` asks the hours.
 
 ## Owner knobs
 
