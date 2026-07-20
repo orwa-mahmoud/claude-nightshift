@@ -6,6 +6,10 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 
 ## 1. Preflight
 
+- If `.nightshift/work-orders.md` holds a pending order, offer to cut it in: on yes, move its item
+  under `## Items` and write `.nightshift/deadline` from the order's recorded hours
+  (`now + hours*3600`) — the deadline question below is then already answered. Declining leaves
+  the order parked; never cut without a yes.
 - `.nightshift/punch-list.md` exists and has at least one open `- [ ]` under `## Items`. If not, stop
   and tell the user to run `/nightshift:setup` and add items first.
 - The working tree is clean enough to commit per item (warn if not).

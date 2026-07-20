@@ -14,7 +14,8 @@ For each target below, copy the template only if the target does not already exi
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/parking-lot-template.md`  → `.nightshift/parking-lot.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/snag-log-template.md`     → `.nightshift/snag-log.md`
 
-Create `.nightshift/shift-log.md` with a one-line header if it does not exist.
+Create `.nightshift/shift-log.md` and `.nightshift/work-orders.md` with a one-line header each if
+they do not exist.
 
 ## 2. Private by default
 

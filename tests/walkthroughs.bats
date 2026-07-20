@@ -17,18 +17,25 @@ HUNT="$BATS_TEST_DIRNAME/../commands/hunt.md"
   grep -qi 'report mode' "$WALK"
 }
 
-@test "hunt stages to the drafting table and never clobbers existing drafts" {
-  grep -q 'drafting-table.md' "$HUNT"
+@test "hunt writes the order and its hours to work-orders.md" {
+  grep -q 'work-orders.md' "$HUNT"
+  grep -q 'Hours:' "$HUNT"
   grep -qi 'never clobber' "$HUNT"
-  grep -qi 'stay untouched' "$HUNT"
 }
 
-@test "hunt promotes only on the owner's word" {
-  grep -qi 'promote' "$HUNT"
-  grep -qi 'explicit yes' "$HUNT"
+@test "hunt cuts into the punch list only on a yes" {
+  grep -qi 'start now' "$HUNT"
+  grep -qi 'cut' "$HUNT"
   grep -q 'punch-list.md' "$HUNT"
+  grep -qi 'explicit yes' "$HUNT"
 }
 
-@test "hunt points at the mandatory walkthrough deadline" {
-  grep -qi 'demands hours' "$HUNT"
+@test "the cut arms the deadline from the recorded hours" {
+  grep -q 'hours\*3600' "$HUNT"
+  grep -qi 'clock starts only at the cut' "$HUNT"
+}
+
+@test "start offers pending work orders and setup scaffolds the file" {
+  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../commands/start.md"
+  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../commands/setup.md"
 }
