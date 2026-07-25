@@ -1,0 +1,23 @@
+name: 💡 Feature request
+description: Propose an improvement. Note the scope rule — the plugin stays small and strict.
+title: "[feat]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the situation where the current plugin falls short.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing" — per CONTRIBUTING, features that widen scope are usually declined.
