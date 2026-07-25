@@ -266,4 +266,4 @@ exists for what comes after — *ralph keeps Claude running; nightshift makes th
 
 ## License
 
-[MIT](LICENSE) © Orwa Mahmoud
+[MIT](LICENSE) © [Orwa Mahmoud](https://orwamahmoud.com)
