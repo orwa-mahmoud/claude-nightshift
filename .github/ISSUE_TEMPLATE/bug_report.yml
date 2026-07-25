@@ -1,0 +1,36 @@
+name: 🐛 Bug report
+description: Something in the plugin misbehaves — a hook, a skill, or the stop-gate.
+title: "[bug]: "
+labels: [bug]
+body:
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Harness
+      options:
+        - Claude Code
+        - Cursor
+        - Other (say which below)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      placeholder: e.g. 0.2.0
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did the agent / gate do, and what should it have done instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: Punch-list state + the steps that trigger it. Transcript snippets help a lot.
+    validations:
+      required: true
