@@ -34,6 +34,7 @@ STOP="$NS/STOP"
 DEADLINE="$NS/deadline"
 STALL="$NS/.stall"
 NOTIFIED="$NS/.notified"
+ENDED="$NS/.ended" # written when the shift actually ends; hardhat keeps the site rules armed until then
 LOG="$NS/shift-log.md"
 STALL_MAX="${NIGHTSHIFT_STALL_MAX:-0}" # 0 = hold a stalled shift, never auto-end
 STALL_WARN=3
@@ -52,11 +53,22 @@ open_boxes()   { count '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
 ticked_boxes() { count '^[[:space:]]*-[[:space:]]*\[[xX]\]'; }
 
 # The code repo is what makes a commit visible as progress, and the recommended layout puts it
-# one level below the project dir rather than at it.
+# one level below the project dir rather than at it. Where several repos sit there, no single
+# HEAD describes the shift — so fingerprint all of them, and a commit in any one still counts.
 project_head() {
-  local r
-  r="$(repo_root "$PROJECT_DIR")" || { printf 'nohead'; return 0; }
-  git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
+  local r child base heads=""
+  if r="$(repo_root "$PROJECT_DIR")"; then
+    git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
+    return 0
+  fi
+  for child in "$PROJECT_DIR"/*/; do
+    base="${child%/}"
+    base="${base##*/}"
+    case "$base" in .*) continue ;; esac
+    r="$(git -C "$child" rev-parse HEAD 2>/dev/null)" || continue
+    heads="$heads$r"
+  done
+  printf '%s' "${heads:-nohead}"
 }
 
 deadline_passed() {
@@ -81,13 +93,29 @@ whistle() {
   NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
 }
 
-# Receipts snapshot — $1 is the commit subject. Transient markers stay out via the
-# receipts repo's own .gitignore; the pinned identity keeps this working headless.
+# Receipts snapshot — $1 is the commit subject. Transient markers stay out via the receipts
+# repo's own .gitignore; the pinned identity keeps this working headless. Signing is turned off
+# explicitly: an owner with commit.gpgsign=true globally would otherwise lose every receipt to a
+# key prompt that nothing is there to answer at 3am.
 receipts_commit() {
+  local err
   [ -d "$NS/.git" ] || return 0
   git -C "$NS" add -A >/dev/null 2>&1 || true
-  git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
-    commit -q -m "$1" >/dev/null 2>&1 || true
+  err="$(git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
+    -c commit.gpgsign=false commit -q -m "$1" 2>&1)" && return 0
+  case "$err" in
+    *"nothing to commit"* | *"nothing added"*) : ;;
+    *) log_line "receipts commit failed: $(printf '%s' "$err" | head -n1)" ;;
+  esac
+}
+
+# Every shift-ending release runs through here. ENDED is what stands the site rules down —
+# hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
+# working until its next stop attempt.
+end_shift() {
+  [ -d "$NS" ] && : >"$ENDED"
+  receipts_commit "$1"
+  whistle "$1"
 }
 
 if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
@@ -98,8 +126,7 @@ if [ -f "$STOP" ]; then
   if [ -f "$PUNCH" ]; then
     reason="$(head -n1 "$STOP" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
     summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
-    receipts_commit "$summary"
-    whistle "$summary"
+    end_shift "$summary"
   fi
   exit 0
 fi
@@ -107,8 +134,7 @@ fi
 # 2. Done — no punch list at all, or every box ticked.
 [ -f "$PUNCH" ] || exit 0
 if [ "$OPEN" -eq 0 ]; then
-  receipts_commit "shift done: $TICKED/$TOTAL"
-  whistle "shift done: $TICKED/$TOTAL"
+  end_shift "shift done: $TICKED/$TOTAL"
   exit 0
 fi
 
@@ -116,8 +142,7 @@ fi
 if [ -f "$DEADLINE" ] && deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
-  receipts_commit "quitting time: $TICKED/$TOTAL done, items left open"
-  whistle "quitting time: $TICKED/$TOTAL done, items left open"
+  end_shift "quitting time: $TICKED/$TOTAL done, items left open"
   exit 0
 fi
 
@@ -142,8 +167,7 @@ if [ "$STALL_MAX" -gt 0 ] 2>/dev/null; then
   if [ "$attempts" -ge "$STALL_MAX" ]; then
     log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
     printf 'stalled\n' >"$STOP"
-    receipts_commit "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
-    whistle "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
+    end_shift "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
     exit 0
   fi
 elif [ "$attempts" -ge "$STALL_WARN" ]; then

@@ -107,10 +107,28 @@ load helpers
   is_deny "$out"
 }
 
-@test "shift-scoped rules are inert under a STOP marker" {
+# A stop-work order is a request, not the ending: the agent keeps working until its next stop
+# attempt, so the site rules must stay armed across that window. The gate writes .ended when it
+# actually releases, and only that stands them down.
+
+@test "a pending stop-work order keeps the site rules armed" {
   p="$(new_project)"
   punch_open "$p"
   : >"$p/.nightshift/STOP"
+  run hardhat_bash "$p" "git add ai_docs/x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  run hardhat_ask "$p"
+  is_deny "$output"
+}
+
+@test "the site rules stand down once the gate has ended the shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/STOP"
+  run gate "$p"                       # the release that actually ends it
+  [ -f "$p/.nightshift/.ended" ]
   run hardhat_bash "$p" "git add ai_docs/x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
   ! is_deny "$output"
   run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
