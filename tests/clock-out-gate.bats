@@ -38,6 +38,43 @@ load helpers
   grep -q 'quitting time' "$p/.nightshift/shift-log.md"
 }
 
+# The done and stop-work releases assert their receipts and whistle below; quitting time and the
+# stall opt-in are shift-ending too, and shipped without the same proof.
+@test "quitting time leaves receipts, a whistle and the ended marker" {
+  p="$(new_project)"
+  punch_open "$p"
+  receipts_init "$p"
+  wl="$BATS_TEST_TMPDIR/qt.log"
+  echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
+  grep -q 'quitting time' "$wl"
+}
+
+@test "the stall auto-end leaves receipts, a whistle and the ended marker" {
+  p="$(new_project)"
+  punch_open "$p"
+  receipts_init "$p"
+  wl="$BATS_TEST_TMPDIR/st.log"
+  nc="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=2
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=2
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
+  grep -q 'stalled' "$wl"
+}
+
+@test "a held shift is not an ended one" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/.ended" ]
+}
+
 # The deadline accepts an epoch or an ISO timestamp. The ISO branch resolves through GNU `date -d`
 # or BSD `date -j -f` — one of the two is always the fallback, so these pin both platforms.
 

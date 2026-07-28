@@ -20,9 +20,46 @@ load helpers
 @test "hook commands run from a directory whose path contains a space" {
   dir="$BATS_TEST_TMPDIR/plugin root with spaces"
   mkdir -p "$dir/hooks"
-  cp "$BATS_TEST_DIRNAME/../hooks/clock-out-gate.sh" "$dir/hooks/"
+  cp "$BATS_TEST_DIRNAME"/../hooks/*.sh "$dir/hooks/"
   p="$(new_project)"
   cmd="$(jq -r '.hooks.Stop[0].hooks[0].command' "$BATS_TEST_DIRNAME/../hooks/hooks.json")"
   CLAUDE_PLUGIN_ROOT="$dir" CLAUDE_PROJECT_DIR="$p" run sh -c "$cmd"
   [ "$status" -eq 0 ]
+}
+
+# A path or matcher that no longer resolves disables a guard in total silence: the hook simply
+# never runs, and every other test — which invokes the scripts directly — stays green. These
+# assert the wiring itself, which is the only thing standing between the config and no guard.
+
+@test "every hooks.json command points at a file that exists" {
+  root="$BATS_TEST_DIRNAME/.."
+  while IFS= read -r cmd; do
+    path="${cmd%\"}"
+    path="${path#\"}"
+    path="${path/\$\{CLAUDE_PLUGIN_ROOT\}/$root}"
+    [ -f "$path" ] || { echo "hooks.json names a file that does not exist: $path"; return 1; }
+  done < <(jq -r '.. | .command? // empty' "$root/hooks/hooks.json")
+}
+
+@test "hooks.json registers the events and matchers the guards rely on" {
+  f="$BATS_TEST_DIRNAME/../hooks/hooks.json"
+  [ "$(jq -r '[.hooks.PreToolUse[].matcher] | sort | join(",")' "$f")" = "AskUserQuestion,Bash" ]
+  [ "$(jq -r '.hooks.Stop | length' "$f")" -eq 1 ]
+  jq -e '.hooks.PreToolUse[] | select(.matcher=="Bash")   | .hooks[0].command | test("hardhat")'       "$f" >/dev/null
+  jq -e '.hooks.PreToolUse[] | select(.matcher=="AskUserQuestion") | .hooks[0].command | test("hardhat")' "$f" >/dev/null
+  jq -e '.hooks.Stop[0].hooks[0].command | test("clock-out-gate")' "$f" >/dev/null
+}
+
+@test "the hooks wired in hooks.json actually decide when driven through their own config" {
+  root="$BATS_TEST_DIRNAME/.."
+  p="$(new_project)"
+  punch_open "$p"
+  cmd="$(jq -r '.hooks.PreToolUse[] | select(.matcher=="Bash") | .hooks[0].command' "$root/hooks/hooks.json")"
+  out="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}' |
+    CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PROJECT_DIR="$p" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' sh -c "$cmd")"
+  is_deny "$out"
+
+  cmd="$(jq -r '.hooks.Stop[0].hooks[0].command' "$root/hooks/hooks.json")"
+  out="$(CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PROJECT_DIR="$p" sh -c "$cmd")"
+  is_block "$out"
 }
