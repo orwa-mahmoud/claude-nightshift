@@ -3,9 +3,9 @@
 > **Claude works the night shift: it can't clock out until the punch list is done — and the site
 > has safety rules.**
 
-A [Claude Code](https://claude.com/claude-code) plugin for long, unattended runs (hours → days).
-You write the checklist. Hooks keep the agent on site until every box is ticked, under rules you
-set and it can't bend. You go to sleep.
+A [Claude Code](https://claude.com/claude-code) plugin for long, unattended runs (hours → days) —
+a harness for the accountability half of an agent loop. You write the checklist. Hooks keep the
+agent on site until every box is ticked, under rules you set and it can't bend. You go to sleep.
 
 Overview and FAQ: <https://orwamahmoud.com/nightshift/>
 
