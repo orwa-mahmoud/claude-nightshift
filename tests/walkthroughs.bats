@@ -1,5 +1,5 @@
 WALK="$BATS_TEST_DIRNAME/../skills/nightshift/references/walkthrough-item.md"
-HUNT="$BATS_TEST_DIRNAME/../commands/hunt.md"
+HUNT="$BATS_TEST_DIRNAME/../skills/hunt/SKILL.md"
 
 @test "the template ships all three presets" {
   grep -q '^## Coverage hunt' "$WALK"
@@ -36,6 +36,6 @@ HUNT="$BATS_TEST_DIRNAME/../commands/hunt.md"
 }
 
 @test "start offers pending work orders and setup scaffolds the file" {
-  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../commands/start.md"
-  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../commands/setup.md"
+  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
+  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
 }

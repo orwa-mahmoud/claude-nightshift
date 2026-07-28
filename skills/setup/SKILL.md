@@ -1,4 +1,5 @@
 ---
+name: setup
 description: Scaffold .nightshift/ from the templates and propose stack-aware quality gates — ask, never impose. Private by default.
 ---
 

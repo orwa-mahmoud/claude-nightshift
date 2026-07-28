@@ -1,4 +1,5 @@
 ---
+name: hunt
 description: Write a ready-made overnight job — coverage hunt, defect hunt, or the standing loop — as a work order with its hours; cut into the punch list only when the owner says start.
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: start
 description: Begin the shift — preflight, clear stale markers, set a deadline only when it means something, then work the punch list.
 ---
 

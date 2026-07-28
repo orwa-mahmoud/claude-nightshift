@@ -1,4 +1,5 @@
 ---
+name: quality
 description: Survey the project's existing quality debt — lint, types, dead code — and propose punch-list items. Read-only scan; proposes, never imposes.
 ---
 
