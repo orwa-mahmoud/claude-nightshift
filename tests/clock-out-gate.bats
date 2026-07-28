@@ -38,6 +38,37 @@ load helpers
   grep -q 'quitting time' "$p/.nightshift/shift-log.md"
 }
 
+# The deadline accepts an epoch or an ISO timestamp. The ISO branch resolves through GNU `date -d`
+# or BSD `date -j -f` — one of the two is always the fallback, so these pin both platforms.
+
+@test "an ISO deadline in the past releases the shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '2020-01-01T00:00:00\n' >"$p/.nightshift/deadline"
+  run gate "$p"
+  [ -z "$output" ]
+  [ -f "$p/.nightshift/STOP" ]
+  grep -q 'quitting time' "$p/.nightshift/shift-log.md"
+}
+
+@test "an ISO deadline in the future keeps the shift open" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '2999-01-01T00:00:00\n' >"$p/.nightshift/deadline"
+  run gate "$p"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/STOP" ]
+}
+
+@test "an unparseable deadline never ends the shift by accident" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'not-a-date\n' >"$p/.nightshift/deadline"
+  run gate "$p"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/STOP" ]
+}
+
 @test "a stalled shift is held by default: block stands, no STOP, warning logged" {
   p="$(new_project)"
   punch_open "$p"
