@@ -16,6 +16,9 @@
 # Exit: 0 done · 2 deadline · 3 cap · 4 stalled (opt-in) · 5 stop-work · 1 usage.
 set -u
 
+# shellcheck source=hooks/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../hooks/lib.sh"
+
 AGENT=""
 PROJECT="$PWD"
 PUNCH=""
@@ -70,7 +73,23 @@ ticked_boxes() {
   n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[xX]\]' "$PUNCH" 2>/dev/null || true)"
   printf '%s' "${n:-0}"
 }
-project_head() { git -C "$PROJECT" rev-parse HEAD 2>/dev/null || printf 'nohead'; }
+# Same resolution the hooks use: the recommended layout puts the code repo one level below the
+# project dir, and a commit there still has to read as progress.
+project_head() {
+  local r child base heads=""
+  if r="$(repo_root "$PROJECT")"; then
+    git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
+    return 0
+  fi
+  for child in "$PROJECT"/*/; do
+    base="${child%/}"
+    base="${base##*/}"
+    case "$base" in .*) continue ;; esac
+    r="$(git -C "$child" rev-parse HEAD 2>/dev/null)" || continue
+    heads="$heads$r"
+  done
+  printf '%s' "${heads:-nohead}"
+}
 
 to_epoch() { # echoes an epoch, or nothing if unparseable / empty
   local d="$1" day e

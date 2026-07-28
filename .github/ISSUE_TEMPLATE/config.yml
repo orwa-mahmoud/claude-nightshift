@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: 📖 Documentation
-    url: https://github.com/orwa-mahmoud/claude-nightshift/tree/main/docs
+    url: https://github.com/orwa-mahmoud/claude-nightshift/blob/main/README.md
     about: Setup, the punch-list contract, gates, and the stop-gate explained.
   - name: 🔒 Security — gate-bypass reports
     url: https://github.com/orwa-mahmoud/claude-nightshift/security/advisories/new

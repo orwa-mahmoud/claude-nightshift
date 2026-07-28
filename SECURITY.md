@@ -21,7 +21,7 @@ issue asking the maintainer to contact you, without disclosing details.
 
 When reporting, please include:
 
-- The harness (Claude Code / Cursor) and plugin version.
+- The harness (Claude Code, or which agent CLI via `adapters/foreman.sh`) and plugin version.
 - A minimal reproduction of the bypass.
 
 You'll get a reply within a week. Please don't disclose gate-bypass reports
