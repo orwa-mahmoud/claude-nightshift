@@ -74,5 +74,12 @@ hardhat_ask() {
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
 }
 
-is_block() { printf '%s' "$1" | grep -q '"decision":"block"'; }
-is_deny() { printf '%s' "$1" | grep -q '"permissionDecision":"deny"'; }
+is_block() { printf '%s' "$1" | grep -q '"decision":"block"' && printf '%s' "$1" | jq -e . >/dev/null; }
+is_deny() { printf '%s' "$1" | grep -q '"permissionDecision":"deny"' && printf '%s' "$1" | jq -e . >/dev/null; }
+
+# Letting something through is a positive claim, not the absence of a string: the hook must have
+# run to completion AND said nothing. `! is_deny "$output"` alone also passes when the hook
+# crashed, was never invoked, or exited before reaching the rule under test — which is no
+# assertion at all. These read bats' own $status/$output, so call them with no arguments.
+is_allow() { [ "$status" -eq 0 ] && [ -z "$output" ]; }
+is_release() { [ "$status" -eq 0 ] && [ -z "$output" ]; }

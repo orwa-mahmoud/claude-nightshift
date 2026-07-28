@@ -11,13 +11,13 @@ load helpers
   p="$(new_project)"
   punch_done "$p"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
 }
 
 @test "releases when there is no punch list" {
   p="$(new_project)"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
 }
 
 @test "stop-work order releases even with open boxes" {
@@ -25,7 +25,7 @@ load helpers
   punch_open "$p"
   : >"$p/.nightshift/STOP"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
 }
 
 @test "quitting time releases, writes STOP and a shift-log line" {
@@ -33,7 +33,7 @@ load helpers
   punch_open "$p"
   echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
   [ -f "$p/.nightshift/STOP" ]
   grep -q 'quitting time' "$p/.nightshift/shift-log.md"
 }
@@ -46,7 +46,7 @@ load helpers
   punch_open "$p"
   printf '2020-01-01T00:00:00\n' >"$p/.nightshift/deadline"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
   [ -f "$p/.nightshift/STOP" ]
   grep -q 'quitting time' "$p/.nightshift/shift-log.md"
 }
@@ -97,7 +97,7 @@ load helpers
   run gate "$p" NIGHTSHIFT_STALL_MAX=3
   is_block "$output"
   run gate "$p" NIGHTSHIFT_STALL_MAX=3
-  [ -z "$output" ]
+  is_release
   grep -q 'stalled' "$p/.nightshift/STOP"
   grep -q 'stalled — auto-ended' "$p/.nightshift/shift-log.md"
 }
@@ -148,7 +148,7 @@ load helpers
   p="$(new_project)"
   punch_done "$p"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
   [ ! -f "$p/.nightshift/.notified" ]
 }
 
@@ -160,7 +160,7 @@ load helpers
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=3
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=3
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=3
-  [ -z "$output" ]
+  is_release
   grep -q 'stalled' "$wl"
   [ "$(wc -l <"$wl" | tr -d ' ')" -eq 1 ]
 }
@@ -183,7 +183,7 @@ load helpers
   : >"$p/.nightshift/STOP"
   wl="$BATS_TEST_TMPDIR/w.log"
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
-  [ -z "$output" ]
+  is_release
   grep -q 'shift ended' "$wl"
 }
 
@@ -193,7 +193,7 @@ load helpers
   receipts_init "$p"
   punch_done "$p"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
   [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
   git -C "$p/.nightshift" log -1 --format=%s | grep -q 'shift done: 2/2'
 }
@@ -205,7 +205,7 @@ load helpers
   printf 'stopped by owner\n' >"$p/.nightshift/STOP"
   printf 'parked: pick the DB\n' >"$p/.nightshift/parking-lot.md"
   run gate "$p"
-  [ -z "$output" ]
+  is_release
   [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
 }
 
@@ -215,6 +215,6 @@ load helpers
   printf 'stopped by owner · 2026-07-19T02:40:00\n' >"$p/.nightshift/STOP"
   wl="$BATS_TEST_TMPDIR/w.log"
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
-  [ -z "$output" ]
+  is_release
   grep -q 'stopped by owner' "$wl"
 }

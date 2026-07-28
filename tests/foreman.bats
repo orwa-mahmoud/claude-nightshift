@@ -100,6 +100,22 @@ EOF
   grep -q 'foreman done' "$wl"
 }
 
+# A missing value leaves nothing to shift past, and a failed `shift 2` does not move the loop on.
+# Bound each case in time: a regression here hangs rather than fails.
+@test "an option with no value exits instead of spinning" {
+  for flag in --agent --project --punch-list --deadline --max-iterations --stall; do
+    run perl -e 'alarm 5; exec @ARGV' bash "$FOREMAN" "$flag"
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -q -- "$flag needs a value"
+  done
+}
+
+@test "an unreadable project directory exits 1 with a reason" {
+  run "$FOREMAN" --agent "true" --project "$BATS_TEST_TMPDIR/does-not-exist"
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q 'cannot cd'
+}
+
 @test "requires --agent" {
   run "$FOREMAN" --project "$P"
   [ "$status" -eq 1 ]

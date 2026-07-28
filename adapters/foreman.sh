@@ -29,14 +29,18 @@ usage() {
   exit 1
 }
 
+# An option whose value is missing leaves nothing to shift past, and `shift 2` on a single
+# remaining argument fails without moving — the loop would spin on it forever, silently.
+need_value() { [ "$2" -ge 2 ] || { printf 'foreman: %s needs a value\n' "$1" >&2; usage; }; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --agent) AGENT="${2:-}"; shift 2 ;;
-    --project) PROJECT="${2:-}"; shift 2 ;;
-    --punch-list) PUNCH="${2:-}"; shift 2 ;;
-    --deadline) DEADLINE_RAW="${2:-}"; shift 2 ;;
-    --max-iterations) MAX_ITER="${2:-}"; shift 2 ;;
-    --stall) STALL_MAX="${2:-}"; shift 2 ;;
+    --agent) need_value "$1" $#; AGENT="$2"; shift 2 ;;
+    --project) need_value "$1" $#; PROJECT="$2"; shift 2 ;;
+    --punch-list) need_value "$1" $#; PUNCH="$2"; shift 2 ;;
+    --deadline) need_value "$1" $#; DEADLINE_RAW="$2"; shift 2 ;;
+    --max-iterations) need_value "$1" $#; MAX_ITER="$2"; shift 2 ;;
+    --stall) need_value "$1" $#; STALL_MAX="$2"; shift 2 ;;
     -h | --help) usage ;;
     *) printf 'foreman: unknown argument: %s\n' "$1" >&2; usage ;;
   esac

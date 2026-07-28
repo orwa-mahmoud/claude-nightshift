@@ -4,20 +4,20 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git push origin main"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "push is allowed by default when every box is ticked" {
   p="$(new_project)"
   punch_done "$p"
   run hardhat_bash "$p" "git push"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "allows push when there is no punch list" {
   p="$(new_project)"
   run hardhat_bash "$p" "git push"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "the no-push recipe denies push during an active shift" {
@@ -31,7 +31,7 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git commit -m 'push it real good'" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "protected-dir git write is denied when configured" {
@@ -45,7 +45,7 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git add ai_docs/secret"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "commit under the wrong identity is denied when configured" {
@@ -59,7 +59,7 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "a staged never-commit pattern is denied when configured" {
@@ -77,7 +77,7 @@ load helpers
   printf 'API_KEY=sk-secret\n' >"$p/leak.txt"
   git -C "$p" add leak.txt
   run hardhat_bash "$p" "git commit -m x"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "AskUserQuestion is denied during an active shift" {
@@ -91,7 +91,7 @@ load helpers
   p="$(new_project)"
   punch_done "$p"
   run hardhat_ask "$p"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
@@ -130,9 +130,9 @@ load helpers
   run gate "$p"                       # the release that actually ends it
   [ -f "$p/.nightshift/.ended" ]
   run hardhat_bash "$p" "git add ai_docs/x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
-  ! is_deny "$output"
+  is_allow
   run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "forbidden-commands pattern denies during an active shift" {
@@ -146,14 +146,14 @@ load helpers
   p="$(new_project)"
   punch_done "$p"
   run hardhat_bash "$p" "docker ps" NIGHTSHIFT_FORBIDDEN_COMMANDS='docker'
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "a scary-looking command passes when the forbidden list is unset" {
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "docker compose down"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "deny stays valid JSON when the committer email contains a quote" {
@@ -188,7 +188,7 @@ load helpers
   w="$(new_workspace)"
   punch_open "$w"
   run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "workspace layout: a staged never-commit pattern is denied" {
@@ -206,7 +206,7 @@ load helpers
   printf 'ok\n' >"$w/repo/fine.txt"
   git -C "$w/repo" add fine.txt
   run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "the receipts repo is never mistaken for the code repo" {
@@ -214,7 +214,7 @@ load helpers
   receipts_init "$w"
   punch_open "$w"
   run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "the tool's cwd picks the repo when several sit in the workspace" {

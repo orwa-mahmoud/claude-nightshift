@@ -37,6 +37,10 @@ The hours are inert while the order sits here — the clock starts only at the c
 
 One question. On **yes**:
 
+- **clear every stale run-control marker first** — remove all five if present:
+  `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`, and
+  `.nightshift/deadline`. The two commonest endings, the whistle and a stall auto-end, both leave
+  STOP and a spent deadline behind; cutting on top of them makes the whole hunt a no-op,
 - **cut** the item — move it from `work-orders.md` under `## Items` in
   `.nightshift/punch-list.md`; the order entry is removed, the punch list is the only place it
   lives now,
