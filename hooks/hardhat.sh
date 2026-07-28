@@ -16,6 +16,7 @@
 # be identified they deny: a guard that cannot look is never a guard that approves.
 set -u
 
+# shellcheck source=hooks/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT="$(cat)"

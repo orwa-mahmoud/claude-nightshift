@@ -24,6 +24,7 @@
 # the release.
 set -u
 
+# shellcheck source=hooks/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
