@@ -16,6 +16,9 @@
 # Exit: 0 done · 2 deadline · 3 cap · 4 stalled (opt-in) · 5 stop-work · 1 usage.
 set -u
 
+# shellcheck source=hooks/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../hooks/lib.sh"
+
 AGENT=""
 PROJECT="$PWD"
 PUNCH=""
@@ -29,14 +32,18 @@ usage() {
   exit 1
 }
 
+# An option whose value is missing leaves nothing to shift past, and `shift 2` on a single
+# remaining argument fails without moving — the loop would spin on it forever, silently.
+need_value() { [ "$2" -ge 2 ] || { printf 'foreman: %s needs a value\n' "$1" >&2; usage; }; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --agent) AGENT="${2:-}"; shift 2 ;;
-    --project) PROJECT="${2:-}"; shift 2 ;;
-    --punch-list) PUNCH="${2:-}"; shift 2 ;;
-    --deadline) DEADLINE_RAW="${2:-}"; shift 2 ;;
-    --max-iterations) MAX_ITER="${2:-}"; shift 2 ;;
-    --stall) STALL_MAX="${2:-}"; shift 2 ;;
+    --agent) need_value "$1" $#; AGENT="$2"; shift 2 ;;
+    --project) need_value "$1" $#; PROJECT="$2"; shift 2 ;;
+    --punch-list) need_value "$1" $#; PUNCH="$2"; shift 2 ;;
+    --deadline) need_value "$1" $#; DEADLINE_RAW="$2"; shift 2 ;;
+    --max-iterations) need_value "$1" $#; MAX_ITER="$2"; shift 2 ;;
+    --stall) need_value "$1" $#; STALL_MAX="$2"; shift 2 ;;
     -h | --help) usage ;;
     *) printf 'foreman: unknown argument: %s\n' "$1" >&2; usage ;;
   esac
@@ -66,7 +73,23 @@ ticked_boxes() {
   n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[xX]\]' "$PUNCH" 2>/dev/null || true)"
   printf '%s' "${n:-0}"
 }
-project_head() { git -C "$PROJECT" rev-parse HEAD 2>/dev/null || printf 'nohead'; }
+# Same resolution the hooks use: the recommended layout puts the code repo one level below the
+# project dir, and a commit there still has to read as progress.
+project_head() {
+  local r child base heads=""
+  if r="$(repo_root "$PROJECT")"; then
+    git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
+    return 0
+  fi
+  for child in "$PROJECT"/*/; do
+    base="${child%/}"
+    base="${base##*/}"
+    case "$base" in .*) continue ;; esac
+    r="$(git -C "$child" rev-parse HEAD 2>/dev/null)" || continue
+    heads="$heads$r"
+  done
+  printf '%s' "${heads:-nohead}"
+}
 
 to_epoch() { # echoes an epoch, or nothing if unparseable / empty
   local d="$1" day e

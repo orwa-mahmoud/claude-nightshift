@@ -9,9 +9,10 @@ so contributions should keep that shape.
 - **Open an issue first** for anything beyond a typo or small fix. The gate's
   behaviour is a contract; changes to it need discussion before code.
 - **One concern per PR.** A hook fix and a docs fix are two PRs.
-- **Shell must stay portable.** Hooks run under macOS bash 3.2 and zsh — no
-  bashisms newer than 3.2, no GNU-only flags (`xargs -d`, `sed -i` without a
-  suffix, etc.).
+- **Shell must stay portable.** Hooks run under bash, and must work on macOS's
+  bash 3.2 — no bashisms newer than 3.2, no GNU-only flags (`xargs -d`, `sed -i`
+  without a suffix, etc.). Where a GNU tool has no portable equivalent, try it
+  and fall back to the BSD form, as the deadline parser does.
 - **Test the gate honestly.** If your change touches the stop-gate, include the
   transcript of an actual blocked stop and an actual permitted one in the PR
   description. The tests in `tests/` must pass.

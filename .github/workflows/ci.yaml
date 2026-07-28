@@ -23,6 +23,42 @@ jobs:
           # shellcheck honors the directive in each file; -x follows sourced paths
           echo "$files" | xargs shellcheck -x
 
+  # Installs are pinned to the manifest version, so shipped files changing without a bump means
+  # nobody receives the change. Only a pull request can compare against a base.
+  version-bump:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a version bump when shipped files change, and notes for a bump
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          before="$(git show "$BASE:.claude-plugin/plugin.json" | jq -r '.version')"
+          after="$(git show "$HEAD:.claude-plugin/plugin.json" | jq -r '.version')"
+
+          # A bump is a release: the release job reads its notes from the changelog, so a missing
+          # section must fail here rather than after the merge, when main is already red.
+          if [ "$before" != "$after" ]; then
+            echo "version $before -> $after"
+            .github/release-notes.sh "$after" /tmp/title /tmp/notes
+            echo "release notes found: $(cat /tmp/title)"
+          fi
+
+          # Installs pin to the version, so shipped files changing without one means nobody
+          # receives the change.
+          shipped="$(git diff --name-only "$BASE" "$HEAD" -- hooks/ skills/ adapters/ .claude-plugin/)"
+          if [ -n "$shipped" ] && [ "$before" = "$after" ]; then
+            echo "these shipped files changed but .claude-plugin/plugin.json version is still $after:"
+            echo "$shipped" | sed 's/^/  /'
+            echo "installs pin to that version, so users would never receive this change."
+            exit 1
+          fi
+
   bats:
     runs-on: ubuntu-latest
     steps:

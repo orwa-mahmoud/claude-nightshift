@@ -72,6 +72,20 @@ EOF
   grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
 }
 
+# --deadline takes an epoch, "HH:MM", or an ISO timestamp. The last two resolve through GNU
+# `date -d` or BSD `date -j -f`; these pin both platforms so neither half can rot unnoticed.
+
+@test "an ISO deadline in the past stops before the first iteration (exit 2)" {
+  run "$FOREMAN" --agent "bash $BIN/tick_one.sh" --project "$P" --deadline "2020-01-01T00:00:00"
+  [ "$status" -eq 2 ]
+  grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
+}
+
+@test "an HH:MM deadline already past today rolls to tomorrow, not into the past" {
+  run "$FOREMAN" --agent "bash $BIN/tick_one.sh" --project "$P" --deadline "00:00" --max-iterations 3
+  [ "$status" -ne 2 ]
+}
+
 @test "halts on a pre-existing stop-work order (exit 5)" {
   : >"$P/.nightshift/STOP"
   run "$FOREMAN" --agent "bash $BIN/tick_one.sh" --project "$P"
@@ -84,6 +98,22 @@ EOF
     "$FOREMAN" --agent "bash $BIN/tick_one.sh" --project "$P"
   [ "$status" -eq 0 ]
   grep -q 'foreman done' "$wl"
+}
+
+# A missing value leaves nothing to shift past, and a failed `shift 2` does not move the loop on.
+# Bound each case in time: a regression here hangs rather than fails.
+@test "an option with no value exits instead of spinning" {
+  for flag in --agent --project --punch-list --deadline --max-iterations --stall; do
+    run perl -e 'alarm 5; exec @ARGV' bash "$FOREMAN" "$flag"
+    [ "$status" -eq 1 ]
+    printf '%s' "$output" | grep -q -- "$flag needs a value"
+  done
+}
+
+@test "an unreadable project directory exits 1 with a reason" {
+  run "$FOREMAN" --agent "true" --project "$BATS_TEST_TMPDIR/does-not-exist"
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q 'cannot cd'
 }
 
 @test "requires --agent" {

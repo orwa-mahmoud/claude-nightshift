@@ -11,7 +11,31 @@
     {
       "name": "nightshift",
       "source": "./",
-      "description": "Claude works the night shift: accountable autonomous runs that can't clock out until the punch list is done."
+      "displayName": "nightshift",
+      "description": "Claude works the night shift: accountable autonomous runs that can't clock out until the punch list is done.",
+      "category": "workflow",
+      "tags": [
+        "autonomous",
+        "overnight",
+        "unattended",
+        "punch-list",
+        "guardrails",
+        "hooks"
+      ],
+      "keywords": [
+        "claude-code",
+        "plugin",
+        "autonomous-agents",
+        "ai-agents",
+        "hooks"
+      ],
+      "author": {
+        "name": "Orwa Mahmoud",
+        "url": "https://github.com/orwa-mahmoud"
+      },
+      "homepage": "https://github.com/orwa-mahmoud/claude-nightshift",
+      "repository": "https://github.com/orwa-mahmoud/claude-nightshift",
+      "license": "MIT"
     }
   ]
 }

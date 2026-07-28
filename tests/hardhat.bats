@@ -4,20 +4,20 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git push origin main"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "push is allowed by default when every box is ticked" {
   p="$(new_project)"
   punch_done "$p"
   run hardhat_bash "$p" "git push"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "allows push when there is no punch list" {
   p="$(new_project)"
   run hardhat_bash "$p" "git push"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "the no-push recipe denies push during an active shift" {
@@ -31,7 +31,7 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git commit -m 'push it real good'" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "protected-dir git write is denied when configured" {
@@ -45,7 +45,7 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git add ai_docs/secret"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "commit under the wrong identity is denied when configured" {
@@ -59,7 +59,7 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "a staged never-commit pattern is denied when configured" {
@@ -77,7 +77,7 @@ load helpers
   printf 'API_KEY=sk-secret\n' >"$p/leak.txt"
   git -C "$p" add leak.txt
   run hardhat_bash "$p" "git commit -m x"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "AskUserQuestion is denied during an active shift" {
@@ -91,7 +91,7 @@ load helpers
   p="$(new_project)"
   punch_done "$p"
   run hardhat_ask "$p"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
@@ -107,14 +107,32 @@ load helpers
   is_deny "$out"
 }
 
-@test "shift-scoped rules are inert under a STOP marker" {
+# A stop-work order is a request, not the ending: the agent keeps working until its next stop
+# attempt, so the site rules must stay armed across that window. The gate writes .ended when it
+# actually releases, and only that stands them down.
+
+@test "a pending stop-work order keeps the site rules armed" {
   p="$(new_project)"
   punch_open "$p"
   : >"$p/.nightshift/STOP"
   run hardhat_bash "$p" "git add ai_docs/x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
-  ! is_deny "$output"
+  is_deny "$output"
   run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
-  ! is_deny "$output"
+  is_deny "$output"
+  run hardhat_ask "$p"
+  is_deny "$output"
+}
+
+@test "the site rules stand down once the gate has ended the shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/STOP"
+  run gate "$p"                       # the release that actually ends it
+  [ -f "$p/.nightshift/.ended" ]
+  run hardhat_bash "$p" "git add ai_docs/x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_allow
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_allow
 }
 
 @test "forbidden-commands pattern denies during an active shift" {
@@ -128,14 +146,14 @@ load helpers
   p="$(new_project)"
   punch_done "$p"
   run hardhat_bash "$p" "docker ps" NIGHTSHIFT_FORBIDDEN_COMMANDS='docker'
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "a scary-looking command passes when the forbidden list is unset" {
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "docker compose down"
-  ! is_deny "$output"
+  is_allow
 }
 
 @test "deny stays valid JSON when the committer email contains a quote" {
@@ -153,4 +171,75 @@ load helpers
   run hardhat_bash "$p" 'git add we"ird/x' NIGHTSHIFT_PROTECTED_DIRS='we"ird'
   is_deny "$output"
   printf '%s' "$output" | jq -e . >/dev/null
+}
+
+# --- the recommended layout: project dir is a plain folder, the repo sits one level down ---
+
+@test "workspace layout: a wrong committer identity is denied" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="owner@nope.io"
+  is_deny "$output"
+  # the repo's identity, not whatever the machine's global config happens to hold
+  printf '%s' "$output" | grep -q "dev@example.com"
+}
+
+@test "workspace layout: the expected committer identity is allowed" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
+  is_allow
+}
+
+@test "workspace layout: a staged never-commit pattern is denied" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  printf 'API_KEY=sk-secret\n' >"$w/repo/leak.txt"
+  git -C "$w/repo" add leak.txt
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
+  is_deny "$output"
+}
+
+@test "workspace layout: a clean staged diff commits" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  printf 'ok\n' >"$w/repo/fine.txt"
+  git -C "$w/repo" add fine.txt
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
+  is_allow
+}
+
+@test "the receipts repo is never mistaken for the code repo" {
+  w="$(new_workspace)"
+  receipts_init "$w"
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
+  is_allow
+}
+
+@test "the tool's cwd picks the repo when several sit in the workspace" {
+  w="$(new_workspace)"
+  add_repo "$w" other
+  punch_open "$w"
+  printf 'API_KEY=sk-secret\n' >"$w/repo/leak.txt"
+  git -C "$w/repo" add leak.txt
+  run hardhat_bash_cwd "$w" "$w/repo" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_deny "$output"
+}
+
+@test "an undecidable repo fails closed rather than waving the commit through" {
+  w="$(new_workspace)"
+  add_repo "$w" other
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "cannot tell which git repository"
+}
+
+@test "an unresolvable repo leaves the string-matching guards untouched" {
+  w="$BATS_TEST_TMPDIR/bare"
+  mkdir -p "$w/.nightshift"
+  punch_open "$w"
+  run hardhat_bash "$w" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
 }

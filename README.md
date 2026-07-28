@@ -40,9 +40,10 @@ at a serious product — not a half-done prototype full of shortcuts.
 - **Completion lives in a file, not a phrase.** The shift ends when every `- [ ]` in the punch
   list is ticked — per-item, persistent, greppable. A crashed session resumes from the file.
 - **Your rules are laws, not suggestions.** Nothing is blocked out of the box; whatever *you*
-  forbid, hooks deny mechanically: `git push` for the night, `rm -rf`, commits that touch a
-  protected folder, diffs that smell like secrets, commits under the wrong identity. The agent
-  *can't*, not *shouldn't*.
+  forbid, hooks deny mechanically for the length of the shift: `git push` for the night, `rm -rf`,
+  commits that touch a protected folder, diffs that smell like secrets, commits under the wrong
+  identity. The agent *can't*, not *shouldn't*. They are shift rules, not a background scanner —
+  outside a shift your session is your own.
 - **Questions get parked, not asked.** Mid-shift the ask-the-user tool is denied; the question
   lands in `parking-lot.md` with a sensible default chosen, and work continues. Watching live?
   Type your answer any time and it's applied. Asleep? Review the parked calls over coffee.
@@ -54,7 +55,9 @@ at a serious product — not a half-done prototype full of shortcuts.
   override it. But a pause isn't an ending: the next session resumes the shift, and a headless
   run or the foreman loop has no Escape at all. `touch .nightshift/STOP` from any terminal is the
   real stop-work order: it ends the shift itself — the gate releases, foreman halts, receipts
-  written. Open boxes stay open — a true snapshot of where it stopped.
+  written. It lands at the next stop attempt rather than mid-keystroke, and the site rules stay
+  armed until then, so an order given in alarm never strips the guards off a still-working agent.
+  Open boxes stay open — a true snapshot of where it stopped.
 - **Receipts, not vibes.** Timestamps, per-item commits, cycle logs — versioned in a local
   receipts repo inside `.nightshift/` that never touches your project's history (ignored by
   default; no remote, never pushed).
@@ -93,12 +96,21 @@ Then:
 /nightshift:quality    # optional: turn existing lint/type debt into proposed items
 /nightshift:hunt       # optional: stage a ready-made overnight job (tests / defects / standing loop)
 # write your items in the punch list — one checkbox per task
+#   item anatomy, with real items: examples/overnight-webapp.md
 /nightshift:start      # hours asked only for open-ended work; then go to sleep
 /nightshift:status     # morning: what got done, what got parked, what got stuck
+/nightshift:stop       # end the shift now; open boxes stay open, honestly
 # you review the local commits and push — or forbid pushing outright (one env line below)
 ```
 
-Panic button, any time, from any terminal: `touch .nightshift/STOP`.
+Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an interactive session
+Escape is the immediate halt; STOP is what reaches a headless run or the foreman loop, and it ends
+the shift at the agent's next stop attempt.
+
+One more appears in your slash menu: `/nightshift:nightshift` is the method itself — how to work an
+item, park a decision, keep a snag log. Claude loads it on its own whenever a shift is running, so
+you rarely type it; invoke it directly only to have Claude follow the method on a list you are
+driving by hand.
 
 ## Receipts
 
@@ -137,9 +149,9 @@ Everything is named from a real construction site — learn one term, guess the 
 | **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
 | **quality survey** | `/nightshift:quality` | the optional debt audit — existing lint/type findings become proposed items; accept, edit, or decline |
 | **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
-| **quitting time** | `.nightshift/deadline` | when the whistle blows, the gate clocks the shift out — "4 hours of credit" is enforced, not hoped |
+| **quitting time** | `.nightshift/deadline` | past the deadline, the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
-| **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — halts the site at once |
+| **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
 | **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
 
@@ -174,11 +186,24 @@ Zero-config by default; every knob below is off until you set it (unset ⇒ the 
 | Env var | Effect |
 |---|---|
 | `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules. `git push` keeps pushing yours for the night; `rm -rf\|docker\|terraform` fences the rest. Env vars are fixed at session start, so only you can set or lift a rule — never the agent mid-run |
-| `NIGHTSHIFT_EXPECTED_EMAIL` | deny commits authored under any other identity |
-| `NIGHTSHIFT_PROTECTED_DIRS` | space/pipe-separated dir names never to `git add/commit/tag/remote` |
-| `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | deny a commit whose staged diff matches this `grep -E` pattern |
+| `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits authored under any other identity |
+| `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
+| `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
 | `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. The foreman honors the same knob for its loop (`--stall N` is the CLI form) |
 | `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`) |
+
+Every rule above is **shift-scoped**: it applies while `.nightshift/punch-list.md` has an open
+`- [ ]` and the gate has not yet ended the shift. With no punch list, or once the last box is
+ticked, your session is ordinary again and none of them are watching. They are site rules for the
+night, not a background scanner.
+
+The two commit knobs read git, so they work against the repository the commit lands in — one the
+command names itself (`git -C <dir>`, `cd <dir> &&`), else the tool's working directory, the
+project dir, or the single repo below it. Where that is genuinely ambiguous, such as a workspace
+holding two repos with the commit run from the root, they deny and say so rather than guess.
+
+**Changed in v0.4.0:** the commit guards resolve the repository they inspect, so they hold in the
+recommended layout below as well as in-place. Commits there count as shift progress too.
 
 **Changed in v0.3.0:** by default a stalled agent is now held and red-flagged, never clocked out —
 in the clock-out gate and in the foreman loop alike. Set `NIGHTSHIFT_STALL_MAX=N` to restore
@@ -207,8 +232,21 @@ it. The mechanical enforcement is Claude Code-native today; for every other agen
 moves the loop outside the agent:
 
 ```bash
-adapters/foreman.sh --agent "codex exec --full-auto" --deadline "07:00" --max-iterations 50
+git clone https://github.com/orwa-mahmoud/claude-nightshift
+cd my-project    # a git repo, or a workspace folder holding one
+
+# scaffold by hand — /nightshift:setup is a Claude Code command, foreman has no slash commands
+mkdir -p .nightshift
+cp ../claude-nightshift/skills/nightshift/references/punch-list-template.md .nightshift/punch-list.md
+$EDITOR .nightshift/punch-list.md     # add your items under `## Items`
+
+../claude-nightshift/adapters/foreman.sh \
+  --agent "codex exec --full-auto" --deadline "07:00" --max-iterations 50
 ```
+
+Exit codes say how the night ended: `0` done · `2` deadline · `3` iteration cap · `4` stalled ·
+`5` stop-work order. [`examples/overnight-webapp.md`](examples/overnight-webapp.md) shows the item
+shape to fill that punch list with.
 
 While the punch list has open boxes and the deadline hasn't passed, it re-invokes the agent — and
 because each iteration's only memory is the files, it's crash-proof by design. The hooks block a
@@ -227,6 +265,11 @@ Two different guarantees, never confused:
 
 Read this before you trust it overnight:
 
+- **The list is built with you; the shift runs without you.** Drafting, `/nightshift:quality` and
+  `/nightshift:hunt` are desk work — that is where the night's quality is decided, and none of it
+  arms anything. `/nightshift:start` is the boundary: from there the gate will not let the agent
+  stop and the ask-tool is denied, which is what you want at 3am and pure friction at 3pm. Arm it
+  when you're leaving.
 - **Ticks are self-certified.** The gate checks *boxes*, not *work* — it guarantees the agent
   can't quietly stop with work outstanding, not that a ticked box is truly done. The contract and
   your item gate raise that bar; they don't eliminate the gap.
@@ -247,7 +290,7 @@ Read this before you trust it overnight:
 
 ```bash
 bats tests/                          # test suite — brew install bats-core / apt-get install bats
-shellcheck hooks/*.sh adapters/*.sh  # lint
+git ls-files '*.sh' | xargs shellcheck -x  # lint — the same set CI checks
 tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
 claude plugin validate . --strict    # manifest + marketplace validation
 ```

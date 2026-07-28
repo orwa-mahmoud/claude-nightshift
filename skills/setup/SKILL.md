@@ -1,4 +1,5 @@
 ---
+name: setup
 description: Scaffold .nightshift/ from the templates and propose stack-aware quality gates — ask, never impose. Private by default.
 ---
 
@@ -19,8 +20,11 @@ they do not exist.
 
 ## 2. Private by default
 
-- Append a line `.nightshift/` to the project's `.gitignore` (create the file if needed; do not
-  duplicate the line). Run history is the owner's — it never enters the project repo.
+- Keep run state out of git. If `$CLAUDE_PROJECT_DIR` is itself a git repo, append a line
+  `.nightshift/` to its `.gitignore` (create the file if needed; do not duplicate the line). If it
+  is not one — the recommended layout, where the code repo sits a level below — `.nightshift/` is
+  already outside every repo, so write no `.gitignore` there. Run history is the owner's; it never
+  enters the project repo.
 - Give `.nightshift/` its own local-only receipts repo so state stays versioned without touching the
   project history: if `.nightshift/.git` does not exist, `git init` inside `.nightshift/`, add a
   `.nightshift/.gitignore` that ignores the transient markers `STOP`, `.stall`, `.notified`,

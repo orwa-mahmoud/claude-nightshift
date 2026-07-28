@@ -1,4 +1,5 @@
 ---
+name: stop
 description: Issue a stop-work order — end the shift at once, leaving open items honestly open.
 ---
 

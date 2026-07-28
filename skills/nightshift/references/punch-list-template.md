@@ -27,6 +27,9 @@
 
 - Production-ready, best effort, every time. No stubs, no "future feature", no "documented for
   later", no trivial-only edits. If you can do it now, do it now.
+- Effort is never a reason to defer. "This deserves a focused session" — this IS the focused
+  session. Size, difficulty, or hours already spent never justify a stub, a narrowed scope, or
+  splitting an item for later. Only correctness does.
 - Run the item gate (the `## Gates` block below) right before each commit; it must be green to tick.
 - No suppression — fix real causes. No lint disables without a written reason next to them.
 - One conventional commit per item, local only. Never fake a tick.

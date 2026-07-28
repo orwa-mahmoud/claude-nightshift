@@ -1,4 +1,5 @@
 ---
+name: quality
 description: Survey the project's existing quality debt — lint, types, dead code — and propose punch-list items. Read-only scan; proposes, never imposes.
 ---
 
@@ -24,9 +25,15 @@ Draft one punch-list item per meaningful cluster (e.g. "clear the 12 shellcheck 
 scripts/", "add mypy and fix what it reports"), each in the standard item shape with its own Verify
 and Commit lines. Show the drafts and ask, with three first-class answers:
 
-- **accept** — append the items under `## Items` in `.nightshift/punch-list.md`,
+- **accept** — append the items to `.nightshift/drafting-table.md`,
 - **edit** — reshape the list with the owner first, then append what they approve,
 - **none** — write nothing; fully respected.
+
+Accepted items land on the drafting table, never straight under `## Items`. An open `- [ ]` in
+the punch list is what arms the clock-out gate, for every session in this project including the
+one running now — so arming belongs to `/nightshift:start` alone. Close by telling the owner to
+promote what they want from the drafting table and run `/nightshift:start` when they are ready
+to work it.
 
 If the stack no longer matches the current `## Gates` block, say so in one line and point to
 `/nightshift:setup` — gates belong to setup, not to this command.

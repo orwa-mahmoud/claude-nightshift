@@ -1,4 +1,5 @@
 ---
+name: status
 description: Read-only shift status — open vs ticked items, parked decisions, snag-log summary, deadline remaining, and any STOP/stall state. Starts no work.
 ---
 

@@ -25,7 +25,8 @@ Top to bottom, one item, no batching:
 
 1. **Read** the item and the current `## Gates` block.
 2. **Build** it fully — production-ready, no stubs, no "documented for later". If you can do it now,
-   do it now.
+   do it now. Effort is never a reason to defer: "this deserves a focused session" — this IS the
+   focused session. Only correctness justifies narrowing an item.
 3. **Gate** — run the item gate (the `## Gates` commands) right before the commit. It must be green.
    No suppressions without a written reason beside them.
 4. **Commit** — one conventional commit, local by default: the owner reviews and pushes. Push
