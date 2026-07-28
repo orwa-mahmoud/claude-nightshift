@@ -52,14 +52,7 @@ jobs:
           VERSION: ${{ steps.manifest.outputs.version }}
         run: |
           set -eu
-          awk -v v="$VERSION" '
-            $0 ~ "^## v" v "([ \t]|$)" { on = 1; sub(/^## /, ""); print > "/tmp/title"; next }
-            on && /^## v/ { exit }
-            on { print }
-          ' CHANGELOG.md >/tmp/notes
-          [ -s /tmp/title ] || { echo "CHANGELOG.md has no '## v$VERSION' section" >&2; exit 1; }
-          sed -i -e '/./,$!d' /tmp/notes
-          [ -s /tmp/notes ] || { echo "the '## v$VERSION' section is empty" >&2; exit 1; }
+          .github/release-notes.sh "$VERSION" /tmp/title /tmp/notes
           echo "title: $(cat /tmp/title)"
 
       - name: Tag and publish
