@@ -24,6 +24,30 @@ git clone https://github.com/orwa-mahmoud/claude-nightshift.git
 # install as a local plugin and run /nightshift:setup in a scratch project
 ```
 
+## Checks
+
+```bash
+bats tests/                          # test suite — brew install bats-core / apt-get install bats
+git ls-files '*.sh' | xargs shellcheck -x  # lint — the same set CI checks
+tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
+claude plugin validate . --strict    # manifest + marketplace validation
+```
+
+CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
+on every push.
+
+## Releasing
+
+Installs are pinned to `version` in `.claude-plugin/plugin.json` — users receive updates only when
+it changes. Bump it, add the matching `## vX.Y.Z` section to [`CHANGELOG.md`](CHANGELOG.md), and
+merge to `main`: CI tags the release and publishes it with that section as the notes. Do not tag by
+hand.
+
+Two gates enforce this on a pull request. A change to `hooks/`, `skills/`, `adapters/` or
+`.claude-plugin/` without a version bump fails, because installs pinned to the old version would
+never receive it. A bump with no changelog section behind it fails too, since the release job reads
+its notes from there and a tag with nothing behind it is worse than no tag.
+
 ## What gets merged
 
 Fixes that make the gate harder to fool, adapters for more harnesses, and docs

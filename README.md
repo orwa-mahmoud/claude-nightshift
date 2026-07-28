@@ -7,6 +7,8 @@ A [Claude Code](https://claude.com/claude-code) plugin for long, unattended runs
 You write the checklist. Hooks keep the agent on site until every box is ticked, under rules you
 set and it can't bend. You go to sleep.
 
+Overview and FAQ: <https://orwamahmoud.com/nightshift/>
+
 ## The screen that made me build nightshift
 
 ![An agent checkpoint: the smaller fixes shipped, the bigger items deferred in the agent's own
@@ -129,32 +131,6 @@ The live `.nightshift/` state stays out of this repo — the same default nights
 projects: your run history is yours, ignored by your repo, versioned in its own local receipts
 repo.
 
-## The vocabulary
-
-Everything is named from a real construction site — learn one term, guess the rest:
-
-| Term | File / mechanism | Meaning |
-|---|---|---|
-| **punch list** | `.nightshift/punch-list.md` | construction's final acceptance list — the job isn't done until every item is cleared and signed off |
-| **clock-out gate** | Stop hook | you can't clock out while the punch list has open items |
-| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns; denied, not discouraged |
-| **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
-| **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
-| **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
-| **coverage hunt** · **defect hunt** · **standing loop** | walkthrough presets | the three famous overnight jobs, ready to run |
-| **hunt** | `/nightshift:hunt` | writes a ready-made walkthrough as a work order; cuts it into the punch list only on your word |
-| **work order** | `.nightshift/work-orders.md` | a prepared job ticket — the item plus its hours, clock not running until the cut |
-| **snag log** | `.nightshift/snag-log.md` | findings ledger across runs — cycle 4 never re-reports cycle 1 |
-| **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
-| **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
-| **quality survey** | `/nightshift:quality` | the optional debt audit — existing lint/type findings become proposed items; accept, edit, or decline |
-| **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
-| **quitting time** | `.nightshift/deadline` | past the deadline, the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
-| **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
-| **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
-| **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
-| **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
-
 ## The three famous shifts
 
 **Defect hunt** — the twenty-findings-every-pass loop from the story above, ridden for you. You
@@ -178,6 +154,31 @@ gate takes over — or leave it parked and `/nightshift:start` offers it when yo
 way a walkthrough never runs without its cost cap. Prefer to hand-roll? The items live in
 [`walkthrough-item.md`](skills/nightshift/references/walkthrough-item.md) — paste and tweak, and
 `start` asks the hours.
+
+## The vocabulary
+
+Everything is named from a real construction site — learn one term, guess the rest:
+
+| Term | File / mechanism | Meaning |
+|---|---|---|
+| **punch list** | `.nightshift/punch-list.md` | construction's final acceptance list — the job isn't done until every item is cleared and signed off |
+| **clock-out gate** | Stop hook | you can't clock out while the punch list has open items |
+| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns; denied, not discouraged |
+| **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
+| **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
+| **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
+| **hunt** | `/nightshift:hunt` | writes a ready-made walkthrough as a work order; cuts it into the punch list only on your word |
+| **work order** | `.nightshift/work-orders.md` | a prepared job ticket — the item plus its hours, clock not running until the cut |
+| **snag log** | `.nightshift/snag-log.md` | findings ledger across runs — cycle 4 never re-reports cycle 1 |
+| **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
+| **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
+| **quality survey** | `/nightshift:quality` | the optional debt audit — existing lint/type findings become proposed items; accept, edit, or decline |
+| **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
+| **quitting time** | `.nightshift/deadline` | past the deadline, the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
+| **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
+| **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
+| **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
+| **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
 
 ## Owner knobs
 
@@ -288,18 +289,7 @@ Read this before you trust it overnight:
 
 ## Development
 
-```bash
-bats tests/                          # test suite — brew install bats-core / apt-get install bats
-git ls-files '*.sh' | xargs shellcheck -x  # lint — the same set CI checks
-tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
-claude plugin validate . --strict    # manifest + marketplace validation
-```
-
-CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin
-validation on every push.
-
-**Releasing:** installs are pinned to `version` in `.claude-plugin/plugin.json` — users receive
-updates only when it changes. Bump the version, then tag.
+Tests, lint, coverage, plugin validation and the release process: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Prior art
 
