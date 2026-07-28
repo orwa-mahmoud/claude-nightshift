@@ -154,3 +154,74 @@ load helpers
   is_deny "$output"
   printf '%s' "$output" | jq -e . >/dev/null
 }
+
+# --- the recommended layout: project dir is a plain folder, the repo sits one level down ---
+
+@test "workspace layout: a wrong committer identity is denied" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="owner@nope.io"
+  is_deny "$output"
+  # the repo's identity, not whatever the machine's global config happens to hold
+  printf '%s' "$output" | grep -q "dev@example.com"
+}
+
+@test "workspace layout: the expected committer identity is allowed" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
+  ! is_deny "$output"
+}
+
+@test "workspace layout: a staged never-commit pattern is denied" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  printf 'API_KEY=sk-secret\n' >"$w/repo/leak.txt"
+  git -C "$w/repo" add leak.txt
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
+  is_deny "$output"
+}
+
+@test "workspace layout: a clean staged diff commits" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  printf 'ok\n' >"$w/repo/fine.txt"
+  git -C "$w/repo" add fine.txt
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
+  ! is_deny "$output"
+}
+
+@test "the receipts repo is never mistaken for the code repo" {
+  w="$(new_workspace)"
+  receipts_init "$w"
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
+  ! is_deny "$output"
+}
+
+@test "the tool's cwd picks the repo when several sit in the workspace" {
+  w="$(new_workspace)"
+  add_repo "$w" other
+  punch_open "$w"
+  printf 'API_KEY=sk-secret\n' >"$w/repo/leak.txt"
+  git -C "$w/repo" add leak.txt
+  run hardhat_bash_cwd "$w" "$w/repo" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_deny "$output"
+}
+
+@test "an undecidable repo fails closed rather than waving the commit through" {
+  w="$(new_workspace)"
+  add_repo "$w" other
+  punch_open "$w"
+  run hardhat_bash "$w" "git commit -m x" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com"
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "cannot tell which git repository"
+}
+
+@test "an unresolvable repo leaves the string-matching guards untouched" {
+  w="$BATS_TEST_TMPDIR/bare"
+  mkdir -p "$w/.nightshift"
+  punch_open "$w"
+  run hardhat_bash "$w" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+}

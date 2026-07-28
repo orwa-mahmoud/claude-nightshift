@@ -12,6 +12,25 @@ new_project() {
   printf '%s' "$p"
 }
 
+# Create the recommended layout: a plain workspace folder that is NOT a repo, holding the code
+# repo one level down and .nightshift beside it. Echoes the workspace path.
+new_workspace() {
+  local w="$BATS_TEST_TMPDIR/${1:-ws}"
+  mkdir -p "$w/.nightshift"
+  add_repo "$w" repo
+  printf '%s' "$w"
+}
+
+# add_repo <workspace> <name> — add another git repo one level down.
+add_repo() {
+  local r="$1/$2"
+  mkdir -p "$r"
+  git -C "$r" init -q
+  git -C "$r" config user.email dev@example.com
+  git -C "$r" config user.name tester
+  git -C "$r" commit -q --allow-empty -m init
+}
+
 # Give <project>/.nightshift its own local receipts repo, as /nightshift:setup does.
 receipts_init() {
   printf 'STOP\n.stall\n.notified\ndeadline\n' >"$1/.nightshift/.gitignore"
@@ -36,6 +55,14 @@ hardhat_bash() {
   local p="$1" c="$2"
   shift 2
   jq -nc --arg c "$c" '{tool_name:"Bash",tool_input:{command:$c}}' |
+    env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+}
+
+# hardhat_bash_cwd <project> <cwd> <command> [ENV=VAL ...]
+hardhat_bash_cwd() {
+  local p="$1" w="$2" c="$3"
+  shift 3
+  jq -nc --arg c "$c" --arg w "$w" '{tool_name:"Bash",cwd:$w,tool_input:{command:$c}}' |
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
 }
 

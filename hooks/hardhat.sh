@@ -10,7 +10,13 @@
 #   NIGHTSHIFT_NEVER_COMMIT_PATTERNS staged diff (git diff --cached) must not match this grep -E pattern
 #   NIGHTSHIFT_FORBIDDEN_COMMANDS    deny any command matching this grep -E pattern during a shift
 #                                    (the no-push recipe: set it to 'git push')
+#
+# The two commit guards read git, so they resolve the repository the commit lands in (see
+# repo_root in lib.sh) rather than assuming it is the project dir. When that repository cannot
+# be identified they deny: a guard that cannot look is never a guard that approves.
 set -u
+
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 INPUT="$(cat)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -36,12 +42,14 @@ deny() {
 if command -v jq >/dev/null 2>&1; then
   TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
   CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
+  CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
 else
   # No jq: pull the fields out of the raw JSON with sed so the guard still works. Extract the
   # command value rather than falling back to the whole payload — the quote-scrub below would
   # otherwise strip the command string itself and a push would slip through.
   TOOL="$(printf '%s' "$INPUT" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   CMD="$(printf '%s' "$INPUT" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')"
+  CWD="$(printf '%s' "$INPUT" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
 
@@ -82,18 +90,25 @@ if [ -n "$PROTECTED_DIRS" ] && is_git_write; then
   done
 fi
 
-# 2) Expected identity — commits must be authored by the configured email.
-if [ -n "$EXPECTED_EMAIL" ] && is_commit; then
-  email="$(git -C "$PROJECT_DIR" config user.email 2>/dev/null || true)"
-  if [ "$email" != "$EXPECTED_EMAIL" ]; then
-    deny "BLOCKED: committer identity ('$email') is not the expected '$EXPECTED_EMAIL'. Fix git config user.email, then retry."
-  fi
-fi
+# 2) and 3) — the commit guards read git, so they need the repository the commit lands in,
+# which the recommended layout puts one level below the project dir. Resolve it once, and fail
+# closed: a guard that cannot see the repo denies rather than waving the commit through.
+if is_commit && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }; then
+  REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || deny "BLOCKED: cannot tell which git repository this commit targets, so the configured commit guards cannot run. Run the commit from inside the repository."
 
-# 3) Never-commit patterns — the staged diff must be clean.
-if [ -n "$NEVER_COMMIT_PATTERNS" ] && is_commit; then
-  if git -C "$PROJECT_DIR" diff --cached 2>/dev/null | grep -qiE "$NEVER_COMMIT_PATTERNS"; then
-    deny "BLOCKED: the staged diff matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list."
+  # 2) Expected identity — commits must be authored by the configured email.
+  if [ -n "$EXPECTED_EMAIL" ]; then
+    email="$(git -C "$REPO" config user.email 2>/dev/null || true)"
+    if [ "$email" != "$EXPECTED_EMAIL" ]; then
+      deny "BLOCKED: committer identity ('$email') is not the expected '$EXPECTED_EMAIL'. Fix git config user.email, then retry."
+    fi
+  fi
+
+  # 3) Never-commit patterns — the staged diff must be clean.
+  if [ -n "$NEVER_COMMIT_PATTERNS" ]; then
+    if git -C "$REPO" diff --cached 2>/dev/null | grep -qiE "$NEVER_COMMIT_PATTERNS"; then
+      deny "BLOCKED: the staged diff matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list."
+    fi
   fi
 fi
 
