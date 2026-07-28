@@ -24,6 +24,8 @@
 # the release.
 set -u
 
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
@@ -48,7 +50,13 @@ count() {
 open_boxes()   { count '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
 ticked_boxes() { count '^[[:space:]]*-[[:space:]]*\[[xX]\]'; }
 
-project_head() { git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || printf 'nohead'; }
+# The code repo is what makes a commit visible as progress, and the recommended layout puts it
+# one level below the project dir rather than at it.
+project_head() {
+  local r
+  r="$(repo_root "$PROJECT_DIR")" || { printf 'nohead'; return 0; }
+  git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
+}
 
 deadline_passed() {
   local now dl target

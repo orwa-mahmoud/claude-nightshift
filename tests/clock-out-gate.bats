@@ -93,6 +93,17 @@ load helpers
   [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "1" ]
 }
 
+@test "workspace layout: a commit in the repo below still counts as progress" {
+  w="$(new_workspace)"
+  punch_open "$w"
+  run gate "$w"
+  run gate "$w"
+  git -C "$w/repo" commit -q --allow-empty -m progress
+  run gate "$w"
+  is_block "$output"
+  [ "$(sed -n '2p' "$w/.nightshift/.stall")" = "1" ]
+}
+
 @test "morning whistle fires once with a summary on a shift-ending release" {
   p="$(new_project)"
   punch_done "$p"
