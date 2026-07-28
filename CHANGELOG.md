@@ -3,6 +3,12 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.4.1 — a page of its own
+
+- `homepage` in both manifests points at <https://orwamahmoud.com/nightshift/>, which explains what
+  the plugin does and what it deliberately does not. `repository` still points at the source, so the
+  two fields no longer say the same thing.
+
 ## v0.4.0 — guards look where the commit lands
 
 ### Guards
