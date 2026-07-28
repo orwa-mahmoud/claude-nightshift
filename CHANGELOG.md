@@ -3,7 +3,7 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
-## v0.4.0
+## v0.4.0 — guards look where the commit lands
 
 ### Guards
 
@@ -48,7 +48,7 @@ users receive. Dates are release dates; the tags carry the exact trees.
 - Releases are tagged from the manifest version by CI, and a pull request that changes shipped
   files without bumping it fails.
 
-## v0.3.0
+## v0.3.0 — a stalled shift is held, never sent home
 
 - A stalled shift is held and red-flagged by default instead of being clocked out; `NIGHTSHIFT_STALL_MAX=N`
   restores auto-clock-out, in the gate and the foreman loop alike.
@@ -56,14 +56,14 @@ users receive. Dates are release dates; the tags carry the exact trees.
   park together, and the cut starts the clock.
 - Hook and foreman hardening from a review pass, each finding with a test.
 
-## v0.2.0
+## v0.2.0 — nothing is blocked out of the box
 
 - Nothing is blocked out of the box. Every safety rule became the owner's opt-in, replacing the
   built-in denials.
 - `/nightshift:quality` added; the spot-check hook retired.
 - CI validates the plugin and marketplace manifests on every push.
 
-## v0.1.0
+## v0.1.0 — the clock-out gate
 
 - First release: the clock-out gate (Stop hook), hardhat (PreToolUse guard), park-don't-ask, the
   morning whistle, the nightshift skill, the punch-list/parking-lot/snag-log templates,
