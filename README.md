@@ -265,6 +265,11 @@ Two different guarantees, never confused:
 
 Read this before you trust it overnight:
 
+- **The list is built with you; the shift runs without you.** Drafting, `/nightshift:quality` and
+  `/nightshift:hunt` are desk work — that is where the night's quality is decided, and none of it
+  arms anything. `/nightshift:start` is the boundary: from there the gate will not let the agent
+  stop and the ask-tool is denied, which is what you want at 3am and pure friction at 3pm. Arm it
+  when you're leaving.
 - **Ticks are self-certified.** The gate checks *boxes*, not *work* — it guarantees the agent
   can't quietly stop with work outstanding, not that a ticked box is truly done. The contract and
   your item gate raise that bar; they don't eliminate the gap.
