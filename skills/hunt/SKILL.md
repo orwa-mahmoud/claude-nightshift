@@ -37,15 +37,17 @@ The hours are inert while the order sits here — the clock starts only at the c
 
 One question. On **yes**:
 
-- **clear every stale run-control marker first** — remove all five if present:
-  `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`, and
-  `.nightshift/deadline`. The two commonest endings, the whistle and a stall auto-end, both leave
+- **clear every stale run-control marker first** — remove them all if present:
+  `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
+  `.nightshift/deadline`, `.nightshift/.session-end`, and `.nightshift/.watchman-tick`; if
+  `.nightshift/.watchman` holds a live pid, kill it first. The two commonest endings, the whistle and a stall auto-end, both leave
   STOP and a spent deadline behind; cutting on top of them makes the whole hunt a no-op,
 - **cut** the item — move it from `work-orders.md` under `## Items` in
   `.nightshift/punch-list.md`; the order entry is removed, the punch list is the only place it
   lives now,
 - write `.nightshift/deadline` as a UNIX epoch: `now + hours*3600`,
-- append a `shift started · work order · <preset> · <N>h` line to `.nightshift/shift-log.md`.
+- append a `shift started · work order · <preset> · <N>h` line to `.nightshift/shift-log.md`,
+- arm the night watchman exactly as `/nightshift:start` does (unless `NIGHTSHIFT_WATCH=0`).
 
 From that second the site is live: the clock-out gate holds every session here — this one
 included — until the list is done, a stop-work order lands, or the whistle blows.

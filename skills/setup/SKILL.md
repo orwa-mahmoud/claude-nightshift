@@ -28,7 +28,7 @@ they do not exist.
 - Give `.nightshift/` its own local-only receipts repo so state stays versioned without touching the
   project history: if `.nightshift/.git` does not exist, `git init` inside `.nightshift/`, add a
   `.nightshift/.gitignore` that ignores the transient markers `STOP`, `.stall`, `.notified`,
-  `deadline`, and make one initial commit. **Never add a remote to it, never push it.**
+  `deadline`, `.session-end`, `.watchman`, and `.watchman-tick`, and make one initial commit. **Never add a remote to it, never push it.**
 
 ## 3. Gates — ask, never impose
 

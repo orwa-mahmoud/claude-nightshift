@@ -8,10 +8,12 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 ## 1. Preflight
 
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
-  leftovers would otherwise end tonight's shift at its first stop attempt. Remove all five if
+  leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
-  and `.nightshift/deadline`. A shift that reached the whistle leaves the deadline behind; keeping
-  it means the gate clocks the next one out immediately, zero items done.
+  `.nightshift/deadline`, `.nightshift/.session-end`, and `.nightshift/.watchman-tick`. If
+  `.nightshift/.watchman` holds a live pid, kill it — last night's watchman must not double-arm
+  tonight's. A shift that reached the whistle leaves the deadline behind; keeping it means the
+  gate clocks the next one out immediately, zero items done.
 - If `.nightshift/work-orders.md` holds a pending order, offer to cut it in: on yes, move its item
   under `## Items` and write `.nightshift/deadline` from the order's recorded hours
   (`now + hours*3600`) — the deadline question below is then already answered. Declining leaves
@@ -36,7 +38,22 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 Surface any still-unanswered entries in `.nightshift/parking-lot.md` (read-only) so the owner sees
 what the last shift parked. Append a `shift started` line to `.nightshift/shift-log.md`.
 
-## 4. Work
+## 4. Arm the night watchman
+
+Unless `NIGHTSHIFT_WATCH=0`, arm it in the background:
+
+```bash
+nohup "${CLAUDE_PLUGIN_ROOT}/adapters/watchman.sh" --project "$CLAUDE_PROJECT_DIR" \
+  --interval "${NIGHTSHIFT_WATCH:-20}" >/dev/null 2>&1 &
+```
+
+It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
+spawning a fresh session that resumes from the punch list, and it stands down on done, a
+stop-work order, quitting time, or a clean exit. Esc is honored — the watchman reads the
+interrupt from the session transcript and stands by rather than resuming; `STOP` remains the
+stop-work order, and the only stop a headless run can receive.
+
+## 5. Work
 
 Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit, tick
 honestly, park don't ask, leave pushing to the owner unless the punch list says otherwise. From

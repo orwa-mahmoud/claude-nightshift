@@ -20,9 +20,9 @@ HUNT="$BATS_TEST_DIRNAME/../skills/hunt/SKILL.md"
 # Both entry points into a live shift must clear the same leftovers. They drifted once: start
 # cleared three markers, hunt's cut cleared none, so a spent deadline or a leftover STOP from
 # last night silently ended the next shift at its first stop attempt.
-@test "every path that starts a shift clears all five stale markers" {
+@test "every path that starts a shift clears every stale marker" {
   for f in start hunt; do
-    for m in STOP .stall .notified .ended deadline; do
+    for m in STOP .stall .notified .ended deadline .session-end .watchman-tick .watchman; do
       grep -qF "$m" "$BATS_TEST_DIRNAME/../skills/$f/SKILL.md" \
         || { echo "skills/$f/SKILL.md does not clear $m"; return 1; }
     done

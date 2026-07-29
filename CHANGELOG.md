@@ -3,6 +3,43 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.5.0 — the night watchman
+
+A Stop hook can only act inside a living session. A session killed by an API outage, a crash, or
+a closed terminal fires no hooks — the punch list survived on disk, but nothing re-invoked the
+agent, and the night was lost. The watchman is the outside half.
+
+### The watchman
+
+- `adapters/watchman.sh`, armed in the background by `/nightshift:start` and the hunt cut. It
+  wakes every 20 minutes (`NIGHTSHIFT_WATCH=N` minutes; `0` disarms) and, only when boxes are
+  open **and** nothing in the project has changed since the last wake, sends the conversation
+  back to work.
+- It stands down at every honest ending: a stop-work order, an ended shift, every box ticked, a
+  spent deadline, or a clean session exit. A crash at the finish line still gets its clock-out —
+  all-ticked-but-never-released and dead-past-deadline each spawn one closing run, so receipts
+  and the morning whistle happen even when the session died first.
+- An API outage costs a handful of logged attempts, not one per tick: 2–3 spawn tries per wake
+  spaced ~30s/2m, then the interval backs off, doubling per failed wake up to 8×.
+- One watchman per site (a pid file; a stale one is taken over). **Esc still means stop**:
+  Claude Code records a user interrupt in the session transcript and a 500 or a crash never
+  does — that is the tell. At a quiet wake the watchman reads the transcript tail: interrupt
+  there, it stands by; none, it revives. Unreadable defaults to reviving — waking a paused
+  session costs an apology, a lost night costs the night.
+- The revival is `claude --continue -p` by default — it chains onto the **same conversation**,
+  so the morning transcript is one unbroken thread in the terminal and the IDE extension alike.
+  On the default agent, the last retry of a wake falls back to a fresh `claude -p`: if the
+  transcript itself is what broke, `--continue` would fail every wake forever, and the punch
+  list on disk is enough for a fresh session to carry on. `NIGHTSHIFT_WATCH_AGENT` overrides
+  the command entirely.
+
+### Hooks
+
+- A `SessionEnd` hook writes `.nightshift/.session-end` when a session ends **cleanly** during an
+  active shift. Crashes and kills never reach the hook — which is the tell: marker means the
+  owner's hand closed the session and the watchman stands down; no marker means it died and the
+  watchman revives it. `start` and the hunt cut clear the marker, re-arming the night.
+
 ## v0.4.2 — overrides the guards can't read are denied
 
 ### Guards
