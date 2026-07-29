@@ -186,7 +186,7 @@ Zero-config by default; every knob below is off until you set it (unset ⇒ the 
 
 | Env var | Effect |
 |---|---|
-| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules. `git push` keeps pushing yours for the night; `rm -rf\|docker\|terraform` fences the rest. Env vars are fixed at session start, so only you can set or lift a rule — never the agent mid-run |
+| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules. `git .*push` keeps pushing yours for the night (the `.*` also catches `git -c k=v push`); `rm -rf\|docker\|terraform` fences the rest. Env vars are fixed at session start, so only you can set or lift a rule — never the agent mid-run |
 | `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
@@ -271,9 +271,10 @@ Read this before you trust it overnight:
   arms anything. `/nightshift:start` is the boundary: from there the gate will not let the agent
   stop and the ask-tool is denied, which is what you want at 3am and pure friction at 3pm. Arm it
   when you're leaving.
-- **Ticks are self-certified.** The gate checks *boxes*, not *work* — it guarantees the agent
-  can't quietly stop with work outstanding, not that a ticked box is truly done. The contract and
-  your item gate raise that bar; they don't eliminate the gap.
+- **Ticks are self-certified.** The gate re-injects the full working standard — no stubs, gate
+  green, never fake a tick — at every stop attempt, so it never decays out of context; what it
+  proves is that the agent couldn't quietly stop with work outstanding, not that the work behind
+  a tick is good. The contract and your item gate raise that bar; they don't eliminate the gap.
 - **Completion beats cost by default.** A stuck run is held and red-flagged, not ended — so a
   finite list with no deadline can keep retrying until you look in. Bound it when cost matters
   more: `NIGHTSHIFT_STALL_MAX=N` clocks out a stuck run, an open-ended walkthrough *requires*

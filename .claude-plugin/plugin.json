@@ -1,6 +1,6 @@
 {
   "name": "nightshift",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Claude works the night shift: accountable autonomous runs that can't clock out until the punch list is done.",
   "author": {
     "name": "Orwa Mahmoud",

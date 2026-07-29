@@ -9,7 +9,7 @@
 #   NIGHTSHIFT_EXPECTED_EMAIL        commits must be authored by this identity
 #   NIGHTSHIFT_NEVER_COMMIT_PATTERNS staged diff (git diff --cached) must not match this grep -E pattern
 #   NIGHTSHIFT_FORBIDDEN_COMMANDS    deny any command matching this grep -E pattern during a shift
-#                                    (the no-push recipe: set it to 'git push')
+#                                    (the no-push recipe: set it to 'git .*push')
 #
 # The two commit guards read git, so they resolve the repository the commit lands in (see
 # repo_root in lib.sh) rather than assuming it is the project dir. When that repository cannot
@@ -115,6 +115,21 @@ fi
 # which the recommended layout puts one level below the project dir. Resolve it once, and fail
 # closed: a guard that cannot see the repo denies rather than waving the commit through.
 if is_commit && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }; then
+  # `--git-dir`/`--work-tree` relocate the commit somewhere the resolution below does not follow,
+  # so the guards would inspect one repository while the commit lands in another. Unverifiable —
+  # deny, exactly like the ambiguous-repo case: a guard that cannot look never approves.
+  if printf '%s' "$SCRUBBED" | grep -qE -- '--git-dir|--work-tree'; then
+    deny "BLOCKED: --git-dir/--work-tree point this commit somewhere the configured commit guards cannot verify. Run the commit from inside the repository instead."
+  fi
+
+  # The identity guard reads the repository's configuration, and a command can override identity
+  # past that read — `-c user.email=`, `--author`, or a GIT_*_EMAIL prefix. With an override
+  # present the config describes nothing, so it is denied rather than misread.
+  if [ -n "$EXPECTED_EMAIL" ] && printf '%s' "$SCRUBBED" |
+    grep -qE -- '-c[[:space:]]*user\.email=|--author|GIT_(AUTHOR|COMMITTER)_EMAIL='; then
+    deny "BLOCKED: this commit overrides the author identity on the command line, which the expected-identity guard cannot verify. Commit with the repository's configured identity."
+  fi
+
   # A command can name its own repository — `git -C <dir> commit`, `cd <dir> && git commit` —
   # and that is where the commit lands, whatever the session's working directory says.
   REPO="$(target_repo "$CMD" "${CWD:-$PROJECT_DIR}")"
