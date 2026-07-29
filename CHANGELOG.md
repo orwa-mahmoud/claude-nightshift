@@ -3,6 +3,27 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.4.2 — overrides the guards can't read are denied
+
+### Guards
+
+- A commit that relocates itself with `--git-dir` or `--work-tree` is denied whenever a commit
+  guard is configured. The guards resolve `git -C <dir>` and `cd <dir> &&`, but those two flags
+  point the commit past that resolution — the guard would inspect one repository while the commit
+  lands in another. Unverifiable means denied, exactly like the ambiguous-repo case.
+- With an expected identity configured, a commit that overrides identity on the command line —
+  `-c user.email=`, `--author`, or a `GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_EMAIL` prefix — is denied.
+  The guard reads the repository's configuration, and with an override present that read
+  describes nothing.
+- The no-push recipe is now `git .*push`, so config injection (`git -c k=v push`) cannot slip
+  between the words. Commit messages remain scrubbed first: a message *mentioning* a flag is not
+  a use of it.
+
+### Docs
+
+- The fine print states what the gate re-injects: the full working standard, at every stop
+  attempt, so it never decays out of context — alongside what it cannot prove.
+
 ## v0.4.1 — a page of its own
 
 - `homepage` in both manifests points at <https://orwamahmoud.com/nightshift/>, which explains what

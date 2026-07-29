@@ -243,3 +243,73 @@ load helpers
   run hardhat_bash "$w" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
   is_deny "$output"
 }
+
+# The commit guards resolve `git -C` and `cd X &&`, but --git-dir/--work-tree relocate a commit
+# past that resolution — the guard would inspect one repository while the commit lands in
+# another. Unverifiable must mean denied, not misread.
+@test "a --git-dir commit is denied when a commit guard is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --git-dir=/somewhere/else/.git commit -m x" \
+    NIGHTSHIFT_EXPECTED_EMAIL=dev@example.com
+  is_deny "$output"
+}
+
+@test "a --work-tree commit is denied when a commit guard is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --work-tree=/somewhere/else commit -am x" \
+    NIGHTSHIFT_NEVER_COMMIT_PATTERNS='SECRET'
+  is_deny "$output"
+}
+
+@test "--git-dir passes when no commit guard is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --git-dir=/somewhere/else/.git commit -m x"
+  is_allow
+}
+
+@test "a commit message mentioning --git-dir is not a match" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git commit -m 'document the --git-dir flag'" \
+    NIGHTSHIFT_EXPECTED_EMAIL=dev@example.com
+  is_allow
+}
+
+# The identity guard reads the repo's config, and a command line can override identity past that
+# read. Every visible override form is denied when an expected identity is configured.
+@test "an inline -c user.email override is denied when an identity is expected" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git -c user.email=evil@example.com commit -m x" \
+    NIGHTSHIFT_EXPECTED_EMAIL=dev@example.com
+  is_deny "$output"
+}
+
+@test "an --author override is denied when an identity is expected" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git commit --author='Evil <evil@example.com>' -m x" \
+    NIGHTSHIFT_EXPECTED_EMAIL=dev@example.com
+  is_deny "$output"
+}
+
+@test "a GIT_AUTHOR_EMAIL prefix is denied when an identity is expected" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "GIT_AUTHOR_EMAIL=evil@example.com git commit -m x" \
+    NIGHTSHIFT_EXPECTED_EMAIL=dev@example.com
+  is_deny "$output"
+}
+
+# The README's no-push recipe is `git .*push` so that config injection cannot slip between the
+# words. This pins the recipe itself.
+@test "the no-push recipe catches git -c k=v push" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git -c http.proxy=x push origin main" \
+    NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push'
+  is_deny "$output"
+}
