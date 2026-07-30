@@ -44,6 +44,8 @@ if command -v jq >/dev/null 2>&1; then
   TOOL="$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null || true)"
   CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)"
   CWD="$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)"
+  SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)"
+  TPATH="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
 else
   # No jq: pull the fields out of the raw JSON with sed so the guard still works. Extract the
   # command value rather than falling back to the whole payload — the quote-scrub below would
@@ -51,6 +53,8 @@ else
   TOOL="$(printf '%s' "$INPUT" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   CMD="$(printf '%s' "$INPUT" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)".*/\1/p')"
   CWD="$(printf '%s' "$INPUT" | sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  SID="$(printf '%s' "$INPUT" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  TPATH="$(printf '%s' "$INPUT" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
 
@@ -77,6 +81,14 @@ SCRUBBED="$(printf '%s' "$CMD" | sed -E "s/(-m|--message)([[:space:]]*|=)'[^']*'
 if [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
    || ! grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
   exit 0
+fi
+
+# The shift records its own identity: the first session to work under an active shift writes its
+# session id and transcript path, once. The watchman reads THIS session's transcript for the Esc
+# tell and revives THIS conversation by id — never a guess at "the newest". Any later session in
+# the same project (a second tab, a helper) never overwrites the record.
+if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+  printf '%s\n%s\n' "$SID" "${TPATH:-}" >"$NS/.shift-session"
 fi
 
 # An unparseable owner pattern makes grep exit 2, which a plain `if` reads as "no match" — the

@@ -12,12 +12,13 @@
 #
 #   --interval  minutes between wakes (default $NIGHTSHIFT_WATCH, else 20; 0 exits immediately —
 #               the "disabled" spelling)
-#   --agent     the resume command (default "claude --continue -p": the revival chains onto the
-#               SAME conversation, so the morning transcript is one unbroken thread — in the
-#               terminal and the IDE extension alike). Invoked from the project dir as
-#               <agent> "<resume prompt>". On the default agent only, the last retry of a wake
-#               falls back to a fresh "claude -p": if the transcript itself is what broke,
-#               --continue would fail every wake forever, and the punch list on disk is enough
+#   --agent     the resume command. Default: the SHIFT'S OWN conversation, by id — the hooks
+#               record the first working session into .nightshift/.shift-session, and the
+#               revival is "claude --resume <that id> -p", one unbroken thread in the terminal
+#               and the IDE extension alike. No record (or a vanished session) degrades to
+#               "claude --continue -p". On the default agent only, the last retry of a wake
+#               falls back to a fresh "claude -p": if the conversation itself is what broke,
+#               resuming it would fail every wake forever, and the punch list on disk is enough
 #               for a fresh session to carry on.
 #   --max-wakes bound the number of wakes (0 = unbounded; tests use this)
 #
@@ -35,11 +36,13 @@
 #
 # Esc still means stop. Claude Code records a user interrupt in the session transcript
 # ("Request interrupted by user"), and a 500 or a crash never writes one — that is the tell. At a
-# quiet wake the watchman reads the tail of the newest transcript: interrupt there -> the owner
-# paused it, stand by and keep watching; no interrupt (or no transcript at all) -> it died or
-# errored with nobody there, revive it. Unreadable defaults to reviving: waking a paused session
-# costs an apology, a lost night costs the night. $NIGHTSHIFT_WATCH_TRANSCRIPTS overrides the
-# transcript directory (tests use it).
+# quiet wake the watchman reads the tail of THE SHIFT'S OWN transcript (recorded in
+# .shift-session by the hooks): interrupt there -> the owner paused it, stand by and keep
+# watching; no interrupt -> it died or errored with nobody there, revive it. A second tab's Esc
+# proves nothing and is ignored. With no record yet, the newest transcript in the project is the
+# fallback tell. Unreadable defaults to reviving: waking a paused session costs an apology, a
+# lost night costs the night. $NIGHTSHIFT_WATCH_TRANSCRIPTS overrides the transcript directory
+# (tests use it).
 #
 # API outages: per wake, up to 3 spawn attempts spaced by $NIGHTSHIFT_WATCH_RETRY (default
 # "30 120" seconds). Wakes that fail entirely back the interval off — double per consecutive
@@ -112,6 +115,23 @@ deadline_passed() {
   [ "$(date +%s)" -ge "$dl" ]
 }
 
+# The hooks write the shift's identity (session id, transcript path) at first work. Read fresh
+# each use — the record appears after the watchman was armed.
+shift_session_id() { sed -n 1p "$NS/.shift-session" 2>/dev/null; }
+shift_transcript() { sed -n 2p "$NS/.shift-session" 2>/dev/null; }
+
+# The default agent resumes the shift's own conversation by id; no record degrades to --continue.
+# An owner-supplied agent is used verbatim.
+resolve_agent() {
+  local sid
+  if [ "$AGENT_IS_DEFAULT" -eq 1 ]; then
+    sid="$(shift_session_id)"
+    if [ -n "$sid" ]; then printf 'claude --resume %s -p' "$sid"; else printf 'claude --continue -p'; fi
+  else
+    printf '%s' "$AGENT"
+  fi
+}
+
 PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists."
 
 # One spawn attempt; the resumed session may legitimately run for hours. shellcheck disable:
@@ -127,10 +147,14 @@ spawn() { # $1 optionally overrides the agent for this one attempt
 # session that already moved on.
 owner_paused() {
   local f latest=""
-  for f in "$TRANSCRIPTS"/*.jsonl; do
-    [ -f "$f" ] || continue
-    if [ -z "$latest" ] || [ "$f" -nt "$latest" ]; then latest="$f"; fi
-  done
+  latest="$(shift_transcript)"
+  if [ -z "$latest" ] || [ ! -f "$latest" ]; then
+    latest=""
+    for f in "$TRANSCRIPTS"/*.jsonl; do
+      [ -f "$f" ] || continue
+      if [ -z "$latest" ] || [ "$f" -nt "$latest" ]; then latest="$f"; fi
+    done
+  fi
   [ -n "$latest" ] || return 1
   tail -n 25 "$latest" 2>/dev/null | grep -q "Request interrupted by user"
 }
@@ -158,12 +182,12 @@ while :; do
   if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then exit 0; fi
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
-    spawn || true
+    spawn "$(resolve_agent)" || true
     exit 0
   fi
   if deadline_passed; then
     log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
-    spawn || true
+    spawn "$(resolve_agent)" || true
     exit 0
   fi
   if [ -f "$NS/.session-end" ]; then
@@ -197,7 +221,7 @@ while :; do
         break
       fi
       log_line "watchman: site quiet ${INTERVAL_MIN}m+ with open boxes — resume attempt $attempt"
-      if spawn; then revived=0; break; fi
+      if spawn "$(resolve_agent)"; then revived=0; break; fi
       [ -n "$spacing" ] || break
       sleep "$spacing"
     done
