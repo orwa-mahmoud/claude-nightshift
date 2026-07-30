@@ -157,8 +157,11 @@ PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open 
 # $AGENT is an owner-provided command line; word-splitting is intended, as in foreman.
 spawn() { # $1 optionally overrides the agent for this one attempt
   local a="${1:-$AGENT}"
+  # NIGHTSHIFT_REVIVAL marks the child for the hooks: a revival session ending is never the
+  # owner's hand on the door — without the mark, the worker's own exit would write .session-end
+  # under the recorded id and stand the watchman down mid-outage.
   # shellcheck disable=SC2086
-  $a "$PROMPT" >/dev/null 2>&1
+  NIGHTSHIFT_REVIVAL=1 $a "$PROMPT" >/dev/null 2>&1
 }
 
 # The transcript the tells read: the shift's own, recorded by the hooks; the newest in the

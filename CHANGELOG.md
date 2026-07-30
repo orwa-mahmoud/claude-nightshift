@@ -32,6 +32,10 @@ death, never "looks stuck".
   carried the night.
 - **The identity claim is atomic.** `.shift-session` is taken with an exclusive create — two
   racing first sessions cannot interleave; one record lands whole.
+- **A revival's own exit is not the owner's hand on the door.** Spawned sessions carry a mark,
+  and the `SessionEnd` hook stays inert for them — without it, the worker finishing (or dying on
+  the API again) would write the clean-end marker under the recorded id and stand the watchman
+  down mid-outage after the first revival.
 
 ## v0.5.1 — the shift knows its own session
 

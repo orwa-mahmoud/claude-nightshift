@@ -448,3 +448,13 @@ STUB
   ! grep -q fresh "$P/.nightshift/agent-calls"
   [ "$(grep -c resume "$P/.nightshift/agent-calls")" -eq 2 ] # the revival and the clock-out
 }
+
+# A watchman-spawned revival is marked; its own exit is never the owner's hand on the door.
+@test "a marked revival session's exit never writes the clean-end marker" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'right-id\n\n\n\n' >"$p/.nightshift/.shift-session"
+  printf '{"reason":"exit","session_id":"right-id"}' |
+    NIGHTSHIFT_REVIVAL=1 CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  [ ! -f "$p/.nightshift/.session-end" ]
+}

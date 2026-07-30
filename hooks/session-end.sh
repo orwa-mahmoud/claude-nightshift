@@ -11,6 +11,11 @@
 # nothing, so ordinary sessions leave no residue.
 set -u
 
+# A watchman-spawned revival carries this mark. Its exit — finished, or dead on the API again —
+# is never the owner's hand on the door; writing the marker for it would stand the watchman down
+# mid-outage after the first revival.
+[ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] || exit 0
+
 INPUT="$(cat)"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 NS="$PROJECT_DIR/.nightshift"
