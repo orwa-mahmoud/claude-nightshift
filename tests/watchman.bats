@@ -185,3 +185,63 @@ STUB
   ! grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
   [ "$(calls)" -eq 2 ]
 }
+
+# The Esc tell reads the SHIFT'S recorded transcript — a second tab's interrupt proves nothing.
+@test "the shift's own transcript decides Esc, not the newest in the project" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"[Request interrupted by user]"}\n' >"$T/shift.jsonl"
+  sleep 0.01
+  printf '{"type":"message","content":"other tab, still working"}\n' >"$T/other.jsonl" # newer, clean
+  printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'standing by' "$P/.nightshift/shift-log.md"
+}
+
+@test "another tab's Esc does not block the revival of a dead shift session" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
+  sleep 0.01
+  printf '{"type":"message","content":"[Request interrupted by user]"}\n' >"$T/other.jsonl" # newer!
+  printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  ! grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
+}
+
+# The default revival is the shift's exact conversation, by id — with the layered fallback.
+@test "the default agent resumes the recorded session by id" {
+  printf 'abc-123\n\n' >"$P/.nightshift/.shift-session"
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *--resume*) echo "resume:$1 $2" >>.nightshift/agent-calls; exit 1 ;;
+  *--continue*) echo "continue" >>.nightshift/agent-calls; exit 1 ;;
+  *) echo fresh >>.nightshift/agent-calls
+     awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+     mv .nightshift/pl.tmp .nightshift/punch-list.md ;;
+esac
+STUB
+  chmod +x "$BIN/claude"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 4
+  [ "$status" -eq 0 ]
+  grep -q 'resume:--resume abc-123' "$P/.nightshift/agent-calls"
+  [ "$(grep -c fresh "$P/.nightshift/agent-calls")" -eq 1 ]
+}
+
+@test "session-end writes the marker only for the shift's own session" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'right-id\n\n' >"$p/.nightshift/.shift-session"
+  printf '{"reason":"exit","session_id":"wrong-id"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  [ ! -f "$p/.nightshift/.session-end" ]
+  printf '{"reason":"exit","session_id":"right-id"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
+}

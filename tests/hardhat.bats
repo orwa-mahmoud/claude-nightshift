@@ -313,3 +313,25 @@ load helpers
     NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push'
   is_deny "$output"
 }
+
+# The shift records its own identity: the first session to work under an active shift writes
+# .shift-session, and a second tab never overwrites it — the watchman must know WHICH
+# conversation to read and revive, not guess at the newest.
+@test "the first working session records itself and is never overwritten" {
+  p="$(new_project)"
+  punch_open "$p"
+  jq -nc '{tool_name:"Bash",session_id:"first-tab",transcript_path:"/tmp/a.jsonl",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
+  jq -nc '{tool_name:"Bash",session_id:"second-tab",transcript_path:"/tmp/b.jsonl",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
+}
+
+@test "no active shift means no session record" {
+  p="$(new_project)"
+  punch_done "$p"
+  jq -nc '{tool_name:"Bash",session_id:"s1",transcript_path:"",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ ! -f "$p/.nightshift/.shift-session" ]
+}

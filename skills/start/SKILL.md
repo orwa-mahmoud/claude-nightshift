@@ -10,7 +10,8 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
   leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
-  `.nightshift/deadline`, `.nightshift/.session-end`, and `.nightshift/.watchman-tick`. If
+  `.nightshift/deadline`, `.nightshift/.session-end`, `.nightshift/.shift-session`, and
+  `.nightshift/.watchman-tick`. If
   `.nightshift/.watchman` holds a live pid, kill it — last night's watchman must not double-arm
   tonight's. A shift that reached the whistle leaves the deadline behind; keeping it means the
   gate clocks the next one out immediately, zero items done.

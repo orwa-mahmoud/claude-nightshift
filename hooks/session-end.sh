@@ -22,6 +22,18 @@ if [ ! -f "$PUNCH" ] || [ -f "$NS/.ended" ] \
 fi
 
 # jq preferred, sed fallback — same policy as hardhat: a missing jq never disables the hook.
+# Only the shift's own session ending is the owner's hand on the door — a helper tab closing in
+# the same project proves nothing about the shift.
+if command -v jq >/dev/null 2>&1; then
+  SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)"
+else
+  SID="$(printf '%s' "$INPUT" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+fi
+if [ -f "$NS/.shift-session" ]; then
+  REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+  [ -n "$REC" ] && [ "$SID" != "$REC" ] && exit 0
+fi
+
 if command -v jq >/dev/null 2>&1; then
   REASON="$(printf '%s' "$INPUT" | jq -r '.reason // "unknown"' 2>/dev/null || printf 'unknown')"
 else

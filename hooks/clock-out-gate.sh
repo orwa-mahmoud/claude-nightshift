@@ -27,6 +27,16 @@ set -u
 # shellcheck source=hooks/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# The Stop payload carries the session's identity; a tty guard keeps manual runs from hanging.
+if [ -t 0 ]; then INPUT=""; else INPUT="$(cat)"; fi
+if command -v jq >/dev/null 2>&1; then
+  SID="$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)"
+  TPATH="$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)"
+else
+  SID="$(printf '%s' "$INPUT" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  TPATH="$(printf '%s' "$INPUT" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+fi
+
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
@@ -120,6 +130,12 @@ end_shift() {
 
 if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
 TOTAL=$((OPEN + TICKED))
+
+# Record the shift's own session, once — same contract as hardhat's record.
+if [ -f "$PUNCH" ] && [ "$OPEN" -gt 0 ] && [ ! -f "$ENDED" ] \
+  && [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+  printf '%s\n%s\n' "$SID" "${TPATH:-}" >"$NS/.shift-session"
+fi
 
 # 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
 if [ -f "$STOP" ]; then

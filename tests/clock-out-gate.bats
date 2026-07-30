@@ -255,3 +255,11 @@ load helpers
   is_release
   grep -q 'stopped by owner' "$wl"
 }
+
+@test "the gate records the shift session while blocking" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p"
+  is_block "$output"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
+}

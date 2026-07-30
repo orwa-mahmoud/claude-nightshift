@@ -23,7 +23,7 @@ load helpers
   cp "$BATS_TEST_DIRNAME"/../hooks/*.sh "$dir/hooks/"
   p="$(new_project)"
   cmd="$(jq -r '.hooks.Stop[0].hooks[0].command' "$BATS_TEST_DIRNAME/../hooks/hooks.json")"
-  CLAUDE_PLUGIN_ROOT="$dir" CLAUDE_PROJECT_DIR="$p" run sh -c "$cmd"
+  CLAUDE_PLUGIN_ROOT="$dir" CLAUDE_PROJECT_DIR="$p" run sh -c "printf '{}' | $cmd"
   [ "$status" -eq 0 ]
 }
 
@@ -62,6 +62,6 @@ load helpers
   is_deny "$out"
 
   cmd="$(jq -r '.hooks.Stop[0].hooks[0].command' "$root/hooks/hooks.json")"
-  out="$(CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PROJECT_DIR="$p" sh -c "$cmd")"
+  out="$(printf '{}' | CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PROJECT_DIR="$p" sh -c "$cmd")"
   is_block "$out"
 }

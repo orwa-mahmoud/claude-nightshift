@@ -43,11 +43,12 @@ receipts_init() {
 punch_open() { printf '## Items\n- [ ] **1. first.**\n- [x] **2. done.**\n' >"$1/.nightshift/punch-list.md"; }
 punch_done() { printf '## Items\n- [x] **1. first.**\n- [x] **2. done.**\n' >"$1/.nightshift/punch-list.md"; }
 
-# gate <project> [ENV=VAL ...]
+# gate <project> [ENV=VAL ...] — pipes a minimal Stop payload; the gate reads stdin now.
 gate() {
   local p="$1"
   shift
-  env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/clock-out-gate.sh"
+  jq -nc '{hook_event_name:"Stop",session_id:"test-shift-session",transcript_path:""}' |
+    env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/clock-out-gate.sh"
 }
 
 # hardhat_bash <project> <command> [ENV=VAL ...]

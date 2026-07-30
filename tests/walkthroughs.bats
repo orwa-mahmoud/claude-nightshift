@@ -22,7 +22,7 @@ HUNT="$BATS_TEST_DIRNAME/../skills/hunt/SKILL.md"
 # last night silently ended the next shift at its first stop attempt.
 @test "every path that starts a shift clears every stale marker" {
   for f in start hunt; do
-    for m in STOP .stall .notified .ended deadline .session-end .watchman-tick .watchman; do
+    for m in STOP .stall .notified .ended deadline .session-end .shift-session .watchman-tick .watchman; do
       grep -qF "$m" "$BATS_TEST_DIRNAME/../skills/$f/SKILL.md" \
         || { echo "skills/$f/SKILL.md does not clear $m"; return 1; }
     done

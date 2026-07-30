@@ -3,6 +3,27 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.5.1 — the shift knows its own session
+
+Live dogfooding with two tabs in one project exposed the guess in v0.5.0: the watchman read "the
+newest transcript" for the Esc tell and revived with `--continue`, and with a second session in
+the project both could point at the wrong conversation.
+
+- **The shift records its own identity.** Every hook receives the session id and transcript path;
+  the first session to work under an active shift writes them to `.nightshift/.shift-session`,
+  once. A second tab never overwrites the record.
+- **The Esc tell reads the shift's own transcript** — a helper tab's interrupt proves nothing and
+  is ignored. No record yet falls back to the newest transcript in the project.
+- **The revival is `claude --resume <that id> -p`** — the shift's exact conversation, with
+  everything it knew before the crash: hours of context, decisions, where it stood mid-item. A
+  vanished session degrades to `--continue`, and the last retry of a wake still falls back to a
+  fresh session.
+- **The clean-exit marker is the shift's alone** — `SessionEnd` writes it only when the ending
+  session matches the record, so closing an unrelated tab in the same project no longer stands
+  the watchman down.
+- `start` and the hunt cut clear the record with the other markers; setup gitignores it in the
+  receipts repo.
+
 ## v0.5.0 — the night watchman
 
 A Stop hook can only act inside a living session. A session killed by an API outage, a crash, or
