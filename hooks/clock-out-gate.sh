@@ -131,10 +131,24 @@ end_shift() {
 if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
 TOTAL=$((OPEN + TICKED))
 
-# Record the shift's own session, once — same contract as hardhat's record.
+# Record the shift's own session, once — same contract as hardhat's record: id, transcript, and
+# the claude ancestor's pid + start time, claimed with an exclusive create so two racing first
+# sessions cannot interleave. Losing the race is the design.
+record_shift_session() {
+  local p="$$" _ comm pid="" start=""
+  for _ in 1 2 3 4 5 6; do
+    case "$p" in '' | *[!0-9]*) break ;; esac
+    [ "$p" -gt 1 ] || break
+    comm="$(ps -o comm= -p "$p" 2>/dev/null)" || break
+    case "${comm##*/}" in claude) pid="$p"; break ;; esac
+    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d '[:space:]')"
+  done
+  [ -z "$pid" ] || start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  (set -C; printf '%s\n%s\n%s\n%s\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
+}
 if [ -f "$PUNCH" ] && [ "$OPEN" -gt 0 ] && [ ! -f "$ENDED" ] \
   && [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  printf '%s\n%s\n' "$SID" "${TPATH:-}" >"$NS/.shift-session"
+  record_shift_session
 fi
 
 # 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).

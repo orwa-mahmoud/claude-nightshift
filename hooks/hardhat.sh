@@ -84,11 +84,25 @@ if [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
 fi
 
 # The shift records its own identity: the first session to work under an active shift writes its
-# session id and transcript path, once. The watchman reads THIS session's transcript for the Esc
-# tell and revives THIS conversation by id — never a guess at "the newest". Any later session in
-# the same project (a second tab, a helper) never overwrites the record.
+# session id, transcript path, and best-effort process identity — the claude ancestor's pid and
+# start time, a pair no pid reuse can counterfeit. The watchman reads THIS session's transcript
+# for the Esc tell, checks THIS process for life, and revives THIS conversation by id — never a
+# guess at "the newest". The exclusive create makes first-writer-wins mechanical: two racing
+# first sessions cannot interleave, one claim lands whole. Losing that race is the design.
+record_shift_session() {
+  local p="$$" _ comm pid="" start=""
+  for _ in 1 2 3 4 5 6; do
+    case "$p" in '' | *[!0-9]*) break ;; esac
+    [ "$p" -gt 1 ] || break
+    comm="$(ps -o comm= -p "$p" 2>/dev/null)" || break
+    case "${comm##*/}" in claude) pid="$p"; break ;; esac
+    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d '[:space:]')"
+  done
+  [ -z "$pid" ] || start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  (set -C; printf '%s\n%s\n%s\n%s\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
+}
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  printf '%s\n%s\n' "$SID" "${TPATH:-}" >"$NS/.shift-session"
+  record_shift_session
 fi
 
 # An unparseable owner pattern makes grep exit 2, which a plain `if` reads as "no match" — the

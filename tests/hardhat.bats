@@ -335,3 +335,60 @@ load helpers
     CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
   [ ! -f "$p/.nightshift/.shift-session" ]
 }
+
+# v0.5.2: the record carries process identity — the claude ancestor's pid and start time, found
+# by walking the hook's own ancestry. A stubbed ps makes the walk deterministic here.
+@test "the record claims the claude ancestor's pid and start time" {
+  p="$(new_project)"
+  punch_open "$p"
+  stub="$BATS_TEST_TMPDIR/pidbin"
+  mkdir -p "$stub"
+  cat >"$stub/ps" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *lstart*) echo "  Mon Jan  1 00:00:00 2026  " ;;
+  *comm*) echo "claude" ;;
+  *) echo 1 ;;
+esac
+STUB
+  chmod +x "$stub/ps"
+  jq -nc '{tool_name:"Bash",session_id:"pid-tab",transcript_path:"/tmp/t.jsonl",tool_input:{command:"echo hi"}}' |
+    PATH="$stub:$PATH" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "pid-tab" ]
+  sed -n 3p "$p/.nightshift/.shift-session" | grep -qE '^[0-9]+$'
+  [ "$(sed -n 4p "$p/.nightshift/.shift-session")" = "Mon Jan  1 00:00:00 2026" ]
+}
+
+@test "no claude ancestor leaves the pid lines empty, never breaks the record" {
+  p="$(new_project)"
+  punch_open "$p"
+  jq -nc '{tool_name:"Bash",session_id:"bare-tab",transcript_path:"",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "bare-tab" ]
+  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ]
+  [ -z "$(sed -n 3p "$p/.nightshift/.shift-session")" ]
+}
+
+# The claim is an exclusive create: two racing first sessions cannot interleave — one record
+# lands whole, id and transcript from the same writer.
+@test "two racing identity claims land exactly one whole record" {
+  for round in 1 2 3; do
+    p="$(new_project "race$round")"
+    punch_open "$p"
+    jq -nc '{tool_name:"Bash",session_id:"race-a",transcript_path:"/tmp/a.jsonl",tool_input:{command:"echo hi"}}' |
+      CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh" &
+    one=$!
+    jq -nc '{tool_name:"Bash",session_id:"race-b",transcript_path:"/tmp/b.jsonl",tool_input:{command:"echo hi"}}' |
+      CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh" &
+    two=$!
+    wait "$one" "$two"
+    [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ]
+    sid="$(sed -n 1p "$p/.nightshift/.shift-session")"
+    tpath="$(sed -n 2p "$p/.nightshift/.shift-session")"
+    case "$sid" in
+      race-a) [ "$tpath" = "/tmp/a.jsonl" ] ;;
+      race-b) [ "$tpath" = "/tmp/b.jsonl" ] ;;
+      *) false ;;
+    esac
+  done
+}

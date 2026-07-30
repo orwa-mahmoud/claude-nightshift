@@ -245,3 +245,206 @@ STUB
   printf '{"reason":"exit","session_id":"right-id"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
   grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
 }
+
+# ---- v0.5.2: the liveness ladder — strong positive evidence of death, or stand by ----
+
+# Primary pulse: a session streams every turn into its transcript even when the work writes no
+# project files. Transcript movement alone means alive.
+@test "transcript activity alone keeps the watchman standing by" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
+  printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  ( while :; do printf '{"type":"message","content":"x"}\n' >>"$T/shift.jsonl"; sleep 0.15; done ) &
+  toucher=$!
+  run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
+  kill "$toucher" 2>/dev/null || true
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 0 ]
+}
+
+@test "a helper transcript's activity is not the shift's pulse" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
+  printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  ( while :; do printf '{"type":"message","content":"other"}\n' >>"$T/other.jsonl"; sleep 0.15; done ) &
+  toucher=$!
+  run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
+  kill "$toucher" 2>/dev/null || true
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 2 ] # revived despite the helper's noise, then clocked out
+}
+
+# The process witness: the recorded pid alive with a quiet, unerrored transcript is long silent
+# work — a 25-minute test run writes nothing anywhere. Never spawn beside it.
+@test "the shift's own live process holds the watchman through a silent stretch" {
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'sid-shift\n\n%s\n%s\n' "$$" "$start" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'long silent work; standing by' "$P/.nightshift/shift-log.md"
+  [ "$(grep -c 'standing by' "$P/.nightshift/shift-log.md")" -eq 1 ] # logged once, not every wake
+}
+
+# The wedge: process alive, transcript quiet, and the host's own API-error event at the tail —
+# a session sitting at an errored prompt with nobody there. This one is revived.
+@test "a live shift process at an errored prompt is the wedge — revived" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"working"}\n{"type":"error","content":"API Error: 500 Internal server error"}\n' >"$T/shift.jsonl"
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'sid-shift\n%s\n%s\n%s\n' "$T/shift.jsonl" "$$" "$start" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 2 ]
+  grep -q 'probable wedge' "$P/.nightshift/shift-log.md"
+}
+
+# A session merely TALKING about API errors is not the wedge — the escaped quote of prose
+# never matches the host's own event string.
+@test "prose mentioning API errors does not read as the wedge" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"we should handle the \\"API Error: 500\\" case"}\n' >"$T/shift.jsonl"
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'sid-shift\n%s\n%s\n%s\n' "$T/shift.jsonl" "$$" "$start" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'long silent work; standing by' "$P/.nightshift/shift-log.md"
+}
+
+@test "a dead recorded pid is strong evidence — revived" {
+  bash -c ':' &
+  deadpid=$!
+  wait "$deadpid" 2>/dev/null || true
+  printf 'sid-shift\n\n%s\n\n' "$deadpid" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 2 ]
+}
+
+# A pid wears the number but not the birthday: a mismatched start time means the shift's
+# process is gone and something else inherited its pid.
+@test "a reused pid is not the shift's process — revived" {
+  printf 'sid-shift\n\n%s\n%s\n' "$$" "Thu Jan  1 00:00:00 1970" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 2 ]
+}
+
+# No pid recorded: any claude process working in this project is reason enough not to spawn.
+# Not identity — just the conservative reading of an uncertain site.
+@test "with no recorded pid, a claude process in the project stands the watchman by" {
+  cat >"$BIN/pgrep" <<'STUB'
+#!/usr/bin/env bash
+echo 999999
+STUB
+  cat >"$BIN/ps" <<'STUB'
+#!/usr/bin/env bash
+echo "/fake/bin/claude"
+STUB
+  cat >"$BIN/lsof" <<STUB
+#!/usr/bin/env bash
+echo "p999999"
+echo "n$P"
+STUB
+  chmod +x "$BIN/pgrep" "$BIN/ps" "$BIN/lsof"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'a claude session is live in this project — standing by' "$P/.nightshift/shift-log.md"
+}
+
+# ---- v0.5.2: pre-spawn re-checks and the honest retry baseline ----
+
+@test "site activity during the retry sleep cancels the remaining attempts" {
+  ( sleep 1; touch "$P/came-back" ) &
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="2" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  wait 2>/dev/null || true
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 1 ]
+  grep -q 'site activity during retries — holding the remaining attempts' "$P/.nightshift/shift-log.md"
+}
+
+# A failed resume may append its own API-error event to the shift transcript. Re-baselining
+# after each attempt keeps the watchman from mistaking its own noise for site life.
+@test "the watchman's own failed attempt cannot fool the retry check" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
+  printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  cat >"$BIN/fail-noisy.sh" <<STUB
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+printf '{"type":"error","content":"API Error: 500"}\n' >>"$T/shift.jsonl"
+exit 1
+STUB
+  chmod +x "$BIN/fail-noisy.sh"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail-noisy.sh" --max-wakes 1
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 3 ] # all three attempts ran; none was fooled by the previous one's writes
+  ! grep -q 'during retries' "$P/.nightshift/shift-log.md"
+}
+
+# ---- v0.5.2: the revival chain — recorded conversation, --continue, fresh session ----
+
+@test "a failed resume degrades to --continue before the fresh session" {
+  printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *--resume*) echo resume >>.nightshift/agent-calls; exit 1 ;;
+  *--continue*) echo continue >>.nightshift/agent-calls; exit 1 ;;
+  *) echo fresh >>.nightshift/agent-calls
+     awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+     mv .nightshift/pl.tmp .nightshift/punch-list.md ;;
+esac
+STUB
+  chmod +x "$BIN/claude"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 4
+  [ "$status" -eq 0 ]
+  [ "$(sed -n 1p "$P/.nightshift/agent-calls")" = "resume" ]
+  [ "$(sed -n 2p "$P/.nightshift/agent-calls")" = "continue" ]
+  [ "$(sed -n 3p "$P/.nightshift/agent-calls")" = "fresh" ]
+  grep -q 'resuming the recorded conversation' "$P/.nightshift/shift-log.md"
+  grep -q -- '--continue fallback' "$P/.nightshift/shift-log.md"
+  grep -q 'fresh-session fallback' "$P/.nightshift/shift-log.md"
+}
+
+@test "a successful resume never falls to --continue or a fresh session" {
+  printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *--resume*) echo resume >>.nightshift/agent-calls
+     awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+     mv .nightshift/pl.tmp .nightshift/punch-list.md ;;
+  *--continue*) echo continue >>.nightshift/agent-calls ;;
+  *) echo fresh >>.nightshift/agent-calls ;;
+esac
+STUB
+  chmod +x "$BIN/claude"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 4
+  [ "$status" -eq 0 ]
+  ! grep -q continue "$P/.nightshift/agent-calls"
+  ! grep -q fresh "$P/.nightshift/agent-calls"
+  [ "$(grep -c resume "$P/.nightshift/agent-calls")" -eq 2 ] # the revival and the clock-out
+}
