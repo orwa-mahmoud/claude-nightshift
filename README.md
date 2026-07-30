@@ -22,7 +22,7 @@ I asked for eight things and stepped away. That screen is what I came back to:
 Buddy. *This* is the focused session. You're alone. It's just you and the list. What else is on
 your calendar tonight??
 
-And that's the mild night. The other two, every developer knows:
+And that's the mild night. The other three, every developer knows:
 
 **The 02:40 question.** Ten hours of overnight work, planned. You go to bed. At 02:40 it stops:
 "quick question before I continue." At 08:00 it's still waiting for the answer. The window is
@@ -34,9 +34,18 @@ findings. You fix them, ask again: twenty *new* findings. Where were these twent
 time?? You spend the whole evening as a mailman between the model and itself, one "check it
 again" at a time.
 
+**The 500 night.** The API does go down, and it picks its moments. Somewhere past 2 AM the
+session dies with this on screen, and the punch list just sits there:
+
+![API Error: 500 Internal server error — a server-side issue; if it persists, check
+status.claude.com](docs/api-500-night.png)
+
+You know the ritual: one eye on status.claude.com, waiting to relaunch the second it's back up.
+So much for sleeping.
+
 ## What nightshift does about it
 
-All three nights end the same way now: you sleep, it works, and your first look in the morning is
+All four nights end the same way now: you sleep, it works, and your first look in the morning is
 at a serious product — not a half-done prototype full of shortcuts.
 
 - **Completion lives in a file, not a phrase.** The shift ends when every `- [ ]` in the punch
@@ -53,6 +62,17 @@ at a serious product — not a half-done prototype full of shortcuts.
   log while the gate keeps the shift open — you wake to a flagged stall, not an early clock-out.
   Prefer a hard cap? One env var (`NIGHTSHIFT_STALL_MAX=N`), and the deadline bounds the night
   regardless.
+- **A dead session is revived, not mourned.** No hook can fire in a session that no longer
+  exists — that's the 500 night. You're supposed to be asleep; instead you're refreshing
+  status.claude.com so you can relaunch the moment it recovers. Don't — the **night watchman**
+  works that shift: it wakes every 20 minutes, and when boxes are open but the site has gone dead
+  quiet, it sends the conversation itself back to work — `claude --continue` — so the morning
+  transcript is one unbroken thread: the 500, the revival, and everything after, in the terminal
+  or your IDE's extension alike. (The punch list on disk is the safety net: even a fresh session
+  carries on from it, which is also the built-in fallback if the transcript itself broke.) It
+  stands down at every honest ending — done, stop-work order, quitting time, a clean exit —
+  gives an outage 2–3 tries then backs off instead of hammering, and **Esc still means stop**:
+  your interrupt is in the transcript, and the watchman reads it before touching anything.
 - **You're never trapped.** Escape and Ctrl+C still work — it's your keyboard, the plugin can't
   override it. But a pause isn't an ending: the next session resumes the shift, and a headless
   run or the foreman loop has no Escape at all. `touch .nightshift/STOP` from any terminal is the
@@ -179,6 +199,7 @@ Everything is named from a real construction site — learn one term, guess the 
 | **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
 | **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
+| **night watchman** | `adapters/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) from the punch list; stands down at every honest ending |
 
 ## Owner knobs
 
@@ -190,6 +211,7 @@ Zero-config by default; every knob below is off until you set it (unset ⇒ the 
 | `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
+| `NIGHTSHIFT_WATCH` | minutes between night-watchman wakes; `0` disarms it (unset ⇒ 20). The revival runs `claude --continue -p` — the **same conversation**, so the morning transcript is one unbroken thread in the terminal and the IDE extension alike, with a fresh-session fallback on the last retry in case the transcript itself is what broke. `NIGHTSHIFT_WATCH_AGENT="claude -p"` makes every revival a fresh session instead |
 | `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. The foreman honors the same knob for its loop (`--stall N` is the CLI form) |
 | `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`) |
 
@@ -271,6 +293,11 @@ Read this before you trust it overnight:
   arms anything. `/nightshift:start` is the boundary: from there the gate will not let the agent
   stop and the ask-tool is denied, which is what you want at 3am and pure friction at 3pm. Arm it
   when you're leaving.
+- **Esc still means stop, watchman or not.** Your interrupt is recorded in the session
+  transcript, and the watchman reads it before reviving anything: an Esc-paused session is stood
+  by, not resumed. What gets revived is a session that *died* — or errored with nobody there. If
+  the transcript cannot be read it assumes the 500, not the Esc: waking a paused session costs an
+  apology, a lost night costs the night.
 - **Ticks are self-certified.** The gate re-injects the full working standard — no stubs, gate
   green, never fake a tick — at every stop attempt, so it never decays out of context; what it
   proves is that the agent couldn't quietly stop with work outstanding, not that the work behind

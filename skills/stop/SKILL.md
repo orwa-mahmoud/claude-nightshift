@@ -8,7 +8,9 @@ Issue a stop-work order for `$CLAUDE_PROJECT_DIR`.
 1. Write `.nightshift/STOP` with a one-line reason and a timestamp (e.g. `stopped by owner ·
    <ISO time>`).
 2. Append an `ended by user` line to `.nightshift/shift-log.md`.
-3. Report what stays open: the count and titles of the still-open items — left untouched, an honest
+3. If `.nightshift/.watchman` holds a live pid, kill it — the watchman would stand down at its
+   next wake anyway, but there is no reason to leave it waiting.
+4. Report what stays open: the count and titles of the still-open items — left untouched, an honest
    snapshot of where work stopped.
 
 The shift ends at the next stop attempt: the clock-out gate sees the marker and releases, with open
