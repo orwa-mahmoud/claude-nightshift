@@ -3,6 +3,40 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.5.2 — strong evidence of death
+
+The one truly harmful watchman failure is spawning a second agent beside a living one: a resumed
+id APPENDS to the same session, so two writers interleave into one conversation while sharing a
+working tree. v0.5.0 read liveness from project files alone — long reasoning, research, or a
+25-minute test run writes none and looked dead. Revival now requires strong positive evidence of
+death, never "looks stuck".
+
+- **Liveness is a ladder.** The shift's transcript is the primary pulse — a live session streams
+  every turn into it, project files or not. Project activity stays as the second rung. Then the
+  process witness: the hooks record the claude ancestor's pid and start time alongside the
+  session id, and the watchman checks that exact process — `kill -0` plus the start time, a pair
+  no pid reuse can counterfeit. Alive with a quiet, unerrored transcript is long silent work:
+  stand by. Dead is dead even while other tabs live in the project: revive. No pid recorded
+  degrades to the conservative reading — any claude process working in the project stands the
+  watchman by.
+- **The 500 wedge is recognized, not guessed.** Claude Code writes API failures verbatim into
+  the transcript ("API Error: 500 …", "529 Overloaded"). A live shift process whose quiet
+  transcript ends in one is a session sitting at an errored prompt with nobody there to press
+  retry — the night the watchman exists for. That combination revives; prose merely mentioning
+  API errors does not match.
+- **Every retry re-checks the whole ladder first.** A site that comes back to life mid-wake — or
+  an owner who acts — cancels the remaining attempts. Each failed attempt re-baselines the
+  sentinel, so the watchman's own error events in the transcript never read as site life.
+- **The revival chain is real and logged per rung**: the recorded conversation first, `claude
+  --continue` next, a fresh `claude -p` last — the morning log says exactly which recovery level
+  carried the night.
+- **The identity claim is atomic.** `.shift-session` is taken with an exclusive create — two
+  racing first sessions cannot interleave; one record lands whole.
+- **A revival's own exit is not the owner's hand on the door.** Spawned sessions carry a mark,
+  and the `SessionEnd` hook stays inert for them — without it, the worker finishing (or dying on
+  the API again) would write the clean-end marker under the recorded id and stand the watchman
+  down mid-outage after the first revival.
+
 ## v0.5.1 — the shift knows its own session
 
 Live dogfooding with two tabs in one project exposed the guess in v0.5.0: the watchman read "the
@@ -15,9 +49,9 @@ the project both could point at the wrong conversation.
 - **The Esc tell reads the shift's own transcript** — a helper tab's interrupt proves nothing and
   is ignored. No record yet falls back to the newest transcript in the project.
 - **The revival is `claude --resume <that id> -p`** — the shift's exact conversation, with
-  everything it knew before the crash: hours of context, decisions, where it stood mid-item. A
-  vanished session degrades to `--continue`, and the last retry of a wake still falls back to a
-  fresh session.
+  everything it knew before the crash: hours of context, decisions, where it stood mid-item. No
+  record yet means `--continue`, and the last retry of a wake still falls back to a fresh
+  session.
 - **The clean-exit marker is the shift's alone** — `SessionEnd` writes it only when the ending
   session matches the record, so closing an unrelated tab in the same project no longer stands
   the watchman down.

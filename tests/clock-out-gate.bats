@@ -262,4 +262,5 @@ load helpers
   run gate "$p"
   is_block "$output"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
+  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ] # id, transcript, pid, start time
 }

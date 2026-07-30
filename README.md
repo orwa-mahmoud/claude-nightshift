@@ -65,14 +65,19 @@ at a serious product — not a half-done prototype full of shortcuts.
 - **A dead session is revived, not mourned.** No hook can fire in a session that no longer
   exists — that's the 500 night. You're supposed to be asleep; instead you're refreshing
   status.claude.com so you can relaunch the moment it recovers. Don't — the **night watchman**
-  works that shift: it wakes every 20 minutes, and when boxes are open but the site has gone dead
-  quiet, it sends the conversation itself back to work — `claude --continue` — so the morning
-  transcript is one unbroken thread: the 500, the revival, and everything after, in the terminal
-  or your IDE's extension alike. (The punch list on disk is the safety net: even a fresh session
-  carries on from it, which is also the built-in fallback if the transcript itself broke.) It
-  stands down at every honest ending — done, stop-work order, quitting time, a clean exit —
-  gives an outage 2–3 tries then backs off instead of hammering, and **Esc still means stop**:
-  your interrupt is in the transcript, and the watchman reads it before touching anything.
+  works that shift: it wakes every 20 minutes, and when the site is quiet it resumes **the
+  shift's own conversation by id** — hours of context, decisions, where it stood mid-item — so
+  the morning transcript is one unbroken thread: the 500, the revival, and everything after, in
+  the terminal or your IDE's extension alike. (The chain degrades honestly: the recorded
+  conversation first, `claude --continue` next, a fresh session last — the punch list on disk is
+  enough for any of them.) Reviving needs strong positive evidence of death, never "looks
+  stuck": the shift records its own session id, transcript, and process at first work, and the
+  watchman checks all three — a transcript still streaming, a live shift process on silent work,
+  or any claude session in the project stands it by; a dead process, or one alive at an errored
+  prompt with an `API Error` in the transcript tail, is what gets revived. It stands down at
+  every honest ending — done, stop-work order, quitting time, a clean exit — gives an outage
+  2–3 tries then backs off instead of hammering, and **Esc still means stop**: your interrupt is
+  in the transcript, and the watchman reads it before touching anything.
 - **You're never trapped.** Escape and Ctrl+C still work — it's your keyboard, the plugin can't
   override it. But a pause isn't an ending: the next session resumes the shift, and a headless
   run or the foreman loop has no Escape at all. `touch .nightshift/STOP` from any terminal is the
@@ -199,7 +204,7 @@ Everything is named from a real construction site — learn one term, guess the 
 | **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
 | **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
-| **night watchman** | `adapters/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) from the punch list; stands down at every honest ending |
+| **night watchman** | `adapters/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) by resuming its own conversation; stands down at every honest ending |
 
 ## Owner knobs
 
@@ -211,7 +216,7 @@ Zero-config by default; every knob below is off until you set it (unset ⇒ the 
 | `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
-| `NIGHTSHIFT_WATCH` | minutes between night-watchman wakes; `0` disarms it (unset ⇒ 20). The revival runs `claude --continue -p` — the **same conversation**, so the morning transcript is one unbroken thread in the terminal and the IDE extension alike, with a fresh-session fallback on the last retry in case the transcript itself is what broke. `NIGHTSHIFT_WATCH_AGENT="claude -p"` makes every revival a fresh session instead |
+| `NIGHTSHIFT_WATCH` | minutes between night-watchman wakes; `0` disarms it (unset ⇒ 20). The revival resumes **the shift's own conversation by id** (`claude --resume <recorded session> -p`) — one unbroken thread in the terminal and the IDE extension alike — degrading per attempt to `claude --continue -p` and last to a fresh `claude -p` in case the conversation itself is what broke. `NIGHTSHIFT_WATCH_AGENT="claude -p"` makes every revival a fresh session instead |
 | `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. The foreman honors the same knob for its loop (`--stall N` is the CLI form) |
 | `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`) |
 
