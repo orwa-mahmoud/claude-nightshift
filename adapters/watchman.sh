@@ -10,8 +10,8 @@
 #
 #   watchman.sh [--project DIR] [--interval MIN] [--agent CMD] [--max-wakes N]
 #
-#   --interval  minutes between wakes (default $NIGHTSHIFT_WATCH, else 10; 0 exits immediately —
-#               the "disabled" spelling)
+#   --interval  minutes between wakes (default: the rules file's watchMinutes, overridable by
+#               $NIGHTSHIFT_WATCH; 0 exits immediately — the "disabled" spelling)
 #   --agent     the resume command. Default: the SHIFT'S OWN conversation, by id — the hooks
 #               record the first working session into .nightshift/.shift-session, and the
 #               revival is "claude --resume <that id> -p", one unbroken thread in the terminal
@@ -66,20 +66,22 @@
 # apology, a lost night costs the night. $NIGHTSHIFT_WATCH_TRANSCRIPTS overrides the transcript
 # directory (tests use it).
 #
-# API outages: per wake, up to 3 spawn attempts spaced by $NIGHTSHIFT_WATCH_RETRY (default
-# "30 120" seconds). A wake that fails entirely just waits for the next one — the watchman
-# knocks every interval, all night, until the API answers.
+# API outages: per wake, up to 3 spawn attempts spaced by the rules file's watchRetrySeconds
+# (shipped "30 120"; $NIGHTSHIFT_WATCH_RETRY overrides). A wake that fails entirely just waits
+# for the next one — the watchman knocks every interval, all night, until the API answers.
 # Exit: 0 stood down honestly · 1 usage/lock · 7 wake cap (tests).
 set -u
 
+_here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+# shellcheck source=hooks/lib.sh
+. "$_here/../hooks/lib.sh" # pure-bash path — no dirname dependency
+
 PROJECT="$PWD"
-INTERVAL_MIN="${NIGHTSHIFT_WATCH:-10}"
+INTERVAL_MIN="${NIGHTSHIFT_WATCH:-}" # resolved from the rules file once the project is known
 AGENT="${NIGHTSHIFT_WATCH_AGENT:-claude --continue -p}"
 AGENT_IS_DEFAULT=1
 [ -z "${NIGHTSHIFT_WATCH_AGENT:-}" ] || AGENT_IS_DEFAULT=0
 MAX_WAKES=0
-RETRY_SPACING="${NIGHTSHIFT_WATCH_RETRY:-30 120}"
-NOTIFY="${NIGHTSHIFT_NOTIFY_CMD:-}" # the same bell the morning whistle rings; unset = silent
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
@@ -98,11 +100,17 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-case "$INTERVAL_MIN" in *[!0-9]*) printf 'watchman: --interval must be whole minutes\n' >&2; exit 1 ;; esac
-[ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
-
 cd "$PROJECT" || { printf 'watchman: cannot cd to %s\n' "$PROJECT" >&2; exit 1; }
 PROJECT="$PWD"
+
+# One copy: the rules file is the config; a flag or env var is a session-start override. The
+# shipped values live visibly in the file setup copies — there are no fallbacks hiding here,
+# and a missing knob refuses to arm, loudly, naming the repair.
+[ -n "$INTERVAL_MIN" ] || INTERVAL_MIN="$(rule "$PROJECT" watchMinutes "")"
+case "$INTERVAL_MIN" in '' | *[!0-9]*) printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2; exit 1 ;; esac
+[ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
+RETRY_SPACING="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
+NOTIFY="$(rule "$PROJECT" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")" # empty = silent, a real value
 NS="$PROJECT/.nightshift"
 PUNCH="$NS/punch-list.md"
 PIDFILE="$NS/.watchman"
@@ -168,8 +176,15 @@ resolve_agent() { rung_agent 1 2; }
 # does the enforcing. Its order is one line: you were cut off, keep going. Only the
 # fresh-session fallback, which starts empty, gets the full pointer at the punch list. Both are
 # the owner's to word (rules file keys: revivalPrompt, freshRevivalPrompt).
-PROMPT_RESUME="${NIGHTSHIFT_REVIVAL_PROMPT:-You were cut off mid-work by an outage or a crash — not by the owner. Pick up exactly where you left off and continue.}"
-PROMPT_FRESH="${NIGHTSHIFT_FRESH_PROMPT:-Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists.}"
+PROMPT_RESUME="$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")"
+PROMPT_FRESH="$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")"
+for _req in "watchRetrySeconds:$RETRY_SPACING" "revivalPrompt:$PROMPT_RESUME" "freshRevivalPrompt:$PROMPT_FRESH"; do
+  if [ -z "${_req#*:}" ]; then
+    printf 'watchman: %s missing — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' "${_req%%:*}" >&2
+    log_line "watchman: rules.json is missing ${_req%%:*} — cannot arm; re-run /nightshift:setup"
+    exit 1
+  fi
+done
 
 # Resumed rungs get the short order; the fresh rung gets the map. Attempts mirror rung_agent.
 rung_prompt() { # $1 attempt, $2 total attempts this wake

@@ -35,14 +35,11 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
   with the same one-line header. Only the mechanical journal auto-rotates — `snag-log.md` and
   `parking-lot.md` are the owner's review material; `/nightshift:archive` files those on the
   owner's order.
-- **Rules drift:** if `.claude/nightshift-rules.json` exists, compare it to what this session
-  actually runs under — `jq -c '.toolDeny'` of the file against `$NIGHTSHIFT_TOOL_RULES`, and
-  each other mapped key against its env var. On any mismatch, warn once: the file changed after
-  this session's env was fixed — re-run `/nightshift:setup`, then start a fresh session, or
-  tonight runs on the old rules. Also compare the shipped template's keys against the file's
-  (`jq -r 'keys[]'` on each): keys the template has that the file lacks mean a plugin update
-  brought new knobs — say so once and point at `/nightshift:setup` to review them; never add
-  them yourself here.
+- **New knobs check:** if `.nightshift/rules.json` exists, compare the shipped
+  template's keys against the file's (`jq -r 'keys[]'` on each): keys the template has that
+  the file lacks mean a plugin update brought new knobs — say so once and point at
+  `/nightshift:setup` to review them; never add them yourself here. (The hooks read the file
+  live — there is no drift to check and no restart to suggest.)
 - The night cannot click Allow: if neither `.claude/settings.local.json` nor
   `.claude/settings.json` grants frictionless permissions (`bypassPermissions` default mode or an
   allowlist covering the gates' commands), warn once — a permission prompt mid-shift freezes the
@@ -67,11 +64,11 @@ what the last shift parked. Append a `shift started` line to `.nightshift/shift-
 
 ## 4. Arm the night watchman
 
-Unless `NIGHTSHIFT_WATCH=0`, arm it in the background:
+Unless the rules file's `watchMinutes` is `0` (or `NIGHTSHIFT_WATCH=0` overrides), arm it in
+the background — it reads its cadence from the rules file itself:
 
 ```bash
-nohup "${CLAUDE_PLUGIN_ROOT}/adapters/watchman.sh" --project "$CLAUDE_PROJECT_DIR" \
-  --interval "${NIGHTSHIFT_WATCH:-10}" >/dev/null 2>&1 &
+nohup "${CLAUDE_PLUGIN_ROOT}/adapters/watchman.sh" --project "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 &
 ```
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by

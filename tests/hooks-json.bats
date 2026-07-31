@@ -3,9 +3,9 @@ load helpers
 # The plugin root can live at a path containing spaces (e.g. a local marketplace checkout);
 # an unquoted ${CLAUDE_PLUGIN_ROOT} makes the shell split the path and every hook fails.
 
-@test "hooks.json declares all four hook commands" {
+@test "hooks.json declares every hook command" {
   n="$(jq -r '[.. | .command? // empty] | length' "$BATS_TEST_DIRNAME/../hooks/hooks.json")"
-  [ "$n" -eq 4 ]
+  [ "$n" -eq 5 ]
 }
 
 @test "every hooks.json command quotes the plugin root (spaced-path safe)" {
@@ -43,12 +43,13 @@ load helpers
 
 @test "hooks.json registers the events and matchers the guards rely on" {
   f="$BATS_TEST_DIRNAME/../hooks/hooks.json"
-  [ "$(jq -r '[.hooks.PreToolUse[].matcher] | sort | join(",")' "$f")" = "AskUserQuestion,Bash" ]
+  [ "$(jq -r '[.hooks.PreToolUse[].matcher] | sort | join(",")' "$f")" = "AskUserQuestion,Bash,Edit|Write|MultiEdit|NotebookEdit" ]
   [ "$(jq -r '.hooks.Stop | length' "$f")" -eq 1 ]
   [ "$(jq -r '.hooks.SessionEnd | length' "$f")" -eq 1 ]
   jq -e '.hooks.SessionEnd[0].hooks[0].command | test("session-end")' "$f" >/dev/null
   jq -e '.hooks.PreToolUse[] | select(.matcher=="Bash")   | .hooks[0].command | test("hardhat")'       "$f" >/dev/null
   jq -e '.hooks.PreToolUse[] | select(.matcher=="AskUserQuestion") | .hooks[0].command | test("hardhat")' "$f" >/dev/null
+  jq -e '.hooks.PreToolUse[] | select(.matcher=="Edit|Write|MultiEdit|NotebookEdit") | .hooks[0].command | test("hardhat")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].command | test("clock-out-gate")' "$f" >/dev/null
 }
 

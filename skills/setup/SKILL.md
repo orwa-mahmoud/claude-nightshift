@@ -29,7 +29,8 @@ they do not exist.
   repo inside `.nightshift/`, so every punch-list change and log line has history. Most people
   don't want a git repo living inside their project, so ask — *"version the run state in a local
   receipts repo? (never pushed, never touches your project's history)"* — and on anything but a
-  clear yes, skip it: the receipts still exist as plain files. On yes: if `.nightshift/.git` does
+  clear yes, skip it: the receipts still exist as plain files. Present the question neutrally —
+  never describe the repo as recommended; the default is no. On yes: if `.nightshift/.git` does
   not exist, `git init` inside `.nightshift/`, add a `.nightshift/.gitignore` that ignores the
   transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
   `.watchman`, `.watchman-tick`, and `.lock.d/`, and make one initial commit. **Never add a
@@ -70,30 +71,20 @@ denied means denied. Ask one question:
 ## 5. The rules file — every knob in one place
 
 Copy `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/nightshift-rules-template.json` to
-`.claude/nightshift-rules.json` if it does not already exist — the owner's one config file,
-defaults inline, survives plugin updates. Then load it: validate with `jq -e 'type == "object"'`
-(an invalid file is reported, never half-applied) and sync each key into the `env` block of
-`.claude/settings.local.json`, machine-escaped, never clobbering env keys that are not
-nightshift's:
+`.nightshift/rules.json` as-is, if it does not already exist — the owner's one config file,
+defaults inline. It lives in nightshift's own folder on purpose: everything nightshift is in
+one place, kept out of repo history by the same `.nightshift/` gitignore, versioned by the
+receipts repo when one exists — and deleting `.nightshift/` removes all of nightshift, rules
+included. If a pre-0.6.1 `.claude/nightshift-rules.json` exists, move it here — the owner's
+values, not the template. Then validate it with `jq -e 'type == "object"'` and report a
+broken file plainly — never half-apply it.
 
-- `toolDeny` (object) → `NIGHTSHIFT_TOOL_RULES` (compact, via `jq -c`)
-- `forbiddenCommands` → `NIGHTSHIFT_FORBIDDEN_COMMANDS`
-- `neverCommitPatterns` → `NIGHTSHIFT_NEVER_COMMIT_PATTERNS`
-- `expectedEmail` → `NIGHTSHIFT_EXPECTED_EMAIL`
-- `protectedDirs` → `NIGHTSHIFT_PROTECTED_DIRS`
-- `stallMax` → `NIGHTSHIFT_STALL_MAX`
-- `stallWarnEvery` → `NIGHTSHIFT_STALL_WARN`
-- `watchMinutes` → `NIGHTSHIFT_WATCH`
-- `watchRetrySeconds` → `NIGHTSHIFT_WATCH_RETRY`
-- `notifyCommand` → `NIGHTSHIFT_NOTIFY_CMD`
-- `revivalPrompt` → `NIGHTSHIFT_REVIVAL_PROMPT`
-- `freshRevivalPrompt` → `NIGHTSHIFT_FRESH_PROMPT`
-- `clockOutMessage` → `NIGHTSHIFT_GATE_MESSAGE`
-
-An empty string, empty object, or `0` means "use the default": remove that env key rather than
-writing it. The env is what enforces, fixed at session start — the file is the owner's editor,
-not the agent's lever. Editing the file changes nothing by itself; the summary must say so:
-**"rules changed → re-run `/nightshift:setup`, then start a fresh session."**
+The hooks read this file directly on every tool call: an owner's edit applies from their very
+next action. Nothing is synced anywhere, nothing needs a restart, and there is no second copy.
+Env vars of the matching names (`NIGHTSHIFT_FORBIDDEN_COMMANDS`, `NIGHTSHIFT_TOOL_RULES`, …)
+remain session-start overrides for tests and one-off exceptions — say so only if asked. If
+`.claude/settings.local.json` still carries `NIGHTSHIFT_*` env keys that an earlier version
+synced from this file, offer to remove them: the file is the one copy.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's keys to the owner's file (`jq -r 'keys[]'` on each): offer any
