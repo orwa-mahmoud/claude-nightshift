@@ -59,3 +59,12 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF "wording wins every conflict" "$s"
   grep -qF 'open boxes is never touched' "$s"
 }
+
+# The two contracts the setup conversation must not drift on: the receipts repo is never
+# "recommended", and the rules file never enters a repo's history.
+@test "setup pins the neutral receipts ask and the rules-file gitignore" {
+  s="$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
+  grep -qF 'never describe the repo as recommended; the default is no' "$s"
+  grep -qF 'nightshift-rules.json` is in its `.gitignore' "$s"
+  grep -qF 'must never enter history' "$s"
+}

@@ -29,7 +29,8 @@ they do not exist.
   repo inside `.nightshift/`, so every punch-list change and log line has history. Most people
   don't want a git repo living inside their project, so ask — *"version the run state in a local
   receipts repo? (never pushed, never touches your project's history)"* — and on anything but a
-  clear yes, skip it: the receipts still exist as plain files. On yes: if `.nightshift/.git` does
+  clear yes, skip it: the receipts still exist as plain files. Present the question neutrally —
+  never describe the repo as recommended; the default is no. On yes: if `.nightshift/.git` does
   not exist, `git init` inside `.nightshift/`, add a `.nightshift/.gitignore` that ignores the
   transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
   `.watchman`, `.watchman-tick`, and `.lock.d/`, and make one initial commit. **Never add a
@@ -71,7 +72,10 @@ denied means denied. Ask one question:
 
 Copy `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/nightshift-rules-template.json` to
 `.claude/nightshift-rules.json` if it does not already exist — the owner's one config file,
-defaults inline, survives plugin updates. Then load it: validate with `jq -e 'type == "object"'`
+defaults inline, survives plugin updates. If the project dir is a git repository, ensure
+`.claude/nightshift-rules.json` is in its `.gitignore` (create or append, no duplicates): the
+file carries the owner's guard patterns and identity — the never-commit list above all — and
+must never enter history. Then load it: validate with `jq -e 'type == "object"'`
 (an invalid file is reported, never half-applied) and sync each key into the `env` block of
 `.claude/settings.local.json`, machine-escaped, never clobbering env keys that are not
 nightshift's:
