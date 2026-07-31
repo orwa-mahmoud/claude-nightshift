@@ -10,22 +10,23 @@
 # Stall guard: consecutive stop attempts with no progress are counted (progress = a tick or a
 # commit). By default a stalled shift is HELD — every 3 stuck attempts a stall warning lands
 # in the shift log and the gate keeps blocking; only STOP, done, or the deadline release.
-# Owner opt-in: NIGHTSHIFT_STALL_MAX=N auto-ends the shift (write STOP, log, release) after N
-# stuck attempts. Env is fixed at session start, so only a human can choose that.
+# Owner opt-in: stallMax N in the rules file auto-ends the shift (write STOP, log, release)
+# after N stuck attempts — the file is guarded during a shift, so only a human chooses that.
 #
 # Quitting time and the stall opt-in are a whistle, not an axe: a Stop hook can only run at
 # a stop attempt, so neither can ever interrupt work mid-item.
 #
-# Morning whistle: if NIGHTSHIFT_NOTIFY_CMD is set, any shift-ending release fires it exactly
-# once with a one-line summary (both $NIGHTSHIFT_SUMMARY and $1). Unset -> silent no-op.
+# Morning whistle: if the rules file sets notifyCommand, any shift-ending release fires it
+# exactly once with a one-line summary (both $NIGHTSHIFT_SUMMARY and $1). Empty -> silent.
 #
 # Receipts: any shift-ending release also snapshots .nightshift/ into its local receipts repo
 # (the one /nightshift:setup created). No receipts repo -> no-op; a failed commit never blocks
 # the release.
 set -u
 
+_here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=hooks/lib.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$_here/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
 
 # The Stop payload carries the session's identity; a tty guard keeps manual runs from hanging.
 if [ -t 0 ]; then INPUT=""; else INPUT="$(cat)"; fi
@@ -46,10 +47,17 @@ STALL="$NS/.stall"
 NOTIFIED="$NS/.notified"
 ENDED="$NS/.ended" # written when the shift actually ends; hardhat keeps the site rules armed until then
 LOG="$NS/shift-log.md"
-STALL_MAX="${NIGHTSHIFT_STALL_MAX:-0}" # 0 = hold a stalled shift, never auto-end
-STALL_WARN="${NIGHTSHIFT_STALL_WARN:-3}" # rules file: stallWarnEvery
-case "$STALL_WARN" in '' | *[!0-9]*) STALL_WARN=3 ;; esac
-NOTIFY="${NIGHTSHIFT_NOTIFY_CMD:-}"
+# One copy: the rules file is the config; env vars are session-start overrides only. The
+# shipped values live visibly in the file setup copies — no fallbacks hide here. A gate whose
+# knobs are unreadable still gates (fail closed): the stall bookkeeping stands down loudly and
+# the block carries the repair.
+STALL_MAX="$(rule "$PROJECT_DIR" stallMax "${NIGHTSHIFT_STALL_MAX:-}")"
+STALL_WARN="$(rule "$PROJECT_DIR" stallWarnEvery "${NIGHTSHIFT_STALL_WARN:-}")"
+STALL_OK=1
+case "$STALL_MAX" in '' | *[!0-9]*) STALL_OK=0 ;; esac
+case "$STALL_WARN" in '' | *[!0-9]* | 0) STALL_OK=0 ;; esac
+NOTIFY="$(rule "$PROJECT_DIR" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")"
+GATE_MESSAGE="$(rule "$PROJECT_DIR" clockOutMessage "${NIGHTSHIFT_GATE_MESSAGE:-}")"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
@@ -203,40 +211,46 @@ fi
 # commit landed, captured in the fingerprint; either resets the counter. Held by default:
 # warn in the shift log every STALL_WARN stuck attempts and keep blocking. Auto-end only on
 # the owner's NIGHTSHIFT_STALL_MAX=N opt-in.
-FP="$TICKED:$(project_head)"
-prev_fp=""
-prev_n=0
-if [ -f "$STALL" ]; then
-  prev_fp="$(sed -n '1p' "$STALL")"
-  prev_n="$(sed -n '2p' "$STALL")"
-  prev_n="${prev_n:-0}"
-fi
-if [ "$prev_fp" = "$FP" ]; then
-  attempts=$((prev_n + 1))
-else
-  attempts=1
-fi
-if [ "$STALL_MAX" -gt 0 ] 2>/dev/null; then
-  if [ "$attempts" -ge "$STALL_MAX" ]; then
-    log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
-    printf 'stalled\n' >"$STOP"
-    end_shift "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
-    exit 0
+if [ "$STALL_OK" -eq 1 ]; then
+  FP="$TICKED:$(project_head)"
+  prev_fp=""
+  prev_n=0
+  if [ -f "$STALL" ]; then
+    prev_fp="$(sed -n '1p' "$STALL")"
+    prev_n="$(sed -n '2p' "$STALL")"
+    prev_n="${prev_n:-0}"
   fi
-elif [ "$attempts" -ge "$STALL_WARN" ]; then
-  log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
-  attempts=0
+  if [ "$prev_fp" = "$FP" ]; then
+    attempts=$((prev_n + 1))
+  else
+    attempts=1
+  fi
+  if [ "$STALL_MAX" -gt 0 ] 2>/dev/null; then
+    if [ "$attempts" -ge "$STALL_MAX" ]; then
+      log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
+      printf 'stalled\n' >"$STOP"
+      end_shift "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
+      exit 0
+    fi
+  elif [ "$attempts" -ge "$STALL_WARN" ]; then
+    log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
+    attempts=0
+  fi
+  printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
+else
+  log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); re-run /nightshift:setup"
 fi
-printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 
-# 4. Block, and re-inject the contract so the next turn resumes the shift. The owner may word
-# the reinjection (rules file key: clockOutMessage) — jq builds the JSON so their text cannot
-# break it; without jq the custom text is skipped, never a malformed decision.
-if [ -n "${NIGHTSHIFT_GATE_MESSAGE:-}" ] && command -v jq >/dev/null 2>&1; then
-  jq -nc --arg r "$NIGHTSHIFT_GATE_MESSAGE" '{decision:"block",reason:$r}'
+# 4. Block, and re-inject the contract so the next turn resumes the shift. The reinjection
+# text lives in the rules file (clockOutMessage) — the one copy, shipped in the template setup
+# copies; jq builds the JSON so the owner's text cannot break the decision. The block itself
+# never depends on config: an unreadable message (or no jq to embed it safely) still blocks,
+# fail closed, with the repair named.
+if [ -n "$GATE_MESSAGE" ] && command -v jq >/dev/null 2>&1; then
+  jq -nc --arg r "$GATE_MESSAGE" '{decision:"block",reason:$r}'
   exit 0
 fi
 cat <<'JSON'
-{"decision":"block","reason":"DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them top to bottom, ONE at a time, each to its own Verify. Per item: implement fully — no stubs, no deferrals, no 'documented for later'; effort is never a reason to defer, and this IS the focused session; run the item gate right before its commit and require it GREEN; make ONE commit; then tick the box to '- [x]'. Never fake a tick. Deletion is not completion — never remove an item or edit the contract above '## Items'. Park any decision that is genuinely the owner's in .nightshift/parking-lot.md with a sensible default chosen, and KEEP WORKING — never ask, never wait. A walkthrough cycle that finds nothing new is SUCCESS, not idleness. You may stop only when zero '- [ ]' remain, or the owner issues a stop-work order (.nightshift/STOP)."}
+{"decision":"block","reason":"DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick honestly; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here, or jq is absent; re-run /nightshift:setup.)"}
 JSON
 exit 0

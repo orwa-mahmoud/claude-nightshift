@@ -359,3 +359,24 @@ load helpers
   is_block "$output"
   grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
 }
+
+@test "the gate reads the stall cadence from the rules file" {
+  p="$(new_project)"
+  punch_open "$p"
+  jq '.stallWarnEvery = 2' "$RULES_TEMPLATE" >"$p/.nightshift/rules.json"
+  run gate "$p"
+  run gate "$p"
+  is_block "$output"
+  grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
+}
+
+# The block never depends on config: unreadable knobs still gate, fail closed, repair named.
+@test "a missing rules file still blocks and names the repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/rules.json"
+  run gate "$p"
+  is_block "$output"
+  printf '%s' "$output" | grep -q "re-run /nightshift:setup"
+  grep -q 'stall guard down' "$p/.nightshift/shift-log.md"
+}

@@ -459,7 +459,7 @@ STUB
   out="$(jq -nc '{tool_name:"WebSearch",tool_input:{}}' |
     env NIGHTSHIFT_TOOL_RULES='not json' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
-  printf '%s' "$out" | grep -q "NIGHTSHIFT_TOOL_RULES"
+  printf '%s' "$out" | grep -q "toolDeny"
 }
 
 @test "the map's default Ask rule holds even without jq" {
@@ -474,4 +474,68 @@ STUB
     env PATH="$nojq" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"welded shut"}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
   printf '%s' "$out" | grep -q "welded shut"
+}
+
+# ---- one copy: the rules file IS the config; env is only a session-start override ----
+
+@test "the guards read the rules file directly — no env needed" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '{"forbiddenCommands":"git .*push","toolDeny":{"AskUserQuestion":"file-map says park"}}\n' >"$p/.nightshift/rules.json"
+  run hardhat_bash "$p" "git push origin main"
+  is_deny "$output"
+  run hardhat_ask "$p"
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "file-map says park"
+}
+
+@test "a pre-0.6.1 rules file in .claude still reads until setup migrates it" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/rules.json" # a pre-0.6.1 site has no modern file
+  mkdir -p "$p/.claude"
+  printf '{"forbiddenCommands":"git .*push"}\n' >"$p/.claude/nightshift-rules.json"
+  run hardhat_bash "$p" "git push origin main"
+  is_deny "$output"
+}
+
+@test "an env var overrides the file for the session" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '{"forbiddenCommands":"git .*push"}\n' >"$p/.nightshift/rules.json"
+  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_FORBIDDEN_COMMANDS="never-matches-anything"
+  is_allow
+}
+
+@test "the night never rewrites its own rules — file tools and commands alike" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc --arg fp "$p/.nightshift/rules.json" '{tool_name:"Write",tool_input:{file_path:$fp,content:"{}"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "never rewrites its own rules"
+  run hardhat_bash "$p" "echo '{}' > .nightshift/rules.json"
+  is_deny "$output"
+}
+
+@test "file tools are free of the command guards — and free entirely outside a shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc '{tool_name:"Write",tool_input:{file_path:"/tmp/notes.md",content:"how to git push"}}' |
+    env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] # a file's content is not a command
+  q="$(new_project other)"
+  out="$(jq -nc --arg fp "$q/.nightshift/rules.json" '{tool_name:"Write",tool_input:{file_path:$fp,content:"{}"}}' |
+    env CLAUDE_PROJECT_DIR="$q" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] # no shift, no rules — the owner edits freely
+}
+
+# No readable rules is a fault, never an opening: the question still parks, loudly.
+@test "a missing rules file still parks questions and names the repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/rules.json"
+  run hardhat_ask "$p"
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "re-run /nightshift:setup"
 }

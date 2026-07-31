@@ -1,10 +1,18 @@
 # Shared helpers for the nightshift hook tests.
 HOOKS="$BATS_TEST_DIRNAME/../hooks"
+RULES_TEMPLATE="$BATS_TEST_DIRNAME/../skills/nightshift/references/nightshift-rules-template.json"
 
 # Create an isolated project with its own git repo and a .nightshift dir. Echoes the path.
+# The suite must see only the env a test passes explicitly — a developer's own shell (or a
+# host that feeds settings env into commands) must never leak NIGHTSHIFT_* into fixtures.
+while IFS='=' read -r _v _; do
+  case "$_v" in NIGHTSHIFT_*) unset "$_v" ;; esac
+done < <(env)
+
 new_project() {
   local p="$BATS_TEST_TMPDIR/${1:-proj}"
   mkdir -p "$p/.nightshift"
+  cp "$RULES_TEMPLATE" "$p/.nightshift/rules.json" # as setup does — the one copy of every knob
   git -C "$p" init -q
   git -C "$p" config user.email dev@example.com
   git -C "$p" config user.name tester
@@ -17,6 +25,7 @@ new_project() {
 new_workspace() {
   local w="$BATS_TEST_TMPDIR/${1:-ws}"
   mkdir -p "$w/.nightshift"
+  cp "$RULES_TEMPLATE" "$w/.nightshift/rules.json"
   add_repo "$w" repo
   printf '%s' "$w"
 }

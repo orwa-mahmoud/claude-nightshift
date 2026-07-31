@@ -3,6 +3,32 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.6.1 — one copy
+
+The rules file is the config, and it lives with everything else nightshift owns:
+`.nightshift/rules.json`, copied as-is from the shipped template by setup, read by the hooks
+directly on every tool call — an owner's edit applies from the very next action, nothing is
+synced into settings, nothing needs a restart, and deleting `.nightshift/` removes all of
+nightshift, rules included. Env vars of the matching names remain session-start overrides —
+the test suite's lever and the one-off exception, never a copy to maintain.
+
+- **The night never touches its own leash.** During a shift, the working session is denied
+  the rules file — file tools and shell commands alike, the same pattern-match honesty as
+  every guard here. A rule that must change mid-shift changes by the owner's hand and reads
+  from the next tool call.
+- **Setup migrates and cleans.** A pre-0.6.1 `.claude/nightshift-rules.json` is moved into
+  `.nightshift/` (the hooks read the old home as a fallback until then), and setup offers to
+  strip the `NIGHTSHIFT_*` env keys an earlier version synced. The receipts-repo question is
+  asked neutrally: its default is no, and it is never presented as recommended.
+- **The watchman reads its own cadence** (`watchMinutes`, `watchRetrySeconds`,
+  `notifyCommand`, both revival orders) from the rules file at arm time; start no longer
+  passes an interval.
+- **No hidden defaults.** Every shipped value — both revival orders, the clock-out
+  reinjection, the park message, the cadences — lives visibly in the template setup copies;
+  the hooks carry no fallback copies. A missing or unreadable rules file fails loudly and
+  closed: the gate still blocks, questions stay parked, the watchman refuses to arm — each
+  naming the repair.
+
 ## v0.6.0 — the 500 night, start to finish
 
 Start a shift, watch the very first call come back `API Error: 500`, and go to sleep anyway:
@@ -49,7 +75,7 @@ one click.
   trade plainly. nightshift's guards are hooks and stay armed in every permission mode.
 - **One rules file, every decision the owner's.** Setup copies a ready template to
   `.claude/nightshift-rules.json` and syncs it into the env block — clean JSON to edit, the
-  ugly escaping machine-written. It carries the per-tool denial map (`toolDeny`: your message
+  escaping machine-written. It carries the per-tool denial map (`toolDeny`: your message
   per tool, an empty message lifts a rule, absent keys keep the defaults), every guard
   pattern, the stall cap and warning cadence, the watch cadence, the morning whistle, the
   watchman's revival orders, and the gate's clock-out reinjection. The env stays the enforcement surface, fixed at session start — the file is the

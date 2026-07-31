@@ -93,6 +93,24 @@ valid_ere() {
   [ "$?" -le 1 ]
 }
 
+# The owner's rules file is the one copy of every knob: .nightshift/rules.json — nightshift's
+# whole life lives in nightshift's folder, and deleting the folder deletes all of it. Hooks
+# read the file directly — a change applies from the next tool call. An env var of the
+# matching name, when set, overrides the file for the session: the test suite's lever and the
+# power user's per-session exception, never a second copy the owner maintains.
+# rule <project-dir> <file-key> <env-value> — prints the effective value ('' = default).
+rule() {
+  if [ -n "$3" ]; then printf '%s' "$3"; return; fi
+  local f="$1/.nightshift/rules.json"
+  [ -f "$f" ] || f="$1/.claude/nightshift-rules.json" # pre-0.6.1 home; setup migrates it
+  [ -f "$f" ] || return 0
+  if command -v jq >/dev/null 2>&1; then
+    jq -r --arg k "$2" '.[$k] // empty | if type == "object" or type == "array" then tojson else tostring end' "$f" 2>/dev/null
+  else
+    sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | sed -n 1p
+  fi
+}
+
 # Cross-session mutex over one .nightshift/ — mkdir is the one atomic primitive every platform
 # here ships (macOS has no flock). The holder writes its pid inside; a lock whose holder is
 # provably dead is broken on sight, a mid-claim lock (no pid yet) is waited on, never stolen.

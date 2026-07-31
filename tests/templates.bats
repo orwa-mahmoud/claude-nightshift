@@ -49,6 +49,11 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
     stallMax stallWarnEvery watchMinutes watchRetrySeconds notifyCommand revivalPrompt freshRevivalPrompt clockOutMessage; do
     jq -e --arg k "$k" 'has($k)' "$t" >/dev/null || { echo "template missing $k"; return 1; }
   done
+  # the shipped texts are the ONLY copy — they must ship filled, not as empty placeholders
+  for k in revivalPrompt freshRevivalPrompt clockOutMessage watchRetrySeconds; do
+    jq -e --arg k "$k" '.[$k] | length > 0' "$t" >/dev/null || { echo "template ships empty $k"; return 1; }
+  done
+  jq -e '.toolDeny.AskUserQuestion | length > 0' "$t" >/dev/null
 }
 
 # Updates offer their improvements; they never overwrite the owner's words.
@@ -58,4 +63,15 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF 'touch a value the owner already has' "$s"
   grep -qF "wording wins every conflict" "$s"
   grep -qF 'open boxes is never touched' "$s"
+}
+
+# The contracts the setup conversation must not drift on: the receipts repo is never
+# "recommended", the rules live and die with nightshift's folder, and a pre-0.6.1 file is
+# moved, not retyped.
+@test "setup pins the neutral ask, the rules home, and the migration" {
+  s="$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
+  grep -qF 'never describe the repo as recommended; the default is no' "$s"
+  grep -qF '`.nightshift/rules.json` as-is' "$s"
+  grep -qF 'removes all of nightshift, rules' "$s"
+  grep -qF 'move it here' "$s"
 }

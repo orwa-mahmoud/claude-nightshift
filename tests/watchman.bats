@@ -9,6 +9,7 @@ setup() {
   SESSION_END="$BATS_TEST_DIRNAME/../hooks/session-end.sh"
   P="$BATS_TEST_TMPDIR/proj"
   mkdir -p "$P/.nightshift"
+  cp "$BATS_TEST_DIRNAME/../skills/nightshift/references/nightshift-rules-template.json" "$P/.nightshift/rules.json"
   printf '## Items\n- [ ] **1.**\n' >"$P/.nightshift/punch-list.md"
 
   BIN="$BATS_TEST_TMPDIR/bin"
@@ -676,4 +677,32 @@ STUB
   [ "$(wc -l <"$wl" | tr -d ' ')" -eq 1 ] # once per outage, not once per wake
   grep -q 'revival failed' "$wl"
   grep -q 'claude --resume sid-shift' "$wl"
+}
+
+# One copy: the watchman reads its orders from the rules file; env stays the override.
+@test "the revival order is read from the rules file" {
+  jq '.revivalPrompt = "weld from the file"' \
+    "$BATS_TEST_DIRNAME/../skills/nightshift/references/nightshift-rules-template.json" >"$P/.nightshift/rules.json"
+  cat >"$BIN/hear2.sh" <<'STUB'
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+printf '%s\n' "$1" >.nightshift/heard
+awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+mv .nightshift/pl.tmp .nightshift/punch-list.md
+STUB
+  chmod +x "$BIN/hear2.sh"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/hear2.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  grep -q "weld from the file" "$P/.nightshift/heard"
+}
+
+# The watchman refuses to arm without its orders — loudly, naming the repair.
+@test "a missing rules file refuses to arm the watchman" {
+  rm "$P/.nightshift/rules.json"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q "re-run /nightshift:setup"
+  grep -q 'cannot arm' "$P/.nightshift/shift-log.md"
 }
