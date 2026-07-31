@@ -53,8 +53,13 @@ at a serious product — not a half-done prototype full of shortcuts.
 - **Your rules are laws, not suggestions.** Nothing is blocked out of the box; whatever *you*
   forbid, hooks deny mechanically for the length of the shift: `git push` for the night, `rm -rf`,
   commits that touch a protected folder, diffs that smell like secrets, commits under the wrong
-  identity. The agent *can't*, not *shouldn't*. They are shift rules, not a background scanner —
-  outside a shift your session is your own.
+  identity. The agent *can't*, not *shouldn't*. And because they are hooks, not permission rules,
+  they hold in **every** permission mode — run the night on `bypassPermissions` and your denylist
+  still stands. Allow everything, deny your list: a combination Claude Code has no native spelling
+  for. They are shift rules, not a background scanner — outside a shift your session is your own.
+  And the shift binds **one** session — the one working it: a second conversation opened beside a
+  running shift chats, stops, and asks freely, and `/nightshift:start` refuses to start a second
+  agent beside a living one — it hands you the running thread instead.
 - **Questions get parked, not asked.** Mid-shift the ask-the-user tool is denied; the question
   lands in `parking-lot.md` with a sensible default chosen, and work continues. Watching live?
   Type your answer any time and it's applied. Asleep? Review the parked calls over coffee.
@@ -65,18 +70,21 @@ at a serious product — not a half-done prototype full of shortcuts.
 - **A dead session is revived, not mourned.** No hook can fire in a session that no longer
   exists — that's the 500 night. You're supposed to be asleep; instead you're refreshing
   status.claude.com so you can relaunch the moment it recovers. Don't — the **night watchman**
-  works that shift: it wakes every 20 minutes, and when the site is quiet it resumes **the
+  works that shift: it wakes every 10 minutes, and when the site is quiet it resumes **the
   shift's own conversation by id** — hours of context, decisions, where it stood mid-item — so
   the morning transcript is one unbroken thread: the 500, the revival, and everything after, in
   the terminal or your IDE's extension alike. (The chain degrades honestly: the recorded
   conversation first, `claude --continue` next, a fresh session last — the punch list on disk is
   enough for any of them.) Reviving needs strong positive evidence of death, never "looks
   stuck": the shift records its own session id, transcript, and process at first work, and the
-  watchman checks all three — a transcript still streaming, a live shift process on silent work,
-  or any claude session in the project stands it by; a dead process, or one alive at an errored
-  prompt with an `API Error` in the transcript tail, is what gets revived. It stands down at
+  watchman reads only the session's own signals — your Esc first, then a transcript still
+  streaming, a live shift process on silent work, the host's own session roster
+  (`claude agents --json`), or any claude session in the project stands it by. Project files
+  never vote: a churning build, a sync, or a stray log writer can neither mute your Esc nor
+  mask a death. A dead process, a roster without the shift, or a session alive at an errored
+  prompt — the transcript's last word is the API error itself — is what gets revived. It stands down at
   every honest ending — done, stop-work order, quitting time, a clean exit — gives an outage
-  2–3 tries then backs off instead of hammering, and **Esc still means stop**: your interrupt is
+  three tries every wake, all night, until the API answers, and **Esc still means stop**: your interrupt is
   in the transcript, and the watchman reads it before touching anything.
 - **You're never trapped.** Escape and Ctrl+C still work — it's your keyboard, the plugin can't
   override it. But a pause isn't an ending: the next session resumes the shift, and a headless
@@ -85,9 +93,11 @@ at a serious product — not a half-done prototype full of shortcuts.
   written. It lands at the next stop attempt rather than mid-keystroke, and the site rules stay
   armed until then, so an order given in alarm never strips the guards off a still-working agent.
   Open boxes stay open — a true snapshot of where it stopped.
-- **Receipts, not vibes.** Timestamps, per-item commits, cycle logs — versioned in a local
-  receipts repo inside `.nightshift/` that never touches your project's history (ignored by
-  default; no remote, never pushed).
+- **Receipts, not vibes.** Timestamps, per-item commits, cycle logs — plain files under
+  `.nightshift/`, kept out of your project's history. When they grow, `/nightshift:archive`
+  files the finished part into `.nightshift/archive/<date>/` — shipped items, the journal,
+  handled snags — dated, readable facts about what landed. Want git history of the run state
+  too? Setup offers a local-only receipts repo (opt-in; no remote, never pushed).
 
 ## When to call in the night shift
 
@@ -127,12 +137,21 @@ Then:
 /nightshift:start      # hours asked only for open-ended work; then go to sleep
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:stop       # end the shift now; open boxes stay open, honestly
+/nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags
 # you review the local commits and push — or forbid pushing outright (one env line below)
 ```
 
 Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an interactive session
 Escape is the immediate halt; STOP is what reaches a headless run or the foreman loop, and it ends
 the shift at the agent's next stop attempt.
+
+**Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
+and a watchman revival runs headless — a denied tool stays denied. For long runs,
+`bypassPermissions` is the recommended mode, set in the project's `.claude/settings.local.json` so
+revived sessions inherit it (`/nightshift:setup` offers this and writes it on a yes); the narrower
+alternative is pre-allowing the punch list's own tools. nightshift's guards are hooks — they stay
+armed in every permission mode, bypass included. Decline both and a mid-shift prompt costs the
+night; that trade is the owner's.
 
 One more appears in your slash menu: `/nightshift:nightshift` is the method itself — how to work an
 item, park a decision, keep a snag log. Claude loads it on its own whenever a shift is running, so
@@ -153,8 +172,8 @@ v1.2.0 on npm the same day. Public links:
 [`examples/adapttable-overnight.md`](examples/adapttable-overnight.md).
 
 The live `.nightshift/` state stays out of this repo — the same default nightshift sets for your
-projects: your run history is yours, ignored by your repo, versioned in its own local receipts
-repo.
+projects: your run history is yours, ignored by your repo, and versioned in its own local
+receipts repo if you opt in at setup.
 
 ## The three famous shifts
 
@@ -208,17 +227,29 @@ Everything is named from a real construction site — learn one term, guess the 
 
 ## Owner knobs
 
-Zero-config by default; every knob below is off until you set it (unset ⇒ the default described):
+Zero-config by default; every knob below is off until you set it (unset ⇒ the default described).
+
+**One file drives them all:** setup copies a ready template to `.claude/nightshift-rules.json` —
+edit it in clean JSON (the tool-deny map, the guard patterns, the cadence, even the watchman's
+revival prompt and the gate's clock-out text), re-run `/nightshift:setup`, start a fresh session.
+Setup machine-writes your file into the env block below; the env is what enforces, fixed at
+session start — so only you can set or lift a rule, never the agent mid-run. Start warns when
+the file has drifted from the running session's rules.
 
 | Env var | Effect |
 |---|---|
+| `NIGHTSHIFT_TOOL_RULES` | JSON map of tool name → denial message (rules file: `toolDeny`). A key denies that tool with your wording; an empty message lifts the rule; absent keys mean the default — AskUserQuestion parked, everything else allowed |
+| `NIGHTSHIFT_REVIVAL_PROMPT` | your wording for the order a **resumed** conversation gets — default is one line ("you were cut off, continue"), because the thread carries its own context (rules file: `revivalPrompt`) |
+| `NIGHTSHIFT_FRESH_PROMPT` | your wording for the **fresh-session** fallback's order — the only rung that starts with no context, so its default points at the punch list (rules file: `freshRevivalPrompt`) |
+| `NIGHTSHIFT_GATE_MESSAGE` | your wording for the clock-out gate's DO-NOT-STOP reinjection (rules file: `clockOutMessage`) |
+| `NIGHTSHIFT_STALL_WARN` | hold-mode stall warning cadence — warn every N stuck stop attempts (rules file: `stallWarnEvery`; default 3) |
 | `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules. `git .*push` keeps pushing yours for the night (the `.*` also catches `git -c k=v push`); `rm -rf\|docker\|terraform` fences the rest. Env vars are fixed at session start, so only you can set or lift a rule — never the agent mid-run |
 | `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits authored under any other identity |
 | `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
 | `NIGHTSHIFT_WATCH` | minutes between night-watchman wakes; `0` disarms it (unset ⇒ 20). The revival resumes **the shift's own conversation by id** (`claude --resume <recorded session> -p`) — one unbroken thread in the terminal and the IDE extension alike — degrading per attempt to `claude --continue -p` and last to a fresh `claude -p` in case the conversation itself is what broke. `NIGHTSHIFT_WATCH_AGENT="claude -p"` makes every revival a fresh session instead |
 | `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. The foreman honors the same knob for its loop (`--stall N` is the CLI form) |
-| `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`) |
+| `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`). The watchman rings it too — once per outage — when a dead session could not be revived: the one night event that needs you. A successful revival never pages; it lands as a notice in `parking-lot.md` with the thread's resume command and deep links |
 
 Every rule above is **shift-scoped**: it applies while `.nightshift/punch-list.md` has an open
 `- [ ]` and the gate has not yet ended the shift. With no punch list, or once the last box is
@@ -239,9 +270,9 @@ auto-clock-out after N stuck attempts.
 
 ## Recommended layout
 
-nightshift works in-place on any repo — state is gitignored and versioned in its own local
-receipts repo, so your project history stays clean either way. For hard separation, run it from a
-plain workspace folder that contains your repo:
+nightshift works in-place on any repo — state is gitignored, and can be versioned in its own
+local receipts repo if you opt in at setup, so your project history stays clean either way. For
+hard separation, run it from a plain workspace folder that contains your repo:
 
 ```text
 my-project/            ← plain folder, not a repo — open Claude Code here

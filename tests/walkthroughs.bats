@@ -58,3 +58,13 @@ HUNT="$BATS_TEST_DIRNAME/../skills/hunt/SKILL.md"
   grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
   grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
 }
+
+# The archive files finished paperwork only — the contract and open work are untouchable.
+@test "the archive skill moves only finished records, never the contract or open items" {
+  s="$BATS_TEST_DIRNAME/../skills/archive/SKILL.md"
+  [ -f "$s" ]
+  grep -qF 'stay exactly where they are' "$s"      # open items + contract stay
+  grep -qF 'never ticks a box' "$s"                # files paperwork, does no work
+  grep -qF 'archive/<YYYY-MM-DD>/' "$s"            # dated folders are the shape
+  grep -qF 'unanswered stay' "$s"                  # open questions are not history
+}

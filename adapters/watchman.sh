@@ -10,7 +10,7 @@
 #
 #   watchman.sh [--project DIR] [--interval MIN] [--agent CMD] [--max-wakes N]
 #
-#   --interval  minutes between wakes (default $NIGHTSHIFT_WATCH, else 20; 0 exits immediately —
+#   --interval  minutes between wakes (default $NIGHTSHIFT_WATCH, else 10; 0 exits immediately —
 #               the "disabled" spelling)
 #   --agent     the resume command. Default: the SHIFT'S OWN conversation, by id — the hooks
 #               record the first working session into .nightshift/.shift-session, and the
@@ -31,17 +31,29 @@
 #   4. quitting time passed                          -> one clock-out spawn, then down
 #   5. clean session end (.nightshift/.session-end)  -> down; the owner closed it on purpose
 #
-# Liveness is a ladder, not a guess — revival needs strong positive evidence of death, because
-# the one truly harmful failure is spawning a second agent beside a living one (a resumed id
-# APPENDS to the same session; two writers interleave):
-#   1. the shift's transcript moved since last wake  -> alive (a session streams every turn)
-#   2. any project file moved                        -> alive (work that writes files)
-#   3. interrupt marker in the transcript tail       -> owner pressed Esc; stand by
-#   4. recorded pid alive (start time verified)      -> tail shows "API Error"? the 500 wedge:
-#                                                       alive but errored, nobody home — revive.
-#                                                       No error -> long silent work; stand by
-#   5. no pid recorded, a claude process in project  -> uncertain; stand by (conservative)
-#   6. none of the above                             -> dead; revive
+# Liveness is a ladder, session-first — revival needs strong positive evidence of death,
+# because the one truly harmful failure is spawning a second agent beside a living one (a
+# resumed id APPENDS to the same session; two writers interleave). Only the session's own
+# signals testify; project files never vote — a detached loop, a build, or a sync writing
+# files can neither mute the owner's Esc nor mask a dead session as alive:
+#   1. interrupt marker in the transcript tail       -> owner pressed Esc; stand by
+#   2. the shift's transcript moved since last wake  -> alive (a session streams every turn)
+#   3. recorded pid alive (start time verified)      -> transcript's last word is the host's own
+#                                                       API-error event? the 500 wedge: alive but
+#                                                       errored, nobody home — revive.
+#                                                       Otherwise -> long silent work; stand by
+#   4. `claude agents --json` (the host's roster)    -> id present: alive, wedge rule as above —
+#                                                       it even rescues a stale recorded pid;
+#                                                       a clean roster without it: dead; revive
+#   5. pid provably dead, or roster without the id   -> dead; revive
+#   6. neither oracle answered                       -> a claude process working in the project
+#                                                       stands it by; else dead; revive
+#   7. no identity recorded at all                   -> transcript ends in the error -> the
+#                                                       wedge again (a 500 can land before the
+#                                                       first tool call records identity;
+#                                                       --continue resumes that conversation);
+#                                                       a claude process in the project stands
+#                                                       it by; else dead; revive
 # Every retry attempt re-runs the whole ladder first — a site that comes back to life mid-wake
 # is left alone — and each failed attempt re-baselines the sentinel so its own transcript writes
 # never read as site life.
@@ -55,18 +67,19 @@
 # directory (tests use it).
 #
 # API outages: per wake, up to 3 spawn attempts spaced by $NIGHTSHIFT_WATCH_RETRY (default
-# "30 120" seconds). Wakes that fail entirely back the interval off — double per consecutive
-# failure, capped at 8x — so a dead API costs a handful of logged attempts, not one every tick.
+# "30 120" seconds). A wake that fails entirely just waits for the next one — the watchman
+# knocks every interval, all night, until the API answers.
 # Exit: 0 stood down honestly · 1 usage/lock · 7 wake cap (tests).
 set -u
 
 PROJECT="$PWD"
-INTERVAL_MIN="${NIGHTSHIFT_WATCH:-20}"
+INTERVAL_MIN="${NIGHTSHIFT_WATCH:-10}"
 AGENT="${NIGHTSHIFT_WATCH_AGENT:-claude --continue -p}"
 AGENT_IS_DEFAULT=1
 [ -z "${NIGHTSHIFT_WATCH_AGENT:-}" ] || AGENT_IS_DEFAULT=0
 MAX_WAKES=0
 RETRY_SPACING="${NIGHTSHIFT_WATCH_RETRY:-30 120}"
+NOTIFY="${NIGHTSHIFT_NOTIFY_CMD:-}" # the same bell the morning whistle rings; unset = silent
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
@@ -151,17 +164,27 @@ rung_label() { # morning-readable name for the rung, mirrors rung_agent
 # Clock-out spawns take the strongest single rung: the recorded conversation, else --continue.
 resolve_agent() { rung_agent 1 2; }
 
-PROMPT="Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists."
+# A resumed conversation carries its own context — the thread IS the instruction, and the gate
+# does the enforcing. Its order is one line: you were cut off, keep going. Only the
+# fresh-session fallback, which starts empty, gets the full pointer at the punch list. Both are
+# the owner's to word (rules file keys: revivalPrompt, freshRevivalPrompt).
+PROMPT_RESUME="${NIGHTSHIFT_REVIVAL_PROMPT:-You were cut off mid-work by an outage or a crash — not by the owner. Pick up exactly where you left off and continue.}"
+PROMPT_FRESH="${NIGHTSHIFT_FRESH_PROMPT:-Resume the nightshift. Read .nightshift/punch-list.md and work its open items per the contract, one at a time; run the item gate before each commit; tick what you finish. Leave pushing to the owner unless the punch list says otherwise. Park owner decisions in parking-lot.md. Stop only when every box is ticked or a stop-work order exists.}"
+
+# Resumed rungs get the short order; the fresh rung gets the map. Attempts mirror rung_agent.
+rung_prompt() { # $1 attempt, $2 total attempts this wake
+  if [ "$1" -ge "$2" ] && [ "$2" -gt 1 ]; then printf '%s' "$PROMPT_FRESH"; else printf '%s' "$PROMPT_RESUME"; fi
+}
 
 # One spawn attempt; the resumed session may legitimately run for hours. shellcheck disable:
 # $AGENT is an owner-provided command line; word-splitting is intended, as in foreman.
-spawn() { # $1 optionally overrides the agent for this one attempt
-  local a="${1:-$AGENT}"
+spawn() { # $1 optionally overrides the agent for this one attempt; $2 the order for its rung
+  local a="${1:-$AGENT}" p="${2:-$PROMPT_RESUME}"
   # NIGHTSHIFT_REVIVAL marks the child for the hooks: a revival session ending is never the
   # owner's hand on the door — without the mark, the worker's own exit would write .session-end
   # under the recorded id and stand the watchman down mid-outage.
   # shellcheck disable=SC2086
-  NIGHTSHIFT_REVIVAL=1 $a "$PROMPT" >/dev/null 2>&1
+  NIGHTSHIFT_REVIVAL=1 $a "$p" >/dev/null 2>&1
 }
 
 # The transcript the tells read: the shift's own, recorded by the hooks; the newest in the
@@ -178,26 +201,38 @@ resolve_transcript() {
   printf '%s' "$latest"
 }
 
-# The Esc tell: an interrupt marker in the transcript tail means the owner paused the session on
-# purpose. Only the tail — an interrupt mid-history with work after it is a session that already
-# moved on.
+# The Esc tell: the owner's interrupt matters only as the transcript's LAST WORD — the same
+# rule as the wedge. An interrupt the owner already resumed past has newer conversation events
+# after it and is history, not a pause; a real death right after such a resume must read as
+# death. Trailing bookkeeping lines are not conversation and cannot mask the marker.
 owner_paused() {
   local t
   t="$(resolve_transcript)"
   [ -n "$t" ] || return 1
-  tail -n 25 "$t" 2>/dev/null | grep -q "Request interrupted by user"
+  tail -n 25 "$t" 2>/dev/null | awk '
+    /[^\\]"type"[[:space:]]*:[[:space:]]*"(user|assistant)"/ {
+      esc = /Request interrupted by user/
+    }
+    END { exit esc ? 0 : 1 }'
 }
 
-# The wedge tell: Claude Code writes API failures verbatim into the transcript ("API Error: 500
-# Internal server error", "529 Overloaded", "Connection closed mid-response"). An error at the
-# tail of a quiet transcript whose process still lives is a session sitting at an errored prompt
-# with nobody there to press retry. The [^\\] guard skips the escaped quote of a session merely
-# TALKING about API errors — only the host's own event starts the JSON string with the phrase.
+# The wedge tell: Claude Code records an API failure as its own synthetic assistant event,
+# flagged "isApiErrorMessage":true at the top level — an owner pasting "API Error: 500" into a
+# prompt carries no such field, and prose quoting the field arrives with its quotes escaped,
+# which the [^\\] guard skips. The wedge is the session sitting at that errored prompt NOW, so
+# the flag must be on the LAST conversation event (user or assistant): anything after it —
+# a retry, an answer, the owner's next prompt — means somebody already acted, and a session
+# whose owner is awake at the keyboard is not the watchman's to touch. Trailing bookkeeping
+# lines (summaries, snapshots) are not conversation and cannot mask the wedge.
 errored_tail() {
   local t
   t="$(resolve_transcript)"
   [ -n "$t" ] || return 1
-  tail -n 25 "$t" 2>/dev/null | grep -q '[^\\]"API Error:'
+  tail -n 25 "$t" 2>/dev/null | awk '
+    /[^\\]"type"[[:space:]]*:[[:space:]]*"(user|assistant)"/ {
+      wedge = /[^\\]"isApiErrorMessage"[[:space:]]*:[[:space:]]*true/
+    }
+    END { exit wedge ? 0 : 1 }'
 }
 
 # Primary pulse: a live session streams every turn into its transcript, even when the work
@@ -206,13 +241,6 @@ transcript_pulse() {
   local t
   t="$(resolve_transcript)"
   [ -n "$t" ] && [ "$t" -nt "$SENTINEL" ]
-}
-
-site_moved() {
-  # -type f: a directory's mtime moves whenever anything inside it is created or removed — the
-  # watchman's own bookkeeping would read as site life. Files are the signal, directories noise.
-  find "$PROJECT" -path "$NS/.watchman*" -prune -o -type f -newer "$SENTINEL" -print 2>/dev/null |
-    grep -q .
 }
 
 # The process witness. 0: the recorded process is alive — pid checked with kill -0 and the start
@@ -248,8 +276,58 @@ project_has_claude() {
   return 1
 }
 
-# Re-evaluated before every retry attempt: an honest ending arriving, the site coming back to
-# life, or the owner acting mid-wake cancels the remaining attempts. Empty means revival is
+# The registry witness: `claude agents --json` is the host's own roster of every live session,
+# interactive and background. The recorded id present is the host saying the shift is alive; a
+# clean roster without it is the host saying it is gone. 0 present · 1 absent · 2 no record, or
+# a CLI without the command — which proves nothing.
+registry_state() {
+  local sid out
+  sid="$(shift_session_id)"
+  [ -n "$sid" ] || return 2
+  out="$(claude agents --json 2>/dev/null)" || return 2
+  case "$out" in \[*) ;; *) return 2 ;; esac
+  printf '%s' "$out" | grep -qF "\"$sid\"" && return 0
+  return 1
+}
+
+# The verdict, session-first. The session's own signals decide — the owner's Esc above all,
+# then the shift's transcript, then its process, then the host's registry. Project files never
+# vote: folder noise (a detached loop, a build, a sync) must never mute the owner's Esc, and
+# must never mask a dead session as alive.
+site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead
+  local sid ps rg
+  if owner_paused; then printf 'esc'; return; fi
+  if transcript_pulse; then printf 'alive'; return; fi
+  sid="$(shift_session_id)"
+  if [ -n "$sid" ]; then
+    shift_process_alive
+    ps=$?
+    if [ "$ps" -eq 0 ]; then
+      if errored_tail; then printf 'wedge'; else printf 'silent'; fi
+      return
+    fi
+    registry_state
+    rg=$?
+    if [ "$rg" -eq 0 ]; then
+      # The pid may be stale or unrecorded, but the host lists the session — alive.
+      if errored_tail; then printf 'wedge'; else printf 'silent'; fi
+      return
+    fi
+    if [ "$ps" -eq 1 ] || [ "$rg" -eq 1 ]; then printf 'dead'; return; fi
+    # Identity recorded but no oracle answered: the conservative reading.
+    if project_has_claude; then printf 'tabs'; return; fi
+    printf 'dead'
+    return
+  fi
+  # No identity recorded — a 500 can land before the first tool call writes one. The newest
+  # conversation ending in the host's error event is the wedge; --continue resumes it.
+  if errored_tail; then printf 'wedge'; return; fi
+  if project_has_claude; then printf 'tabs'; return; fi
+  printf 'dead'
+}
+
+# Re-evaluated before every retry attempt: an honest ending arriving, the session coming back
+# to life, or the owner acting mid-wake cancels the remaining attempts. Empty means revival is
 # still warranted.
 hold_reason() {
   if [ -f "$NS/STOP" ]; then printf 'stop-work order'; return; fi
@@ -257,38 +335,37 @@ hold_reason() {
   if [ "$(open_boxes)" -eq 0 ]; then printf 'all boxes ticked'; return; fi
   if deadline_passed; then printf 'deadline passed'; return; fi
   if [ -f "$NS/.session-end" ]; then printf 'clean session end'; return; fi
-  if transcript_pulse || site_moved; then printf 'site activity'; return; fi
-  if owner_paused; then printf 'owner Esc'; return; fi
-  shift_process_alive
-  case $? in
-    0) errored_tail || printf 'live shift process' ;;
-    2) if project_has_claude; then printf 'a live claude session in the project'; fi ;;
+  case "$(site_verdict)" in
+    alive) printf 'session activity' ;;
+    esc) printf 'owner Esc' ;;
+    silent) printf 'live shift session' ;;
+    tabs) printf 'a live claude session in the project' ;;
   esac
 }
 
 log_line "watchman armed · every ${INTERVAL_MIN}m"
 : >"$SENTINEL"
 wake=0
-misses=0
 standby_prev=""
+down_notified=0
 
 # NIGHTSHIFT_WATCH_SLEEP overrides the base sleep in seconds — the test suite's speed lever.
 BASE_SLEEP="${NIGHTSHIFT_WATCH_SLEEP:-$((INTERVAL_MIN * 60))}"
 
 while :; do
-  sleep $((BASE_SLEEP * (misses < 3 ? 1 << misses : 8)))
+  sleep "$BASE_SLEEP"
   wake=$((wake + 1))
 
   if [ -f "$NS/STOP" ]; then log_line "watchman: stop-work order — standing down"; exit 0; fi
   if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then exit 0; fi
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
-    spawn "$(resolve_agent)" || true
+    spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
     exit 0
   fi
   if deadline_passed; then
     log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
-    spawn "$(resolve_agent)" || true
+    spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
     exit 0
   fi
   if [ -f "$NS/.session-end" ]; then
@@ -296,43 +373,35 @@ while :; do
     exit 0
   fi
 
-  # The liveness ladder. Revival needs strong positive evidence of death — the one truly harmful
-  # failure is a second agent beside a living one, so every uncertain reading stands by.
-  if transcript_pulse || site_moved; then
-    misses=0
-    standby_prev=""
-  else
-    verdict=""
-    if owner_paused; then
-      # Esc means stop. Stand by rather than down: if the owner resumes and a 500 kills it
-      # later, the next quiet wake will find an errored tail, not an interrupt, and revive.
-      verdict="esc"
-    else
-      shift_process_alive
-      case $? in
-        0) if errored_tail; then verdict="wedge"; else verdict="silent"; fi ;;
-        2) if project_has_claude; then verdict="tabs"; fi ;;
-      esac
-    fi
-    case "$verdict" in
+  # The liveness ladder, session-first (site_verdict). Revival needs strong positive evidence
+  # of death — the one truly harmful failure is a second agent beside a living one, so every
+  # uncertain reading stands by. Esc is read before everything else: if the owner resumes and a
+  # 500 kills it later, the next wake finds an errored tail, not an interrupt, and revives.
+  verdict="$(site_verdict)"
+  case "$verdict" in
+      alive)
+        standby_prev=""
+        down_notified=0
+        ;;
       esc)
         [ "$standby_prev" = "esc" ] || log_line "watchman: owner pressed Esc — standing by, not resuming (STOP ends the shift; resuming re-arms)"
         standby_prev="esc"
-        misses=0
+        down_notified=0
         ;;
       silent)
-        [ "$standby_prev" = "silent" ] || log_line "watchman: shift process alive with a quiet transcript — long silent work; standing by"
+        [ "$standby_prev" = "silent" ] || log_line "watchman: the shift session is alive with a quiet transcript — long silent work; standing by"
         standby_prev="silent"
-        misses=0
+        down_notified=0
         ;;
       tabs)
         [ "$standby_prev" = "tabs" ] || log_line "watchman: a claude session is live in this project — standing by"
         standby_prev="tabs"
-        misses=0
+        down_notified=0
         ;;
-      *)
+      wedge | dead)
         standby_prev=""
-        [ "$verdict" != "wedge" ] || log_line "watchman: probable wedge — shift process alive at an errored prompt; reviving its conversation"
+        sid="$(shift_session_id)"
+        [ "$verdict" != "wedge" ] || log_line "watchman: probable wedge — a session sits at an errored prompt with nobody there; reviving its conversation"
         attempt=0
         revived=1
         aborted=""
@@ -351,7 +420,7 @@ while :; do
             fi
           fi
           log_line "watchman: site quiet ${INTERVAL_MIN}m+ with open boxes — resume attempt $attempt ($(rung_label "$attempt" "$total"))"
-          if spawn "$(rung_agent "$attempt" "$total")"; then
+          if spawn "$(rung_agent "$attempt" "$total")" "$(rung_prompt "$attempt" "$total")"; then
             revived=0
             break
           fi
@@ -361,18 +430,30 @@ while :; do
           [ -n "$spacing" ] || break
           sleep "$spacing"
         done
+        # A successful revival is morning news, not a page: it lands in the parking lot — the
+        # file the owner reads — with the thread's handles. The page is reserved for the one
+        # night event that needs the owner: a dead session no attempt could bring back, rung
+        # once per outage, not once per wake.
         if [ "$revived" -eq 0 ]; then
-          misses=0
-          log_line "watchman: resumed session returned — re-checking next wake"
-        elif [ -n "$aborted" ]; then
-          misses=0
-        else
-          misses=$((misses + 1))
-          log_line "watchman: all $attempt attempts failed (api down?) — backing off"
+          down_notified=0
+          if [ -n "$sid" ]; then
+            log_line "watchman: resumed session returned — the night is one thread: claude --resume $sid · vscode://anthropic.claude-code/open?session=$sid"
+            printf -- '- [notice] %s — the shift session died and the watchman revived it. One thread: claude --resume %s · cursor://anthropic.claude-code/open?session=%s · vscode://anthropic.claude-code/open?session=%s\n' \
+              "$(ts)" "$sid" "$sid" "$sid" >>"$NS/parking-lot.md"
+          else
+            log_line "watchman: resumed session returned — re-checking next wake"
+            printf -- '- [notice] %s — the shift session died and the watchman revived it (details in shift-log.md).\n' "$(ts)" >>"$NS/parking-lot.md"
+          fi
+        elif [ -z "$aborted" ]; then
+          log_line "watchman: all $attempt attempts failed (api down?) — knocking again in ${INTERVAL_MIN}m"
+          if [ -n "$NOTIFY" ] && [ "$down_notified" -eq 0 ]; then
+            down_notified=1
+            summary="nightshift: the shift session is down and revival failed — it needs you${sid:+: claude --resume $sid}"
+            NIGHTSHIFT_SUMMARY="$summary" sh -c "$NOTIFY" nightshift "$summary" >/dev/null 2>&1 || true
+          fi
         fi
         ;;
-    esac
-  fi
+  esac
 
   : >"$SENTINEL" # after all actions, so the watchman's own writes never read as site life
   if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 7; fi

@@ -7,11 +7,19 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 
 ## 1. Preflight
 
+- **One shift, one agent — check before touching anything.** Read `.nightshift/.shift-session`.
+  If it records a session that is still alive — line 3's pid exists and `ps -o lstart= -p <pid>`
+  matches line 4, or the id on line 1 appears in `claude agents --json` — an agent is ALREADY
+  working this punch list. Do not start a second one beside it. Tell the owner and hand them the
+  running thread: `claude --resume <id>` for a terminal,
+  `vscode://anthropic.claude-code/open?session=<id>` for the IDE — and stop here;
+  `touch .nightshift/STOP` is the lever if they want that shift ended first. A record whose
+  process is dead is last night's leftover: fall through and clear it below.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
   leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
-  `.nightshift/deadline`, `.nightshift/.session-end`, `.nightshift/.shift-session`, and
-  `.nightshift/.watchman-tick`. If
+  `.nightshift/deadline`, `.nightshift/.session-end`, `.nightshift/.shift-session`,
+  `.nightshift/.watchman-tick`, and the `.nightshift/.lock.d/` directory. If
   `.nightshift/.watchman` holds a live pid, kill it — last night's watchman must not double-arm
   tonight's. A shift that reached the whistle leaves the deadline behind; keeping it means the
   gate clocks the next one out immediately, zero items done.
@@ -22,6 +30,24 @@ Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 - `.nightshift/punch-list.md` exists and has at least one open `- [ ]` under `## Items`. If not, stop
   and tell the user to run `/nightshift:setup` and add items first.
 - The working tree is clean enough to commit per item (warn if not).
+- **Rotate the journal before it becomes one.** If `.nightshift/shift-log.md` is larger than
+  ~500 KB, move it to `.nightshift/archive/<YYYY-MM-DD>/shift-log.md` and start a fresh one
+  with the same one-line header. Only the mechanical journal auto-rotates — `snag-log.md` and
+  `parking-lot.md` are the owner's review material; `/nightshift:archive` files those on the
+  owner's order.
+- **Rules drift:** if `.claude/nightshift-rules.json` exists, compare it to what this session
+  actually runs under — `jq -c '.toolDeny'` of the file against `$NIGHTSHIFT_TOOL_RULES`, and
+  each other mapped key against its env var. On any mismatch, warn once: the file changed after
+  this session's env was fixed — re-run `/nightshift:setup`, then start a fresh session, or
+  tonight runs on the old rules. Also compare the shipped template's keys against the file's
+  (`jq -r 'keys[]'` on each): keys the template has that the file lacks mean a plugin update
+  brought new knobs — say so once and point at `/nightshift:setup` to review them; never add
+  them yourself here.
+- The night cannot click Allow: if neither `.claude/settings.local.json` nor
+  `.claude/settings.json` grants frictionless permissions (`bypassPermissions` default mode or an
+  allowlist covering the gates' commands), warn once — a permission prompt mid-shift freezes the
+  night, and a headless revival is denied outright. `/nightshift:setup` offers the fix. Warn and
+  proceed; the choice stays the owner's.
 
 ## 2. Deadline — asked only when it means something
 
@@ -45,7 +71,7 @@ Unless `NIGHTSHIFT_WATCH=0`, arm it in the background:
 
 ```bash
 nohup "${CLAUDE_PLUGIN_ROOT}/adapters/watchman.sh" --project "$CLAUDE_PROJECT_DIR" \
-  --interval "${NIGHTSHIFT_WATCH:-20}" >/dev/null 2>&1 &
+  --interval "${NIGHTSHIFT_WATCH:-10}" >/dev/null 2>&1 &
 ```
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
