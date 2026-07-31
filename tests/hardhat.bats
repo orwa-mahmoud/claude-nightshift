@@ -392,3 +392,86 @@ STUB
     esac
   done
 }
+
+# ---- the site rules bind the shift's session; other conversations keep their tools ----
+
+@test "another conversation is untouched by the site rules" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\n' >"$p/.nightshift/.shift-session"
+  out="$(jq -nc '{tool_name:"AskUserQuestion",tool_input:{},session_id:"helper-tab"}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] # the question is the helper's to ask
+  out="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push origin main"},session_id:"helper-tab"}' |
+    env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] # the owner's other tab pushes if the owner pleases
+}
+
+@test "the shift session itself still answers to the site rules" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\n' >"$p/.nightshift/.shift-session"
+  out="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push origin main"},session_id:"the-shift"}' |
+    env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+}
+
+@test "a tool call without a session id keeps the conservative reading — rules apply" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\n' >"$p/.nightshift/.shift-session"
+  run hardhat_bash "$p" "git push origin main" NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push'
+  is_deny "$output"
+}
+
+# ---- the tool rules map: one knob, per-tool messages, owner-only (env, fixed at start) ----
+
+@test "the map words the park denial per tool" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"park it and keep welding"}'
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "park it and keep welding"
+}
+
+@test "an empty message in the map lifts the question rule" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":""}'
+  is_allow
+}
+
+@test "a listed tool is denied with its own message; an unlisted one passes" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc '{tool_name:"WebSearch",tool_input:{}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"WebSearch":"no browsing tonight"}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "no browsing tonight"
+  out="$(jq -nc '{tool_name:"WebFetch",tool_input:{}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"WebSearch":"no browsing tonight"}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+}
+
+@test "a map that is not a JSON object denies loudly instead of waving through" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc '{tool_name:"WebSearch",tool_input:{}}' |
+    env NIGHTSHIFT_TOOL_RULES='not json' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "NIGHTSHIFT_TOOL_RULES"
+}
+
+@test "the map's default Ask rule holds even without jq" {
+  p="$(new_project)"
+  punch_open "$p"
+  nojq="$BATS_TEST_TMPDIR/nojq-rules"
+  mkdir -p "$nojq"
+  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git; do
+    command -v "$t" >/dev/null && ln -sf "$(command -v "$t")" "$nojq/$t"
+  done
+  out="$(jq -nc '{tool_name:"AskUserQuestion",tool_input:{}}' |
+    env PATH="$nojq" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"welded shut"}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "welded shut"
+}

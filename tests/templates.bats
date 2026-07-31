@@ -40,3 +40,22 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
       || { echo "setup does not scaffold $t-template.md"; return 1; }
   done
 }
+
+# The rules template is the owner's whole config surface — every synced key ships in it.
+@test "the rules template is valid JSON and carries every synced key" {
+  t="$BATS_TEST_DIRNAME/../skills/nightshift/references/nightshift-rules-template.json"
+  jq -e 'type == "object"' "$t" >/dev/null
+  for k in toolDeny forbiddenCommands neverCommitPatterns expectedEmail protectedDirs \
+    stallMax stallWarnEvery watchMinutes watchRetrySeconds notifyCommand revivalPrompt freshRevivalPrompt clockOutMessage; do
+    jq -e --arg k "$k" 'has($k)' "$t" >/dev/null || { echo "template missing $k"; return 1; }
+  done
+}
+
+# Updates offer their improvements; they never overwrite the owner's words.
+@test "setup's template evolution offers, never imposes" {
+  s="$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
+  grep -qF 'offer, never impose' "$s"
+  grep -qF 'touch a value the owner already has' "$s"
+  grep -qF "wording wins every conflict" "$s"
+  grep -qF 'open boxes is never touched' "$s"
+}

@@ -47,7 +47,8 @@ NOTIFIED="$NS/.notified"
 ENDED="$NS/.ended" # written when the shift actually ends; hardhat keeps the site rules armed until then
 LOG="$NS/shift-log.md"
 STALL_MAX="${NIGHTSHIFT_STALL_MAX:-0}" # 0 = hold a stalled shift, never auto-end
-STALL_WARN=3
+STALL_WARN="${NIGHTSHIFT_STALL_WARN:-3}" # rules file: stallWarnEvery
+case "$STALL_WARN" in '' | *[!0-9]*) STALL_WARN=3 ;; esac
 NOTIFY="${NIGHTSHIFT_NOTIFY_CMD:-}"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
@@ -98,8 +99,8 @@ deadline_passed() {
 # Morning whistle — fires at most once per shift; $1 is the summary line.
 whistle() {
   [ -n "$NOTIFY" ] || return 0
-  [ -f "$NOTIFIED" ] && return 0
-  : >"$NOTIFIED"
+  # Exclusive create: of two sessions releasing at once, exactly one owns the whistle.
+  (set -C; : >"$NOTIFIED") 2>/dev/null || return 0
   NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
 }
 
@@ -149,6 +150,28 @@ record_shift_session() {
 if [ -f "$PUNCH" ] && [ "$OPEN" -gt 0 ] && [ ! -f "$ENDED" ] \
   && [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   record_shift_session
+fi
+
+# The shift binds ONE session — the recorded one. Any other conversation in this project stops
+# freely: the night is not its business unless the owner brings it. A watchman revival carries
+# NIGHTSHIFT_REVIVAL=1 and inherits the binding even when the fresh-session fallback gave it a
+# new id — it re-claims the record so the watchman and the clean-end tell follow the living
+# thread. No parseable id keeps the conservative reading: held.
+REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ]; then
+  if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
+    rm -f "$NS/.shift-session"
+    record_shift_session
+  else
+    exit 0
+  fi
+fi
+
+# One writer per site from here down: the stall fingerprint, the stop/ended markers, and the
+# receipts commit are read-modify-write against shared files, and two sessions can attempt to
+# stop at once. An unlockable site is decided unlocked — the gate must answer, never queue.
+if [ -d "$NS" ] && ns_lock "$NS"; then
+  trap 'ns_unlock "$NS"' EXIT
 fi
 
 # 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
@@ -206,7 +229,13 @@ elif [ "$attempts" -ge "$STALL_WARN" ]; then
 fi
 printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 
-# 4. Block, and re-inject the contract so the next turn resumes the shift.
+# 4. Block, and re-inject the contract so the next turn resumes the shift. The owner may word
+# the reinjection (rules file key: clockOutMessage) — jq builds the JSON so their text cannot
+# break it; without jq the custom text is skipped, never a malformed decision.
+if [ -n "${NIGHTSHIFT_GATE_MESSAGE:-}" ] && command -v jq >/dev/null 2>&1; then
+  jq -nc --arg r "$NIGHTSHIFT_GATE_MESSAGE" '{decision:"block",reason:$r}'
+  exit 0
+fi
 cat <<'JSON'
 {"decision":"block","reason":"DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them top to bottom, ONE at a time, each to its own Verify. Per item: implement fully — no stubs, no deferrals, no 'documented for later'; effort is never a reason to defer, and this IS the focused session; run the item gate right before its commit and require it GREEN; make ONE commit; then tick the box to '- [x]'. Never fake a tick. Deletion is not completion — never remove an item or edit the contract above '## Items'. Park any decision that is genuinely the owner's in .nightshift/parking-lot.md with a sensible default chosen, and KEEP WORKING — never ask, never wait. A walkthrough cycle that finds nothing new is SUCCESS, not idleness. You may stop only when zero '- [ ]' remain, or the owner issues a stop-work order (.nightshift/STOP)."}
 JSON

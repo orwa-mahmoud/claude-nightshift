@@ -3,6 +3,78 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.6.0 — the 500 night, start to finish
+
+Start a shift, watch the very first call come back `API Error: 500`, and go to sleep anyway:
+the watchman now carries that night from the first error to the morning receipts, and the
+whole story — the 500, the revival, the finished work — is one conversation you open with
+one click.
+
+- **The wedge is the transcript's last word, read structurally.** Claude Code records an API
+  failure as its own synthetic event, flagged `isApiErrorMessage:true`; the watchman requires
+  that flag on the last conversation event before calling a live-but-quiet session wedged. An
+  owner pasting an error report as a prompt, or an error the session already retried past, no
+  longer reads as a wedge — if anything followed the error, somebody was there, and that
+  session is not the watchman's to touch. The owner's Esc is read by the same rule: an
+  interrupt is a pause only as the last conversation event — one the owner already resumed
+  past is history, and a real death after that resume reads as death.
+- **A 500 before first work is still the wedge.** The shift records its identity at the first
+  tool call — but an outage can land before any tool runs, leaving no record. A project whose
+  newest conversation ends in the host's error event now revives via `--continue`, which
+  resumes that very conversation, instead of standing by all night behind "a live claude
+  session in the project".
+- **Session-first, and only the session.** The verdict reads the session's own signals in
+  order — the owner's Esc above all, the shift's transcript, the recorded process, then the
+  host's registry: `claude agents --json` listing the recorded id is the host saying alive
+  (it even rescues a stale pid), and a clean roster without it is death evidence no folder
+  churn can drown out. Project files never vote — a detached loop, a build, or a sync can
+  neither mute the owner's Esc nor mask a dead session as alive.
+- **Revival orders match what the session knows.** A resumed conversation carries its own
+  context, so its order is one line: cut off, continue — the contract already lives in the
+  thread, and the gate enforces the ending. The fresh-session fallback starts empty and gets
+  the full pointer at the punch list. Both texts are the owner's (`revivalPrompt`,
+  `freshRevivalPrompt`).
+- **The morning is one click away.** A successful revival leaves a notice in
+  `parking-lot.md` — the file the owner reads — with the thread's handles: `claude --resume
+  <id>` for the terminal, the `cursor://` and `vscode://` deep links for the IDE panel. The
+  first thing you open is the exact conversation: the error, the revival, and everything it
+  finished. The one night event that needs the owner — a dead session no attempt could bring
+  back — rings the morning whistle instead, once per outage.
+- **Tighter cadence.** The watch interval defaults to 10 minutes (`NIGHTSHIFT_WATCH=N` still
+  sets it), and a dead API never stretches the rhythm: three tries per wake, every wake,
+  until the API answers.
+- **The night cannot click Allow.** Setup now asks to enable `bypassPermissions` in the
+  project's settings (recommended; written to `.claude/settings.local.json` so revivals
+  inherit it), start warns once when no frictionless grant exists, and the README says the
+  trade plainly. nightshift's guards are hooks and stay armed in every permission mode.
+- **One rules file, every decision the owner's.** Setup copies a ready template to
+  `.claude/nightshift-rules.json` and syncs it into the env block — clean JSON to edit, the
+  ugly escaping machine-written. It carries the per-tool denial map (`toolDeny`: your message
+  per tool, an empty message lifts a rule, absent keys keep the defaults), every guard
+  pattern, the stall cap and warning cadence, the watch cadence, the morning whistle, the
+  watchman's revival orders, and the gate's clock-out reinjection. The env stays the enforcement surface, fixed at session start — the file is the
+  owner's editor, never the agent's lever — and start warns when the file drifts from the
+  running session's rules. Re-running setup after an update offers what the new template added
+  — missing keys, a changed contract — and never touches the owner's words.
+- **The receipts repo is opt-in.** A git repo living inside the project is not everyone's
+  taste: setup now asks before `git init`-ing `.nightshift/`, and the default is no — the
+  receipts remain as plain files, and the gate's snapshot commit is a no-op without the repo.
+- **`/nightshift:archive` — the finished part becomes a dated record.** Ticked items move into
+  `archive/<date>/shipped.md`, the journal rotates whole, snags and parked questions move only
+  once they carry the owner's answer. The live files stay lean; what shipped stays on disk as
+  plain dated facts. Start auto-rotates a journal past ~500 KB into the same archive.
+- **The shift binds one session.** The gate holds, and the site rules govern, the recorded
+  shift session alone — a second conversation in the same project chats, stops, and asks
+  freely; the night is not its business unless the owner brings it. A watchman revival stays
+  bound under whatever id the fallback chain gave it and re-claims the record, so the watchman
+  follows the living thread. Start refuses to start a second agent beside a living one — it
+  hands the owner the running thread's `claude --resume` and IDE deep link instead.
+- **One writer per site.** Two sessions stopping at once could tear the stall counter, double
+  the morning whistle, or collide in the receipts repo. The gate's decision tail now runs
+  under a per-site lock (mkdir-based — every platform has it; a dead holder's lock is broken
+  on sight, a live one is waited on, bounded), and the whistle marker is claimed with an
+  exclusive create. The wait can never hang a session: an unlockable site is decided unlocked.
+
 ## v0.5.2 — strong evidence of death
 
 The one truly harmful watchman failure is spawning a second agent beside a living one: a resumed

@@ -264,3 +264,98 @@ load helpers
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
   [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ] # id, transcript, pid, start time
 }
+
+# ---- the shift binds one session: everyone else stops freely ----
+
+@test "another conversation's stop is not the shift's business — released" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\n' >"$p/.nightshift/.shift-session"
+  run gate "$p" # this stop arrives as test-shift-session, not the-shift
+  is_release
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "the-shift" ] # record untouched
+  [ ! -f "$p/.nightshift/.ended" ] # and nothing was ended on the stranger's way out
+}
+
+@test "the recorded shift session itself is still held" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'test-shift-session\n\n\n\n' >"$p/.nightshift/.shift-session"
+  run gate "$p"
+  is_block "$output"
+}
+
+# The fresh-session fallback gives a revival a NEW id; the mark keeps it bound, and it
+# re-claims the record so the watchman follows the living thread.
+@test "a marked revival inherits the binding under a new id and re-claims the record" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'dead-old-id\n\n\n\n' >"$p/.nightshift/.shift-session"
+  run gate "$p" NIGHTSHIFT_REVIVAL=1
+  is_block "$output"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
+}
+
+# ---- the site lock: two sessions may stop at once; the bookkeeping must not tear ----
+
+@test "a stale lock from a dead process never blocks the gate" {
+  p="$(new_project)"
+  punch_open "$p"
+  bash -c ':' &
+  deadpid=$!
+  wait "$deadpid" 2>/dev/null || true
+  mkdir "$p/.nightshift/.lock.d"
+  printf '%s' "$deadpid" >"$p/.nightshift/.lock.d/pid"
+  run gate "$p"
+  is_block "$output"
+  [ ! -d "$p/.nightshift/.lock.d" ] # broken, taken, released
+}
+
+@test "a live foreign lock delays but never hangs the gate — and is never stolen" {
+  p="$(new_project)"
+  punch_open "$p"
+  mkdir "$p/.nightshift/.lock.d"
+  printf '%s' "$$" >"$p/.nightshift/.lock.d/pid"
+  run gate "$p"
+  is_block "$output"
+  [ "$(cat "$p/.nightshift/.lock.d/pid")" = "$$" ] # still the foreign holder's
+}
+
+# The torn read this lock exists for: both racers read the same counter, both warn, both write
+# zero. Serialized, exactly one warns and the counter lands where a sequence of two honest stop
+# attempts leaves it.
+@test "two racing stop attempts warn the stall exactly once" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p" # let the gate write the real fingerprint
+  fp="$(sed -n 1p "$p/.nightshift/.stall")"
+  printf '%s\n2\n' "$fp" >"$p/.nightshift/.stall"
+  jq -nc '{hook_event_name:"Stop",session_id:"test-shift-session",transcript_path:""}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/clock-out-gate.sh" >/dev/null &
+  g1=$!
+  jq -nc '{hook_event_name:"Stop",session_id:"test-shift-session",transcript_path:""}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/clock-out-gate.sh" >/dev/null &
+  g2=$!
+  wait "$g1" "$g2" 2>/dev/null || true
+  [ "$(grep -c 'stall warning' "$p/.nightshift/shift-log.md")" -eq 1 ]
+  [ "$(sed -n 2p "$p/.nightshift/.stall")" = "1" ]
+}
+
+# The reinjected contract is the owner's to word — jq builds the JSON so their text cannot
+# break the decision.
+@test "the clock-out reinjection is the owner's to word" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_GATE_MESSAGE="back to the bench — boxes are open"
+  is_block "$output"
+  printf '%s' "$output" | grep -q "back to the bench"
+}
+
+@test "the stall warning cadence is the owner's (rules file: stallWarnEvery)" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_STALL_WARN=2
+  run gate "$p" NIGHTSHIFT_STALL_WARN=2
+  is_block "$output"
+  grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
+}

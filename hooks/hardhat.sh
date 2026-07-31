@@ -58,17 +58,6 @@ else
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
 
-# Park, don't ask — during an active shift, deny AskUserQuestion so a 2:40am question
-# cannot kill the run. No active shift -> questions flow normally. (Raw grep backs up the
-# jq path so the rule holds even without jq.)
-if [ "$TOOL" = "AskUserQuestion" ] || printf '%s' "$INPUT" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then
-  if [ -f "$PUNCH" ] && [ ! -f "$ENDED" ] \
-     && grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
-    deny "BLOCKED (park, don't ask): a shift is active and the owner is asleep. Choose the most sensible production-grade default yourself, record the decision and your reasoning in .nightshift/parking-lot.md, and KEEP WORKING. The owner reviews it in the morning."
-  fi
-  exit 0
-fi
-
 # A commit message must not read as the command it mentions, so blank the message argument
 # before matching. Only that argument: scrubbing every quoted span would also hide a genuinely
 # forbidden command that happens to be quoted, such as sh -c "git push".
@@ -103,6 +92,56 @@ record_shift_session() {
 }
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   record_shift_session
+fi
+
+# The site rules govern the shift's own session; another conversation in the same project works
+# untouched — its questions, commits, and commands are the owner's business, not the night's. A
+# marked revival stays bound whatever id the fallback chain gave it.
+REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ] \
+  && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
+  exit 0
+fi
+
+# Tool rules — one knob: NIGHTSHIFT_TOOL_RULES, a JSON map of tool name -> denial message,
+# loaded by setup from .claude/nightshift-rules.json (the file the owner edits; the env is
+# what enforces, fixed at session start — only the owner sets or lifts a rule, never the
+# agent mid-run). A key's message is the denial Claude reads; an empty message lifts the
+# rule; an absent key means the default — AskUserQuestion denied so a 2:40am question cannot
+# kill the run, every other tool allowed. (sed backs up the jq path; the default holds even
+# without jq.)
+TOOL_RULES="${NIGHTSHIFT_TOOL_RULES:-}"
+rules_has() {
+  [ -n "$TOOL_RULES" ] || return 1
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$TOOL_RULES" | jq -e --arg t "$1" 'has($t)' >/dev/null 2>&1
+  else
+    printf '%s' "$TOOL_RULES" | grep -q "\"$1\"[[:space:]]*:"
+  fi
+}
+rules_msg() {
+  if command -v jq >/dev/null 2>&1; then
+    printf '%s' "$TOOL_RULES" | jq -r --arg t "$1" '.[$t] // empty' 2>/dev/null
+  else
+    printf '%s' "$TOOL_RULES" | sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+  fi
+}
+if [ -n "$TOOL_RULES" ] && command -v jq >/dev/null 2>&1 \
+  && ! printf '%s' "$TOOL_RULES" | jq -e 'type == "object"' >/dev/null 2>&1; then
+  deny "BLOCKED: NIGHTSHIFT_TOOL_RULES is not a JSON object, so the tool rules cannot run. Re-run /nightshift:setup to rewrite it from .claude/nightshift-rules.json."
+fi
+if [ "$TOOL" = "AskUserQuestion" ] || printf '%s' "$INPUT" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then
+  if rules_has "AskUserQuestion"; then
+    m="$(rules_msg AskUserQuestion)"
+    [ -z "$m" ] || deny "$m"
+  else
+    deny "BLOCKED (park, don't ask): a shift is active and the owner is asleep. Choose the most sensible production-grade default yourself, record the decision and your reasoning in .nightshift/parking-lot.md, and KEEP WORKING. The owner reviews it in the morning."
+  fi
+  exit 0 # a permitted question is not a command; the command guards have no business with it
+fi
+if [ -n "$TOOL" ] && [ "$TOOL" != "Bash" ] && rules_has "$TOOL"; then
+  m="$(rules_msg "$TOOL")"
+  [ -z "$m" ] || deny "$m"
 fi
 
 # An unparseable owner pattern makes grep exit 2, which a plain `if` reads as "no match" — the

@@ -92,3 +92,27 @@ valid_ere() {
   printf '' | grep -qE "$1" 2>/dev/null
   [ "$?" -le 1 ]
 }
+
+# Cross-session mutex over one .nightshift/ — mkdir is the one atomic primitive every platform
+# here ships (macOS has no flock). The holder writes its pid inside; a lock whose holder is
+# provably dead is broken on sight, a mid-claim lock (no pid yet) is waited on, never stolen.
+# The wait is bounded because a Stop hook must never hang a session over bookkeeping: on
+# timeout the caller proceeds without the lock, and the race window is merely what it was
+# before locks existed.
+ns_lock() { # $1 = the .nightshift dir; bounded ~2s wait
+  local dir="$1/.lock.d" holder _
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if mkdir "$dir" 2>/dev/null; then
+      printf '%s' "$$" >"$dir/pid" 2>/dev/null || true
+      return 0
+    fi
+    holder="$(cat "$dir/pid" 2>/dev/null)"
+    case "$holder" in
+      '' | *[!0-9]*) ;;
+      *) kill -0 "$holder" 2>/dev/null || { rm -rf "$dir" 2>/dev/null; continue; } ;;
+    esac
+    sleep 0.2
+  done
+  return 1
+}
+ns_unlock() { rm -rf "$1/.lock.d" 2>/dev/null; }
