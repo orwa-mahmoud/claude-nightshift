@@ -72,7 +72,9 @@ jobs:
             echo "no bats tests yet"
             exit 0
           fi
-          bats tests/
+          # -r so tests/shifts/ runs too: a contributed shift brings its own test file, and a
+          # suite that skipped the subdirectory would report green on an entry nobody checked.
+          bats -r tests/
 
   bats-macos:
     runs-on: macos-latest
@@ -88,7 +90,7 @@ jobs:
           export PATH
           command -v bash
           bash --version
-          "$bats_bin" tests/
+          "$bats_bin" -r tests/
 
   validate:
     runs-on: ubuntu-latest

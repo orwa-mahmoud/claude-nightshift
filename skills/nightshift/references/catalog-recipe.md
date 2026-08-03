@@ -1,8 +1,23 @@
 # Adding a shift to the catalog
 
 A shift is markdown, not code. It touches no hooks and changes no enforcement, which is why the
-catalog can grow without the product growing. Adding one is a small PR against
-[`shift-catalog.md`](shift-catalog.md).
+catalog can grow without the product growing.
+
+**Adding one is two new files and no edits to existing ones:**
+
+```
+skills/nightshift/references/shifts/<your-shift>.md   the entry
+tests/shifts/<your-shift>.bats                        what your entry promises
+```
+
+Nothing shared changes — not the index, not a test file someone else is also editing — so two
+contributors can add a shift the same week and never meet in a diff. `/nightshift:hunt` lists the
+directory, so a new file is offered the moment it lands.
+
+The structural rules in `tests/catalog.bats` glob the directory and already cover your entry:
+its title must declare the ending, and it must carry a pasteable item, a Verify line, and a stated
+ending condition. Your own `tests/shifts/<your-shift>.bats` is for what is specific to yours —
+above all its refusals, which are the lines a tired model reaches past at 4am.
 
 Before writing, understand what you are writing: **a shift is a contract handed to an agent that
 will work unattended, on a stranger's repository, while they sleep.** It is not documentation and
@@ -39,11 +54,11 @@ rejected is never raised twice.
 
 ## Shape
 
-Follow the entries already in the catalog. Heading, one-line ending marker, a sentence on when to
-use it, then the item in a fenced block ready to paste under `## Items`:
+Follow the entries already in `shifts/`. The file's title line carries the name and the ending, then
+a sentence on when to use it, then the item in a fenced block ready to paste under `## Items`:
 
 ```text
-## <Name> — <finite|open-ended> — <one line on what it is for>
+# <Name> — <finite|open-ended> — <one line on what it is for>
 
 <A short paragraph: when an owner would choose this, and what they wake up to.>
 
