@@ -9,6 +9,45 @@ agent on site until every box is ticked, under rules you set and it can't bend. 
 
 Overview and FAQ: <https://orwamahmoud.com/nightshift/>
 
+## Install
+
+Two commands inside Claude Code — no servers, no tokens, nothing else to download:
+
+```text
+/plugin marketplace add orwa-mahmoud/claude-nightshift
+/plugin install nightshift
+```
+
+## Start your first shift in five minutes
+
+You do not need to learn the whole system first.
+
+1. Open a project you trust and run `/nightshift:setup`. Accept the proposed gates you want.
+   For an unattended run, either pre-allow the tools your work needs or let setup configure
+   `bypassPermissions` for that project.
+2. In `.nightshift/punch-list.md`, add one small, real task under `## Items`:
+
+   ```text
+   - [ ] **1. <clear task title>.**
+     - <exactly what must change>
+     - Verify: <commands that prove it is done>
+     - Commit: `<type: concise message>`
+   ```
+
+3. Run `/nightshift:start`.
+4. Later, run `/nightshift:status`.
+5. Review the local commit, then push it yourself.
+
+Only four ideas matter on the first run:
+
+- **Punch list:** the work Claude must finish.
+- **Gates:** checks that must pass before an item is ticked.
+- **Parking lot:** questions Claude records instead of waking you.
+- **Shift log:** the record of progress and problems.
+
+Drafting tables, work orders, hunts, the watchman, receipts, and archives are useful later, but
+none is required to try one shift.
+
 ## The screen that made me build nightshift
 
 ![An agent checkpoint: the smaller fixes shipped, the bigger items deferred in the agent's own
@@ -121,16 +160,7 @@ at a serious product — not a half-done prototype full of shortcuts.
 
 If you can write it as a checklist, you can hand it to the night.
 
-## Install
-
-Two commands inside Claude Code — no servers, no tokens, nothing to download:
-
-```text
-/plugin marketplace add orwa-mahmoud/claude-nightshift
-/plugin install nightshift
-```
-
-Then:
+## Command reference
 
 ```text
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)

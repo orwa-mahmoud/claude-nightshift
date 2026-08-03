@@ -74,6 +74,22 @@ jobs:
           fi
           bats tests/
 
+  bats-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: brew install bats-core
+      - name: Run the bats suite under macOS system bash
+        run: |
+          set -eu
+          bats_bin="$(command -v bats)"
+          PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin"
+          export PATH
+          command -v bash
+          bash --version
+          "$bats_bin" tests/
+
   validate:
     runs-on: ubuntu-latest
     steps:

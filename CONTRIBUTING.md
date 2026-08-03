@@ -34,7 +34,8 @@ claude plugin validate . --strict    # manifest + marketplace validation
 ```
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
-on every push.
+on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps the system Bash
+3.2 first on `PATH`.
 
 ## Releasing
 
