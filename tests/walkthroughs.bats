@@ -1,51 +1,8 @@
-CAT="$BATS_TEST_DIRNAME/../skills/nightshift/references/shift-catalog.md"
-RECIPE="$BATS_TEST_DIRNAME/../skills/nightshift/references/catalog-recipe.md"
 HUNT="$BATS_TEST_DIRNAME/../skills/hunt/SKILL.md"
 START="$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
 
-@test "the catalog ships the three open-ended shifts and the finite one" {
-  grep -q '^## Coverage hunt' "$CAT"
-  grep -q '^## Defect hunt' "$CAT"
-  grep -q '^## Standing loop' "$CAT"
-  grep -q '^## Clear quality debt' "$CAT"
-}
-
-# The ending decides whether hunt asks for hours at all, so every entry must state it in the
-# heading where both a reader and the skill can see it without parsing the body.
-@test "every catalog entry declares its ending in the heading" {
-  while IFS= read -r h; do
-    printf '%s' "$h" | grep -qE '^## .+ — (finite|open-ended) — ' \
-      || { echo "catalog entry does not declare its ending: $h"; return 1; }
-  done < <(grep '^## ' "$CAT" | grep -v '^## Shift catalog')
-}
-
-@test "the standing loop ends only at the deadline, never by convergence" {
-  grep -qi 'deadline is the ONLY thing' "$CAT"
-  grep -qiE 'too shallow' "$CAT"
-}
-
-@test "the standing loop runs the quality tooling at site inspections" {
-  grep -qi 'site inspection' "$CAT"
-  grep -qi 'report mode' "$CAT"
-}
-
-# The finite entry works the same findings /nightshift:quality only reports. It must fix causes,
-# never silence them — the one failure mode that would make a quality shift worse than nothing.
-@test "the quality-debt entry fixes causes and never silences" {
-  grep -qi 'never silence instead of fixing' "$CAT"
-  grep -qi 'no new suppressions' "$CAT"
-  grep -qi 'snag-log.md' "$CAT"
-}
-
-# A contributed shift is a contract handed to an unattended agent on a stranger's repo. The six
-# declarations are what makes such a PR reviewable at all.
-@test "the catalog recipe demands every declaration a reviewer needs" {
-  [ -f "$RECIPE" ]
-  for d in 'finite or open-ended' 'Discovery' 'Definition of done' 'never do' 'Verification' 'Supported stacks'; do
-    grep -qi "$d" "$RECIPE" || { echo "recipe does not demand: $d"; return 1; }
-  done
-  grep -qi 'read by a human before merge' "$RECIPE"
-}
+# The catalog's own rules live in catalog.bats (structural, globbed) and tests/shifts/<entry>.bats
+# (one file per entry), so adding a shift never edits a test file someone else is also editing.
 
 # Both entry points into a live shift must clear the same leftovers. They drifted once: start
 # cleared three markers, hunt's cut cleared none, so a spent deadline or a leftover STOP from
@@ -101,10 +58,13 @@ START="$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
   grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
 }
 
-@test "hunt composes from the catalog and may pick more than one" {
-  grep -q 'shift-catalog.md' "$HUNT"
+# Entries are files in a directory, so hunt must list it. Reciting from memory is how a shift that
+# shipped last week never reaches the owner who could have used it tonight.
+@test "hunt composes from the catalog directory and may pick more than one" {
+  grep -qF 'references/shifts/' "$HUNT"
+  grep -qi 'read every file in it' "$HUNT"
   grep -qi 'more than one may be chosen' "$HUNT"
-  grep -qi 'read the catalog file rather than reciting from memory' "$HUNT"
+  grep -qi 'read the directory rather than reciting from memory' "$HUNT"
 }
 
 # Hours are mandatory only where nothing else can end the shift. Where the work has a natural

@@ -3,6 +3,29 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.7.3 — a shift is a file
+
+Catalog entries live one per file in `skills/nightshift/references/shifts/`, and
+`/nightshift:hunt` lists that directory rather than reading a single page. Adding a shift is two
+new files — the entry and its test — with no edit to anything shared, so two people can contribute
+one the same week without meeting in a diff. The structural rules glob the directory, so a new
+entry is checked the moment it lands: its title declares its ending, and it carries a pasteable
+item, a Verify line and a stated ending condition.
+
+Two entries join the catalog, both finite, both working from a list the project's own tooling
+produces:
+
+- **Dependency upgrade sweep** — direct dependencies brought current one at a time, patches before
+  majors, each behind the item gate and its own commit. The release notes are the work: a version
+  bump that compiles is not an upgrade. A major that sprawls past a bounded attempt is reverted
+  clean and parked, because a half-migrated major leaves the tree worse than the old version did.
+  Prereleases are refused, and the lockfile, the package manager and the runtime version are the
+  owner's.
+- **Vulnerability sweep** — advisories cleared critical-first, so an interrupted night cleared what
+  mattered. It never downgrades to satisfy an advisory and never adds a suppression: where the only
+  offered fix is an older version, or the advisory sits in a transitive dependency, it parks the
+  decision with the link and the severity.
+
 ## v0.7.2 — a shift starts when you start it
 
 `/nightshift:start` is what puts a session on shift. It writes `.nightshift/.shift-armed`, and

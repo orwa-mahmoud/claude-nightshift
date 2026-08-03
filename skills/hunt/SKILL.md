@@ -12,12 +12,15 @@ so a bare relative path lands wherever the last `cd` left it.
 
 ## 1. Offer the catalog
 
-Present every entry in `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/shift-catalog.md`, one
-line each, with its ending marked. **More than one may be chosen** — a night can clear the lint
-backlog and then hunt coverage until the whistle.
+Entries live one per file in `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/shifts/`. **List
+that directory and read every file in it** — one offer line each, with its ending marked.
+`shift-catalog.md` beside it explains the two endings; it does not list the entries.
 
-Read the catalog file rather than reciting from memory: entries are added there over time, and a
-job that exists in the file but not in the offer is a job the owner never gets.
+**More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
+the whistle.
+
+Read the directory rather than reciting from memory: entries are added over time, and a job that
+exists in the folder but not in the offer is a job the owner never gets.
 
 ## 2. Ask how it ends
 

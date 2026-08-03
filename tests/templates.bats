@@ -28,9 +28,11 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 
 # The drafting table is where work waits, so it must show the item shape. It is never read by
 # the gate — only the punch list is — which is exactly why proposals land there first.
-@test "the drafting table and walkthrough templates do show the item shape" {
+@test "the drafting table and catalog entries do show the item shape" {
   [ "$(grep -cE "$OPEN_BOX" "$REF/drafting-table-template.md" || true)" -gt 0 ]
-  [ "$(grep -cE "$OPEN_BOX" "$REF/shift-catalog.md" || true)" -gt 0 ]
+  for f in "$REF"/shifts/*.md; do
+    [ "$(grep -cE "$OPEN_BOX" "$f" || true)" -gt 0 ] || { echo "no item shape: $f"; return 1; }
+  done
 }
 
 @test "every template setup copies is present" {
