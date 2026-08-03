@@ -131,8 +131,8 @@ at a serious product — not a half-done prototype full of shortcuts.
   in the transcript, and the watchman reads it before touching anything.
 - **You're never trapped.** Escape and Ctrl+C still work — it's your keyboard, the plugin can't
   override it. But a pause isn't an ending: the next session resumes the shift, and a headless
-  run or the foreman loop has no Escape at all. `touch .nightshift/STOP` from any terminal is the
-  real stop-work order: it ends the shift itself — the gate releases, foreman halts, receipts
+  run has no Escape at all. `touch .nightshift/STOP` from any terminal is the
+  real stop-work order: it ends the shift itself — the gate releases, receipts
   written. It lands at the next stop attempt rather than mid-keystroke, and the site rules stay
   armed until then, so an order given in alarm never strips the guards off a still-working agent.
   Open boxes stay open — a true snapshot of where it stopped.
@@ -164,11 +164,11 @@ If you can write it as a checklist, you can hand it to the night.
 
 ```text
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)
-/nightshift:quality    # optional: turn existing lint/type debt into proposed items
-/nightshift:hunt       # optional: stage a ready-made overnight job (tests / defects / standing loop)
-# write your items in the punch list — one checkbox per task
+/nightshift:quality    # read-only survey: what the project's own tooling reports. Writes nothing
+/nightshift:hunt       # compose tonight: pick ready shifts, set hours, add your scope
+# or write your items in the punch list by hand — one checkbox per task
 #   item anatomy, with real items: examples/overnight-webapp.md
-/nightshift:start      # hours asked only for open-ended work; then go to sleep
+/nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:stop       # end the shift now; open boxes stay open, honestly
 /nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags
@@ -176,7 +176,7 @@ If you can write it as a checklist, you can hand it to the night.
 ```
 
 Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an interactive session
-Escape is the immediate halt; STOP is what reaches a headless run or the foreman loop, and it ends
+Escape is the immediate halt; STOP is what reaches a headless run, and it ends
 the shift at the agent's next stop attempt.
 
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
@@ -186,6 +186,39 @@ revived sessions inherit it (`/nightshift:setup` offers this and writes it on a 
 alternative is pre-allowing the punch list's own tools. nightshift's guards are hooks — they stay
 armed in every permission mode, bypass included. Decline both and a mid-shift prompt costs the
 night; that trade is the owner's.
+
+### Start it at a fixed time
+
+```text
+/nightshift:schedule
+```
+
+It checks the things that would otherwise surprise you at 4am — that work is actually queued in the
+punch list, that permissions won't stall a headless run, that nothing is registered twice — then
+prints the launchd plist (macOS) or crontab line for this project and the one command that installs
+it. **It registers nothing itself.**
+
+Two things it will tell you, worth knowing in advance: **the items must be in the punch list before
+the scheduled time**, because a start works the list it finds and promotes nothing; and **a sleeping
+machine runs nothing** — launchd defers a missed job to the next wake, cron loses it, and only
+`pmset repeat wakeorpoweron` makes a Mac wake for it.
+
+#### When you have no credit left
+
+The moment you most want to schedule a run is often the moment your quota is gone — and then no
+slash command works, because a command is read by the model. The generator underneath is plain
+shell that spends no tokens and needs no session:
+
+```bash
+adapters/schedule.sh --project . --at 04:05    # print the config + the install command
+adapters/schedule.sh --project . --list        # what is already registered for this project
+adapters/schedule.sh --project . --remove      # the command that unregisters it
+```
+
+Run it from a terminal, or copy the single file anywhere. It refuses a second entry for a project
+that already has one, and identifies projects by path rather than folder name, so two checkouts
+called `api` never collide. It cannot queue your work for you, though — that part has to be in the
+punch list already.
 
 One more appears in your slash menu: `/nightshift:nightshift` is the method itself — how to work an
 item, park a decision, keep a snag log. Claude loads it on its own whenever a shift is running, so
@@ -230,7 +263,7 @@ order**: the item plus its hours, parked in `.nightshift/work-orders.md` with th
 running. Say "start now" and it cuts the order into the punch list, arms the deadline, and the
 gate takes over — or leave it parked and `/nightshift:start` offers it when you're ready. Either
 way a walkthrough never runs without its cost cap. Prefer to hand-roll? The items live in
-[`walkthrough-item.md`](skills/nightshift/references/walkthrough-item.md) — paste and tweak, and
+[`shift-catalog.md`](skills/nightshift/references/shift-catalog.md) — paste and tweak, and
 `start` asks the hours.
 
 ## The vocabulary
@@ -256,7 +289,6 @@ Everything is named from a real construction site — learn one term, guess the 
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
 | **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
-| **foreman** | `adapters/foreman.sh` | outer loop for ANY agent CLI — keeps sending the worker back in until the list is clear |
 | **night watchman** | `adapters/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) by resuming its own conversation; stands down at every honest ending |
 
 ## Owner knobs
@@ -283,7 +315,7 @@ one-off exceptions.
 | `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
 | `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
 | `NIGHTSHIFT_WATCH` | minutes between night-watchman wakes; `0` disarms it (unset ⇒ 20). The revival resumes **the shift's own conversation by id** (`claude --resume <recorded session> -p`) — one unbroken thread in the terminal and the IDE extension alike — degrading per attempt to `claude --continue -p` and last to a fresh `claude -p` in case the conversation itself is what broke. `NIGHTSHIFT_WATCH_AGENT="claude -p"` makes every revival a fresh session instead |
-| `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. The foreman honors the same knob for its loop (`--stall N` is the CLI form) |
+| `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. |
 | `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`). The watchman rings it too — once per outage — when a dead session could not be revived: the one night event that needs you. A successful revival never pages; it lands as a notice in `parking-lot.md` with the thread's resume command and deep links |
 
 Every rule above is **shift-scoped**: it applies while `.nightshift/punch-list.md` has an open
@@ -300,7 +332,7 @@ holding two repos with the commit run from the root, they deny and say so rather
 recommended layout below as well as in-place. Commits there count as shift progress too.
 
 **Changed in v0.3.0:** by default a stalled agent is now held and red-flagged, never clocked out —
-in the clock-out gate and in the foreman loop alike. Set `NIGHTSHIFT_STALL_MAX=N` to restore
+in the clock-out gate. Set `NIGHTSHIFT_STALL_MAX=N` to restore
 auto-clock-out after N stuck attempts.
 
 ## Recommended layout
@@ -319,33 +351,17 @@ my-project/            ← plain folder, not a repo — open Claude Code here
 Outside the repo, run state can never be committed by any mistake — separation by construction,
 not configuration. (This repo is built exactly this way.)
 
-## Best on Claude Code. Works anywhere a terminal works.
+## Built into Claude Code, not bolted on
 
-The methodology (punch list, parking lot, snag log) is plain markdown + git — any agent can follow
-it. The mechanical enforcement is Claude Code-native today; for every other agent CLI, **foreman**
-moves the loop outside the agent:
+nightshift extends Claude Code through its own extension points — hooks for enforcement, skills
+for the method, the plugin marketplace for install. It wraps nothing, proxies nothing, and needs
+no package manager: `/plugin install` is the whole setup. A harness that stands outside an agent
+can only re-invoke it; one that runs inside can refuse the exit, deny the tool call, and park the
+question.
 
-```bash
-git clone https://github.com/orwa-mahmoud/claude-nightshift
-cd my-project    # a git repo, or a workspace folder holding one
-
-# scaffold by hand — /nightshift:setup is a Claude Code command, foreman has no slash commands
-mkdir -p .nightshift
-cp ../claude-nightshift/skills/nightshift/references/punch-list-template.md .nightshift/punch-list.md
-$EDITOR .nightshift/punch-list.md     # add your items under `## Items`
-
-../claude-nightshift/adapters/foreman.sh \
-  --agent "codex exec --full-auto" --deadline "07:00" --max-iterations 50
-```
-
-Exit codes say how the night ended: `0` done · `2` deadline · `3` iteration cap · `4` stalled ·
-`5` stop-work order. [`examples/overnight-webapp.md`](examples/overnight-webapp.md) shows the item
-shape to fill that punch list with.
-
-While the punch list has open boxes and the deadline hasn't passed, it re-invokes the agent — and
-because each iteration's only memory is the files, it's crash-proof by design. The hooks block a
-*polite* early quit; foreman revives a *dead* one (crash, rate limit, context exhaustion at 3am).
-They compose: run foreman around `claude -p` for a truly bulletproof overnight.
+The *method* travels further than the plugin does. A punch list, one commit per item, decisions
+parked instead of asked — that is plain markdown and git, and you can follow it by hand with any
+agent. The mechanical enforcement is Claude Code's, deliberately.
 
 ## The fine print
 
