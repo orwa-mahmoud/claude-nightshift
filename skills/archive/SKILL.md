@@ -6,6 +6,10 @@ description: File the finished part of the run state into a dated archive — sh
 Archive the finished paperwork. Work in `$CLAUDE_PROJECT_DIR`. This files records — it never
 does shift work, never ticks a box, never touches the contract.
 
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the variable.
+The shell's working directory persists between Bash calls and is not necessarily the project root;
+records filed into the wrong directory are records lost.
+
 ## Where it goes
 
 Everything lands in `.nightshift/archive/<YYYY-MM-DD>/` — today's date, one folder per archive

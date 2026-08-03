@@ -3,6 +3,21 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.7.1 — the site is where the owner put it
+
+Every skill resolves `.nightshift/` and `.claude/` against `$CLAUDE_PROJECT_DIR`, so the site stays
+the site no matter where a shell has wandered. The working directory persists between commands and
+follows gates, builds, and stack detection into the code repo; on the recommended layout — the code
+repo a level below the project root — anything written relative to it lands in the repo instead of
+the site.
+
+- **Permissions reach the project.** `/nightshift:setup` writes
+  `$CLAUDE_PROJECT_DIR/.claude/settings.local.json`, the file a headless revival inherits. A copy
+  anywhere else grants the project nothing, and the night finds out at its first prompt.
+- **Scaffolding, rules, gates, and the receipts repo are placed by path, not by proximity.** The
+  receipts repo is created with `git -C`, since `git init` follows the working directory too.
+- Six tests hold the rule across every skill, including ones not written yet.
+
 ## v0.7.0 — one place composes work, one place starts it
 
 `/nightshift:start` asks nothing. Everything it needs was decided when the work was composed, so

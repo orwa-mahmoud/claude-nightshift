@@ -6,6 +6,9 @@ description: Set a shift to start at a fixed time — check the work is queued, 
 Get `$CLAUDE_PROJECT_DIR` ready to start on a clock, then hand the owner the config. Work through
 these in order; each one is a check the owner would otherwise discover at 4am.
 
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. The shell's
+working directory persists between Bash calls and is not necessarily the project root.
+
 ## 1. Is there a site at all?
 
 No `.nightshift/` — stop and point at `/nightshift:setup`. Nothing below is meaningful without it.
