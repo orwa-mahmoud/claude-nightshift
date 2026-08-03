@@ -34,7 +34,8 @@ claude plugin validate . --strict    # manifest + marketplace validation
 ```
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
-on every push.
+on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps the system Bash
+3.2 first on `PATH`.
 
 ## Releasing
 
@@ -50,10 +51,24 @@ its notes from there and a tag with nothing behind it is worse than no tag.
 
 ## What gets merged
 
-Fixes that make the gate harder to fool, adapters for more harnesses, and docs
-that shorten the path to a first successful shift. Features that widen scope
-(schedulers, dashboards, integrations) will usually be declined — the plugin's
-value is that it does one thing strictly.
+Fixes that make the gate harder to fool, **new entries for the shift catalog**, and
+docs that shorten the path to a first successful shift.
+
+Shift catalog entries are the easiest way in: they are markdown, they touch no
+hooks, and they grow the catalog without growing the product. Read
+[`catalog-recipe.md`](skills/nightshift/references/catalog-recipe.md) first — an
+entry must declare its ending, how it discovers work, its definition of done, what
+it will never do, its verification, and the stacks it supports. Every catalog PR is
+read by a human before merge: a plausible entry can still be a bad night on someone
+else's repository, and no automated check catches that.
+
+nightshift extends Claude Code through Claude Code's own extension points — hooks,
+skills, the plugin manifest. Changes that stand outside that are declined, however
+useful they sound: schedulers (your OS already has one), dashboards, proxies, and
+second install channels such as npm or Homebrew, which would mean reimplementing
+what `/plugin install` already does. The one exception the design allows is code
+that stands outside only to keep an *inside* promise — the watchman exists because
+no hook can fire in a session that has died.
 
 ## License
 

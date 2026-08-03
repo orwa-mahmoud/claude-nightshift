@@ -192,7 +192,7 @@ rung_prompt() { # $1 attempt, $2 total attempts this wake
 }
 
 # One spawn attempt; the resumed session may legitimately run for hours. shellcheck disable:
-# $AGENT is an owner-provided command line; word-splitting is intended, as in foreman.
+# $AGENT is an owner-provided command line; word-splitting is intended.
 spawn() { # $1 optionally overrides the agent for this one attempt; $2 the order for its rung
   local a="${1:-$AGENT}" p="${2:-$PROMPT_RESUME}"
   # NIGHTSHIFT_REVIVAL marks the child for the hooks: a revival session ending is never the

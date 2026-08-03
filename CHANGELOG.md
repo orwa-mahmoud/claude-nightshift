@@ -3,6 +3,55 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.7.0 — one place composes work, one place starts it
+
+`/nightshift:start` asks nothing. Everything it needs was decided when the work was composed, so
+the same command serves an interactive start, a headless revival, and a scheduled one. That single
+property is what makes an unattended night schedulable at all, and it is why the ready shifts
+moved: a command that prompts cannot run while its owner sleeps.
+
+- **`/nightshift:hunt` composes the shift.** It offers the whole catalog rather than three fixed
+  presets, takes more than one entry per night, asks for hours only where the ending needs them,
+  and takes one free-text answer for scope — *"only `packages/api/`"*, *"use the in-memory test
+  harness"* — added as its own bullet beneath the entry's contract, never in place of it. The
+  assembled shift is shown exactly as it will be written before anything is armed, and answering
+  *now* starts it there — no second command to type.
+- **`/nightshift:quality` closes the same way.** After the read-only scan it offers three answers:
+  **fix now**, which writes the items and starts the shift; **draft for later**, which stages them
+  on the drafting table and arms nothing; or **ignore**. The punch list is written on nothing but
+  an explicit *fix now* — an open box arms the gate for the current session, so the box and the
+  start belong together or neither happens.
+- **`/nightshift:start` executes what it finds.** With open items in the punch list it asks
+  nothing and promotes nothing — parked orders and drafts stay where the owner left them, and the
+  list is the shift exactly as written. Only when the punch list is empty does it speak: it shows
+  what is parked and asks which to work. A cut is a move, never a copy, so an item never exists in
+  two files. The deadline is read rather than requested, a spent one is swept as a leftover while
+  one still in the future survives as tonight's plan, and an open-ended walkthrough with no clock
+  is refused rather than started.
+- **The shift catalog is the contribution surface.** `shift-catalog.md` gains a finite entry,
+  *clear quality debt*, beside the three open-ended hunts, and `catalog-recipe.md` states what a
+  new entry must declare: its ending, how it discovers work, its definition of done, what it will
+  never do, its verification, and the stacks it supports. Entries are markdown; they touch no
+  hooks, so the catalog can grow without the product growing.
+- **`/nightshift:schedule` — the scheduler nightshift will not become.** It checks what an owner
+  would otherwise discover at 4am — that work is actually queued in the punch list, that headless
+  permissions will not stall the run, that nothing is registered twice — then prints the launchd
+  plist or crontab line for the project and the single command that installs it. It registers
+  nothing itself, because waiting for a clock stays the operating system's job: a process that
+  sleeps for hours dies to a closed lid.
+  Underneath it, `adapters/schedule.sh` is plain shell that spends no model tokens and needs no
+  session. That is not an implementation detail — the moment an owner most wants to schedule a run
+  is the moment their quota is gone, and a slash command is read by the model. The README documents
+  the script directly for exactly that day. It refuses a second entry where one exists (two
+  scheduled starts on one punch list is two agents on one shift), identifies a project by path
+  rather than folder name so two checkouts named `api` never collide, and says plainly that a
+  sleeping machine runs nothing.
+- **foreman is removed.** It existed because Claude Code was once the only agent with hooks; Cursor,
+  Codex and Kimi now ship lifecycle hooks of their own, so a generic outer loop is the weakest
+  possible way to serve any of them. nightshift extends Claude Code through Claude Code's own
+  extension points, and the README and CONTRIBUTING now say so as a scope rule: no schedulers, no
+  dashboards, no second install channel.
+
 ## v0.6.1 — one copy
 
 The rules file is the config, and it lives with everything else nightshift owns:

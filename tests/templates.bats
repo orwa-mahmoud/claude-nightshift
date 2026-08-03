@@ -30,7 +30,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 # the gate — only the punch list is — which is exactly why proposals land there first.
 @test "the drafting table and walkthrough templates do show the item shape" {
   [ "$(grep -cE "$OPEN_BOX" "$REF/drafting-table-template.md" || true)" -gt 0 ]
-  [ "$(grep -cE "$OPEN_BOX" "$REF/walkthrough-item.md" || true)" -gt 0 ]
+  [ "$(grep -cE "$OPEN_BOX" "$REF/shift-catalog.md" || true)" -gt 0 ]
 }
 
 @test "every template setup copies is present" {
@@ -74,4 +74,15 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF '`.nightshift/rules.json` as-is' "$s"
   grep -qF 'removes all of nightshift, rules' "$s"
   grep -qF 'move it here' "$s"
+}
+
+# Three answers, and exactly one of them arms the gate. A survey that writes to the punch list
+# without starting would leave the owner's next session held by a shift nobody began.
+@test "quality offers fix now, draft for later, or ignore" {
+  q="$BATS_TEST_DIRNAME/../skills/quality/SKILL.md"
+  grep -qi 'fix now' "$q"
+  grep -qi 'draft for later' "$q"
+  grep -qi 'ignore' "$q"
+  grep -qi 'never write to the punch list on anything but an explicit' "$q"
+  grep -qi 'or neither happens' "$q"
 }

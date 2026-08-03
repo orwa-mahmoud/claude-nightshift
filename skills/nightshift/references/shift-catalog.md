@@ -1,15 +1,24 @@
-# Walkthrough item
+# Shift catalog
 
-Paste ONE of these into `## Items` — or let `/nightshift:hunt` stage it for you. A walkthrough is a
-single open box: it stays open while the loop runs and closes only at its honest end — converged,
-or the whistle. `/nightshift:start` asks for hours whenever the list contains a walkthrough; it has
-no natural end but the clock, so it may not start without a deadline.
+The ready shifts `/nightshift:hunt` offers. Each entry is a punch-list item, complete with its own
+contract and Verify line — paste one into `## Items` by hand, or let hunt assemble it for you.
 
-All presets share the loop — scan → verify → fix behind the item gate → re-scan — and log one line
-per cycle to `shift-log.md` (`cycle N · <scanned> · <found> · <fixed>`). They differ in the scan,
-and in the ending: the hunts may converge; the standing loop ends at nothing but the whistle.
+Two endings exist, and every entry declares which it has:
 
-## Coverage hunt — "give it the night, wake up to tests"
+- **Open-ended** — no natural end but the clock. It stays a single open box while its loop runs and
+  closes at the whistle (or at convergence, where the entry says so). `/nightshift:hunt` requires
+  hours for these; a walkthrough may not start without a deadline.
+- **Finite** — the work is a known list. It ends when the list is clear. Hours are optional: a cap,
+  not a requirement.
+
+Open-ended entries share the loop — scan → verify → fix behind the item gate → re-scan — and log one
+line per cycle to `shift-log.md` (`cycle N · <scanned> · <found> · <fixed>`). They differ in the scan
+and in the ending.
+
+**Adding an entry:** see `catalog-recipe.md` in this directory. An entry that does not declare its
+ending, its definition of done, and what it will never do is not reviewable, and will not be merged.
+
+## Coverage hunt — open-ended — "give it the night, wake up to tests"
 
 ```text
 - [ ] **Coverage hunt — add meaningful tests until quitting time.**
@@ -20,7 +29,7 @@ and in the ending: the hunts may converge; the standing loop ends at nothing but
   - Verify: the item gate is green at every commit.
 ```
 
-## Defect hunt — the review cycle, ridden to convergence
+## Defect hunt — open-ended — the review cycle, ridden to convergence
 
 ```text
 - [ ] **Defect hunt — review, fix, re-review until it converges.**
@@ -32,7 +41,7 @@ and in the ending: the hunts may converge; the standing loop ends at nothing but
   - Verify: the item gate is green at every commit; snag-log.md dispositions are current.
 ```
 
-## Standing loop — improve and discover until quitting time
+## Standing loop — open-ended — improve and discover until quitting time
 
 The greedy one: no convergence ending. An empty cycle is not "done" — it means the lens was too
 shallow. For when there is credit and hours, and the job is "make the product better".
@@ -59,4 +68,23 @@ shallow. For when there is credit and hours, and the job is "make the product be
   - Dedupe every finding against snag-log.md (ALL seen — fixed and rejected) before acting; append
     dispositions after. Park owner decisions in parking-lot.md and keep working.
   - Verify: the item gate is green at every commit; one conventional commit per coherent fix.
+```
+
+## Clear quality debt — finite — the backlog your tools already know about
+
+The finite counterpart to the hunts: the work is a list your own tooling produces, so it ends when
+that list is clear. `/nightshift:quality` runs the same scan read-only and proposes items without
+starting anything; this entry works them.
+
+```text
+- [ ] **Clear quality debt — fix what the project's own tooling reports.**
+  - Scan first: run the item-gate commands from `## Gates` in report mode (lint, types, tests),
+    per top-level package in a monorepo. Cluster the findings by tool and directory.
+  - Work one cluster per cycle: fix the real cause behind the item gate, commit, re-scan.
+  - Never silence instead of fixing — no new suppressions, no relaxed config, no deleted tests. A
+    finding the owner should decide on goes to parking-lot.md with a default, and work continues.
+  - Dedupe against snag-log.md (ALL seen — fixed and rejected) so a rejected finding is not raised
+    a second time.
+  - Ends when a full scan reports nothing new, or at quitting time if hours were set.
+  - Verify: the item gate is green at every commit.
 ```
