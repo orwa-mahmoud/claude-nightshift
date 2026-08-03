@@ -74,8 +74,11 @@ One question: **start now, or park it for later?**
 On **now** — start the shift yourself, here, without making the owner type another command. Follow
 `/nightshift:start` exactly: clear the stale markers, **move** the item out of `work-orders.md` and
 under `## Items` in the punch list (a cut, never a copy — it must not exist in two places), write
-`.nightshift/deadline` from the recorded hours, log the start, arm the watchman. From that second
-the gate holds this session until the list is done, a stop-work order lands, or the whistle blows.
+`.nightshift/deadline` from the recorded hours, **arm the gate** with
+`touch "$CLAUDE_PROJECT_DIR/.nightshift/.shift-armed"`, log the start, arm the watchman. The
+marker is what starts the shift — without it the list is written and nothing is holding it. From
+that second the gate holds this session until the list is done, a stop-work order lands, or the
+whistle blows.
 
 On **later** — the order stays parked in `work-orders.md` with its hours, costing nothing. It arms
 nothing and the gate stays inert. `/nightshift:start` will offer it when the owner is ready.

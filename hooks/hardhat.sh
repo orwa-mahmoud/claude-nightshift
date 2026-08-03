@@ -94,6 +94,11 @@ record_shift_session() {
   [ -z "$pid" ] || start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
   (set -C; printf '%s\n%s\n%s\n%s\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
 }
+# The guards are the shift's, so they arrive with the shift. `/nightshift:start` writes
+# .shift-armed; before it exists this is an ordinary session in an ordinary project and nothing
+# here applies to it.
+[ -f "$NS/.shift-armed" ] || exit 0
+
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   record_shift_session
 fi

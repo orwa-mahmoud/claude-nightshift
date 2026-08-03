@@ -62,10 +62,15 @@ GATE_MESSAGE="$(rule "$PROJECT_DIR" clockOutMessage "${NIGHTSHIFT_GATE_MESSAGE:-
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 
+# Only the Items list is the shift. A checkbox above it is prose — an owner's note, an example in
+# the contract — and counting it would hold a session over something nobody queued. The heading
+# must stand alone on its line, so the contract's inline `## Items` references never match.
+items_section() { sed -n '/^## Items[[:space:]]*$/,$p' "$PUNCH" 2>/dev/null; }
+
 # grep -c prints the count AND exits 1 on zero matches; keep only the number.
 count() {
   local n
-  n="$(grep -cE "$1" "$PUNCH" 2>/dev/null || true)"
+  n="$(items_section | grep -cE "$1" 2>/dev/null || true)"
   printf '%s' "${n:-0}"
 }
 open_boxes()   { count '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
@@ -133,6 +138,9 @@ receipts_commit() {
 # working until its next stop attempt.
 end_shift() {
   [ -d "$NS" ] && : >"$ENDED"
+  # The shift is over, so the site stops being on shift: without this the guards would still apply
+  # to whatever ordinary session opens this project next.
+  rm -f "$NS/.shift-armed"
   receipts_commit "$1"
   whistle "$1"
 }
@@ -155,8 +163,12 @@ record_shift_session() {
   [ -z "$pid" ] || start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
   (set -C; printf '%s\n%s\n%s\n%s\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
 }
-if [ -f "$PUNCH" ] && [ "$OPEN" -gt 0 ] && [ ! -f "$ENDED" ] \
-  && [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+# A shift exists because the owner started one, never because a list exists. `/nightshift:start`
+# writes .shift-armed; without it the punch list is a to-do file and every session stops freely —
+# including the one that just wrote the list while planning.
+[ -f "$NS/.shift-armed" ] || exit 0
+
+if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   record_shift_session
 fi
 
@@ -189,6 +201,9 @@ if [ -f "$STOP" ]; then
     summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
     end_shift "$summary"
   fi
+  # A stop-work order ends the shift whether or not a list survived to summarise, so the site is
+  # disarmed either way — otherwise the guards would outlive the night that armed them.
+  rm -f "$NS/.shift-armed"
   exit 0
 fi
 

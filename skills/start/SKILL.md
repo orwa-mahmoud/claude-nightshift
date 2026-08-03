@@ -29,9 +29,10 @@ so it looks at what is parked and asks which of it to work.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
   leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
-  `.nightshift/.session-end`, `.nightshift/.shift-session`, `.nightshift/.watchman-tick`, and the
-  `.nightshift/.lock.d/` directory. If `.nightshift/.watchman` holds a live pid, kill it — last
-  night's watchman must not double-arm tonight's.
+  `.nightshift/.session-end`, `.nightshift/.shift-session`, `.nightshift/.shift-armed`,
+  `.nightshift/.watchman-tick`, and the `.nightshift/.lock.d/` directory. If
+  `.nightshift/.watchman` holds a live pid, kill it — last night's watchman must not double-arm
+  tonight's.
 - **The deadline is cleared only if it has already passed.** A shift that reached the whistle
   leaves a spent deadline behind, and keeping it clocks tonight out immediately with zero items
   done. But a deadline still in the future is tonight's plan — written by the owner or by hunt's
@@ -78,13 +79,29 @@ The deadline is written when the work is composed, not here.
   and point at `/nightshift:hunt`, which asks for hours; never invent a number.
 - One deadline governs the whole shift: finite items first, the walkthrough soaks up the rest.
 
-## 3. Heads-up
+## 3. Arm the gate
+
+Every check has passed and the work is known, so the shift begins here. Create the marker:
+
+```bash
+touch "$CLAUDE_PROJECT_DIR/.nightshift/.shift-armed"
+```
+
+**This, and nothing else, is what puts a session on shift.** Until it exists the punch list is an
+ordinary to-do file: the clock-out gate holds nobody and hardhat's guards apply to no one, so a
+session that writes items while planning still stops freely. From here the hooks bind the first
+session that trips them — this one — and hold it to the list.
+
+Write it last. A marker left behind by a preflight that stopped early would put the next session
+on a shift it never started.
+
+## 4. Heads-up
 
 Surface any still-unanswered entries in `.nightshift/parking-lot.md` (read-only) so the owner sees
 what the last shift parked — printed, never waited on. Append a `shift started` line to
 `.nightshift/shift-log.md`.
 
-## 4. Arm the night watchman
+## 5. Arm the night watchman
 
 Unless the rules file's `watchMinutes` is `0` (or `NIGHTSHIFT_WATCH=0` overrides), arm it in
 the background — it reads its cadence from the rules file itself:
@@ -99,7 +116,7 @@ stop-work order, quitting time, or a clean exit. Esc is honored — the watchman
 interrupt from the session transcript and stands by rather than resuming; `STOP` remains the
 stop-work order, and the only stop a headless run can receive.
 
-## 5. Work
+## 6. Work
 
 Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit, tick
 honestly, park don't ask, leave pushing to the owner unless the punch list says otherwise. From

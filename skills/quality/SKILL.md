@@ -30,10 +30,12 @@ Draft one punch-list item per meaningful cluster (e.g. "clear the 12 shellcheck 
 Verify and Commit lines. Show the drafts, then ask — with three first-class answers:
 
 - **fix now** — write the items straight under `## Items` in `.nightshift/punch-list.md` and start
-  the shift here, following `/nightshift:start`: clear the stale markers, log the start, arm the
-  watchman. These are finite items, so no deadline is required; offer an optional hours cap in one
-  line and write `.nightshift/deadline` only if the owner names a number. From that second the gate
-  holds this session until every box is ticked.
+  the shift here, following `/nightshift:start`: clear the stale markers, **arm the gate** with
+  `touch "$CLAUDE_PROJECT_DIR/.nightshift/.shift-armed"`, log the start, arm the watchman. The
+  marker is what starts the shift; the items alone hold nothing. These are finite items, so no
+  deadline is required; offer an optional hours cap in one line and write `.nightshift/deadline`
+  only if the owner names a number. From that second the gate holds this session until every box
+  is ticked.
 - **draft for later** — append them to `.nightshift/drafting-table.md` and arm nothing. The
   drafting table is staging: it is never read by the gate, which is exactly why proposals can wait
   there safely. Tell the owner they can promote what they want into the punch list and run
@@ -42,9 +44,9 @@ Verify and Commit lines. Show the drafts, then ask — with three first-class an
 - **ignore** — write nothing at all; fully respected. A finding the owner does not care about is
   not a defect.
 
-Never write to the punch list on anything but an explicit **fix now**. An open `- [ ]` there arms
-the clock-out gate for every session in this project, including the one running now — so the box
-and the start belong together, or neither happens.
+Never write to the punch list on anything but an explicit **fix now**. Items there are the shift
+the next start will work, so writing them on a survey puts work in front of the owner that nobody
+agreed to — the box and the start belong together, or neither happens.
 
 If the stack no longer matches the current `## Gates` block, say so in one line and point to
 `/nightshift:setup` — gates belong to setup, not to this command.

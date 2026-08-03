@@ -13,6 +13,7 @@ new_project() {
   local p="$BATS_TEST_TMPDIR/${1:-proj}"
   mkdir -p "$p/.nightshift"
   cp "$RULES_TEMPLATE" "$p/.nightshift/rules.json" # as setup does — the one copy of every knob
+  : >"$p/.nightshift/.shift-armed"                 # as /nightshift:start does — a shift is running
   git -C "$p" init -q
   git -C "$p" config user.email dev@example.com
   git -C "$p" config user.name tester
@@ -26,6 +27,7 @@ new_workspace() {
   local w="$BATS_TEST_TMPDIR/${1:-ws}"
   mkdir -p "$w/.nightshift"
   cp "$RULES_TEMPLATE" "$w/.nightshift/rules.json"
+  : >"$w/.nightshift/.shift-armed"
   add_repo "$w" repo
   printf '%s' "$w"
 }
