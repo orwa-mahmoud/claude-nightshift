@@ -4,9 +4,15 @@ name: release
 # Landing a version bump on main tags that commit and publishes its CHANGELOG section as the
 # release notes; a push that leaves the version alone is a no-op. Nothing else is published —
 # the marketplace serves main directly.
+#
+# It runs on ci's completion rather than on the push itself: both trigger from the same event, so
+# as parallel workflows this one published while the tests were still running. A version users
+# install is a version whose suite went green on that exact commit.
 
 on:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
 
 permissions:
@@ -15,10 +21,16 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # A failed or cancelled run publishes nothing.
+    if: github.event.workflow_run.conclusion == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # The commit ci actually tested. Without this, workflow_run checks out whatever main
+          # points at now, which is a different tree the moment a second merge lands behind this
+          # one — and the tag would name a commit nothing verified.
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Read the manifest version
         id: manifest
