@@ -239,6 +239,7 @@ load helpers
 @test "an unresolvable repo leaves the string-matching guards untouched" {
   w="$BATS_TEST_TMPDIR/bare"
   mkdir -p "$w/.nightshift"
+  : >"$w/.nightshift/.shift-armed"
   punch_open "$w"
   run hardhat_bash "$w" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
   is_deny "$output"

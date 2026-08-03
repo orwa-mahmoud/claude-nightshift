@@ -1,9 +1,9 @@
 # Punch List
 
 > The enforced to-do for this shift. The clock-out gate (a Stop hook) blocks ending the session
-> while any item under `## Items` is an open `- [ ]`. Everything above `## Items` is the contract —
-> binding for the duration of the shift. Only the `## Items` list changes: tick boxes to `- [x]` as
-> work finishes.
+> while any item in the **Items** list below is an open `- [ ]`. Everything above that heading is
+> the contract — binding for the duration of the shift. Only the Items list changes: tick boxes to
+> `- [x]` as work finishes.
 
 ## Never idle, never ask, never wait
 
@@ -15,7 +15,7 @@
 
 ## How the shift ends (and only these ways)
 
-- **Done** — every box under `## Items` is `- [x]`. The ticks are the truth; no magic phrase ends it.
+- **Done** — every box in the Items list is `- [x]`. The ticks are the truth; no magic phrase ends it.
 - **Stop-work order** — `.nightshift/STOP` exists (`/nightshift:stop`, or `touch .nightshift/STOP`
   from any terminal). Open boxes stay open — an honest snapshot of where work stopped.
 - **Quitting time** — past `.nightshift/deadline`, the gate clocks the shift out. Belongs to
@@ -45,9 +45,9 @@
 
 ## Immutable
 
-Everything above `## Items` is the contract. It binds the agent for the shift — never modify, trim,
-or reword it. The owner may edit the `## Gates` block anytime, so re-read it each item. Only the
-`## Items` list changes.
+Everything above the Items heading is the contract. It binds the agent for the shift — never
+modify, trim, or reword it. The owner may edit the `## Gates` block anytime, so re-read it each
+item. Only the Items list changes.
 
 ## Gates
 

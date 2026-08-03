@@ -3,6 +3,24 @@
 Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
 users receive. Dates are release dates; the tags carry the exact trees.
 
+## v0.7.2 — a shift starts when you start it
+
+`/nightshift:start` is what puts a session on shift. It writes `.nightshift/.shift-armed`, and
+until that marker exists the punch list is an ordinary to-do file — the clock-out gate holds
+nobody, hardhat's guards apply to no one, and a session that writes items while planning still
+stops freely. Every way in already runs start: interactively, from the scheduler's
+`claude -p '/nightshift:start'`, and through a revival that re-claims the record it left behind.
+
+- **The gate binds the session start hands it.** The hooks read the shift record; they no longer
+  create one, so the shift is never inherited by whichever session happens to trip a hook first.
+  Ending a shift disarms the site, so the guards leave with the night that needed them.
+- **Boxes count under the `## Items` heading only.** A checkbox anywhere above it is contract
+  prose — an owner's note, an example — and holds nothing. The watchman counts the same range as
+  the gate, so the two can't disagree about whether work remains.
+- **The contract names the Items list without repeating its heading**, leaving one `## Items` in
+  the file for anything that splits on it.
+- Eleven tests cover the arming boundary from both sides.
+
 ## v0.7.1 — the site is where the owner put it
 
 Every skill resolves `.nightshift/` and `.claude/` against `$CLAUDE_PROJECT_DIR`, so the site stays

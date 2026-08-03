@@ -131,9 +131,12 @@ fi
 printf '%s\n' "$$" >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
+# Counted below the `## Items` heading only, exactly as the gate counts them — a watchman that
+# read a checkbox out of the contract prose would keep reviving a shift the gate considers done.
 open_boxes() {
   local n
-  n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null || true)"
+  n="$(sed -n '/^## Items[[:space:]]*$/,$p' "$PUNCH" 2>/dev/null \
+    | grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' 2>/dev/null || true)"
   printf '%s' "${n:-0}"
 }
 
