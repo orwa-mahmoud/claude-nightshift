@@ -201,6 +201,9 @@ if [ -f "$STOP" ]; then
     summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
     end_shift "$summary"
   fi
+  # A stop-work order ends the shift whether or not a list survived to summarise, so the site is
+  # disarmed either way — otherwise the guards would outlive the night that armed them.
+  rm -f "$NS/.shift-armed"
   exit 0
 fi
 

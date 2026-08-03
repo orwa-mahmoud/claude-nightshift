@@ -93,3 +93,24 @@ load helpers
   grep -qF '.nightshift/.shift-armed' "$s"
   grep -qF 'Arm the gate' "$s"
 }
+
+# hunt and quality both start shifts without the owner typing another command. A start path that
+# skips the marker writes the items and holds nothing — the failure is silent and looks like work.
+@test "every skill that starts a shift arms the gate" {
+  for s in start hunt quality; do
+    grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../skills/$s/SKILL.md" \
+      || { echo "starts a shift without arming: $s"; return 1; }
+  done
+}
+
+@test "a stop-work order disarms the site even with no punch list" {
+  p="$(new_project)"
+  : >"$p/.nightshift/STOP"
+  run gate "$p"
+  is_release
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+}
+
+@test "status reports whether a shift is running" {
+  grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../skills/status/SKILL.md"
+}

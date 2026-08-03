@@ -19,7 +19,12 @@ stops freely. Every way in already runs start: interactively, from the scheduler
   the gate, so the two can't disagree about whether work remains.
 - **The contract names the Items list without repeating its heading**, leaving one `## Items` in
   the file for anything that splits on it.
-- Eleven tests cover the arming boundary from both sides.
+- **Every path that starts a shift arms it** — `/nightshift:hunt` answering *now* and
+  `/nightshift:quality` answering *fix now* both begin the shift where they stand, so both write
+  the marker. A stop-work order disarms the site whether or not a list survived to summarise.
+- **`/nightshift:status` says whether a shift is running**, rather than leaving open boxes to imply
+  it, and counts the same range the gate does.
+- Fifteen tests cover the arming boundary from both sides.
 
 ## v0.7.1 — the site is where the owner put it
 
