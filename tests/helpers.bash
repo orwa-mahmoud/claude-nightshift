@@ -51,6 +51,19 @@ receipts_init() {
 }
 
 # A punch list with one open and one ticked box (TICKED=1, TOTAL=2).
+# A background writer races the watchman it is meant to feed: on a loaded runner every sample can
+# land before the subshell is even scheduled, so a live session reads as dead and the test fails
+# with nothing wrong in the code. Writers signal once they are running; this blocks until then, so
+# a red suite always means a real defect.
+wait_writer() {
+  local flag="$1" i=0
+  while [ ! -e "$flag" ]; do
+    i=$((i + 1))
+    [ "$i" -lt 400 ] || { echo "background writer never started: $flag" >&2; return 1; }
+    sleep 0.05
+  done
+}
+
 punch_open() { printf '## Items\n- [ ] **1. first.**\n- [x] **2. done.**\n' >"$1/.nightshift/punch-list.md"; }
 punch_done() { printf '## Items\n- [x] **1. first.**\n- [x] **2. done.**\n' >"$1/.nightshift/punch-list.md"; }
 

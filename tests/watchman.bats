@@ -83,8 +83,10 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
 }
 
 @test "project-file churn alone is not life — a dead site is revived through it" {
-  ( while :; do touch "$P/beat"; sleep 0.15; done ) &
+  RDY="$BATS_TEST_TMPDIR/.churn-ready"
+  ( touch "$P/beat"; : >"$RDY"; while :; do sleep 0.15; touch "$P/beat"; done ) &
   toucher=$!
+  wait_writer "$RDY"
   run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
   kill "$toucher" 2>/dev/null || true
@@ -258,9 +260,15 @@ STUB
   mkdir -p "$T"
   printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
   printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
-  ( while :; do printf '{"type":"message","content":"x"}\n' >>"$T/shift.jsonl"; sleep 0.15; done ) &
+  RDY="$BATS_TEST_TMPDIR/.pulse-ready"
+  ( printf '{"type":"message","content":"x"}\n' >>"$T/shift.jsonl"; : >"$RDY"
+    while :; do sleep 0.15; printf '{"type":"message","content":"x"}\n' >>"$T/shift.jsonl"; done ) &
   toucher=$!
-  run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+  wait_writer "$RDY"
+  # SLEEP=2, not 1: the pulse is `transcript -nt sentinel`, and -nt compares whole seconds. At a
+  # one-second wake the appends and the sentinel share a second often enough to read a streaming
+  # session as dead — a flake in the test, at a cadence the shipped ten-minute interval never sees.
+  run env NIGHTSHIFT_WATCH_SLEEP=2 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
   kill "$toucher" 2>/dev/null || true
   [ "$status" -eq 7 ]
@@ -272,8 +280,11 @@ STUB
   mkdir -p "$T"
   printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
   printf 'sid-shift\n%s\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
-  ( while :; do printf '{"type":"message","content":"other"}\n' >>"$T/other.jsonl"; sleep 0.15; done ) &
+  RDY="$BATS_TEST_TMPDIR/.other-ready"
+  ( printf '{"type":"message","content":"other"}\n' >>"$T/other.jsonl"; : >"$RDY"
+    while :; do sleep 0.15; printf '{"type":"message","content":"other"}\n' >>"$T/other.jsonl"; done ) &
   toucher=$!
+  wait_writer "$RDY"
   run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
   kill "$toucher" 2>/dev/null || true
@@ -453,8 +464,13 @@ case "$*" in agents*) echo "[]" ;; esac
 STUB
   chmod +x "$BIN/claude"
   # Quiet for the first wake, then the session streams again — like a real session coming back.
-  ( sleep 1; while :; do printf '{"type":"message","content":"back"}\n' >>"$T/shift.jsonl"; sleep 0.3; done ) &
+  # The flag is set before the quiet period, not after: waiting on the stream would remove the
+  # silence this test is about, but the subshell still has to be scheduled before the watchman runs.
+  RDY="$BATS_TEST_TMPDIR/.back-ready"
+  ( : >"$RDY"; sleep 1
+    while :; do printf '{"type":"message","content":"back"}\n' >>"$T/shift.jsonl"; sleep 0.3; done ) &
   appender=$!
+  wait_writer "$RDY"
   run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="2" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
   kill "$appender" 2>/dev/null || true
@@ -555,8 +571,10 @@ STUB
   printf '{"type":"message","content":"working"}\n{"type":"user","content":"[Request interrupted by user]"}\n' >"$T/shift.jsonl"
   start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
   printf 'sid-shift\n%s\n%s\n%s\n' "$T/shift.jsonl" "$$" "$start" >"$P/.nightshift/.shift-session"
-  ( while :; do touch "$P/detached-writer"; sleep 0.15; done ) &
+  RDY="$BATS_TEST_TMPDIR/.detached-live-ready"
+  ( touch "$P/detached-writer"; : >"$RDY"; while :; do sleep 0.15; touch "$P/detached-writer"; done ) &
   toucher=$!
+  wait_writer "$RDY"
   run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
   kill "$toucher" 2>/dev/null || true
@@ -573,8 +591,10 @@ STUB
   deadpid=$!
   wait "$deadpid" 2>/dev/null || true
   printf 'sid-shift\n%s\n%s\n\n' "$T/shift.jsonl" "$deadpid" >"$P/.nightshift/.shift-session"
-  ( while :; do touch "$P/detached-writer"; sleep 0.15; done ) &
+  RDY="$BATS_TEST_TMPDIR/.detached-dead-ready"
+  ( touch "$P/detached-writer"; : >"$RDY"; while :; do sleep 0.15; touch "$P/detached-writer"; done ) &
   toucher=$!
+  wait_writer "$RDY"
   run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 4
   kill "$toucher" 2>/dev/null || true
