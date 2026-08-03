@@ -7,6 +7,10 @@ Survey this project's existing quality debt and turn what matters into proposed 
 The scan is read-only: run checks in report mode, fix nothing, write nothing without an explicit
 yes. Work in `$CLAUDE_PROJECT_DIR`.
 
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. The shell's
+working directory persists between Bash calls and drifts into the code repo while running the
+project's own check commands, so a bare relative path lands wherever the last `cd` left it.
+
 ## 1. Detect and scan
 
 Detect the stack from the table in `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/gates-catalog.md`

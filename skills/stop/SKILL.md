@@ -5,6 +5,10 @@ description: Issue a stop-work order — end the shift at once, leaving open ite
 
 Issue a stop-work order for `$CLAUDE_PROJECT_DIR`.
 
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the variable.
+The shell's working directory persists between Bash calls and is not necessarily the project root;
+a stop-work order written to the wrong directory stops nothing.
+
 1. Write `.nightshift/STOP` with a one-line reason and a timestamp (e.g. `stopped by owner ·
    <ISO time>`).
 2. Append an `ended by user` line to `.nightshift/shift-log.md`.

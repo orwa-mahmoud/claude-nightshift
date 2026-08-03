@@ -5,6 +5,10 @@ description: Begin the shift — preflight, cut whatever is queued, arm the site
 
 Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the variable.
+The shell's working directory persists between Bash calls and drifts into the code repo while
+running gates, so a bare relative path reads or writes wherever the last `cd` left it.
+
 **With work in the punch list, this command asks nothing.** It reads the list, arms the site and
 works — which is what lets cron run it at 04:00 and lets the watchman revive it after a crash. It
 promotes nothing on its own: what is in the punch list is the shift, exactly as the owner left it.
