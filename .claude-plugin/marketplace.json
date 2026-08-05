@@ -5,14 +5,14 @@
     "url": "https://github.com/orwa-mahmoud"
   },
   "metadata": {
-    "description": "Home of nightshift: accountable autonomous runs for Claude Code — the agent can't clock out until the punch list is done."
+    "description": "Home of nightshift: accountable autonomous runs for Claude Code \u2014 the agent can't clock out until the punch list is done, and a dead session is revived rather than mourned."
   },
   "plugins": [
     {
       "name": "nightshift",
-      "source": "./",
+      "source": "./plugin",
       "displayName": "nightshift",
-      "description": "Claude works the night shift: accountable autonomous runs that can't clock out until the punch list is done.",
+      "description": "Claude works the night shift: it can't clock out until the punch list is done, parks questions instead of waking you, and revives the session an API 500 killed at 3 AM.",
       "category": "workflow",
       "tags": [
         "autonomous",
@@ -20,14 +20,20 @@
         "unattended",
         "punch-list",
         "guardrails",
-        "hooks"
+        "hooks",
+        "crash-recovery",
+        "agent-harness"
       ],
       "keywords": [
         "claude-code",
         "plugin",
+        "agent-harness",
         "autonomous-agents",
         "ai-agents",
-        "hooks"
+        "hooks",
+        "crash-recovery",
+        "session-resume",
+        "api-error-500"
       ],
       "author": {
         "name": "Orwa Mahmoud",

@@ -18,7 +18,7 @@
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
-# shellcheck source=hooks/lib.sh
+# shellcheck source=plugin/hooks/lib.sh
 . "$_here/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
 
 INPUT="$(cat)"

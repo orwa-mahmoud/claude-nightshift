@@ -1,6 +1,6 @@
-SHIFTS="$BATS_TEST_DIRNAME/../skills/nightshift/references/shifts"
-CAT="$BATS_TEST_DIRNAME/../skills/nightshift/references/shift-catalog.md"
-RECIPE="$BATS_TEST_DIRNAME/../skills/nightshift/references/catalog-recipe.md"
+SHIFTS="$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/shifts"
+CAT="$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/shift-catalog.md"
+RECIPE="$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/catalog-recipe.md"
 
 # Structural rules only. Every assertion here globs the directory, so a contributed shift is
 # covered the moment its file lands — nobody edits this file to add an entry, which is the whole

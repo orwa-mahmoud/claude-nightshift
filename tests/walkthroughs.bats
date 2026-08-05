@@ -1,5 +1,5 @@
-HUNT="$BATS_TEST_DIRNAME/../skills/hunt/SKILL.md"
-START="$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
+HUNT="$BATS_TEST_DIRNAME/../plugin/skills/hunt/SKILL.md"
+START="$BATS_TEST_DIRNAME/../plugin/skills/start/SKILL.md"
 
 # The catalog's own rules live in catalog.bats (structural, globbed) and tests/shifts/<entry>.bats
 # (one file per entry), so adding a shift never edits a test file someone else is also editing.
@@ -55,7 +55,7 @@ START="$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
 @test "start writes the deadline from a cut order's recorded hours" {
   grep -q 'work-orders.md' "$START"
   grep -q 'hours\*3600' "$START"
-  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../skills/setup/SKILL.md"
+  grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../plugin/skills/setup/SKILL.md"
 }
 
 # Entries are files in a directory, so hunt must list it. Reciting from memory is how a shift that
@@ -109,7 +109,7 @@ START="$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
 
 # The archive files finished paperwork only — the contract and open work are untouchable.
 @test "the archive skill moves only finished records, never the contract or open items" {
-  s="$BATS_TEST_DIRNAME/../skills/archive/SKILL.md"
+  s="$BATS_TEST_DIRNAME/../plugin/skills/archive/SKILL.md"
   [ -f "$s" ]
   grep -qF 'stay exactly where they are' "$s"      # open items + contract stay
   grep -qF 'never ticks a box' "$s"                # files paperwork, does no work

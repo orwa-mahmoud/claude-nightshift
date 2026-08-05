@@ -73,7 +73,7 @@
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
-# shellcheck source=hooks/lib.sh
+# shellcheck source=plugin/hooks/lib.sh
 . "$_here/../hooks/lib.sh" # pure-bash path — no dirname dependency
 
 PROJECT="$PWD"

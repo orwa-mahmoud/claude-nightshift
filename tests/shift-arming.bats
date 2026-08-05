@@ -82,14 +82,14 @@ load helpers
 # The contract references the Items list in prose. If those references were the literal heading,
 # scoping the count would start at the first sentence and the whole contract would read as work.
 @test "the shipped template carries the Items heading exactly once" {
-  n="$(grep -c '^## Items[[:space:]]*$' "$BATS_TEST_DIRNAME/../skills/nightshift/references/punch-list-template.md")"
+  n="$(grep -c '^## Items[[:space:]]*$' "$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/punch-list-template.md")"
   [ "$n" -eq 1 ]
-  m="$(grep -c '## Items' "$BATS_TEST_DIRNAME/../skills/nightshift/references/punch-list-template.md")"
+  m="$(grep -c '## Items' "$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/punch-list-template.md")"
   [ "$m" -eq 1 ]
 }
 
 @test "start is the command that arms the gate" {
-  s="$BATS_TEST_DIRNAME/../skills/start/SKILL.md"
+  s="$BATS_TEST_DIRNAME/../plugin/skills/start/SKILL.md"
   grep -qF '.nightshift/.shift-armed' "$s"
   grep -qF 'Arm the gate' "$s"
 }
@@ -98,7 +98,7 @@ load helpers
 # skips the marker writes the items and holds nothing — the failure is silent and looks like work.
 @test "every skill that starts a shift arms the gate" {
   for s in start hunt quality; do
-    grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../skills/$s/SKILL.md" \
+    grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../plugin/skills/$s/SKILL.md" \
       || { echo "starts a shift without arming: $s"; return 1; }
   done
 }
@@ -112,5 +112,5 @@ load helpers
 }
 
 @test "status reports whether a shift is running" {
-  grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../skills/status/SKILL.md"
+  grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../plugin/skills/status/SKILL.md"
 }

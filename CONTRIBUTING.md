@@ -39,13 +39,12 @@ on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps
 
 ## Releasing
 
-Installs are pinned to `version` in `.claude-plugin/plugin.json` — users receive updates only when
+Installs are pinned to `version` in `plugin/.claude-plugin/plugin.json` — users receive updates only when
 it changes. Bump it, add the matching `## vX.Y.Z` section to [`CHANGELOG.md`](CHANGELOG.md), and
 merge to `main`: CI tags the release and publishes it with that section as the notes. Do not tag by
 hand.
 
-Two gates enforce this on a pull request. A change to `hooks/`, `skills/`, `adapters/` or
-`.claude-plugin/` without a version bump fails, because installs pinned to the old version would
+Two gates enforce this on a pull request. A change under `plugin/` without a version bump fails, because installs pinned to the old version would
 never receive it. A bump with no changelog section behind it fails too, since the release job reads
 its notes from there and a tag with nothing behind it is worse than no tag.
 
@@ -56,7 +55,7 @@ docs that shorten the path to a first successful shift.
 
 Shift catalog entries are the easiest way in: they are markdown, they touch no
 hooks, and they grow the catalog without growing the product. Read
-[`catalog-recipe.md`](skills/nightshift/references/catalog-recipe.md) first — an
+[`catalog-recipe.md`](plugin/skills/nightshift/references/catalog-recipe.md) first — an
 entry must declare its ending, how it discovers work, its definition of done, what
 it will never do, its verification, and the stacks it supports. Every catalog PR is
 read by a human before merge: a plausible entry can still be a bad night on someone

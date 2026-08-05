@@ -36,7 +36,7 @@ jobs:
         id: manifest
         run: |
           set -eu
-          version="$(jq -er '.version' .claude-plugin/plugin.json)"
+          version="$(jq -er '.version' plugin/.claude-plugin/plugin.json)"
           case "$version" in
             [0-9]*.[0-9]*.[0-9]*) ;;
             *) echo "manifest version '$version' is not semver" >&2; exit 1 ;;
