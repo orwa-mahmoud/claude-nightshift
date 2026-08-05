@@ -3,6 +3,14 @@
 Installs pin to the `version` in `plugin/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.8.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.7.4...v0.8.0) (2026-08-05)
+
+
+### Features
+
+* the shift record names its host, and the package carries a Codex manifest ([1ffe689](https://github.com/orwa-mahmoud/claude-nightshift/commit/1ffe689f5ce2121998b1cfefa300712f0e2ba01e))
+* the shift record names its host, and the package carries a Codex manifest ([19d619f](https://github.com/orwa-mahmoud/claude-nightshift/commit/19d619f18f451cd57e90b39d2ef9c9ee637d7f47))
+
 ## v0.7.4 — the plugin is a subdirectory
 
 The plugin ships from `plugin/`. Tests, CI workflows and the README's screenshots no longer
