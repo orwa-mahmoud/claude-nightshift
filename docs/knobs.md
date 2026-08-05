@@ -2,6 +2,12 @@
 
 Zero-config by default; every knob below is off until you set it (unset ⇒ the default described).
 
+The contract itself is a knob too: the punch-list text above `## Items` and the rules file's
+`clockOutMessage` are the owner's words. The shipped default asks one commit per item — the
+receipts story — but the gate releases on ticks, and the stall guard counts a tick as progress
+on its own, so a contract with the commit rule stripped runs a full night with no commits at
+all (on Codex, such a night needs only the `workspace-write` sandbox).
+
 **One file drives them all:** setup copies a ready template to `.nightshift/rules.json` —
 clean JSON, yours to edit: the tool-deny map, the guard patterns, the cadences, the watchman's
 revival orders, the gate's clock-out text. The hooks read the file directly on every tool call,

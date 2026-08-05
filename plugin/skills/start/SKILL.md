@@ -26,11 +26,13 @@ so it looks at what is parked and asks which of it to work.
   stop here. On Claude Code, alive means line 3's pid exists and `ps -o lstart= -p <pid>` matches
   line 4, or the id on line 1 appears in `claude agents --json`; the handoff is
   `claude --resume <id>` for a terminal, `vscode://anthropic.claude-code/open?session=<id>` for
-  the IDE. On Codex the record carries no pid (lines 3–4 are empty by design), so treat any
-  codex record without an `.ended` beside it as possibly live and hand the owner
-  `codex resume <id>` rather than guessing. `touch .nightshift/STOP` is the lever if they want
-  that shift ended first. A record whose process is provably dead is last night's leftover: fall
-  through and clear it below.
+  the IDE. On Codex the record carries no pid (lines 3–4 are empty by design), so prove life the
+  way its watchman does: a `codex` process (exact name — `pgrep -x codex`) whose working
+  directory (`lsof -a -p <pid> -d cwd`) is this project, or a rollout (line 2) still growing
+  across a short recheck — either tell means live, hand the owner `codex resume <id>`. Neither
+  tell means the session and its watchman are both gone, however the record looks.
+  `touch .nightshift/STOP` is the lever if they want a live shift ended first. A record whose
+  process is provably dead is last night's leftover: fall through and clear it below.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
   leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
@@ -71,7 +73,8 @@ so it looks at what is parked and asks which of it to work.
   night, and a headless revival is denied outright; `/nightshift:setup` offers the fix. On Codex:
   approvals are per launch — a shift meant to run unattended is started
   `codex -a never -s danger-full-access` — the workspace-write sandbox blocks `git commit`
-  (`.git` is protected), and a night that cannot commit cannot tick. The guards remain the fence.
+  (`.git` is protected). A contract that does not commit needs only `workspace-write`; ticks
+  alone finish a night. The guards remain the fence either way.
   Warn and proceed; the choice stays the owner's.
 
 ## 2. Deadline — read, never asked
@@ -92,7 +95,7 @@ The deadline is written when the work is composed, not here.
 Every check has passed and the work is known, so the shift begins here. Create the marker:
 
 ```bash
-touch "$CLAUDE_PROJECT_DIR/.nightshift/.shift-armed"
+touch "${CLAUDE_PROJECT_DIR:-$PWD}/.nightshift/.shift-armed"
 ```
 
 **This, and nothing else, is what puts a session on shift.** Until it exists the punch list is an
@@ -135,9 +138,10 @@ the off switch, on every host.
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
 spawning a fresh session that resumes from the punch list, and it stands down on done, a
-stop-work order, quitting time, or a clean exit. Esc is honored — the watchman reads the
-interrupt from the session transcript and stands by rather than resuming; `STOP` remains the
-stop-work order, and the only stop a headless run can receive.
+stop-work order, quitting time, or a clean exit. On Claude Code, Esc is honored — the watchman
+reads the interrupt from the session transcript and stands by rather than resuming; on Codex
+there is no interrupt to read, which is the stance above. `STOP` remains the stop-work order on
+every host, and the only stop a headless run can receive.
 
 ## 6. Work
 

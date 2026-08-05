@@ -1,6 +1,6 @@
 load helpers
 
-SCHED="$BATS_TEST_DIRNAME/../plugin/runtime/claude/schedule.sh"
+SCHED="$BATS_TEST_DIRNAME/../plugin/runtime/schedule.sh"
 
 setup() {
   P="$BATS_TEST_TMPDIR/proj"
@@ -122,7 +122,7 @@ STUB
   r="$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qi 'no credit left' "$r"
   grep -qi 'spends no tokens and needs no session' "$r"
-  grep -q 'plugin/runtime/claude/schedule.sh --project . --at' "$r"
+  grep -q 'plugin/runtime/schedule.sh --project . --at' "$r"
 }
 
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.

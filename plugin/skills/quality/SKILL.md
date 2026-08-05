@@ -31,7 +31,7 @@ Verify and Commit lines. Show the drafts, then ask — with three first-class an
 
 - **fix now** — write the items straight under `## Items` in `.nightshift/punch-list.md` and start
   the shift here, following `/nightshift:start`: clear the stale markers, **arm the gate** with
-  `touch "$CLAUDE_PROJECT_DIR/.nightshift/.shift-armed"`, log the start, arm the watchman. The
+  `touch "${CLAUDE_PROJECT_DIR:-$PWD}/.nightshift/.shift-armed"`, log the start, arm the watchman. The
   marker is what starts the shift; the items alone hold nothing. These are finite items, so no
   deadline is required; offer an optional hours cap in one line and write `.nightshift/deadline`
   only if the owner names a number. From that second the gate holds this session until every box

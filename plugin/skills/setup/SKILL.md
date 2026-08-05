@@ -75,8 +75,11 @@ denied means denied. Ask one question:
 - **Yes, on Codex** → there is no settings file to write: approvals are per launch. Tell the owner
   the unattended spelling — `codex -a never -s danger-full-access` — and say the trade plainly:
   the workspace-write sandbox protects `.git`, so a session under it can edit but never commit,
-  and one commit per item is the contract. The fence around that access is nightshift's own
-  guards, which hold in every mode — the same trade `bypassPermissions` makes on Claude Code.
+  and the default contract commits once per item. The fence around that access is nightshift's
+  own guards, which hold in every mode — the same trade `bypassPermissions` makes on Claude Code.
+  An owner whose contract does not commit (the commit rule is theirs to strip from the punch
+  list and `clockOutMessage`) runs unattended under plain `workspace-write` — ticks alone finish
+  a night, in the gate and the stall guard alike.
 - **No** → respect it and say the cost plainly: *"a permission prompt mid-shift freezes the night
   until morning — if the shift stalls on one, that was tonight's trade."* Suggest the narrower
   alternative: pre-allow just the punch list's tools (test runner, linter, git) in the same file.

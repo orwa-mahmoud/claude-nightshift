@@ -80,7 +80,7 @@ On **now** — start the shift yourself, here, without making the owner type ano
 `/nightshift:start` exactly: clear the stale markers, **move** the item out of `work-orders.md` and
 under `## Items` in the punch list (a cut, never a copy — it must not exist in two places), write
 `.nightshift/deadline` from the recorded hours, **arm the gate** with
-`touch "$CLAUDE_PROJECT_DIR/.nightshift/.shift-armed"`, log the start, arm the watchman. The
+`touch "${CLAUDE_PROJECT_DIR:-$PWD}/.nightshift/.shift-armed"`, log the start, arm the watchman. The
 marker is what starts the shift — without it the list is written and nothing is holding it. From
 that second the gate holds this session until the list is done, a stop-work order lands, or the
 whistle blows.
