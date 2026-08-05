@@ -278,11 +278,13 @@ Read this before you trust it overnight:
   arms anything. `/nightshift:start` is the boundary: from there the gate will not let the agent
   stop and the ask-tool is denied, which is what you want at 3am and pure friction at 3pm. Arm it
   when you're leaving.
-- **Esc still means stop, watchman or not.** Your interrupt is recorded in the session
-  transcript, and the watchman reads it before reviving anything: an Esc-paused session is stood
-  by, not resumed. What gets revived is a session that *died* — or errored with nobody there. If
-  the transcript cannot be read it assumes the 500, not the Esc: waking a paused session costs an
-  apology, a lost night costs the night.
+- **Esc is Claude's stop; Codex has none.** On Claude Code your interrupt is recorded in the
+  session transcript, and the watchman reads it before reviving anything: an Esc-paused session
+  is stood by, not resumed. What gets revived is a session that *died* — or errored with nobody
+  there. If the transcript cannot be read it assumes the 500, not the Esc: waking a paused
+  session costs an apology, a lost night costs the night. Codex records no owner interrupt, so
+  closing an interactive Codex session with open boxes hands the night to the watchman —
+  `/nightshift:stop` or `touch .nightshift/STOP` is the stop-work order on every host.
 - **Ticks are self-certified.** The gate re-injects the full working standard — no stubs, gate
   green, never fake a tick — at every stop attempt, so it never decays out of context; what it
   proves is that the agent couldn't quietly stop with work outstanding, not that the work behind
@@ -306,7 +308,7 @@ Read this before you trust it overnight:
 all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
 session alive at an API error is stood by, not revived, until that transcript signature has been
 observed in a real outage — see
-[#32](https://github.com/orwa-mahmoud/claude-nightshift/issues/32).
+[#41](https://github.com/orwa-mahmoud/claude-nightshift/issues/41).
 
 ## Development
 
