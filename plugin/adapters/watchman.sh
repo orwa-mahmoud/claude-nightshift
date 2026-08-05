@@ -4,9 +4,10 @@
 # A Stop hook can only act inside a living session. A session killed by an API outage, a crash,
 # or a closed terminal fires no hooks — the punch list survives on disk, but nothing re-invokes
 # the agent, and the night is lost. The watchman is the outside half: armed at shift start, it
-# wakes every interval and, only when the site is BOTH mid-shift and dead quiet, spawns a fresh
-# headless session that resumes from the punch list. The file is the handover; no context is
-# needed back.
+# wakes every interval and, only when the site is BOTH mid-shift and dead quiet, resumes the
+# shift's OWN conversation by id — the hours of context it already had, not a briefing. Only if
+# that conversation is itself unusable does it fall back, and the punch list on disk is what
+# carries a fresh session when it must.
 #
 #   watchman.sh [--project DIR] [--interval MIN] [--agent CMD] [--max-wakes N]
 #
