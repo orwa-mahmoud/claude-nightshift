@@ -1,10 +1,13 @@
 {
   "name": "nightshift",
+  "interface": { "displayName": "nightshift" },
   "plugins": [
     {
       "name": "nightshift",
-      "description": "Give Claude a checklist before bed. It can't clock out until every box is ticked, never stalls on a question, and revives itself if the API dies at 3 AM.",
-      "source": { "source": "local", "path": "./plugin" }
+      "description": "Give Codex a checklist before bed. It can't clock out until every box is ticked, never stalls on a question, and revives itself if the API dies at 3 AM.",
+      "source": { "source": "local", "path": "./plugin" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
     }
   ]
 }
