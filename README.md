@@ -25,8 +25,10 @@ codex plugin marketplace add orwa-mahmoud/claude-nightshift
 codex plugin add nightshift@nightshift
 ```
 
-The clock-out gate, the guards and the skills are live-verified on Codex; the night watchman
-(crash revival) is Claude Code-only today.
+The clock-out gate, the guards, the skills and crash revival are live-verified on Codex — a
+killed session is resumed into its own conversation, same as on Claude Code. One boundary
+remains: a Codex session that is alive but wedged on an API error is left alone until that
+signature has been observed in the wild.
 
 ## Start your first shift in five minutes
 
@@ -300,10 +302,10 @@ Read this before you trust it overnight:
 
 ## Roadmap
 
-**Codex support** landed for enforcement: the clock-out gate, the guards and the shared skills
-run on OpenAI Codex from the same package, behind a manifest and hook wiring of their own. Still
-Claude-only: the night watchman and the start/status/stop conveniences around it — recovery is
-built last, against Codex's real session behaviour, not ported — see
+**Codex support** is complete for the night: gate, guards, skills, scheduling and the watchman
+all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
+session alive at an API error is stood by, not revived, until that transcript signature has been
+observed in a real outage — see
 [#32](https://github.com/orwa-mahmoud/claude-nightshift/issues/32).
 
 ## Development

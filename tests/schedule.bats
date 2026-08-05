@@ -128,9 +128,9 @@ STUB
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
 @test "--agent swaps the headless runner in the generated entry" {
   p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
-  run "$SCHED" --project "$p" --at 04:05 --agent "codex exec -a never -s workspace-write"
+  run "$SCHED" --project "$p" --at 04:05 --agent "codex exec -s danger-full-access"
   [ "$status" -eq 0 ]
-  printf '%s' "$output" | grep -qF "codex exec -a never -s workspace-write '/nightshift:start'"
+  printf '%s' "$output" | grep -qF "codex exec -s danger-full-access '/nightshift:start'"
   ! printf '%s' "$output" | grep -qF "claude -p" || false
 }
 
