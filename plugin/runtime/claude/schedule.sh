@@ -6,9 +6,11 @@
 # This generates their config, filled in for one project, and prints the single command that
 # installs it. It registers nothing itself.
 #
-#   schedule.sh [--project DIR] [--at HH:MM] [--list] [--remove]
+#   schedule.sh [--project DIR] [--at HH:MM] [--agent CMD] [--list] [--remove]
 #
 #   --at HH:MM   24-hour local time. Required unless --list or --remove.
+#   --agent CMD  the headless runner the entry invokes (default: claude -p).
+#                Codex projects pass: --agent 'codex exec -a never -s workspace-write'
 #   --list       what is already registered for this project, and nothing else
 #   --remove     print the command that unregisters it
 #
@@ -20,6 +22,7 @@ set -u
 
 PROJECT="$PWD"
 AT=""
+AGENT="claude -p"
 MODE="generate"
 
 usage() {
@@ -32,6 +35,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --project) need_value "$1" $#; PROJECT="$2"; shift 2 ;;
     --at) need_value "$1" $#; AT="$2"; shift 2 ;;
+    --agent) need_value "$1" $#; AGENT="$2"; shift 2 ;;
     --list) MODE="list"; shift ;;
     --remove) MODE="remove"; shift ;;
     -h | --help) usage ;;
@@ -54,7 +58,7 @@ ID="${slug}-${hash}"
 LABEL="com.nightshift.${ID}"
 MARKER="# nightshift:${ID}"
 LOG="$PROJECT/.nightshift/scheduled.log"
-RUN="cd $PROJECT && claude -p '/nightshift:start' >> $LOG 2>&1"
+RUN="cd $PROJECT && $AGENT '/nightshift:start' >> $LOG 2>&1"
 
 case "$(uname -s)" in
   Darwin) OS="macos"; PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist" ;;

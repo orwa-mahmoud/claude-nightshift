@@ -5,7 +5,9 @@ description: Begin the shift — preflight, cut whatever is queued, arm the site
 
 Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the variable.
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
+variable. (On Codex the variable does not exist; the session's working directory is the project
+root — treat it identically.)
 The shell's working directory persists between Bash calls and drifts into the code repo while
 running gates, so a bare relative path reads or writes wherever the last `cd` left it.
 
@@ -19,13 +21,16 @@ so it looks at what is parked and asks which of it to work.
 ## 1. Preflight
 
 - **One shift, one agent — check before touching anything.** Read `.nightshift/.shift-session`.
-  If it records a session that is still alive — line 3's pid exists and `ps -o lstart= -p <pid>`
-  matches line 4, or the id on line 1 appears in `claude agents --json` — an agent is ALREADY
-  working this punch list. Do not start a second one beside it. Tell the owner and hand them the
-  running thread: `claude --resume <id>` for a terminal,
-  `vscode://anthropic.claude-code/open?session=<id>` for the IDE — and stop here;
-  `touch .nightshift/STOP` is the lever if they want that shift ended first. A record whose
-  process is dead is last night's leftover: fall through and clear it below.
+  Line 5 names the host that owns it. If the record is still alive, an agent is ALREADY working
+  this punch list — do not start a second one beside it; hand the owner the running thread and
+  stop here. On Claude Code, alive means line 3's pid exists and `ps -o lstart= -p <pid>` matches
+  line 4, or the id on line 1 appears in `claude agents --json`; the handoff is
+  `claude --resume <id>` for a terminal, `vscode://anthropic.claude-code/open?session=<id>` for
+  the IDE. On Codex the record carries no pid (lines 3–4 are empty by design), so treat any
+  codex record without an `.ended` beside it as possibly live and hand the owner
+  `codex resume <id>` rather than guessing. `touch .nightshift/STOP` is the lever if they want
+  that shift ended first. A record whose process is provably dead is last night's leftover: fall
+  through and clear it below.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
   leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
@@ -60,11 +65,13 @@ so it looks at what is parked and asks which of it to work.
   the file lacks mean a plugin update brought new knobs — say so once and point at
   `/nightshift:setup` to review them; never add them yourself here. (The hooks read the file
   live — there is no drift to check and no restart to suggest.)
-- The night cannot click Allow: if neither `.claude/settings.local.json` nor
+- The night cannot click Allow. On Claude Code: if neither `.claude/settings.local.json` nor
   `.claude/settings.json` grants frictionless permissions (`bypassPermissions` default mode or an
   allowlist covering the gates' commands), warn once — a permission prompt mid-shift freezes the
-  night, and a headless revival is denied outright. `/nightshift:setup` offers the fix. Warn and
-  proceed; the choice stays the owner's.
+  night, and a headless revival is denied outright; `/nightshift:setup` offers the fix. On Codex:
+  approvals are per launch — a shift meant to run unattended is started
+  `codex -a never -s workspace-write`, and a session missing that grant will freeze the same way.
+  Warn and proceed; the choice stays the owner's.
 
 ## 2. Deadline — read, never asked
 
@@ -101,10 +108,15 @@ Surface any still-unanswered entries in `.nightshift/parking-lot.md` (read-only)
 what the last shift parked — printed, never waited on. Append a `shift started` line to
 `.nightshift/shift-log.md`.
 
-## 5. Arm the night watchman
+## 5. Arm the night watchman (Claude Code only)
 
-Unless the rules file's `watchMinutes` is `0` (or `NIGHTSHIFT_WATCH=0` overrides), arm it in
-the background — it reads its cadence from the rules file itself:
+On Codex, skip this step: revival is not built for Codex yet, and Claude's watchman would only
+stand itself down on a codex-owned record. Append one honest line to the shift log —
+`watchman not armed (codex): revival is Claude Code-only today` — so the morning reader knows
+the night ran without a safety net, and continue to the work.
+
+On Claude Code, unless the rules file's `watchMinutes` is `0` (or `NIGHTSHIFT_WATCH=0`
+overrides), arm it in the background — it reads its cadence from the rules file itself:
 
 ```bash
 nohup "${CLAUDE_PLUGIN_ROOT}/runtime/claude/watchman.sh" --project "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 &

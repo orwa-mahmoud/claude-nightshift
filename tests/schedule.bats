@@ -124,3 +124,19 @@ STUB
   grep -qi 'spends no tokens and needs no session' "$r"
   grep -q 'plugin/runtime/claude/schedule.sh --project . --at' "$r"
 }
+
+# One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
+@test "--agent swaps the headless runner in the generated entry" {
+  p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
+  run "$SCHED" --project "$p" --at 04:05 --agent "codex exec -a never -s workspace-write"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF "codex exec -a never -s workspace-write '/nightshift:start'"
+  ! printf '%s' "$output" | grep -qF "claude -p" || false
+}
+
+@test "the default runner stays claude -p" {
+  p="$BATS_TEST_TMPDIR/proj2"; mkdir -p "$p/.nightshift"
+  run "$SCHED" --project "$p" --at 04:05
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF "claude -p '/nightshift:start'"
+}

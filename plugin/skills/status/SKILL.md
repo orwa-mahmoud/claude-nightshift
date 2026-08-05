@@ -6,7 +6,7 @@ description: Read-only shift status — open vs ticked items, parked decisions, 
 Report the shift status for `$CLAUDE_PROJECT_DIR` **without starting or changing anything** — this is
 read-only.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — read it with the variable.
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — read it with the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.)
 The shell's working directory persists between Bash calls and is not necessarily the project root,
 and a status read from the wrong directory reports a shift that does not exist.
 

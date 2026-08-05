@@ -6,7 +6,7 @@ description: Set a shift to start at a fixed time — check the work is queued, 
 Get `$CLAUDE_PROJECT_DIR` ready to start on a clock, then hand the owner the config. Work through
 these in order; each one is a check the owner would otherwise discover at 4am.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. The shell's
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.) The shell's
 working directory persists between Bash calls and is not necessarily the project root.
 
 ## 1. Is there a site at all?
@@ -32,8 +32,11 @@ before the scheduled time, because start will not promote it.
 
 ## 3. Will the permissions hold?
 
-A scheduled run is headless and cannot answer a prompt. If neither `.claude/settings.local.json`
-nor `.claude/settings.json` grants frictionless permissions, warn once — the run will stall on the
+A scheduled run is headless and cannot answer a prompt. On Claude Code, if neither
+`.claude/settings.local.json` nor `.claude/settings.json` grants frictionless permissions, warn
+once. On Codex the grant travels in the command itself — the generator's
+`--agent 'codex exec -a never -s workspace-write'` carries it — so a Codex entry generated
+without that agent will stall on the
 first tool that asks. `/nightshift:setup` offers the fix.
 
 ## 4. Queuing arms the gate — say so
@@ -51,6 +54,7 @@ and show its output as it comes:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/runtime/claude/schedule.sh" --project "$CLAUDE_PROJECT_DIR" --at <HH:MM>
+# Codex projects add:  --agent 'codex exec -a never -s workspace-write'
 ```
 
 `--list` shows what is already registered for this project; `--remove` prints the command that
