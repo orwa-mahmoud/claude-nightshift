@@ -25,8 +25,8 @@
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
-# shellcheck source=plugin/hooks/lib.sh
-. "$_here/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
+# shellcheck source=plugin/lib/lib.sh
+. "$_here/../lib/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
 
 # The Stop payload carries the session's identity; a tty guard keeps manual runs from hanging.
 if [ -t 0 ]; then INPUT=""; else INPUT="$(cat)"; fi
@@ -65,16 +65,8 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 # Only the Items list is the shift. A checkbox above it is prose — an owner's note, an example in
 # the contract — and counting it would hold a session over something nobody queued. The heading
 # must stand alone on its line, so the contract's inline `## Items` references never match.
-items_section() { sed -n '/^## Items[[:space:]]*$/,$p' "$PUNCH" 2>/dev/null; }
-
-# grep -c prints the count AND exits 1 on zero matches; keep only the number.
-count() {
-  local n
-  n="$(items_section | grep -cE "$1" 2>/dev/null || true)"
-  printf '%s' "${n:-0}"
-}
-open_boxes()   { count '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
-ticked_boxes() { count '^[[:space:]]*-[[:space:]]*\[[xX]\]'; }
+open_boxes()   { ns_open_boxes "$PUNCH"; }
+ticked_boxes() { ns_ticked_boxes "$PUNCH"; }
 
 # The code repo is what makes a commit visible as progress, and the recommended layout puts it
 # one level below the project dir rather than at it. Where several repos sit there, no single
@@ -161,7 +153,10 @@ record_shift_session() {
     p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d '[:space:]')"
   done
   [ -z "$pid" ] || start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-  (set -C; printf '%s\n%s\n%s\n%s\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
+  # Line 5 names the host that owns the shift. A watchman only ever revives its own kind: the
+  # resume command, the transcript shape and the death signals differ per host, so acting on
+  # another's record would spawn the wrong agent against a live session.
+  (set -C; printf '%s\n%s\n%s\n%s\nclaude\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
 }
 # A shift exists because the owner started one, never because a list exists. `/nightshift:start`
 # writes .shift-armed; without it the punch list is a to-do file and every session stops freely —

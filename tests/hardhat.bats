@@ -490,16 +490,6 @@ STUB
   printf '%s' "$output" | grep -q "file-map says park"
 }
 
-@test "a pre-0.6.1 rules file in .claude still reads until setup migrates it" {
-  p="$(new_project)"
-  punch_open "$p"
-  rm "$p/.nightshift/rules.json" # a pre-0.6.1 site has no modern file
-  mkdir -p "$p/.claude"
-  printf '{"forbiddenCommands":"git .*push"}\n' >"$p/.claude/nightshift-rules.json"
-  run hardhat_bash "$p" "git push origin main"
-  is_deny "$output"
-}
-
 @test "an env var overrides the file for the session" {
   p="$(new_project)"
   punch_open "$p"

@@ -288,6 +288,15 @@ Read this before you trust it overnight:
 - **The stop-work order is always available** — `/nightshift:stop` or `touch .nightshift/STOP` —
   so a shift can never trap you.
 
+## Roadmap
+
+**Codex support.** The punch-list contract, the shift catalog and most of the enforcement logic
+are host-agnostic; what is Claude's is the hook payloads, the session semantics and the recovery
+signals. The package already carries a Codex manifest and an empty hook config, and the shared
+bash lives in `plugin/lib/`. The gate lands first, recovery last, and nothing is advertised to
+Codex users until enforcement actually works — see
+[#32](https://github.com/orwa-mahmoud/claude-nightshift/issues/32).
+
 ## Development
 
 Tests, lint, coverage, plugin validation and the release process: [`CONTRIBUTING.md`](CONTRIBUTING.md).
