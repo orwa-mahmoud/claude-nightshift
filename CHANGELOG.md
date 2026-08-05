@@ -3,6 +3,26 @@
 Installs pin to the `version` in `plugin/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.8.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.7.4...v0.8.0) (2026-08-05)
+
+
+### Features
+
+* Codex install is advertised, now that it is verified ([e52c18a](https://github.com/orwa-mahmoud/claude-nightshift/commit/e52c18a29b1238f4562eda3ea121bd8cdc2ce598))
+* the Codex gate and hardhat enforce the same shift ([cbe4dfa](https://github.com/orwa-mahmoud/claude-nightshift/commit/cbe4dfaeaa0b7765e9383adab72b58c13978e84e))
+* the Codex gate and hardhat enforce the same shift ([2bac060](https://github.com/orwa-mahmoud/claude-nightshift/commit/2bac06066a4a72b2a6ce13e7ab1e89935ab77450))
+* the night watchman works Codex shifts ([27aac50](https://github.com/orwa-mahmoud/claude-nightshift/commit/27aac501e00d7594e50ffc2fa112d0ea1d3d1dbd))
+* the night watchman works Codex shifts ([fc3510f](https://github.com/orwa-mahmoud/claude-nightshift/commit/fc3510f2b0ae6437763bb70467f327237b9852cb))
+* the shift record names its host, and the package carries a Codex manifest ([1ffe689](https://github.com/orwa-mahmoud/claude-nightshift/commit/1ffe689f5ce2121998b1cfefa300712f0e2ba01e))
+* the shift record names its host, and the package carries a Codex manifest ([19d619f](https://github.com/orwa-mahmoud/claude-nightshift/commit/19d619f18f451cd57e90b39d2ef9c9ee637d7f47))
+* the skills speak both hosts ([bec7a86](https://github.com/orwa-mahmoud/claude-nightshift/commit/bec7a862fc633baf8f796d373a8a51084b281222))
+* the skills speak both hosts ([349bfed](https://github.com/orwa-mahmoud/claude-nightshift/commit/349bfedc775aab94364f92136de75f357428f7e6))
+
+
+### Bug Fixes
+
+* the Codex hooks are executable ([ca21df9](https://github.com/orwa-mahmoud/claude-nightshift/commit/ca21df94fb366bdced4f6a9c8b2ded6c9cf6c07e))
+
 ## v0.7.4 — the plugin is a subdirectory
 
 The plugin ships from `plugin/`. Tests, CI workflows and the README's screenshots no longer
