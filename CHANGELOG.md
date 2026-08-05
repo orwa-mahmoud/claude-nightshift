@@ -3,6 +3,13 @@
 Installs pin to the `version` in `plugin/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.8.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* Codex packaging and host wording catch up to the release ([a1ab3a1](https://github.com/orwa-mahmoud/claude-nightshift/commit/a1ab3a1fb5063c86051f13641d2d5ac9ab1afa93))
+
 ## [0.8.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.7.4...v0.8.0) (2026-08-05)
 
 nightshift runs on OpenAI Codex. One package, a manifest per host, and the same night either
