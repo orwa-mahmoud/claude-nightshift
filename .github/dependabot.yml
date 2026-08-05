@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # The workflows pin every action to a commit SHA, which is what stops a repointed tag changing
+  # what CI runs. A pin only stays safe if something moves it, so Dependabot owns that.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
