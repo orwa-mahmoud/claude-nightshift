@@ -35,7 +35,7 @@ before the scheduled time, because start will not promote it.
 A scheduled run is headless and cannot answer a prompt. On Claude Code, if neither
 `.claude/settings.local.json` nor `.claude/settings.json` grants frictionless permissions, warn
 once. On Codex the grant travels in the command itself — the generator's
-`--agent 'codex exec -a never -s workspace-write'` carries it — so a Codex entry generated
+`--agent 'codex exec -s danger-full-access'` carries it — so a Codex entry generated
 without that agent will stall on the
 first tool that asks. `/nightshift:setup` offers the fix.
 
@@ -54,7 +54,7 @@ and show its output as it comes:
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/runtime/claude/schedule.sh" --project "$CLAUDE_PROJECT_DIR" --at <HH:MM>
-# Codex projects add:  --agent 'codex exec -a never -s workspace-write'
+# Codex projects add:  --agent 'codex exec -s danger-full-access'
 ```
 
 `--list` shows what is already registered for this project; `--remove` prints the command that

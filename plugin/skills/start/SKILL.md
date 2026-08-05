@@ -70,7 +70,8 @@ so it looks at what is parked and asks which of it to work.
   allowlist covering the gates' commands), warn once — a permission prompt mid-shift freezes the
   night, and a headless revival is denied outright; `/nightshift:setup` offers the fix. On Codex:
   approvals are per launch — a shift meant to run unattended is started
-  `codex -a never -s workspace-write`, and a session missing that grant will freeze the same way.
+  `codex -a never -s danger-full-access` — the workspace-write sandbox blocks `git commit`
+  (`.git` is protected), and a night that cannot commit cannot tick. The guards remain the fence.
   Warn and proceed; the choice stays the owner's.
 
 ## 2. Deadline — read, never asked
@@ -108,19 +109,29 @@ Surface any still-unanswered entries in `.nightshift/parking-lot.md` (read-only)
 what the last shift parked — printed, never waited on. Append a `shift started` line to
 `.nightshift/shift-log.md`.
 
-## 5. Arm the night watchman (Claude Code only)
+## 5. Arm the night watchman
 
-On Codex, skip this step: revival is not built for Codex yet, and Claude's watchman would only
-stand itself down on a codex-owned record. Append one honest line to the shift log —
-`watchman not armed (codex): revival is Claude Code-only today` — so the morning reader knows
-the night ran without a safety net, and continue to the work.
+Each host arms its own; both read their cadence from the rules file, and each stands down on a
+shift the other host owns. Unless the rules file's `watchMinutes` is `0` (or
+`NIGHTSHIFT_WATCH=0` overrides), arm it in the background.
 
-On Claude Code, unless the rules file's `watchMinutes` is `0` (or `NIGHTSHIFT_WATCH=0`
-overrides), arm it in the background — it reads its cadence from the rules file itself:
+On Claude Code:
 
 ```bash
 nohup "${CLAUDE_PLUGIN_ROOT}/runtime/claude/watchman.sh" --project "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 &
 ```
+
+On Codex (the plugin root is `$PLUGIN_ROOT` or its `CLAUDE_PLUGIN_ROOT` compatibility twin; if
+neither is set in your shell, it is the installed plugin cache directory):
+
+```bash
+nohup "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/runtime/codex/watchman.sh" --project "$PWD" >/dev/null 2>&1 &
+```
+
+One stance to state plainly on Codex: there is no owner-interrupt tell yet, so closing an
+interactive session with open boxes hands the night to the watchman — it will resume the
+conversation headless and finish the list. The stop-work order (`touch .nightshift/STOP`) is
+the off switch, on every host.
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
 spawning a fresh session that resumes from the punch list, and it stands down on done, a

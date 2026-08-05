@@ -49,7 +49,7 @@ shell that spends no tokens and needs no session:
 
 ```bash
 plugin/runtime/claude/schedule.sh --project . --at 04:05    # print the config + the install command
-plugin/runtime/claude/schedule.sh --project . --at 04:05 --agent 'codex exec -a never -s workspace-write'
+plugin/runtime/claude/schedule.sh --project . --at 04:05 --agent 'codex exec -s danger-full-access'
                                                      # same entry, run by Codex instead of Claude
 plugin/runtime/claude/schedule.sh --project . --list        # what is already registered for this project
 plugin/runtime/claude/schedule.sh --project . --remove      # the command that unregisters it
