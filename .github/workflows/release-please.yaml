@@ -22,5 +22,10 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
         with:
+          # Not GITHUB_TOKEN: a pull request it opens triggers no workflows, so the release
+          # pull request would carry none of the checks main requires and could never merge.
+          # A repository-scoped token also keeps "Actions may create pull requests" switched
+          # off, which would otherwise grant every workflow here the right to approve them.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
