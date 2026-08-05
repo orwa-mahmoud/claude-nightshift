@@ -16,11 +16,9 @@ way — the gate, the guards, the skills, the scheduler, and the watchman.
 * the skills speak both hosts — permissions, liveness and the watchman step fork per host, and the schedule generator takes `--agent` so one entry serves either runner ([349bfed](https://github.com/orwa-mahmoud/claude-nightshift/commit/349bfedc775aab94364f92136de75f357428f7e6))
 * Codex install is advertised: the `.agents` marketplace entry and the README's `codex plugin` commands ([e52c18a](https://github.com/orwa-mahmoud/claude-nightshift/commit/e52c18a29b1238f4562eda3ea121bd8cdc2ce598))
 
-Two things stated plainly rather than glossed: unattended Codex runs need the
-`danger-full-access` sandbox, because `workspace-write` protects `.git` and a night that cannot
-commit cannot tick — nightshift's own guards are the fence, in every mode. And a Codex session
-alive but wedged at an API error is stood by, not revived, until that signature has been
-observed in a real outage.
+Unattended Codex runs use the `danger-full-access` sandbox: `workspace-write` blocks
+`git commit`, and one commit per item is the contract. nightshift's guards hold in every mode.
+A Codex session alive at an API error is stood by, not revived.
 
 ## v0.7.4 — the plugin is a subdirectory
 
