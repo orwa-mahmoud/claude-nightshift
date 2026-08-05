@@ -15,18 +15,26 @@ on:
     types: [completed]
     branches: [main]
 
-permissions:
-  contents: write
+# No permission at the top: a workflow-level grant reaches every job that is ever added here,
+# and only the one that tags needs to write.
+permissions: {}
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    # A failed or cancelled run publishes nothing.
-    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: write # tag the commit and create the release
+    # A failed or cancelled run publishes nothing. The head_repository test keeps the checkout
+    # below on this repository's own commits: workflow_run carries write permission, so a run
+    # started from a fork must never reach it.
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.head_repository.full_name == github.repository
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: true
           # The commit ci actually tested. Without this, workflow_run checks out whatever main
           # points at now, which is a different tree the moment a second merge lands behind this
           # one — and the tag would name a commit nothing verified.
