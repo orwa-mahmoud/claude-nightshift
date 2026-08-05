@@ -50,7 +50,7 @@ Ask for the time if the owner has not given one — 24-hour `HH:MM`, local — t
 and show its output as it comes:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/outside/schedule.sh" --project "$CLAUDE_PROJECT_DIR" --at <HH:MM>
+"${CLAUDE_PLUGIN_ROOT}/runtime/claude/schedule.sh" --project "$CLAUDE_PROJECT_DIR" --at <HH:MM>
 ```
 
 `--list` shows what is already registered for this project; `--remove` prints the command that
@@ -62,6 +62,6 @@ starts on one punch list is two agents on one shift.
 ## 6. Close
 
 Say where the run's output will land (`.nightshift/scheduled.log`), and mention once that the same
-generator runs from a terminal with no session — `outside/schedule.sh` is plain shell and spends
+generator runs from a terminal with no session — `runtime/claude/schedule.sh` is plain shell and spends
 no model tokens, which is what makes it reachable on a day this command is not. The README carries
 the full offline note.

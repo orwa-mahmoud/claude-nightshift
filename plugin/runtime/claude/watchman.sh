@@ -75,7 +75,7 @@ set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugin/lib/lib.sh
-. "$_here/../lib/lib.sh" # pure-bash path — no dirname dependency
+. "$_here/../../lib/lib.sh" # pure-bash path — no dirname dependency
 
 PROJECT="$PWD"
 INTERVAL_MIN="${NIGHTSHIFT_WATCH:-}" # resolved from the rules file once the project is known

@@ -1,6 +1,6 @@
 load helpers
 
-SCHED="$BATS_TEST_DIRNAME/../plugin/outside/schedule.sh"
+SCHED="$BATS_TEST_DIRNAME/../plugin/runtime/claude/schedule.sh"
 
 setup() {
   P="$BATS_TEST_TMPDIR/proj"
@@ -122,5 +122,5 @@ STUB
   r="$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qi 'no credit left' "$r"
   grep -qi 'spends no tokens and needs no session' "$r"
-  grep -q 'plugin/outside/schedule.sh --project . --at' "$r"
+  grep -q 'plugin/runtime/claude/schedule.sh --project . --at' "$r"
 }
