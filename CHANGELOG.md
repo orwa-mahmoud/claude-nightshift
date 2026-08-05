@@ -1,7 +1,12 @@
 # Changelog
 
-Installs pin to the `version` in `.claude-plugin/plugin.json`, so every entry here is a version
-users receive. Dates are release dates; the tags carry the exact trees.
+Installs pin to the `version` in `plugin/.claude-plugin/plugin.json`, so every entry here is a
+version users receive. Dates are release dates; the tags carry the exact trees.
+
+## v0.7.4 — the plugin is a subdirectory
+
+The plugin ships from `plugin/`. Tests, CI workflows and the README's screenshots no longer
+install with it: an install is 216 KB, down from 876 KB.
 
 ## v0.7.3 — a shift is a file
 

@@ -51,7 +51,7 @@ none is required to try one shift.
 ## The screen that made me build nightshift
 
 ![An agent checkpoint: the smaller fixes shipped, the bigger items deferred in the agent's own
-words — and a question that has been waiting since the night before](docs/the-morning-screen.png)
+words — and a question that has been waiting since the night before](https://github.com/user-attachments/assets/a4816652-a2c1-4212-aff9-8a3dafd848a6)
 
 I asked for eight things and stepped away. That screen is what I came back to:
 
@@ -77,7 +77,7 @@ again" at a time.
 session dies with this on screen, and the punch list just sits there:
 
 ![API Error: 500 Internal server error — a server-side issue; if it persists, check
-status.claude.com](docs/api-500-night.png)
+status.claude.com](https://github.com/user-attachments/assets/c9a72548-995b-47c3-a72e-03a0f890a5bc)
 
 You know the ritual: one eye on status.claude.com, waiting to relaunch the second it's back up.
 So much for sleeping.
@@ -141,6 +141,15 @@ at a serious product — not a half-done prototype full of shortcuts.
   files the finished part into `.nightshift/archive/<date>/` — shipped items, the journal,
   handled snags — dated, readable facts about what landed. Want git history of the run state
   too? Setup offers a local-only receipts repo (opt-in; no remote, never pushed).
+
+## One shift, start to clock-out
+
+https://github.com/user-attachments/assets/06868e7a-0991-4156-bfa1-de5521da36d9
+
+A recorded session, unedited apart from pacing. Three items on the punch list, `/nightshift:start`,
+one commit each — and midway the agent announces it is finished and tries to end the session with
+two boxes still open. The gate refuses and hands back the contract; it goes back to the list and
+clocks out only once every box is ticked.
 
 ## When to call in the night shift
 
@@ -210,9 +219,9 @@ slash command works, because a command is read by the model. The generator under
 shell that spends no tokens and needs no session:
 
 ```bash
-adapters/schedule.sh --project . --at 04:05    # print the config + the install command
-adapters/schedule.sh --project . --list        # what is already registered for this project
-adapters/schedule.sh --project . --remove      # the command that unregisters it
+plugin/adapters/schedule.sh --project . --at 04:05    # print the config + the install command
+plugin/adapters/schedule.sh --project . --list        # what is already registered for this project
+plugin/adapters/schedule.sh --project . --remove      # the command that unregisters it
 ```
 
 Run it from a terminal, or copy the single file anywhere. It refuses a second entry for a project
@@ -263,7 +272,7 @@ order**: the item plus its hours, parked in `.nightshift/work-orders.md` with th
 running. Say "start now" and it cuts the order into the punch list, arms the deadline, and the
 gate takes over — or leave it parked and `/nightshift:start` offers it when you're ready. Either
 way a walkthrough never runs without its cost cap. Prefer to hand-roll? The items live in
-[`shift-catalog.md`](skills/nightshift/references/shift-catalog.md) — paste and tweak, and
+[`shift-catalog.md`](plugin/skills/nightshift/references/shift-catalog.md) — paste and tweak, and
 `start` asks the hours.
 
 ## The vocabulary
@@ -289,7 +298,7 @@ Everything is named from a real construction site — learn one term, guess the 
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
 | **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
-| **night watchman** | `adapters/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) by resuming its own conversation; stands down at every honest ending |
+| **night watchman** | `plugin/adapters/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) by resuming its own conversation; stands down at every honest ending |
 
 ## Owner knobs
 

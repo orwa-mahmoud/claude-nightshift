@@ -5,11 +5,11 @@ load helpers
 # NIGHTSHIFT_WATCH_SLEEP=0 (the test speed lever) and small --max-wakes bounds.
 
 setup() {
-  WATCHMAN="$BATS_TEST_DIRNAME/../adapters/watchman.sh"
-  SESSION_END="$BATS_TEST_DIRNAME/../hooks/session-end.sh"
+  WATCHMAN="$BATS_TEST_DIRNAME/../plugin/adapters/watchman.sh"
+  SESSION_END="$BATS_TEST_DIRNAME/../plugin/hooks/session-end.sh"
   P="$BATS_TEST_TMPDIR/proj"
   mkdir -p "$P/.nightshift"
-  cp "$BATS_TEST_DIRNAME/../skills/nightshift/references/nightshift-rules-template.json" "$P/.nightshift/rules.json"
+  cp "$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/nightshift-rules-template.json" "$P/.nightshift/rules.json"
   printf '## Items\n- [ ] **1.**\n' >"$P/.nightshift/punch-list.md"
 
   BIN="$BATS_TEST_TMPDIR/bin"
@@ -702,7 +702,7 @@ STUB
 # One copy: the watchman reads its orders from the rules file; env stays the override.
 @test "the revival order is read from the rules file" {
   jq '.revivalPrompt = "weld from the file"' \
-    "$BATS_TEST_DIRNAME/../skills/nightshift/references/nightshift-rules-template.json" >"$P/.nightshift/rules.json"
+    "$BATS_TEST_DIRNAME/../plugin/skills/nightshift/references/nightshift-rules-template.json" >"$P/.nightshift/rules.json"
   cat >"$BIN/hear2.sh" <<'STUB'
 #!/usr/bin/env bash
 echo called >>.nightshift/agent-calls

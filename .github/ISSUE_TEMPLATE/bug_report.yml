@@ -9,7 +9,6 @@ body:
       label: Harness
       options:
         - Claude Code (hooks)
-        - Another agent CLI via adapters/foreman.sh
         - Other (say which below)
     validations:
       required: true

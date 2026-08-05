@@ -42,8 +42,14 @@ jobs:
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -eu
-          before="$(git show "$BASE:.claude-plugin/plugin.json" | jq -r '.version')"
-          after="$(git show "$HEAD:.claude-plugin/plugin.json" | jq -r '.version')"
+          # The manifest moved under plugin/ in v0.7.4. Read whichever path that commit has, so
+          # the commit performing the move can still be compared against the one before it.
+          manifest_at() {
+            git show "$1:plugin/.claude-plugin/plugin.json" 2>/dev/null \
+              || git show "$1:.claude-plugin/plugin.json"
+          }
+          before="$(manifest_at "$BASE" | jq -r '.version')"
+          after="$(manifest_at "$HEAD" | jq -r '.version')"
 
           # A bump is a release: the release job reads its notes from the changelog, so a missing
           # section must fail here rather than after the merge, when main is already red.
@@ -55,9 +61,9 @@ jobs:
 
           # Installs pin to the version, so shipped files changing without one means nobody
           # receives the change.
-          shipped="$(git diff --name-only "$BASE" "$HEAD" -- hooks/ skills/ adapters/ .claude-plugin/)"
+          shipped="$(git diff --name-only "$BASE" "$HEAD" -- plugin/ hooks/ skills/ adapters/ .claude-plugin/)"
           if [ -n "$shipped" ] && [ "$before" = "$after" ]; then
-            echo "these shipped files changed but .claude-plugin/plugin.json version is still $after:"
+            echo "these shipped files changed but plugin/.claude-plugin/plugin.json version is still $after:"
             echo "$shipped" | sed 's/^/  /'
             echo "installs pin to that version, so users would never receive this change."
             exit 1
