@@ -305,7 +305,7 @@ load helpers
   is_deny "$output"
 }
 
-# The README's no-push recipe is `git .*push` so that config injection cannot slip between the
+# The no-push recipe in docs/knobs.md is `git .*push` so that config injection cannot slip between the
 # words. This pins the recipe itself.
 @test "the no-push recipe catches git -c k=v push" {
   p="$(new_project)"
