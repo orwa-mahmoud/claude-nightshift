@@ -94,9 +94,17 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
 }
 
 @test "a growing rollout is a pulse: stood by, not revived" {
-  ( while sleep 0.2; do echo x >>"$ROLLOUT"; done ) &
+  # The appender must provably beat every wake, or the first zero-sleep wake reads a quiet
+  # rollout and revives — a race, not a verdict. It writes every 0.1s and the watchman sleeps a
+  # full second per wake, and the test waits for the first append before arming.
+  ( while sleep 0.1; do echo x >>"$ROLLOUT"; done ) &
   appender=$!
-  run watch --max-wakes 3
+  base="$(wc -c <"$ROLLOUT")"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ "$(wc -c <"$ROLLOUT")" != "$base" ] && break
+    sleep 0.2
+  done
+  run env NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0"     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
   kill "$appender" 2>/dev/null || true
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 0 ]
