@@ -48,9 +48,9 @@ slash command works, because a command is read by the model. The generator under
 shell that spends no tokens and needs no session:
 
 ```bash
-plugin/adapters/schedule.sh --project . --at 04:05    # print the config + the install command
-plugin/adapters/schedule.sh --project . --list        # what is already registered for this project
-plugin/adapters/schedule.sh --project . --remove      # the command that unregisters it
+plugin/outside/schedule.sh --project . --at 04:05    # print the config + the install command
+plugin/outside/schedule.sh --project . --list        # what is already registered for this project
+plugin/outside/schedule.sh --project . --remove      # the command that unregisters it
 ```
 
 Run it from a terminal, or copy the single file anywhere. It refuses a second entry for a project

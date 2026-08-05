@@ -5,7 +5,7 @@ load helpers
 # NIGHTSHIFT_WATCH_SLEEP=0 (the test speed lever) and small --max-wakes bounds.
 
 setup() {
-  WATCHMAN="$BATS_TEST_DIRNAME/../plugin/adapters/watchman.sh"
+  WATCHMAN="$BATS_TEST_DIRNAME/../plugin/outside/watchman.sh"
   SESSION_END="$BATS_TEST_DIRNAME/../plugin/hooks/session-end.sh"
   P="$BATS_TEST_TMPDIR/proj"
   mkdir -p "$P/.nightshift"

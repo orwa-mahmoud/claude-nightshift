@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # session-end.sh — SessionEnd hook. A clean exit mid-shift is the owner's hand on the door.
 #
-# The night watchman (adapters/watchman.sh) revives a session that dies mid-shift — but a session
+# The night watchman (outside/watchman.sh) revives a session that dies mid-shift — but a session
 # the owner ended on purpose (/exit, a clean quit) must stay ended. Crashes, kills and API deaths
 # never reach this hook, which is exactly the tell: a marker present means a hand closed the
 # session, no marker means it died. The watchman stands down on the marker; /nightshift:start and

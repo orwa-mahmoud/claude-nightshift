@@ -88,3 +88,9 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qi 'never write to the punch list on anything but an explicit' "$q"
   grep -qi 'or neither happens' "$q"
 }
+
+# The install copies plugin/ alone, and MIT asks for the notice to travel with every copy — so the
+# licence exists twice on purpose. Two copies drift; this fails the moment they do.
+@test "the shipped licence is the repository's licence" {
+  cmp "$BATS_TEST_DIRNAME/../LICENSE" "$BATS_TEST_DIRNAME/../plugin/LICENSE"
+}

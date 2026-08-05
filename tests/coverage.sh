@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Line coverage for the shipped bash (hooks/ + adapters/) — kcov over the bats suite.
+# Line coverage for the shipped bash (hooks/ + outside/) — kcov over the bats suite.
 # kcov's bash tracer is Linux-only: on Linux with kcov installed this runs natively,
 # anywhere else it runs in a debian container (docker required).
 # Output: coverage/ — kcov HTML + cobertura, plus coverage/sonar-generic.xml.

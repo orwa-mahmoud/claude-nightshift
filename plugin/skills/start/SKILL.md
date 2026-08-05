@@ -107,7 +107,7 @@ Unless the rules file's `watchMinutes` is `0` (or `NIGHTSHIFT_WATCH=0` overrides
 the background — it reads its cadence from the rules file itself:
 
 ```bash
-nohup "${CLAUDE_PLUGIN_ROOT}/adapters/watchman.sh" --project "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 &
+nohup "${CLAUDE_PLUGIN_ROOT}/outside/watchman.sh" --project "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 &
 ```
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
