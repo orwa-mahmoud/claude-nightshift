@@ -74,8 +74,8 @@
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
-# shellcheck source=plugin/hooks/lib.sh
-. "$_here/../hooks/lib.sh" # pure-bash path — no dirname dependency
+# shellcheck source=plugin/lib/lib.sh
+. "$_here/../lib/lib.sh" # pure-bash path — no dirname dependency
 
 PROJECT="$PWD"
 INTERVAL_MIN="${NIGHTSHIFT_WATCH:-}" # resolved from the rules file once the project is known
@@ -134,12 +134,7 @@ trap 'rm -f "$PIDFILE"' EXIT
 
 # Counted below the `## Items` heading only, exactly as the gate counts them — a watchman that
 # read a checkbox out of the contract prose would keep reviving a shift the gate considers done.
-open_boxes() {
-  local n
-  n="$(sed -n '/^## Items[[:space:]]*$/,$p' "$PUNCH" 2>/dev/null \
-    | grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' 2>/dev/null || true)"
-  printf '%s' "${n:-0}"
-}
+open_boxes() { ns_open_boxes "$PUNCH"; }
 
 deadline_passed() {
   local dl
@@ -377,6 +372,13 @@ while :; do
 
   if [ -f "$NS/STOP" ]; then log_line "watchman: stop-work order — standing down"; exit 0; fi
   if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then exit 0; fi
+  # This watchman revives Claude sessions. A record naming another host belongs to that host's
+  # watchman: resuming it here would spawn claude against a shift another agent is working.
+  host="$(ns_session_host "$NS")"
+  if [ "$host" != claude ]; then
+    log_line "watchman: shift is owned by $host — standing down"
+    exit 0
+  fi
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true

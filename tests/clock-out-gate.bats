@@ -262,7 +262,9 @@ load helpers
   run gate "$p"
   is_block "$output"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
-  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ] # id, transcript, pid, start time
+  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 5 ] # id, transcript, pid, start time, host
+  # The host is what stops another agent's watchman acting on a shift that is not its own.
+  [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "claude" ]
 }
 
 # ---- the shift binds one session: everyone else stops freely ----

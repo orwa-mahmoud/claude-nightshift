@@ -70,12 +70,11 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 # The contracts the setup conversation must not drift on: the receipts repo is never
 # "recommended", the rules live and die with nightshift's folder, and a pre-0.6.1 file is
 # moved, not retyped.
-@test "setup pins the neutral ask, the rules home, and the migration" {
+@test "setup pins the neutral ask and the rules home" {
   s="$BATS_TEST_DIRNAME/../plugin/skills/setup/SKILL.md"
   grep -qF 'never describe the repo as recommended; the default is no' "$s"
   grep -qF '`$CLAUDE_PROJECT_DIR/.nightshift/rules.json` as-is' "$s"
   grep -qF 'removes all of nightshift, rules' "$s"
-  grep -qF 'move it here' "$s"
 }
 
 # Three answers, and exactly one of them arms the gate. A survey that writes to the punch list

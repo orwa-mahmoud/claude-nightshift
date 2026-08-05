@@ -726,3 +726,21 @@ STUB
   printf '%s' "$output" | grep -q "re-run /nightshift:setup"
   grep -q 'cannot arm' "$P/.nightshift/shift-log.md"
 }
+
+# The session record names its host so two watchmen can share a project without fighting over it.
+# Reviving another host's shift would spawn claude at a session a different agent is working.
+@test "the watchman stands down on a shift owned by another host" {
+  printf 'sid\n/tmp/t.jsonl\n99999\nstart\ncodex\n' >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'owned by codex' "$P/.nightshift/shift-log.md"
+}
+
+# A record written before hosts were named can only be Claude's — nothing else could write one.
+@test "a record with no host is treated as claude" {
+  printf 'sid\n/tmp/t.jsonl\n99999\nstart\n' >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 1
+  ! grep -q 'owned by' "$P/.nightshift/shift-log.md" || false
+  [ "$(calls)" -ge 1 ]
+}

@@ -102,7 +102,6 @@ valid_ere() {
 rule() {
   if [ -n "$3" ]; then printf '%s' "$3"; return; fi
   local f="$1/.nightshift/rules.json"
-  [ -f "$f" ] || f="$1/.claude/nightshift-rules.json" # pre-0.6.1 home; setup migrates it
   [ -f "$f" ] || return 0
   if command -v jq >/dev/null 2>&1; then
     jq -r --arg k "$2" '.[$k] // empty | if type == "object" or type == "array" then tojson else tostring end' "$f" 2>/dev/null
@@ -134,3 +133,27 @@ ns_lock() { # $1 = the .nightshift dir; bounded ~2s wait
   return 1
 }
 ns_unlock() { rm -rf "$1/.lock.d" 2>/dev/null; }
+
+# The punch list's `## Items` heading is the boundary between the owner's contract and the work.
+# A checkbox above it is prose — an example, a note — and holds nobody. Both the gate and the
+# watchman must agree on that boundary: a watchman counting a different range would keep reviving
+# a shift the gate considers finished. One implementation is how they cannot disagree.
+ns_items_section() { sed -n '/^## Items[[:space:]]*$/,$p' "$1" 2>/dev/null; }
+
+# grep -c prints the count AND exits 1 on zero matches; keep the number, drop the status.
+ns_count_boxes() { # $1 = punch list, $2 = ERE for the box state
+  local n
+  n="$(ns_items_section "$1" | grep -cE "$2" 2>/dev/null || true)"
+  printf '%s' "${n:-0}"
+}
+
+ns_open_boxes()   { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
+ns_ticked_boxes() { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[xX]\]'; }
+
+# Which host owns this shift. Absent means a record written before hosts were distinguished,
+# and every such record is Claude's — nothing else could have written one.
+ns_session_host() {
+  local h
+  h="$(sed -n 5p "$1/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+  printf '%s' "${h:-claude}"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "nightshift",
+  "version": "0.7.4",
+  "description": "Give Claude a checklist before bed. It can't clock out until every box is ticked, never stalls on a question, and revives itself if the API dies at 3 AM.",
+  "author": {
+    "name": "Orwa Mahmoud",
+    "url": "https://github.com/orwa-mahmoud"
+  },
+  "homepage": "https://orwamahmoud.com/nightshift/",
+  "repository": "https://github.com/orwa-mahmoud/claude-nightshift",
+  "license": "MIT",
+  "skills": "./skills/",
+  "hooks": "./hooks/codex/hooks.json"
+}

@@ -82,9 +82,8 @@ Copy `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/nightshift-rules-templa
 defaults inline. It lives in nightshift's own folder on purpose: everything nightshift is in
 one place, kept out of repo history by the same `.nightshift/` gitignore, versioned by the
 receipts repo when one exists — and deleting `.nightshift/` removes all of nightshift, rules
-included. If a pre-0.6.1 `$CLAUDE_PROJECT_DIR/.claude/nightshift-rules.json` exists, move it here —
-the owner's values, not the template. Then validate it with `jq -e 'type == "object"'` and report a
-broken file plainly — never half-apply it.
+included. Validate the file with `jq -e 'type == "object"'` and report a broken one plainly —
+never half-apply it.
 
 The hooks read this file directly on every tool call: an owner's edit applies from their very
 next action. Nothing is synced anywhere, nothing needs a restart, and there is no second copy.
