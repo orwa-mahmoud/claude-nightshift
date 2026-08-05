@@ -11,7 +11,7 @@ finish every item to its own standard, safely, leaving receipts. This skill is h
 If `.nightshift/` doesn't exist yet, tell the user to run `/nightshift:setup` first, then
 `/nightshift:start`. The commands own scaffolding and preflight; this skill owns the work.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. The shell's
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.) The shell's
 working directory persists between Bash calls and is not the project root once a gate or a build has
 run from inside the code repo; a bare relative path then reads a punch list that isn't there and
 writes receipts nobody will find.

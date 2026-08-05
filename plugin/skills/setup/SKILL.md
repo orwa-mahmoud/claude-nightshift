@@ -6,7 +6,8 @@ description: Scaffold .nightshift/ from the templates and propose stack-aware qu
 Set up nightshift in this project. Do the scaffolding first, then the gates conversation, then print
 a summary. Work in `$CLAUDE_PROJECT_DIR`.
 
-Every `.nightshift/` and `.claude/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with
+Every `.nightshift/` and `.claude/` path below is relative to `$CLAUDE_PROJECT_DIR` (on Codex, the
+session's working directory is the project root — treat it identically) — write it with
 the variable. The shell's working directory persists between Bash calls and drifts into the code
 repo during stack detection, so a bare relative path lands wherever the last `cd` left it.
 
@@ -66,11 +67,14 @@ denied means denied. Ask one question:
 > Overnight runs can't answer permission prompts. Enable `bypassPermissions` for this project?
 > (recommended — nightshift's guards are hooks and stay armed in every permission mode)
 
-- **Yes** → merge `{"permissions": {"defaultMode": "bypassPermissions"}}` into
+- **Yes, on Claude Code** → merge `{"permissions": {"defaultMode": "bypassPermissions"}}` into
   `$CLAUDE_PROJECT_DIR/.claude/settings.local.json` (create the file if absent; never clobber keys
   the owner already has). Write the full path: a copy that lands in a nested code repo grants the
   project nothing, and the first prompt of the night proves it. Settings on disk are what revivals
   inherit — a mode picked at launch dies with the process.
+- **Yes, on Codex** → there is no settings file to write: approvals are per launch. Tell the owner
+  the unattended spelling — `codex -a never -s workspace-write` — and that a session started
+  without it will stall on its first approval prompt exactly as described above.
 - **No** → respect it and say the cost plainly: *"a permission prompt mid-shift freezes the night
   until morning — if the shift stalls on one, that was tonight's trade."* Suggest the narrower
   alternative: pre-allow just the punch list's tools (test runner, linter, git) in the same file.
@@ -89,7 +93,7 @@ The hooks read this file directly on every tool call: an owner's edit applies fr
 next action. Nothing is synced anywhere, nothing needs a restart, and there is no second copy.
 Env vars of the matching names (`NIGHTSHIFT_FORBIDDEN_COMMANDS`, `NIGHTSHIFT_TOOL_RULES`, …)
 remain session-start overrides for tests and one-off exceptions — say so only if asked. If
-`$CLAUDE_PROJECT_DIR/.claude/settings.local.json` still carries `NIGHTSHIFT_*` env keys that an
+On Claude Code, `$CLAUDE_PROJECT_DIR/.claude/settings.local.json` may still carry `NIGHTSHIFT_*` env keys that an
 earlier version synced from this file, offer to remove them: the file is the one copy.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,

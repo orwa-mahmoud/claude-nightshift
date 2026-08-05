@@ -21,4 +21,4 @@ Everything is named from a real construction site — learn one term, guess the 
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
 | **stop-work order** | `.nightshift/STOP` | `/nightshift:stop` — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
-| **night watchman** | `plugin/runtime/claude/watchman.sh` | revives a session that DIED mid-shift (crash, API outage) by resuming its own conversation; stands down at every honest ending |
+| **night watchman** | `plugin/runtime/claude/watchman.sh` | Claude Code sessions only today — revives a session that DIED mid-shift (crash, API outage) by resuming its own conversation; stands down at every honest ending |

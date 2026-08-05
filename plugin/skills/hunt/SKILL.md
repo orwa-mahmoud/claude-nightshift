@@ -6,7 +6,9 @@ description: Compose tonight's shift from the ready catalog — pick the jobs, c
 Compose a shift for `$CLAUDE_PROJECT_DIR`. Propose, never impose: nothing is worked without an
 explicit yes. If `.nightshift/` does not exist, stop and point to `/nightshift:setup` first.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the variable.
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
+variable. (On Codex the variable does not exist; the session's working directory is the
+project root — treat it identically.)
 The shell's working directory persists between Bash calls and is not necessarily the project root,
 so a bare relative path lands wherever the last `cd` left it.
 

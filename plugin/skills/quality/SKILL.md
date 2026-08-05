@@ -7,7 +7,7 @@ Survey this project's existing quality debt and turn what matters into proposed 
 The scan is read-only: run checks in report mode, fix nothing, write nothing without an explicit
 yes. Work in `$CLAUDE_PROJECT_DIR`.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. The shell's
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.) The shell's
 working directory persists between Bash calls and drifts into the code repo while running the
 project's own check commands, so a bare relative path lands wherever the last `cd` left it.
 

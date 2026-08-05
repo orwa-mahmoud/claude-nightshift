@@ -5,7 +5,9 @@ description: Issue a stop-work order — end the shift at once, leaving open ite
 
 Issue a stop-work order for `$CLAUDE_PROJECT_DIR`.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the variable.
+Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
+variable. (On Codex the variable does not exist; the session's working directory is the
+project root — treat it identically.)
 The shell's working directory persists between Bash calls and is not necessarily the project root;
 a stop-work order written to the wrong directory stops nothing.
 
