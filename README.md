@@ -18,6 +18,16 @@ Two commands inside Claude Code — no npm, no Homebrew, no separate CLI, no API
 /plugin install nightshift
 ```
 
+Also runs on **OpenAI Codex** — same package, same skills, its own hook wiring:
+
+```text
+codex plugin marketplace add orwa-mahmoud/claude-nightshift
+codex plugin add nightshift@nightshift
+```
+
+The clock-out gate, the guards and the skills are live-verified on Codex; the night watchman
+(crash revival) is Claude Code-only today.
+
 ## Start your first shift in five minutes
 
 You do not need to learn the whole system first.
@@ -290,11 +300,10 @@ Read this before you trust it overnight:
 
 ## Roadmap
 
-**Codex support.** The punch-list contract, the shift catalog and most of the enforcement logic
-are host-agnostic; what is Claude's is the hook payloads, the session semantics and the recovery
-signals. The package already carries a Codex manifest and an empty hook config, and the shared
-bash lives in `plugin/lib/`. The gate lands first, recovery last, and nothing is advertised to
-Codex users until enforcement actually works — see
+**Codex support** landed for enforcement: the clock-out gate, the guards and the shared skills
+run on OpenAI Codex from the same package, behind a manifest and hook wiring of their own. Still
+Claude-only: the night watchman and the start/status/stop conveniences around it — recovery is
+built last, against Codex's real session behaviour, not ported — see
 [#32](https://github.com/orwa-mahmoud/claude-nightshift/issues/32).
 
 ## Development
