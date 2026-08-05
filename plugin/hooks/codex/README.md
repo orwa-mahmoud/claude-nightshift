@@ -24,5 +24,6 @@ is documented for hooks, so the payload's `cwd` locates the shift and `CODEX_PRO
 honored first as an explicit override; and no ask-the-user tool is documented, so the
 `AskUserQuestion` wiring stays armed for any tool that carries the name.
 
-No `.agents/plugins/marketplace.json` is published; Codex reads the repo-root
-`.claude-plugin/marketplace.json` as a legacy-compatible marketplace.
+The repo-root `.agents/plugins/marketplace.json` is the Codex marketplace entry; the
+`.claude-plugin/marketplace.json` beside it is also read as a legacy-compatible path, and both
+resolve the same `./plugin`.
