@@ -119,7 +119,7 @@ STUB
 # A README is reachable with no credit; a skill is not. The offline path has to be documented
 # where an owner can still read it on the day they need it.
 @test "the README documents the offline generator for a session that cannot run" {
-  r="$BATS_TEST_DIRNAME/../README.md"
+  r="$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qi 'no credit left' "$r"
   grep -qi 'spends no tokens and needs no session' "$r"
   grep -q 'plugin/adapters/schedule.sh --project . --at' "$r"
