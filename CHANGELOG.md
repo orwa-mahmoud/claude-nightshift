@@ -3,6 +3,69 @@
 Installs pin to the `version` in `plugin/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.9.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.1...v0.9.0) (2026-08-05)
+
+
+### Features
+
+* /nightshift:hunt stages the famous shifts; add the standing-loop preset ([26f2deb](https://github.com/orwa-mahmoud/claude-nightshift/commit/26f2deb74f68adfd245ccbeb6a5314015fe38219))
+* a shift is a file ([f313a7c](https://github.com/orwa-mahmoud/claude-nightshift/commit/f313a7c83d3a131c4900e4b5de62956d74dda7e5))
+* a shift is a file ([c9a0e97](https://github.com/orwa-mahmoud/claude-nightshift/commit/c9a0e97a46d09d897a1d87e373294815de7ed6ab))
+* **adapters:** foreman — universal outer loop for any agent cli ([46006ff](https://github.com/orwa-mahmoud/claude-nightshift/commit/46006ff04df5d27c01a6e1e3e7ede31fe4909de4))
+* Codex install is advertised, now that it is verified ([e52c18a](https://github.com/orwa-mahmoud/claude-nightshift/commit/e52c18a29b1238f4562eda3ea121bd8cdc2ce598))
+* **commands:** setup, start, status, stop ([bd1e2f1](https://github.com/orwa-mahmoud/claude-nightshift/commit/bd1e2f1f3d73d3dd9f9c9c72dd8d93c795dfb819))
+* effort is never a reason to defer an item ([761bda5](https://github.com/orwa-mahmoud/claude-nightshift/commit/761bda5cdc5ac63a1e779298a0ecf58d0d56982e))
+* **gates:** stack-aware inspections — item gates + site inspections ([3a9b647](https://github.com/orwa-mahmoud/claude-nightshift/commit/3a9b6470e08eeab5a71d82628d1def816a0a94f6))
+* **hardhat:** make every safety rule the owner's — nothing blocked by default ([06d9066](https://github.com/orwa-mahmoud/claude-nightshift/commit/06d9066cc63f42fefb7ffaf896918625e315abca))
+* **hardhat:** owner-granted push + forbidden-commands list ([95876e3](https://github.com/orwa-mahmoud/claude-nightshift/commit/95876e3aa13e08fc66ce9c10588d50ab9bb81469))
+* **hooks:** clock-out gate — punch-list file is the only truth ([b8e561a](https://github.com/orwa-mahmoud/claude-nightshift/commit/b8e561af6ab379cbf818d9c4851f2a07ffa52533))
+* **hooks:** hardhat — mechanical safety, zero-config core ([60f2380](https://github.com/orwa-mahmoud/claude-nightshift/commit/60f238010ecff42de50f9418b9534fea851de29f))
+* **hooks:** morning whistle — optional shift-end ping ([5dc7630](https://github.com/orwa-mahmoud/claude-nightshift/commit/5dc763023b464aa207845c2cb29e0cfc1d01b1ec))
+* **hooks:** park-don't-ask — a question can't kill the shift ([1965b9c](https://github.com/orwa-mahmoud/claude-nightshift/commit/1965b9c7ff7277ba55d60903b4d4dd99e9a6db8b))
+* **hooks:** spot-check ([91d02bd](https://github.com/orwa-mahmoud/claude-nightshift/commit/91d02bd65460eb4b79d23cc547f716be4b384648))
+* **hooks:** stall red-tag + stop-work order + quitting time — bounded, interruptible runs ([11e0ea2](https://github.com/orwa-mahmoud/claude-nightshift/commit/11e0ea23517eb77291c8031b571599f4a9649702))
+* **hunt:** work orders — the item and its hours park together; the cut starts the clock ([f1b82a0](https://github.com/orwa-mahmoud/claude-nightshift/commit/f1b82a04317c712c90e725b3a9bc3fbf9999496e))
+* one place composes work, one place starts it ([c1f06a2](https://github.com/orwa-mahmoud/claude-nightshift/commit/c1f06a255f47549f208b1ae39a9f7bdee95bd332))
+* one rules file, read live, guarded from the night ([aa24550](https://github.com/orwa-mahmoud/claude-nightshift/commit/aa24550972f21b2df97d1f868b70c183dcd625ff))
+* retire the spot-check hook; add /nightshift:quality ([6332f21](https://github.com/orwa-mahmoud/claude-nightshift/commit/6332f21d53509238fa4ef7510b0a2d86057be2b1))
+* revival requires strong evidence of death, never "looks stuck" ([67e8d7b](https://github.com/orwa-mahmoud/claude-nightshift/commit/67e8d7be8beebf7e2cb493b0ff18bc2307eb5c38))
+* session-first liveness, one-session binding, and the owner's rules file ([0d224f3](https://github.com/orwa-mahmoud/claude-nightshift/commit/0d224f3351eec919f7538b4c136988db73687183))
+* **skill:** the nightshift brain ([381f01b](https://github.com/orwa-mahmoud/claude-nightshift/commit/381f01bbe272eb0270819896f7d571be0d121d32))
+* **templates:** punch list, parking lot, snag log, walkthrough presets ([a8f0c1d](https://github.com/orwa-mahmoud/claude-nightshift/commit/a8f0c1d4607222a212fcf5bd615ba27ae0f5a06b))
+* the Codex gate and hardhat enforce the same shift ([cbe4dfa](https://github.com/orwa-mahmoud/claude-nightshift/commit/cbe4dfaeaa0b7765e9383adab72b58c13978e84e))
+* the Codex gate and hardhat enforce the same shift ([2bac060](https://github.com/orwa-mahmoud/claude-nightshift/commit/2bac06066a4a72b2a6ce13e7ab1e89935ab77450))
+* the night watchman — revive a session that dies mid-shift ([919c086](https://github.com/orwa-mahmoud/claude-nightshift/commit/919c0860a42b6c788ffc9eeef3431128df25a464))
+* the night watchman works Codex shifts ([27aac50](https://github.com/orwa-mahmoud/claude-nightshift/commit/27aac501e00d7594e50ffc2fa112d0ea1d3d1dbd))
+* the night watchman works Codex shifts ([fc3510f](https://github.com/orwa-mahmoud/claude-nightshift/commit/fc3510f2b0ae6437763bb70467f327237b9852cb))
+* the shift record names its host, and the package carries a Codex manifest ([1ffe689](https://github.com/orwa-mahmoud/claude-nightshift/commit/1ffe689f5ce2121998b1cfefa300712f0e2ba01e))
+* the shift record names its host, and the package carries a Codex manifest ([19d619f](https://github.com/orwa-mahmoud/claude-nightshift/commit/19d619f18f451cd57e90b39d2ef9c9ee637d7f47))
+* the skills speak both hosts ([bec7a86](https://github.com/orwa-mahmoud/claude-nightshift/commit/bec7a862fc633baf8f796d373a8a51084b281222))
+* the skills speak both hosts ([349bfed](https://github.com/orwa-mahmoud/claude-nightshift/commit/349bfedc775aab94364f92136de75f357428f7e6))
+
+
+### Bug Fixes
+
+* a revival's own exit never reads as the owner closing the session ([acc6251](https://github.com/orwa-mahmoud/claude-nightshift/commit/acc625170eaeddffb3fe7dbbec0879a7c272856b))
+* a shift starts when the owner starts it ([5cdac58](https://github.com/orwa-mahmoud/claude-nightshift/commit/5cdac58dd7507138d404f27b781ee77d4edb9260))
+* a shift starts when the owner starts it ([58339ff](https://github.com/orwa-mahmoud/claude-nightshift/commit/58339ffbbf990209d98a03160ac1fdcdd758e1ec))
+* arm the shift from every path that starts one ([2bfdca5](https://github.com/orwa-mahmoud/claude-nightshift/commit/2bfdca5098f5aae1559d7b4825dd18001fe44a24))
+* close four ways a guard could pass without looking ([6871b0a](https://github.com/orwa-mahmoud/claude-nightshift/commit/6871b0ad3aca5571d4de82593a890d8aebf1040f))
+* Codex packaging and host wording catch up to the release ([28f1006](https://github.com/orwa-mahmoud/claude-nightshift/commit/28f100663a9f52a0ff72bc3d629468207f171512))
+* Codex packaging and host wording catch up to the release ([a1ab3a1](https://github.com/orwa-mahmoud/claude-nightshift/commit/a1ab3a1fb5063c86051f13641d2d5ac9ab1afa93))
+* count commits in the workspace layout as shift progress ([0632472](https://github.com/orwa-mahmoud/claude-nightshift/commit/06324721df6a53d664d70e84d9f53982ca019435))
+* deny the identity and repo overrides the commit guards cannot read ([09f0ad5](https://github.com/orwa-mahmoud/claude-nightshift/commit/09f0ad571527f6bb705b3ba99ed5ed19739a6000))
+* harden the hooks and foreman — five review findings, each with a test ([7a0631f](https://github.com/orwa-mahmoud/claude-nightshift/commit/7a0631f149c81760b53298d9b06568a3febe9ece))
+* **hardhat:** parse the command from raw JSON when jq is absent ([3cd2a7a](https://github.com/orwa-mahmoud/claude-nightshift/commit/3cd2a7a4ed4f923fddf87621e0d421af691a2418))
+* hold a stalled shift by default; release v0.3.0 ([f035796](https://github.com/orwa-mahmoud/claude-nightshift/commit/f035796fa15621b91c633c8682c7a77e8c8483fd))
+* **hooks:** quote plugin-root paths in hooks.json - spaced install paths broke every hook ([b6d58d7](https://github.com/orwa-mahmoud/claude-nightshift/commit/b6d58d72f20b7de51bf7c8b5888eedef773b9bdd))
+* make a shift start clean, and make the tests able to fail ([414b53f](https://github.com/orwa-mahmoud/claude-nightshift/commit/414b53fa961023ac1e0bbd110296f81f02592768))
+* resolve skill paths against the project directory ([0c50881](https://github.com/orwa-mahmoud/claude-nightshift/commit/0c50881d0246bdee0f1b14431f4a2e0970dcbe67))
+* resolve skill paths against the project directory ([8c30fc5](https://github.com/orwa-mahmoud/claude-nightshift/commit/8c30fc50ef3b9b6440a56aa3aca6aa8b5abe8c68))
+* resolve the repository the commit guards inspect ([d09b595](https://github.com/orwa-mahmoud/claude-nightshift/commit/d09b595bc34d667b52bdfd5e862a52319ccc454a))
+* skip the gitignore write when the project dir is not a repo ([8ec597f](https://github.com/orwa-mahmoud/claude-nightshift/commit/8ec597face27ca9c181ec96cd5ad99f06ea7534a))
+* the Codex hooks are executable ([ca21df9](https://github.com/orwa-mahmoud/claude-nightshift/commit/ca21df94fb366bdced4f6a9c8b2ded6c9cf6c07e))
+* the shift records its own session; the watchman stops guessing ([8a5bd6f](https://github.com/orwa-mahmoud/claude-nightshift/commit/8a5bd6f30dfaf9f833a67b23b1f22f00ee294672))
+
 ## [0.8.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
 
 
