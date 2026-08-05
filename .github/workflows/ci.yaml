@@ -32,48 +32,6 @@ jobs:
           # shellcheck honors the directive in each file; -x follows sourced paths
           echo "$files" | xargs shellcheck -x
 
-  # Installs are pinned to the manifest version, so shipped files changing without a bump means
-  # nobody receives the change. Only a pull request can compare against a base.
-  version-bump:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - name: Require a version bump when shipped files change, and notes for a bump
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -eu
-          # The manifest moved under plugin/ in v0.7.4. Read whichever path that commit has, so
-          # the commit performing the move can still be compared against the one before it.
-          manifest_at() {
-            git show "$1:plugin/.claude-plugin/plugin.json" 2>/dev/null \
-              || git show "$1:.claude-plugin/plugin.json"
-          }
-          before="$(manifest_at "$BASE" | jq -r '.version')"
-          after="$(manifest_at "$HEAD" | jq -r '.version')"
-
-          # A bump is a release: the release job reads its notes from the changelog, so a missing
-          # section must fail here rather than after the merge, when main is already red.
-          if [ "$before" != "$after" ]; then
-            echo "version $before -> $after"
-            .github/release-notes.sh "$after" /tmp/title /tmp/notes
-            echo "release notes found: $(cat /tmp/title)"
-          fi
-
-          # Installs pin to the version, so shipped files changing without one means nobody
-          # receives the change.
-          shipped="$(git diff --name-only "$BASE" "$HEAD" -- plugin/ hooks/ skills/ adapters/ .claude-plugin/)"
-          if [ -n "$shipped" ] && [ "$before" = "$after" ]; then
-            echo "these shipped files changed but plugin/.claude-plugin/plugin.json version is still $after:"
-            echo "$shipped" | sed 's/^/  /'
-            echo "installs pin to that version, so users would never receive this change."
-            exit 1
-          fi
-
   bats:
     runs-on: ubuntu-latest
     steps:

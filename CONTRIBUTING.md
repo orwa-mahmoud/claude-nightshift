@@ -39,14 +39,26 @@ on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps
 
 ## Releasing
 
-Installs are pinned to `version` in `plugin/.claude-plugin/plugin.json` — users receive updates only when
-it changes. Bump it, add the matching `## vX.Y.Z` section to [`CHANGELOG.md`](CHANGELOG.md), and
-merge to `main`: CI tags the release and publishes it with that section as the notes. Do not tag by
-hand.
+Nothing is published by merging your pull request. Version numbers and the changelog are not
+yours to edit — [release-please](.github/workflows/release-please.yaml) writes both from commit
+subjects, and holds them in a pull request titled `chore: release x.y.z` that it refreshes on
+every merge. The maintainer merges that pull request when a release is due; that merge tags the
+commit and publishes the notes.
 
-Two gates enforce this on a pull request. A change under `plugin/` without a version bump fails, because installs pinned to the old version would
-never receive it. A bump with no changelog section behind it fails too, since the release job reads
-its notes from there and a tag with nothing behind it is worse than no tag.
+What decides the version is the subject line of your commits, so write them to the
+[Conventional Commits](https://www.conventionalcommits.org/) spec:
+
+| Subject | Effect |
+| --- | --- |
+| `fix: …` | patch — `0.7.4` → `0.7.5` |
+| `feat: …` | minor — `0.7.4` → `0.8.0` |
+| `feat!: …`, or a `BREAKING CHANGE:` footer | major |
+| `docs: …` `chore: …` `ci: …` `test: …` `refactor: …` | no release, no changelog entry |
+
+Only `fix:` and `feat:` reach the changelog, so a subject is user-facing text: say what the change
+does for someone running a shift, not how it was implemented. Do not tag by hand, and do not edit
+`plugin/.claude-plugin/plugin.json` or `CHANGELOG.md` — a pull request that does will conflict with
+the release it is trying to describe.
 
 ## What gets merged
 
