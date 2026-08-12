@@ -9,19 +9,22 @@
 # directories: an absent link means local state; a malformed link returns 2 so callers can fail
 # closed instead of silently running without the owner's contract.
 ns_workspace_root() {
-  local host="$1" link="$1/.nightshift-link" target="" extra="" canonical=""
+  local host="$1" link="$1/.nightshift-link" target="" lines="" canonical=""
   canonical="$(cd -P "$host" 2>/dev/null && pwd)" || {
     return 2
   }
-  [ -e "$link" ] || { printf '%s' "$canonical"; return 0; }
-  [ -f "$link" ] && [ ! -L "$link" ] || {
+  if [ ! -e "$link" ] && [ ! -L "$link" ]; then
+    printf '%s' "$canonical"
+    return 0
+  fi
+  if [ ! -f "$link" ] || [ -L "$link" ]; then
     return 2
-  }
+  fi
   IFS= read -r target <"$link" || true
-  extra="$(sed -n '2,$p' "$link" 2>/dev/null)"
-  [ -n "$target" ] && [ -z "$extra" ] || {
+  lines="$(awk 'END { print NR + 0 }' "$link" 2>/dev/null)"
+  if [ -z "$target" ] || [ "$lines" -ne 1 ]; then
     return 2
-  }
+  fi
   case "$target" in /*) ;; *)
     return 2
   esac

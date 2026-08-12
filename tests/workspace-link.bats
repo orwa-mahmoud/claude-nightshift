@@ -70,6 +70,19 @@ CODEX_HOOKS="$HOOKS/codex"
   is_block "$output"
 }
 
+@test "blank extra lines and broken symlinks are invalid rather than absent" {
+  host="$(new_project host)"
+  workspace="$(new_project workspace)"
+  printf '%s\n\n' "$workspace" >"$host/.nightshift-link"
+  run bash -c '. "$1"; ns_workspace_root "$2"' _ "$LIB" "$host"
+  [ "$status" -eq 2 ]
+
+  rm "$host/.nightshift-link"
+  ln -s "$BATS_TEST_TMPDIR/missing-target" "$host/.nightshift-link"
+  run bash -c '. "$1"; ns_workspace_root "$2"' _ "$LIB" "$host"
+  [ "$status" -eq 2 ]
+}
+
 @test "Claude clean-session markers land in the linked workspace" {
   host="$(new_project host)"
   rm -rf "$host/.nightshift"
