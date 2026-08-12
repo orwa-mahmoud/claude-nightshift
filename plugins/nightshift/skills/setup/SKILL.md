@@ -11,6 +11,24 @@ session's working directory is the project root — treat it identically) — wr
 the variable. The shell's working directory persists between Bash calls and drifts into the code
 repo during stack detection, so a bare relative path lands wherever the last `cd` left it.
 
+## 0. Require a real project workspace
+
+Before creating or changing any file, resolve the project root to an absolute path. If it is under
+`/workspace/scratch/`, this is a disposable ChatGPT scratch workspace rather than the user's real
+repository. **Stop immediately: create no `.nightshift/` directory, rules, settings, receipts repo,
+or other files.** Tell the user directly:
+
+> Nightshift needs a real software project workspace. This ChatGPT conversation is using a
+> temporary workspace, so files created here will not affect your repository.
+>
+> Open your project in Codex, or start Codex connected to its GitHub repository. Then mention
+> Nightshift and say: “Set up Nightshift in this project.”
+
+Do not mention Claude Code in this ChatGPT-specific redirect: the user is already in an OpenAI
+product, so give them the shortest OpenAI-native route. Do not infer “temporary” merely because the
+project is not a git repository — local non-git projects and the recommended parent-workspace
+layout remain valid. The explicit disposable scratch path is the stop signal.
+
 ## 1. Scaffold `.nightshift/` (never clobber an existing shift)
 
 For each target below, copy the template only if the target does not already exist:
