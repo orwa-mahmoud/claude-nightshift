@@ -8,16 +8,16 @@ STOP="$SKILLS/stop/SKILL.md"
 # On the recommended layout — code repo a level below the project root — a bare relative path then
 # writes into the repo instead of the site. Every skill has to say so; one that doesn't is the next
 # misplaced settings file.
-@test "every skill states that its paths resolve against CLAUDE_PROJECT_DIR" {
+@test "every skill resolves explicit linked workspaces without searching" {
   for s in "$SKILLS"/*/SKILL.md; do
-    grep -qF 'path below is relative to `$CLAUDE_PROJECT_DIR`' "$s" \
-      || { echo "no path rule: $s"; return 1; }
+    grep -qF '.nightshift-link' "$s" || { echo "no linked-workspace rule: $s"; return 1; }
+    grep -qF 'Never search' "$s" || { echo "no no-search rule: $s"; return 1; }
   done
 }
 
 @test "every skill names the working directory as the reason" {
   for s in "$SKILLS"/*/SKILL.md; do
-    grep -qF 'working directory persists between Bash calls' "$s" \
+    grep -qF "working directory persists between Bash calls" "$s" \
       || { echo "no cwd caveat: $s"; return 1; }
   done
 }
@@ -28,13 +28,13 @@ STOP="$SKILLS/stop/SKILL.md"
   grep -qF '$CLAUDE_PROJECT_DIR/.claude/settings.local.json' "$SETUP"
 }
 
-@test "setup writes the rules file to an absolute path" {
-  grep -qF '$CLAUDE_PROJECT_DIR/.nightshift/rules.json' "$SETUP"
+@test "setup writes the rules file to the resolved workspace" {
+  grep -qF '$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json' "$SETUP"
 }
 
 @test "setup scaffolds every template to an absolute path" {
   for f in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
-    grep -qF "\$CLAUDE_PROJECT_DIR/.nightshift/$f.md" "$SETUP" \
+    grep -qF "\$NIGHTSHIFT_WORKSPACE/.nightshift/$f.md" "$SETUP" \
       || { echo "scaffold target not absolute: $f"; return 1; }
   done
 }
@@ -42,7 +42,7 @@ STOP="$SKILLS/stop/SKILL.md"
 # git resolves its repo from the working directory, so the receipts repo is the one place a stray
 # cd would init a repo inside the code tree instead of the site.
 @test "setup inits the receipts repo without relying on the working directory" {
-  grep -qF 'git -C "$CLAUDE_PROJECT_DIR/.nightshift" init' "$SETUP"
+  grep -qF 'git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init' "$SETUP"
 }
 
 @test "setup refuses disposable ChatGPT scratch before writing" {

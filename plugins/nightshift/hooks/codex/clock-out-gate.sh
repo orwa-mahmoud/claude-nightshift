@@ -30,7 +30,11 @@ codex_read_input
 SID="$CODEX_SESSION_ID"
 TPATH="$CODEX_TRANSCRIPT_PATH"
 
-PROJECT_DIR="$(codex_project_dir)"
+HOST_DIR="$(codex_project_dir)"
+if ! PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)"; then
+  codex_emit_block "DO NOT STOP — .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
+  exit 0
+fi
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 STOP="$NS/STOP"

@@ -33,7 +33,9 @@ CWD="$CODEX_CWD"
 SID="$CODEX_SESSION_ID"
 TPATH="$CODEX_TRANSCRIPT_PATH"
 
-PROJECT_DIR="$(codex_project_dir)"
+HOST_DIR="$(codex_project_dir)"
+LINK_ERROR=""
+PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || LINK_ERROR=1
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 ENDED="$NS/.ended"
@@ -50,6 +52,8 @@ deny() {
   codex_emit_deny "$1"
   exit 0
 }
+
+[ -z "$LINK_ERROR" ] || deny "BLOCKED: .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
 
 # A commit message must not read as the command it mentions, so blank the message argument
 # before matching. Only that argument: scrubbing every quoted span would also hide a genuinely

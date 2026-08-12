@@ -11,11 +11,9 @@ does shift work, never ticks a box, never touches the contract.
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
 only through Hunt. Archive each by its own lifecycle; never reclassify one as another.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
-variable. (On Codex the variable does not exist; the session's working directory is the
-project root — treat it identically.)
-The shell's working directory persists between Bash calls and is not necessarily the project root;
-records filed into the wrong directory are records lost.
+Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; write
+every `.nightshift/` path to the validated absolute target, otherwise the task root. Never search
+or guess. The shell's working directory persists between Bash calls, so never use a bare path.
 
 ## Where it goes
 

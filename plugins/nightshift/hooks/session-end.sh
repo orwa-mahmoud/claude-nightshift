@@ -11,13 +11,18 @@
 # nothing, so ordinary sessions leave no residue.
 set -u
 
+_here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+# shellcheck source=plugins/nightshift/lib/lib.sh
+. "$_here/../lib/lib.sh"
+
 # A watchman-spawned revival carries this mark. Its exit — finished, or dead on the API again —
 # is never the owner's hand on the door; writing the marker for it would stand the watchman down
 # mid-outage after the first revival.
 [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] || exit 0
 
 INPUT="$(cat)"
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+HOST_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || exit 0
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 

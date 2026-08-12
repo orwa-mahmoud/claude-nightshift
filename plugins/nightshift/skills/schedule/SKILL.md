@@ -6,8 +6,9 @@ description: Set a shift to start at a fixed time — check the work is queued, 
 Get `$CLAUDE_PROJECT_DIR` ready to start on a clock, then hand the owner the config. Work through
 these in order; each one is a check the owner would otherwise discover at 4am.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.) The shell's
-working directory persists between Bash calls and is not necessarily the project root.
+Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; use the
+validated absolute target for every `.nightshift/` path, otherwise the task root. Never search or
+guess. The shell's working directory persists between Bash calls, so never use a bare path.
 
 ## 1. Is there a site at all?
 
@@ -53,7 +54,7 @@ Ask for the time if the owner has not given one — 24-hour `HH:MM`, local — t
 and show its output as it comes:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "${CLAUDE_PROJECT_DIR:-$PWD}" --at <HH:MM>
+"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --at <HH:MM>
 # Codex projects add:  --agent 'codex exec -s danger-full-access'
 ```
 

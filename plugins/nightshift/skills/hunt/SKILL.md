@@ -6,11 +6,9 @@ description: Compose tonight's shift from the ready catalog — pick the jobs, c
 Compose a shift for `$CLAUDE_PROJECT_DIR`. Propose, never impose: nothing is worked without an
 explicit yes. If `.nightshift/` does not exist, stop and point to `/nightshift:setup` first.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
-variable. (On Codex the variable does not exist; the session's working directory is the
-project root — treat it identically.)
-The shell's working directory persists between Bash calls and is not necessarily the project root,
-so a bare relative path lands wherever the last `cd` left it.
+Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; write
+every `.nightshift/` path to the validated absolute target, otherwise the task root. Never search
+or guess. The shell's working directory persists between Bash calls, so never use a bare path.
 
 ## 1. Offer the catalog
 
@@ -80,7 +78,7 @@ On **now** — start the shift yourself, here, without making the owner type ano
 `/nightshift:start` exactly: clear the stale markers, **move** the item out of `work-orders.md` and
 under `## Items` in the punch list (a cut, never a copy — it must not exist in two places), write
 `.nightshift/deadline` from the recorded hours, **arm the gate** with
-`touch "${CLAUDE_PROJECT_DIR:-$PWD}/.nightshift/.shift-armed"`, log the start, arm the watchman. The
+`touch "$NIGHTSHIFT_WORKSPACE/.nightshift/.shift-armed"`, log the start, arm the watchman. The
 marker is what starts the shift — without it the list is written and nothing is holding it. From
 that second the gate holds this session until the list is done, a stop-work order lands, or the
 whistle blows.

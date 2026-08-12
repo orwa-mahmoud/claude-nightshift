@@ -17,6 +17,16 @@ Those are Claude Code's slash spellings. In Codex or ChatGPT, mention Nightshift
 “set up Nightshift,” “show me the ready-made shifts,” “run product evolution for four hours,”
 “start the shift,” or “show shift status.” The same skills and `.nightshift/` files are used.
 
+When the task root and Nightshift workspace differ, setup can create an explicit local link after
+showing both absolute paths and receiving confirmation. The offline equivalent is:
+
+```bash
+plugins/nightshift/runtime/link-workspace.sh --host-root /absolute/task/root --workspace /absolute/workspace
+```
+
+The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
+are rejected; Nightshift never searches for a workspace automatically.
+
 Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an interactive session
 Escape is the immediate halt; STOP is what reaches a headless run, and it ends
 the shift at the agent's next stop attempt.

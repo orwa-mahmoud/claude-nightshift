@@ -11,9 +11,9 @@ read-only.
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
 only through Hunt. Report these as different categories; do not merge or move them.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — read it with the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.)
-The shell's working directory persists between Bash calls and is not necessarily the project root,
-and a status read from the wrong directory reports a shift that does not exist.
+Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; read
+every `.nightshift/` path from the validated absolute target, otherwise the task root. Never search
+or guess. The shell's working directory persists between Bash calls, so never use a bare path.
 
 Read `.nightshift/` and print:
 

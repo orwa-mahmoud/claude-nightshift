@@ -5,11 +5,17 @@ description: Begin the shift — preflight, cut whatever is queued, arm the site
 
 Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
-variable. (On Codex the variable does not exist; the session's working directory is the project
-root — treat it identically.)
-The shell's working directory persists between Bash calls and drifts into the code repo while
-running gates, so a bare relative path reads or writes wherever the last `cd` left it.
+Resolve the task root as `${CLAUDE_PROJECT_DIR:-$PWD}`. If its `.nightshift-link` exists, validate
+the one absolute workspace path inside it and use that workspace for every `.nightshift/` read or
+write; otherwise use the task root. Never search surrounding folders or guess. Print both paths
+when linked. The shell's working directory persists between Bash calls, so never rely on a bare
+relative path.
+
+If the start request itself explicitly names a different existing Nightshift workspace, that
+owner-provided path is authorization to link it: print both absolute paths, run
+`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/link-workspace.sh --host-root "$TASK_ROOT" --workspace "$PROPOSED_WORKSPACE"`,
+then continue from the resolved workspace. Without an explicit path or an existing valid link,
+refuse to arm outside the task root and direct the owner to Setup; never discover a target.
 
 Read `.nightshift/work-target` before preflight. It is the absolute code repository selected by
 Setup. Keep every `.nightshift/` read and write rooted in the opened workspace, but run project
@@ -113,7 +119,7 @@ The deadline is written when the work is composed, not here.
 Every check has passed and the work is known, so the shift begins here. Create the marker:
 
 ```bash
-touch "${CLAUDE_PROJECT_DIR:-$PWD}/.nightshift/.shift-armed"
+touch "$NIGHTSHIFT_WORKSPACE/.nightshift/.shift-armed"
 ```
 
 **This, and nothing else, is what puts a session on shift.** Until it exists the punch list is an
@@ -139,14 +145,14 @@ shift the other host owns. Unless the rules file's `watchMinutes` is `0` (or
 On Claude Code:
 
 ```bash
-nohup "${CLAUDE_PLUGIN_ROOT}/runtime/claude/watchman.sh" --project "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1 &
+nohup "${CLAUDE_PLUGIN_ROOT}/runtime/claude/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
 On Codex (the plugin root is `$PLUGIN_ROOT` or its `CLAUDE_PLUGIN_ROOT` compatibility twin; if
 neither is set in your shell, it is the installed plugin cache directory):
 
 ```bash
-nohup "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/runtime/codex/watchman.sh" --project "$PWD" >/dev/null 2>&1 &
+nohup "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/runtime/codex/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
 One stance to state plainly on Codex: there is no owner-interrupt tell yet, so closing an

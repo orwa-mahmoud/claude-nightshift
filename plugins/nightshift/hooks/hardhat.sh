@@ -24,7 +24,9 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 . "$_here/shared/hardhat-core.sh"
 
 INPUT="$(cat)"
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+HOST_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+LINK_ERROR=""
+PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || LINK_ERROR=1
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 ENDED="$NS/.ended"
@@ -43,6 +45,8 @@ deny() {
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$reason"
   exit 0
 }
+
+[ -z "$LINK_ERROR" ] || deny "BLOCKED: .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
 
 # Extract tool + command. jq preferred; the raw payload is the fallback so a missing jq
 # can never silently disable the guard.
