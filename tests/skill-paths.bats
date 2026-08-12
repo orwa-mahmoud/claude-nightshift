@@ -1,5 +1,7 @@
 SKILLS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills"
 SETUP="$SKILLS/setup/SKILL.md"
+START="$SKILLS/start/SKILL.md"
+STOP="$SKILLS/stop/SKILL.md"
 
 # A skill's paths resolve against the shell's working directory, which persists between Bash calls
 # and drifts into the code repo the moment a gate, a build, or stack detection runs from inside it.
@@ -55,4 +57,18 @@ SETUP="$SKILLS/setup/SKILL.md"
   grep -qF 'Do not infer “temporary” merely because the' "$SETUP"
   grep -qF 'project is not a git repository' "$SETUP"
   grep -qF 'A non-git project outside that explicit scratch path remains valid' "$SKILLS/nightshift/SKILL.md"
+}
+
+# Structural instruction contracts, not runtime E2E: pin the lifecycle words and shipped paths
+# whose accidental removal would leave a scheduled or headless shift unarmed or unstoppable.
+@test "start explicitly arms the shift and both host watchmen" {
+  grep -qF '.nightshift/.shift-armed' "$START"
+  grep -qF 'runtime/claude/watchman.sh' "$START"
+  grep -qF 'runtime/codex/watchman.sh' "$START"
+}
+
+@test "stop writes the stop-work order and disarms the watchman" {
+  grep -qF '.nightshift/STOP' "$STOP"
+  grep -qF '.nightshift/.watchman' "$STOP"
+  grep -qi 'kill' "$STOP"
 }
