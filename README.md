@@ -47,6 +47,10 @@ signature has been observed in the wild.
 
 You do not need to learn the whole system first.
 
+Before leaving the first run unattended, use the concise
+[first-night safety checklist](docs/first-night-checklist.md). Run the first shift attended so
+you see how your permissions, gates, STOP order, notifications, and host-specific recovery behave.
+
 1. Open a project you trust and ask Nightshift to set itself up (`/nightshift:setup` on Claude
    Code). Accept the proposed gates you want.
    For an unattended run, either pre-allow the tools your work needs or let setup configure
