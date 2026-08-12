@@ -94,6 +94,28 @@ load helpers
   is_allow
 }
 
+@test "an open checkbox outside Items does not activate the hardhat" {
+  p="$(new_project)"
+  printf '%s\n' '- [ ] planning example' '## Items' '- [x] **1. done.**' >"$p/.nightshift/punch-list.md"
+  run hardhat_ask "$p"
+  is_allow
+}
+
+@test "an open checkbox under Items activates the hardhat" {
+  p="$(new_project)"
+  printf '%s\n' '- [x] planning example' '## Items' '- [ ] **1. open.**' >"$p/.nightshift/punch-list.md"
+  run hardhat_ask "$p"
+  is_deny "$output"
+}
+
+@test "open Items remain inert until the shift is armed" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/.shift-armed"
+  run hardhat_ask "$p"
+  is_allow
+}
+
 @test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
   p="$(new_project)"
   punch_open "$p"
@@ -366,8 +388,9 @@ STUB
   jq -nc '{tool_name:"Bash",session_id:"bare-tab",transcript_path:"",tool_input:{command:"echo hi"}}' |
     CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "bare-tab" ]
-  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ]
+  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 5 ]
   [ -z "$(sed -n 3p "$p/.nightshift/.shift-session")" ]
+  [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "claude" ]
 }
 
 # The claim is an exclusive create: two racing first sessions cannot interleave — one record
@@ -383,7 +406,8 @@ STUB
       CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh" &
     two=$!
     wait "$one" "$two"
-    [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ]
+    [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 5 ]
+    [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "claude" ]
     sid="$(sed -n 1p "$p/.nightshift/.shift-session")"
     tpath="$(sed -n 2p "$p/.nightshift/.shift-session")"
     case "$sid" in

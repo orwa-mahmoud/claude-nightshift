@@ -9,6 +9,7 @@ body:
       label: Harness
       options:
         - Claude Code (hooks)
+        - OpenAI Codex (hooks and skills)
         - Other (say which below)
     validations:
       required: true

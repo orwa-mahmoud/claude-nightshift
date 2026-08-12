@@ -6,6 +6,11 @@ description: Scaffold .nightshift/ from the templates and propose stack-aware qu
 Set up nightshift in this project. Do the scaffolding first, then the gates conversation, then print
 a summary. Work in `$CLAUDE_PROJECT_DIR`.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary plans belong in the drafting table, never in Hunt or the parking lot.
+
 Every `.nightshift/` and `.claude/` path below is relative to `$CLAUDE_PROJECT_DIR` (on Codex, the
 session's working directory is the project root — treat it identically) — write it with
 the variable. The shell's working directory persists between Bash calls and drifts into the code
@@ -29,6 +34,18 @@ product, so give them the shortest OpenAI-native route. Do not infer “temporar
 project is not a git repository — local non-git projects and the recommended parent-workspace
 layout remain valid. The explicit disposable scratch path is the stop signal.
 
+Resolve the code repository before stack detection:
+
+- If the workspace itself is a Git repository, it is the work target.
+- Otherwise inspect its immediate, non-hidden child directories. If exactly one is a Git
+  repository, that repository is the work target while `.nightshift/` stays in the opened parent.
+- If several child repositories exist and `.nightshift/work-target` does not already select one,
+  show the choices and require an explicit target; never guess.
+- Persist the chosen repository's absolute Git top-level path, followed by one newline, in
+  `$CLAUDE_PROJECT_DIR/.nightshift/work-target`. On later setup runs, validate and retain that
+  target unless the owner explicitly changes it. Stack detection, Git checks, gates, commits, and
+  verification operate in this work target—not necessarily in the workspace holding run state.
+
 ## 1. Scaffold `.nightshift/` (never clobber an existing shift)
 
 For each target below, copy the template only if the target does not already exist:
@@ -39,9 +56,9 @@ For each target below, copy the template only if the target does not already exi
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/snag-log-template.md`     → `$CLAUDE_PROJECT_DIR/.nightshift/snag-log.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/product-research-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/product-research.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/opportunity-map-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/opportunity-map.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/work-orders-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/work-orders.md`
 
-Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` and
-`$CLAUDE_PROJECT_DIR/.nightshift/work-orders.md` with a one-line header each if they do not exist.
+Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` with a one-line header if it does not exist.
 
 ## 2. Private by default
 
@@ -64,8 +81,9 @@ Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` and
 
 ## 3. Gates — ask, never impose
 
-Detect the stack from the table in `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/gates-catalog.md`
-(monorepo-aware). Then ask the user, showing the detected proposal, with three first-class answers:
+Detect the stack in the persisted work target from the table in
+`${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/gates-catalog.md` (monorepo-aware). Then ask the
+user, showing the detected proposal, with three first-class answers:
 
 - **accept** the proposal as-is,
 - **edit** it — add, remove, or replace with THEIR own commands (any shell command is a valid gate),
@@ -131,8 +149,8 @@ punch list with open boxes is never touched at all.
 
 ## 6. Summarize
 
-Print what was scaffolded, whether a receipts repo was created, and the gates that were written (or
-that none were). Tell the user to draft items in `.nightshift/drafting-table.md`, promote them into
+Print the workspace-state path and resolved work target, what was scaffolded, whether a receipts
+repo was created, and the gates that were written (or that none were). Tell the user to draft items in `.nightshift/drafting-table.md`, promote them into
 the punch list, then start the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start
 on Codex). Mention that the open-ended product-evolution shift keeps its evidence and ranked work in
 `.nightshift/product-research.md` and `.nightshift/opportunity-map.md`, while the quality skill can

@@ -27,6 +27,8 @@ set -u
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
+# shellcheck source=plugins/nightshift/hooks/shared/gate-core.sh
+. "$_here/shared/gate-core.sh"
 
 # The Stop payload carries the session's identity; a tty guard keeps manual runs from hanging.
 if [ -t 0 ]; then INPUT=""; else INPUT="$(cat)"; fi
@@ -65,41 +67,15 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 # Only the Items list is the shift. A checkbox above it is prose — an owner's note, an example in
 # the contract — and counting it would hold a session over something nobody queued. The heading
 # must stand alone on its line, so the contract's inline `## Items` references never match.
-open_boxes()   { ns_open_boxes "$PUNCH"; }
-ticked_boxes() { ns_ticked_boxes "$PUNCH"; }
+open_boxes() { ns_gate_open_boxes; }
+ticked_boxes() { ns_gate_ticked_boxes; }
 
 # The code repo is what makes a commit visible as progress, and the recommended layout puts it
 # one level below the project dir rather than at it. Where several repos sit there, no single
 # HEAD describes the shift — so fingerprint all of them, and a commit in any one still counts.
-project_head() {
-  local r child base heads=""
-  if r="$(repo_root "$PROJECT_DIR")"; then
-    git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
-    return 0
-  fi
-  for child in "$PROJECT_DIR"/*/; do
-    base="${child%/}"
-    base="${base##*/}"
-    case "$base" in .*) continue ;; esac
-    r="$(git -C "$child" rev-parse HEAD 2>/dev/null)" || continue
-    heads="$heads$r"
-  done
-  printf '%s' "${heads:-nohead}"
-}
+project_head() { ns_gate_project_head; }
 
-deadline_passed() {
-  local now dl target
-  now="$(date +%s)"
-  dl="$(tr -d '[:space:]' <"$DEADLINE" 2>/dev/null || true)"
-  [ -n "$dl" ] || return 1
-  if printf '%s' "$dl" | grep -qE '^[0-9]+$'; then
-    target="$dl"                                    # epoch seconds (what `start` writes)
-  else                                              # best-effort ISO parse, GNU then BSD
-    target="$(date -d "$dl" +%s 2>/dev/null || date -j -f '%Y-%m-%dT%H:%M:%S' "$dl" +%s 2>/dev/null || true)"
-  fi
-  [ -n "$target" ] || return 1
-  [ "$now" -ge "$target" ]
-}
+deadline_passed() { ns_gate_deadline_passed; }
 
 # Morning whistle — fires at most once per shift; $1 is the summary line.
 whistle() {

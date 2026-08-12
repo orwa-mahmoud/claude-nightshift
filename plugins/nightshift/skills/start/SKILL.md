@@ -11,12 +11,24 @@ root — treat it identically.)
 The shell's working directory persists between Bash calls and drifts into the code repo while
 running gates, so a bare relative path reads or writes wherever the last `cd` left it.
 
+Read `.nightshift/work-target` before preflight. It is the absolute code repository selected by
+Setup. Keep every `.nightshift/` read and write rooted in the opened workspace, but run project
+inspection, edits, gates, Git operations, commits, and verification in that work target. Validate
+it with `git -C <target> rev-parse --show-toplevel`; if it is missing, use the workspace itself when
+it is a repository or its single immediate child repository, and persist that resolved path. If
+several child repositories make the choice ambiguous, refuse to arm until Setup records one.
+
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary known plans never become work orders.
+
 **With work in the punch list, this command asks nothing.** It reads the list, arms the site and
 works — which is what lets cron run it at 04:00 and lets the watchman revive it after a crash. It
 promotes nothing on its own: what is in the punch list is the shift, exactly as the owner left it.
 
 The one time it speaks is when the punch list is **empty**. Then there is no work to do silently,
-so it looks at what is parked and asks which of it to work.
+so it looks at staged drafts and pending Hunt orders and asks which to promote.
 
 ## 1. Preflight
 
@@ -54,7 +66,7 @@ so it looks at what is parked and asks which of it to work.
   continuation point. More than one building entry is inconsistent state: do not guess between
   them; keep the earliest one active, mark the others `candidate`, record the repair in
   `shift-log.md`, and continue.
-- **Only when the punch list is empty, offer what is parked.** Read `.nightshift/work-orders.md`
+- **Only when the punch list is empty, offer what is staged.** Read `.nightshift/work-orders.md`
   and `.nightshift/drafting-table.md`. If either holds work, show it in one short list and ask
   which to work now. On the owner's choice, **cut it — move, never copy**: the item goes under
   `## Items` and is removed from the file it came from, so it never exists in two places. From a

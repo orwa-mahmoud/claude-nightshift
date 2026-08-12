@@ -11,6 +11,12 @@ finish every item to its own standard, safely, leaving receipts. This skill is h
 If `.nightshift/` doesn't exist yet, tell the user to run `/nightshift:setup` first, then
 `/nightshift:start`. The commands own scaffolding and preflight; this skill owns the work.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Never route an ordinary plan through Hunt, call later work “parked,” or put a
+known task in the parking lot.
+
 Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.) The shell's
 working directory persists between Bash calls and is not the project root once a gate or a build has
 run from inside the code repo; a bare relative path then reads a punch list that isn't there and
@@ -48,7 +54,7 @@ Top to bottom, one item, no batching:
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is real.
 
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own
-**Verify** and **Commit** lines. Promote new work from `drafting-table.md` into `## Items`; never
+**Verify** and **Commit** lines. Promote owner-approved work from `drafting-table.md` into `## Items`; never
 invent scope the owner didn't ask for.
 
 ## Park, don't ask
@@ -56,6 +62,7 @@ invent scope the owner didn't ask for.
 A shift runs while the owner sleeps. If a decision is genuinely theirs, do NOT ask — the gate denies
 it anyway. Instead: choose the most sensible production-grade default, record the decision and your
 reasoning in `parking-lot.md` in plain language, and keep working. The owner reviews it over coffee.
+Known later work is not a decision: stage it in `drafting-table.md`.
 
 ## Snag log discipline
 
@@ -93,7 +100,7 @@ finite item list ends at its last tick; never start a walkthrough without one.
 ## Red-tag yourself when stuck
 
 If you catch yourself unable to finish an item — looping, blocked on something real — **red-tag it
-yourself**: park it in `parking-lot.md` as `stalled — needs human`, note why, and move to the next
+yourself**: record the owner decision in `parking-lot.md` as `stalled — needs human`, note why, and move to the next
 item. Do not loop. The gate's stall warning is the backstop, not the plan.
 
 ## Ending the shift

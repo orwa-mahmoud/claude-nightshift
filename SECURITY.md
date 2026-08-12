@@ -2,9 +2,16 @@
 
 ## Supported versions
 
-Only the latest release is supported. The plugin runs entirely locally — no
-network calls, no telemetry — so the attack surface is the hook scripts
-themselves.
+Only the latest release is supported. Nightshift itself has no telemetry and
+does not phone home. A running shift does launch the coding agent selected by
+the owner (`claude` or `codex`), whose own network behaviour and policies still
+apply. If the owner configures `notifyCommand`, Nightshift also executes that
+command locally at the documented shift-ending or recovery-failure events; the
+command may access the network because it is unrestricted owner-provided shell.
+
+The primary Nightshift attack surface is therefore its local hook and runtime
+scripts, the permissions granted to the coding agent, and any owner-configured
+notification command.
 
 ## Reporting a vulnerability
 

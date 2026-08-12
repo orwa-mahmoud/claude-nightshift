@@ -21,6 +21,8 @@ set -u
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../../lib/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
+# shellcheck source=plugins/nightshift/hooks/shared/hardhat-core.sh
+. "$_here/../shared/hardhat-core.sh"
 # shellcheck source=plugins/nightshift/hooks/codex/lib-io.sh
 . "$_here/lib-io.sh"
 
@@ -58,8 +60,7 @@ SCRUBBED="$(printf '%s' "$CMD" | sed -E "s/(-m|--message)([[:space:]]*|=)'[^']*'
 # is a request, not the ending — the agent keeps working until its next stop attempt, which is
 # exactly when the site rules still matter. The gate writes ENDED when it actually releases, and
 # that is what stands these rules down.
-if [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
-   || ! grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
+if ! ns_hardhat_active; then
   exit 0
 fi
 
@@ -75,8 +76,6 @@ record_shift_session() {
 # The guards are the shift's, so they arrive with the shift. `/nightshift:start` writes
 # .shift-armed; before it exists this is an ordinary session in an ordinary project and nothing
 # here applies to it.
-[ -f "$NS/.shift-armed" ] || exit 0
-
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   record_shift_session
 fi
@@ -202,7 +201,7 @@ if is_commit && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }
   REPO="$(target_repo "$CMD" "${CWD:-$PROJECT_DIR}")"
   case "$?" in
     1) deny "BLOCKED: this commit names a directory that is not a git repository, so the configured commit guards cannot inspect it. Do not retry a rephrased form." ;;
-    2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || deny "BLOCKED: cannot tell which git repository this commit targets, so the configured commit guards cannot run. Run the commit from inside the repository." ;;
+    2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || REPO="$(ns_work_target "$PROJECT_DIR")" || deny "BLOCKED: cannot tell which git repository this commit targets, so the configured commit guards cannot run. Run the commit from inside the repository." ;;
   esac
 
   # 2) Expected identity — commits must be authored by the configured email.

@@ -44,6 +44,51 @@ repo_root() {
   printf '%s' "$found"
 }
 
+# ns_work_target <workspace>
+#
+# Resolve the repository Nightshift works on while keeping run state in <workspace>/.nightshift.
+# Setup persists the choice in .nightshift/work-target; readers prefer that record so resumed,
+# scheduled, and revived sessions do not rediscover a different repository. The record may be an
+# absolute path or a path relative to the workspace. Return 2 when several child repositories make
+# an unstored choice ambiguous, 1 when no repository can be resolved.
+ns_work_target() {
+  local project="$1" record="$1/.nightshift/work-target" target="" child base top found=""
+  if [ -s "$record" ]; then
+    IFS= read -r target <"$record" || true
+    case "$target" in /*) ;; *) target="$project/$target" ;; esac
+    top="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 1
+    printf '%s' "$top"
+    return 0
+  fi
+
+  if top="$(git -C "$project" rev-parse --show-toplevel 2>/dev/null)"; then
+    printf '%s' "$top"
+    return 0
+  fi
+
+  for child in "$project"/*/; do
+    base="${child%/}"; base="${base##*/}"
+    case "$base" in .*) continue ;; esac
+    top="$(git -C "$child" rev-parse --show-toplevel 2>/dev/null)" || continue
+    if [ -n "$found" ] && [ "$found" != "$top" ]; then return 2; fi
+    found="$top"
+  done
+  [ -n "$found" ] || return 1
+  printf '%s' "$found"
+}
+
+# ns_record_work_target <workspace> <repository>
+# Persist an absolute canonical repository path atomically.
+ns_record_work_target() {
+  local project="$1" target top tmp
+  target="$2"
+  top="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  mkdir -p "$project/.nightshift" || return 1
+  tmp="$project/.nightshift/.work-target.$$"
+  printf '%s\n' "$top" >"$tmp" || return 1
+  mv "$tmp" "$project/.nightshift/work-target"
+}
+
 # target_repo <command> <base-dir>
 #
 # A command can name the repository it acts on — `git -C <dir> commit`, or `cd <dir> && git

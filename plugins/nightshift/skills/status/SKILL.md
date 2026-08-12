@@ -6,6 +6,11 @@ description: Read-only shift status — open vs ticked items, parked decisions, 
 Report the shift status for `$CLAUDE_PROJECT_DIR` **without starting or changing anything** — this is
 read-only.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Report these as different categories; do not merge or move them.
+
 Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — read it with the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.)
 The shell's working directory persists between Bash calls and is not necessarily the project root,
 and a status read from the wrong directory reports a shift that does not exist.
@@ -20,6 +25,8 @@ Read `.nightshift/` and print:
   title of the current open item. A checkbox above that heading is contract prose, not work, and
   the gate does not count it either.
 - **Parked** — the count and one-line titles of entries in `.nightshift/parking-lot.md`.
+- **Staged** — known later items in `.nightshift/drafting-table.md`, separately from pending timed
+  Hunt orders in `.nightshift/work-orders.md`.
 - **Snag log** — the last few dispositions from `.nightshift/snag-log.md`, if any.
 - **Product evolution** — when `.nightshift/product-research.md` or
   `.nightshift/opportunity-map.md` contains more than its template headings, report the most recent
