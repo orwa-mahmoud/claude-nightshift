@@ -3,6 +3,16 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.9.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.1...v0.9.0) (2026-08-12)
+
+
+### Features
+
+* add evidence-backed product evolution to the ready-made hunt catalog
+* preserve active opportunity progress across compaction and resumed sessions
+* integrate product research and opportunity tracking with setup, status, and archive
+* make Codex a first-class host alongside Claude Code ([7f62a2d](https://github.com/orwa-mahmoud/claude-nightshift/commit/7f62a2dd1e59f1653b363191c1d9d7d3afad3a12))
+
 ## [0.8.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
 
 
