@@ -3,6 +3,19 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.9.2](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.1...v0.9.2) (2026-08-12)
+
+
+### Bug Fixes
+
+* harden Nightshift across Claude Code and Codex ([#53](https://github.com/orwa-mahmoud/claude-nightshift/issues/53)) ([2ebfce5](https://github.com/orwa-mahmoud/claude-nightshift/commit/2ebfce5ceaa2b3daf7f803e2c49a9887b4762ebb))
+* **hardhat:** align active-shift detection across hosts ([0374ac8](https://github.com/orwa-mahmoud/claude-nightshift/commit/0374ac876fb66706da67fa33cd1622ce76f9f67c))
+* **schedule:** safely encode generated cron and launchd paths ([e713d3c](https://github.com/orwa-mahmoud/claude-nightshift/commit/e713d3c1ee8a696d4a7b8ebfaba46410ec433e55))
+* **session:** always record the Claude host in shift identity ([bdfb0aa](https://github.com/orwa-mahmoud/claude-nightshift/commit/bdfb0aaad57369e9f2eceb9be17efef31da0f0af))
+* **setup:** resolve a single repository inside parent workspaces ([20424b1](https://github.com/orwa-mahmoud/claude-nightshift/commit/20424b1432bc55f2e06be75d2c4a4cfbedacb031))
+* **skills:** clarify state-file roles across model workflows ([6ef7014](https://github.com/orwa-mahmoud/claude-nightshift/commit/6ef701409774d2dc4eff5c3186fa6f785b875f55))
+* **test:** measure coverage from current plugin paths ([0a3e6f7](https://github.com/orwa-mahmoud/claude-nightshift/commit/0a3e6f7742ebf1a1342b75e47a1b9b5063a891e1))
+
 ## [0.9.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.0...v0.9.1) (2026-08-12)
 
 
