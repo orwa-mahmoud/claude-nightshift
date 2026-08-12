@@ -6,6 +6,11 @@ description: File the finished part of the run state into a dated archive — sh
 Archive the finished paperwork. Work in `$CLAUDE_PROJECT_DIR`. This files records — it never
 does shift work, never ticks a box, never touches the contract.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Archive each by its own lifecycle; never reclassify one as another.
+
 Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — write it with the
 variable. (On Codex the variable does not exist; the session's working directory is the
 project root — treat it identically.)

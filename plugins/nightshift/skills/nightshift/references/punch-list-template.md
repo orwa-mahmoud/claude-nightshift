@@ -4,6 +4,9 @@
 > while any item in the **Items** list below is an open `- [ ]`. Everything above that heading is
 > the contract — binding for the duration of the shift. Only the Items list changes: tick boxes to
 > `- [x]` as work finishes.
+> Owner-approved active work belongs here. Known later work belongs in `drafting-table.md`;
+> unresolved owner decisions belong in `parking-lot.md`; timed Hunt orders belong in
+> `work-orders.md`.
 
 ## Never idle, never ask, never wait
 
@@ -64,4 +67,3 @@ _None configured._
      with its own sub-bullets, a Verify line, and a Commit line. Tick to a bracketed x when done.
      drafting-table.md carries the exact shape. Keep the illustration out of this file: any
      bracketed-space checkbox here, even in a comment, counts as an open item. -->
-

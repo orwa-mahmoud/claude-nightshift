@@ -6,6 +6,11 @@ description: Scaffold .nightshift/ from the templates and propose stack-aware qu
 Set up nightshift in this project. Do the scaffolding first, then the gates conversation, then print
 a summary. Work in `$CLAUDE_PROJECT_DIR`.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary plans belong in the drafting table, never in Hunt or the parking lot.
+
 Every `.nightshift/` and `.claude/` path below is relative to `$CLAUDE_PROJECT_DIR` (on Codex, the
 session's working directory is the project root — treat it identically) — write it with
 the variable. The shell's working directory persists between Bash calls and drifts into the code
@@ -51,9 +56,9 @@ For each target below, copy the template only if the target does not already exi
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/snag-log-template.md`     → `$CLAUDE_PROJECT_DIR/.nightshift/snag-log.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/product-research-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/product-research.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/opportunity-map-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/opportunity-map.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/work-orders-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/work-orders.md`
 
-Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` and
-`$CLAUDE_PROJECT_DIR/.nightshift/work-orders.md` with a one-line header each if they do not exist.
+Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` with a one-line header if it does not exist.
 
 ## 2. Private by default
 
