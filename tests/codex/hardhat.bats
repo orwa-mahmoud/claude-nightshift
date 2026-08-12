@@ -89,6 +89,28 @@ codex_hardhat_ask() {
   printf '%s' "$output" | grep -q "park" # the template's toolDeny entry, read from the file
 }
 
+@test "an open checkbox outside Items does not activate the codex hardhat" {
+  p="$(new_project)"
+  printf '%s\n' '- [ ] planning example' '## Items' '- [x] **1. done.**' >"$p/.nightshift/punch-list.md"
+  run codex_hardhat_ask "$p"
+  is_allow
+}
+
+@test "an open checkbox under Items activates the codex hardhat" {
+  p="$(new_project)"
+  printf '%s\n' '- [x] planning example' '## Items' '- [ ] **1. open.**' >"$p/.nightshift/punch-list.md"
+  run codex_hardhat_ask "$p"
+  is_deny "$output"
+}
+
+@test "open Items remain inert until the codex shift is armed" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/.shift-armed"
+  run codex_hardhat_ask "$p"
+  is_allow
+}
+
 @test "the toolDeny map words the park denial per tool" {
   p="$(new_project)"
   punch_open "$p"

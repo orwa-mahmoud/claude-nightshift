@@ -94,6 +94,28 @@ load helpers
   is_allow
 }
 
+@test "an open checkbox outside Items does not activate the hardhat" {
+  p="$(new_project)"
+  printf '%s\n' '- [ ] planning example' '## Items' '- [x] **1. done.**' >"$p/.nightshift/punch-list.md"
+  run hardhat_ask "$p"
+  is_allow
+}
+
+@test "an open checkbox under Items activates the hardhat" {
+  p="$(new_project)"
+  printf '%s\n' '- [x] planning example' '## Items' '- [ ] **1. open.**' >"$p/.nightshift/punch-list.md"
+  run hardhat_ask "$p"
+  is_deny "$output"
+}
+
+@test "open Items remain inert until the shift is armed" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/.shift-armed"
+  run hardhat_ask "$p"
+  is_allow
+}
+
 @test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
   p="$(new_project)"
   punch_open "$p"

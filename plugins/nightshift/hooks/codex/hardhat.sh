@@ -58,8 +58,8 @@ SCRUBBED="$(printf '%s' "$CMD" | sed -E "s/(-m|--message)([[:space:]]*|=)'[^']*'
 # is a request, not the ending — the agent keeps working until its next stop attempt, which is
 # exactly when the site rules still matter. The gate writes ENDED when it actually releases, and
 # that is what stands these rules down.
-if [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
-   || ! grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
+   || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
   exit 0
 fi
 
@@ -75,8 +75,6 @@ record_shift_session() {
 # The guards are the shift's, so they arrive with the shift. `/nightshift:start` writes
 # .shift-armed; before it exists this is an ordinary session in an ordinary project and nothing
 # here applies to it.
-[ -f "$NS/.shift-armed" ] || exit 0
-
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   record_shift_session
 fi
