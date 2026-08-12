@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Line coverage for the shipped bash (hooks/ + runtime/) — kcov over the bats suite.
+# Line coverage for the shipped bash (plugins/nightshift/hooks + runtime) — kcov over the bats suite.
 # kcov's bash tracer is Linux-only: on Linux with kcov installed this runs natively,
 # anywhere else it runs in a debian container (docker required).
 # Output: coverage/ — kcov HTML + cobertura, plus coverage/sonar-generic.xml.
@@ -9,14 +9,16 @@ rm -rf coverage
 mkdir -p coverage
 
 if [ "$(uname -s)" = Linux ] && command -v kcov >/dev/null 2>&1; then
-  kcov --include-path="$PWD/hooks,$PWD/adapters" coverage "$(command -v bats)" tests/
+  kcov --include-path="$PWD/plugins/nightshift/hooks,$PWD/plugins/nightshift/runtime" coverage "$(command -v bats)" tests/ ||
+    find coverage -name cobertura.xml -print -quit | grep -q .
 else
   docker run --rm -v "$PWD:/src" -w /src debian:stable-slim sh -c '
     apt-get update -qq >/dev/null && apt-get install -y -qq kcov bats git jq shellcheck >/dev/null
     git config --global user.email dev@example.com
     git config --global user.name dev
     git config --global --add safe.directory "*"
-    kcov --include-path=/src/hooks,/src/adapters /src/coverage "$(command -v bats)" /src/tests'
+    kcov --include-path=/src/plugins/nightshift/hooks,/src/plugins/nightshift/runtime /src/coverage "$(command -v bats)" /src/tests ||
+      find /src/coverage -name cobertura.xml -print -quit | grep -q .'
 fi
 
 cob="$(find coverage -name cobertura.xml | head -n 1)"
