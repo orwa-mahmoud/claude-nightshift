@@ -21,6 +21,8 @@ set -u
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../../lib/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
+# shellcheck source=plugins/nightshift/hooks/shared/hardhat-core.sh
+. "$_here/../shared/hardhat-core.sh"
 # shellcheck source=plugins/nightshift/hooks/codex/lib-io.sh
 . "$_here/lib-io.sh"
 
@@ -58,8 +60,7 @@ SCRUBBED="$(printf '%s' "$CMD" | sed -E "s/(-m|--message)([[:space:]]*|=)'[^']*'
 # is a request, not the ending — the agent keeps working until its next stop attempt, which is
 # exactly when the site rules still matter. The gate writes ENDED when it actually releases, and
 # that is what stands these rules down.
-if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
-   || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
+if ! ns_hardhat_active; then
   exit 0
 fi
 
