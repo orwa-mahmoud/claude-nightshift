@@ -388,8 +388,9 @@ STUB
   jq -nc '{tool_name:"Bash",session_id:"bare-tab",transcript_path:"",tool_input:{command:"echo hi"}}' |
     CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "bare-tab" ]
-  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ]
+  [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 5 ]
   [ -z "$(sed -n 3p "$p/.nightshift/.shift-session")" ]
+  [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "claude" ]
 }
 
 # The claim is an exclusive create: two racing first sessions cannot interleave — one record
@@ -405,7 +406,8 @@ STUB
       CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh" &
     two=$!
     wait "$one" "$two"
-    [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 4 ]
+    [ "$(wc -l <"$p/.nightshift/.shift-session")" -eq 5 ]
+    [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "claude" ]
     sid="$(sed -n 1p "$p/.nightshift/.shift-session")"
     tpath="$(sed -n 2p "$p/.nightshift/.shift-session")"
     case "$sid" in
