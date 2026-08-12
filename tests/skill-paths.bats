@@ -42,3 +42,17 @@ SETUP="$SKILLS/setup/SKILL.md"
 @test "setup inits the receipts repo without relying on the working directory" {
   grep -qF 'git -C "$CLAUDE_PROJECT_DIR/.nightshift" init' "$SETUP"
 }
+
+@test "setup refuses disposable ChatGPT scratch before writing" {
+  grep -qF '/workspace/scratch/' "$SETUP"
+  grep -qF 'Before creating or changing any file' "$SETUP"
+  grep -qF 'create no `.nightshift/` directory' "$SETUP"
+  grep -qF 'Open your project in Codex' "$SETUP"
+  grep -qF 'Do not mention Claude Code' "$SETUP"
+}
+
+@test "scratch detection does not reject legitimate non-git projects" {
+  grep -qF 'Do not infer “temporary” merely because the' "$SETUP"
+  grep -qF 'project is not a git repository' "$SETUP"
+  grep -qF 'A non-git project outside that explicit scratch path remains valid' "$SKILLS/nightshift/SKILL.md"
+}

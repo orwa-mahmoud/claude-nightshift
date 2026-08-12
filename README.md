@@ -24,6 +24,11 @@ codex plugin marketplace add orwa-mahmoud/claude-nightshift
 codex plugin add nightshift@nightshift
 ```
 
+Use Nightshift with the real project open in Codex, or with Codex connected to its GitHub
+repository. If invoked from a normal ChatGPT conversation backed by `/workspace/scratch/`, setup
+stops before writing anything and points the user to Codex—the scratch files would not affect the
+real repository.
+
 ### Claude Code
 
 Two commands inside Claude Code — no npm, no Homebrew, no separate CLI, no API keys, no server:

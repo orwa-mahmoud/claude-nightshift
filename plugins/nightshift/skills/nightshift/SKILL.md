@@ -16,6 +16,15 @@ working directory persists between Bash calls and is not the project root once a
 run from inside the code repo; a bare relative path then reads a punch list that isn't there and
 writes receipts nobody will find.
 
+## Real-project boundary
+
+Nightshift is an engineering workflow for a real project workspace. If the resolved project root
+is under `/workspace/scratch/`, stop before setup or shift work and give the OpenAI-native redirect
+from the setup skill: open the real project in Codex (or connect Codex to its GitHub repository),
+then mention Nightshift there. Never create durable-looking run state in a disposable ChatGPT
+scratch workspace, and never claim those temporary files affect or preserve the user's repository.
+A non-git project outside that explicit scratch path remains valid.
+
 ## The contract is above `## Items`
 
 `.nightshift/punch-list.md` has a contract section, then `## Items`. The contract binds YOU for the
