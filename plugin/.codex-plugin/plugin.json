@@ -1,7 +1,7 @@
 {
   "name": "nightshift",
   "version": "0.8.1",
-  "description": "Give Codex a checklist before bed. It can't clock out until every box is ticked, never stalls on a question, and revives itself if the API dies at 3 AM.",
+  "description": "Give Codex a job for the night. Run accountable, time-bounded engineering shifts from a persistent punch list, with ready-made hunts for test coverage, quality debt, defects, vulnerabilities, dependency upgrades, and continuous improvement.",
   "author": {
     "name": "Orwa Mahmoud",
     "url": "https://github.com/orwa-mahmoud"
@@ -10,5 +10,28 @@
   "repository": "https://github.com/orwa-mahmoud/claude-nightshift",
   "license": "MIT",
   "skills": "./skills/",
-  "hooks": "./hooks/codex/hooks.json"
+  "hooks": "./hooks/codex/hooks.json",
+  "interface": {
+    "displayName": "Nightshift",
+    "shortDescription": "Put Codex to work on an accountable engineering shift",
+    "longDescription": "Give Codex a persistent punch list and a time budget, then leave it working. Start with your own tasks or choose a ready-made shift: increase meaningful test coverage, clear lint and type debt, hunt and fix defects, address security advisories, upgrade direct dependencies, or continuously improve bugs, UX, performance, contracts, and dead code. Nightshift parks decisions instead of waiting, enforces owner-defined safety rules, leaves reviewable progress, and recovers interrupted sessions.",
+    "developerName": "Orwa Mahmoud",
+    "category": "Productivity",
+    "capabilities": [
+      "Persistent punch-list shifts",
+      "Time-bounded engineering work",
+      "Ready-made quality hunts",
+      "Mechanical safety rules",
+      "Question parking",
+      "Reviewable run history",
+      "Interrupted-session recovery"
+    ],
+    "defaultPrompt": [
+      "Set up Nightshift in this project.",
+      "Show me the ready-made shifts I can run tonight.",
+      "Find useful work for a four-hour shift."
+    ],
+    "composerIcon": "./assets/nightshift-logo.png",
+    "logo": "./assets/nightshift-logo.png"
+  }
 }
