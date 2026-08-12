@@ -222,6 +222,11 @@ every adapter — landed as unsquashed per-item commits, closed 4 issues on merg
 v1.2.0 on npm the same day. Public links:
 [`examples/adapttable-overnight.md`](examples/adapttable-overnight.md).
 
+**Codex hardened Nightshift itself.** An 11-item maintenance shift kept the work on one branch,
+landed each item as a separate reviewable commit, passed 248 tests plus ShellCheck and strict plugin
+validation, and shipped as v0.9.2. The permanent PR, release, and item links are in
+[`examples/codex-hardening-shift.md`](examples/codex-hardening-shift.md).
+
 The live `.nightshift/` state stays out of this repo — the same default nightshift sets for your
 projects: your run history is yours, ignored by your repo, and versioned in its own local
 receipts repo if you opt in at setup.
