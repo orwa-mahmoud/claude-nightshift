@@ -26,8 +26,8 @@ PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || exit 0
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 
-if [ ! -f "$PUNCH" ] || [ -f "$NS/.ended" ] \
-  || ! grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PUNCH" 2>/dev/null; then
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$NS/.ended" ] \
+  || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
   exit 0
 fi
 

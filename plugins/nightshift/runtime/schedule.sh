@@ -20,6 +20,10 @@
 # Exit: 0 printed · 1 usage or a missing project · 3 already registered (nothing printed to install)
 set -u
 
+_here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+# shellcheck source=plugins/nightshift/lib/lib.sh
+. "$_here/../lib/lib.sh"
+
 PROJECT="$PWD"
 AT=""
 AGENT="claude -p"
@@ -134,7 +138,7 @@ fi
 
 # The punch list is the shift: a scheduled start works what it finds and promotes nothing, so an
 # empty list at %s means the run does nothing at all.
-if ! grep -qE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PROJECT/.nightshift/punch-list.md" 2>/dev/null; then
+if [ "$(ns_open_boxes "$PROJECT/.nightshift/punch-list.md")" -eq 0 ]; then
   printf 'Note: the punch list has no open items. A scheduled start works the list it finds and\n'
   printf 'promotes nothing, so queue the work before %s or the run will find nothing to do.\n\n' "$AT"
 fi

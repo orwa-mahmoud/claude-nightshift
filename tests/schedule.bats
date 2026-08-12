@@ -74,6 +74,13 @@ setup() {
   printf '%s' "$output" | grep -qi 'no open items'
 }
 
+@test "an open checkbox outside Items is not scheduled work" {
+  printf '%s\n' '- [ ] planning example' '## Items' '- [x] **1. done.**' >"$P/.nightshift/punch-list.md"
+  run "$SCHED" --project "$P" --at 04:05
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qi 'no open items'
+}
+
 @test "list and remove are quiet when nothing is registered" {
   run "$SCHED" --project "$P" --list
   [ "$status" -eq 0 ]

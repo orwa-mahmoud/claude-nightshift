@@ -129,6 +129,22 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
 }
 
+@test "session-end hook is inert while the shift is unarmed" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/.shift-armed"
+  printf '{"reason":"exit"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  [ ! -f "$p/.nightshift/.session-end" ]
+}
+
+@test "session-end ignores an open checkbox outside the Items list" {
+  p="$(new_project)"
+  touch "$p/.nightshift/.shift-armed"
+  printf '%s\n' '- [ ] planning example' '## Items' '- [x] **1. done.**' >"$p/.nightshift/punch-list.md"
+  printf '{"reason":"exit"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  [ ! -f "$p/.nightshift/.session-end" ]
+}
+
 @test "session-end hook is inert when the shift is done or absent" {
   p="$(new_project)"
   punch_done "$p"

@@ -41,7 +41,7 @@ ns_workspace_root() {
 # Validate and atomically record a cross-workspace link. The pointer is machine-local, so when
 # the host is a Git repository it goes in .git/info/exclude rather than changing tracked files.
 ns_record_workspace_link() {
-  local host target canonical tmp exclude
+  local host target canonical tmp exclude git_dir
   host="$(cd -P "$1" 2>/dev/null && pwd)" || return 1
   target="$2"
   case "$target" in /*) ;; *) return 1 ;; esac
