@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "nightshift",
-      "source": "./plugin",
+      "source": "./plugins/nightshift",
       "displayName": "nightshift",
       "description": "Claude works the night shift: it can't clock out until the punch list is done, parks questions instead of waking you, and revives the session an API 500 killed at 3 AM.",
       "category": "workflow",

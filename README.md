@@ -216,7 +216,7 @@ requires hours and a walkthrough never runs without a cost cap. **Finite** ones 
 own tooling produces and end when it is clear, so hours are a cap rather than a requirement.
 
 The entries live one per file in
-[`shifts/`](plugin/skills/nightshift/references/shifts/) — read that directory for the current set
+[`shifts/`](plugins/nightshift/skills/nightshift/references/shifts/) — read that directory for the current set
 and the exact contract of each. Nothing enumerates them, deliberately: a page listing the catalog
 would put every contributor in the same diff.
 

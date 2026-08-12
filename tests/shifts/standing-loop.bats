@@ -1,4 +1,4 @@
-E="$BATS_TEST_DIRNAME/../../plugin/skills/nightshift/references/shifts/standing-loop.md"
+E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/standing-loop.md"
 
 @test "the standing loop ends only at the deadline, never by convergence" {
   grep -qi 'deadline is the ONLY thing' "$E"

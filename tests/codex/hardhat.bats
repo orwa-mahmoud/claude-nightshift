@@ -1,8 +1,8 @@
 load ../helpers
 
 # helpers.bash anchors its paths one directory up; from tests/codex/ the repo root is two.
-HOOKS="$BATS_TEST_DIRNAME/../../plugin/hooks"
-RULES_TEMPLATE="$BATS_TEST_DIRNAME/../../plugin/skills/nightshift/references/nightshift-rules-template.json"
+HOOKS="$BATS_TEST_DIRNAME/../../plugins/nightshift/hooks"
+RULES_TEMPLATE="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json"
 CODEX_HOOKS="$HOOKS/codex"
 
 # codex_hardhat_bash <project> <command> [ENV=VAL ...] — the placeholder PreToolUse payload.

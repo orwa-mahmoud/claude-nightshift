@@ -1,8 +1,8 @@
 load ../helpers
 
 # helpers.bash anchors its paths one directory up; from tests/codex/ the repo root is two.
-HOOKS="$BATS_TEST_DIRNAME/../../plugin/hooks"
-RULES_TEMPLATE="$BATS_TEST_DIRNAME/../../plugin/skills/nightshift/references/nightshift-rules-template.json"
+HOOKS="$BATS_TEST_DIRNAME/../../plugins/nightshift/hooks"
+RULES_TEMPLATE="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json"
 CODEX_HOOKS="$HOOKS/codex"
 
 # Codex Stop expects JSON on stdout even when the stop is permitted — empty stdout is the

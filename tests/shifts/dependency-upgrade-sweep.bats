@@ -1,4 +1,4 @@
-E="$BATS_TEST_DIRNAME/../../plugin/skills/nightshift/references/shifts/dependency-upgrade-sweep.md"
+E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/dependency-upgrade-sweep.md"
 
 # A version bump that compiles is not an upgrade. The release notes are the work, and skipping
 # them is how a green gate hides a behaviour change nobody read about.

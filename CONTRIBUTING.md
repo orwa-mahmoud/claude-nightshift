@@ -57,7 +57,7 @@ What decides the version is the subject line of your commits, so write them to t
 
 Only `fix:` and `feat:` reach the changelog, so a subject is user-facing text: say what the change
 does for someone running a shift, not how it was implemented. Do not tag by hand, and do not edit
-`plugin/.claude-plugin/plugin.json` or `CHANGELOG.md` — a pull request that does will conflict with
+`plugins/nightshift/.claude-plugin/plugin.json` or `CHANGELOG.md` — a pull request that does will conflict with
 the release it is trying to describe.
 
 ## What gets merged
@@ -67,7 +67,7 @@ docs that shorten the path to a first successful shift.
 
 Shift catalog entries are the easiest way in: they are markdown, they touch no
 hooks, and they grow the catalog without growing the product. Read
-[`catalog-recipe.md`](plugin/skills/nightshift/references/catalog-recipe.md) first — an
+[`catalog-recipe.md`](plugins/nightshift/skills/nightshift/references/catalog-recipe.md) first — an
 entry must declare its ending, how it discovers work, its definition of done, what
 it will never do, its verification, and the stacks it supports. Every catalog PR is
 read by a human before merge: a plausible entry can still be a bad night on someone

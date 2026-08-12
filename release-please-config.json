@@ -9,12 +9,12 @@
       "extra-files": [
         {
           "type": "json",
-          "path": "plugin/.claude-plugin/plugin.json",
+          "path": "plugins/nightshift/.claude-plugin/plugin.json",
           "jsonpath": "$.version"
         },
         {
           "type": "json",
-          "path": "plugin/.codex-plugin/plugin.json",
+          "path": "plugins/nightshift/.codex-plugin/plugin.json",
           "jsonpath": "$.version"
         }
       ]

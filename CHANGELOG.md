@@ -1,6 +1,6 @@
 # Changelog
 
-Installs pin to the `version` in `plugin/.claude-plugin/plugin.json`, so every entry here is a
+Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
 ## [0.8.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
