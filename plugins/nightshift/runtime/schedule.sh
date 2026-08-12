@@ -31,6 +31,11 @@ usage() {
 }
 need_value() { [ "$2" -ge 2 ] || { printf 'schedule: %s needs a value\n' "$1" >&2; usage; }; }
 
+# Generated entries are shell source. Quote every value Nightshift supplies; --agent deliberately
+# remains an owner-supplied shell command (it may contain its own arguments and redirections).
+shell_quote() { printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"; }
+xml_escape() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) need_value "$1" $#; PROJECT="$2"; shift 2 ;;
@@ -58,7 +63,11 @@ ID="${slug}-${hash}"
 LABEL="com.nightshift.${ID}"
 MARKER="# nightshift:${ID}"
 LOG="$PROJECT/.nightshift/scheduled.log"
-RUN="cd $PROJECT && $AGENT '/nightshift:start' >> $LOG 2>&1"
+QPROJECT="$(shell_quote "$PROJECT")"
+QSTART="$(shell_quote '/nightshift:start')"
+QLOG="$(shell_quote "$LOG")"
+RUN="cd $QPROJECT && $AGENT $QSTART >> $QLOG 2>&1"
+RUN_XML="$(xml_escape "$RUN")"
 
 case "$(uname -s)" in
   Darwin) OS="macos"; PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist" ;;
@@ -102,7 +111,7 @@ if [ "$MODE" = "remove" ]; then
   fi
   printf 'To unregister:\n\n'
   if [ "$OS" = "macos" ]; then
-    printf '  launchctl unload -w %s && rm %s\n\n' "$PLIST" "$PLIST"
+    printf '  launchctl unload -w %s && rm %s\n\n' "$(shell_quote "$PLIST")" "$(shell_quote "$PLIST")"
   else
     printf '  crontab -l | grep -vF %s | crontab -\n\n' "'$MARKER'"
   fi
@@ -145,7 +154,7 @@ Write this to $PLIST:
   <array>
     <string>/bin/sh</string>
     <string>-c</string>
-    <string>${RUN}</string>
+    <string>${RUN_XML}</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict>
@@ -158,7 +167,7 @@ Write this to $PLIST:
 
 Then install it:
 
-  launchctl load -w ${PLIST}
+  launchctl load -w $(shell_quote "$PLIST")
 
 PLIST_EOF
   printf 'A Mac that is asleep at %s runs nothing — launchd defers the job to the next wake.\n' "$AT"
@@ -177,5 +186,5 @@ CRON_EOF
   printf 'A machine that is asleep or off at %s runs nothing — cron does not defer missed jobs.\n' "$AT"
 fi
 
-printf '\nCheck what is registered: %s --project %s --list\n' "$0" "$PROJECT"
+printf '\nCheck what is registered: %s --project %s --list\n' "$(shell_quote "$0")" "$(shell_quote "$PROJECT")"
 printf 'Output of each run lands in %s\n' "$LOG"

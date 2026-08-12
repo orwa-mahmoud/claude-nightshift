@@ -36,6 +36,27 @@ setup() {
   printf '%s' "$output" | grep -q "/nightshift:start"
 }
 
+@test "generated entries safely quote spaced paths and escape launchd XML" {
+  p="$BATS_TEST_TMPDIR/project with spaces & ampersand"
+  mkdir -p "$p/.nightshift"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
+  run "$SCHED" --project "$p" --at 04:05 --agent "codex exec -a never"
+  [ "$status" -eq 0 ]
+
+  # Every platform prints the shell entry; decode launchd XML before checking the shell source.
+  command_line="$(printf '%s\n' "$output" | grep "codex exec -a never" | head -1)"
+  if printf '%s' "$command_line" | grep -q '<string>'; then
+    printf '%s' "$command_line" | grep -q '&amp;'
+    ! printf '%s' "$command_line" | grep -q ' & '
+    command_line="$(printf '%s' "$command_line" | sed 's/^[[:space:]]*<string>//; s#</string>[[:space:]]*$##; s/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g')"
+  else
+    command_line="$(printf '%s' "$command_line" | sed 's/^[[:space:]]*[0-9*][0-9*]*[[:space:]][0-9*][0-9*]*[[:space:]]\* \* \*[[:space:]]*//; s/[[:space:]]*# nightshift:.*$//')"
+  fi
+  printf '%s' "$command_line" | grep -qF "cd '$p'"
+  printf '%s' "$command_line" | grep -qF ">> '$p/.nightshift/scheduled.log'"
+  bash -n <<<"$command_line"
+}
+
 # The generator hands over config; installing is the owner's own command, always.
 @test "it registers nothing itself" {
   run "$SCHED" --project "$P" --at 04:05
