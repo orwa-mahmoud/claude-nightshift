@@ -5,10 +5,10 @@ load ../helpers
 # always stubbed: these tests prove the DECISIONS, not the codex CLI.
 
 setup() {
-  WATCHMAN="$BATS_TEST_DIRNAME/../../plugin/runtime/codex/watchman.sh"
+  WATCHMAN="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/codex/watchman.sh"
   P="$BATS_TEST_TMPDIR/proj"
   mkdir -p "$P/.nightshift"
-  cp "$BATS_TEST_DIRNAME/../../plugin/skills/nightshift/references/nightshift-rules-template.json" "$P/.nightshift/rules.json"
+  cp "$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json" "$P/.nightshift/rules.json"
   printf '## Items\n- [ ] **1.**\n' >"$P/.nightshift/punch-list.md"
 
   # a recorded codex shift whose rollout is a plain file the tests control

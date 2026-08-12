@@ -1,6 +1,6 @@
 load helpers
 
-SCHED="$BATS_TEST_DIRNAME/../plugin/runtime/schedule.sh"
+SCHED="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/schedule.sh"
 
 setup() {
   P="$BATS_TEST_TMPDIR/proj"
@@ -107,7 +107,7 @@ STUB
 # The skill is the pleasant path; the script is the one that still works at 100% usage. Both must
 # exist, and the skill must do the checks an owner would otherwise fail at 4am.
 @test "the schedule skill checks the work is queued before printing config" {
-  s="$BATS_TEST_DIRNAME/../plugin/skills/schedule/SKILL.md"
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
   [ -f "$s" ]
   grep -qi 'promotes nothing' "$s"           # an empty list is a run that does nothing
   grep -qi 'nightshift:hunt' "$s"            # and how to fix that
@@ -122,7 +122,7 @@ STUB
   r="$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qi 'no credit left' "$r"
   grep -qi 'spends no tokens and needs no session' "$r"
-  grep -q 'plugin/runtime/schedule.sh --project . --at' "$r"
+  grep -q 'plugins/nightshift/runtime/schedule.sh --project . --at' "$r"
 }
 
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.

@@ -1,4 +1,4 @@
-SKILLS="$BATS_TEST_DIRNAME/../plugin/skills"
+SKILLS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills"
 SETUP="$SKILLS/setup/SKILL.md"
 
 # A skill's paths resolve against the shell's working directory, which persists between Bash calls
