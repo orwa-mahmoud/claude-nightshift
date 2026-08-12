@@ -3,6 +3,15 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.9.3](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.2...v0.9.3) (2026-08-12)
+
+
+### Bug Fixes
+
+* **state:** align remaining active-shift checks ([7108184](https://github.com/orwa-mahmoud/claude-nightshift/commit/7108184233697097c4f70eabfbfc3999e0dcc593))
+* **workspace:** link tasks to authoritative shift state ([a3a1992](https://github.com/orwa-mahmoud/claude-nightshift/commit/a3a19927bd7fd53371a653df8594d670d31e5423))
+* **workspace:** reject ambiguous link files ([13235d6](https://github.com/orwa-mahmoud/claude-nightshift/commit/13235d6a219ea1b4d373f9b43277c02a070d0b04))
+
 ## [0.9.2](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.1...v0.9.2) (2026-08-12)
 
 
