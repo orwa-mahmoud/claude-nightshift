@@ -13,6 +13,10 @@
 # you review the local commits and push — or forbid pushing outright (one env line below)
 ```
 
+Those are Claude Code's slash spellings. In Codex or ChatGPT, mention Nightshift and ask naturally:
+“set up Nightshift,” “show me the ready-made shifts,” “run product evolution for four hours,”
+“start the shift,” or “show shift status.” The same skills and `.nightshift/` files are used.
+
 Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an interactive session
 Escape is the immediate halt; STOP is what reaches a headless run, and it ends
 the shift at the agent's next stop attempt.
@@ -60,7 +64,6 @@ that already has one, and identifies projects by path rather than folder name, s
 called `api` never collide. It cannot queue your work for you, though — that part has to be in the
 punch list already.
 
-One more appears in your slash menu: `/nightshift:nightshift` is the method itself — how to work an
-item, park a decision, keep a snag log. Claude loads it on its own whenever a shift is running, so
-you rarely type it; invoke it directly only to have Claude follow the method on a list you are
-driving by hand.
+One more appears in Claude Code's slash menu: `/nightshift:nightshift` is the method itself — how to
+work an item, park a decision, keep a snag log, and run product evolution. The agent loads it on its
+own whenever a shift is running, so you rarely invoke it directly.

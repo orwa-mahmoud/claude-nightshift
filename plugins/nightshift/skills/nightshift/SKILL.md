@@ -1,6 +1,6 @@
 ---
 name: nightshift
-description: Run an accountable autonomous shift — work a punch list to completion without clocking out early, park decisions instead of asking, and leave receipts. Use when the user wants to work through a todo list autonomously, run overnight, "don't stop until it's done", "keep going until the list is clear", add test coverage overnight, find and fix everything, or keep reviewing until it's clean.
+description: Run an accountable autonomous shift — work a punch list to completion, evolve a product from research, park decisions instead of asking, and leave receipts. Use when the user wants to work through a todo list autonomously, spend remaining agent usage, run overnight, polish or improve a product, research competitors and ship opportunities, add test coverage, find and fix everything, or keep reviewing until it is clean.
 ---
 
 # nightshift — the brain
@@ -64,10 +64,13 @@ honestly:
 - **Defect hunt** — review, dedupe against the snag log, fix behind the gate, re-review. Stop when a
   full pass finds nothing NEW (converged) or at quitting time. **Zero new findings is success** —
   stop honestly even with time on the clock.
-- **Standing loop** — improve and discover: rotate 1–2 fresh lenses per cycle (bugs, UX,
-  performance, contracts, dead code), walk the live UI every few cycles, run the quality tooling
-  at each site inspection. No convergence ending — an empty cycle means a deeper lens, and only
-  quitting time ends the item.
+- **Product evolution (standing loop)** — understand the product, research its space, rank an
+  evidence-backed opportunity map, and build the strongest complete improvements that fit the
+  clock on an isolated branch. Lint and tests verify the work; they do not choose the roadmap.
+  Small fixes through substantial features are valid, but the shift never merges itself and never
+  leaves a half-built production path. The single `building` opportunity is the continuation
+  record: read it first on resume and keep its completed work, rejected paths, exact next action,
+  and remaining verification current at meaningful boundaries. Only quitting time ends the item.
 
 Log one line per cycle to `shift-log.md`. A cycle that finds nothing new is success, not idleness.
 

@@ -19,6 +19,8 @@ For each target below, copy the template only if the target does not already exi
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/drafting-table-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/drafting-table.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/parking-lot-template.md`  → `$CLAUDE_PROJECT_DIR/.nightshift/parking-lot.md`
 - `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/snag-log-template.md`     → `$CLAUDE_PROJECT_DIR/.nightshift/snag-log.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/product-research-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/product-research.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/opportunity-map-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/opportunity-map.md`
 
 Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` and
 `$CLAUDE_PROJECT_DIR/.nightshift/work-orders.md` with a one-line header each if they do not exist.
@@ -113,5 +115,7 @@ punch list with open boxes is never touched at all.
 
 Print what was scaffolded, whether a receipts repo was created, and the gates that were written (or
 that none were). Tell the user to draft items in `.nightshift/drafting-table.md`, promote them into
-the punch list, then run `/nightshift:start` — and that `/nightshift:quality` can turn existing
-lint/type debt into proposed items whenever they want it.
+the punch list, then start the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start
+on Codex). Mention that the open-ended product-evolution shift keeps its evidence and ranked work in
+`.nightshift/product-research.md` and `.nightshift/opportunity-map.md`, while the quality skill can
+turn existing lint/type debt into proposed items whenever they want it.

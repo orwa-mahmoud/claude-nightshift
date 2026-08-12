@@ -4,7 +4,7 @@
   "plugins": [
     {
       "name": "nightshift",
-      "description": "Give Codex a checklist before bed. It can't clock out until every box is ticked, never stalls on a question, and revives itself if the API dies at 3 AM.",
+      "description": "Keep long Codex runs on task across compaction, resume, interruptions, and unattended engineering shifts.",
       "source": { "source": "local", "path": "./plugins/nightshift" },
       "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
       "category": "Productivity"

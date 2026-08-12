@@ -1,28 +1,60 @@
-# Standing loop — open-ended — improve and discover until quitting time
+# Product evolution — open-ended — research the space and improve until quitting time
 
-The greedy one: no convergence ending. An empty cycle is not "done" — it means the lens was too
-shallow. For when there is credit and hours, and the job is "make the product better".
+The flagship shift for spare agent capacity. The product, its users, and its market decide the
+work; lint and tests prove each change rather than supplying the roadmap. It may ship a sharp fix
+or a substantial feature, but never merges its own branch and never leaves a half-built path.
 
 ```text
-- [ ] **Standing loop — improve and discover until quitting time.**
-  - Open-ended: the deadline is the ONLY thing that ends this item. A cycle that finds nothing
-    means the lens was too shallow — go deeper (a new subsystem, a new entry point, a new user
-    path) and start the next cycle at once. Never idle between cycles.
-  - Each cycle pick 1–2 fresh lenses and rotate — never repeat the same shallow pass:
-    - Real bugs — trace one concrete user scenario end-to-end through every layer: races,
-      permission holes, stale state after mutations, timezone and edge inputs.
-    - UX friction — dead ends, hidden state, missing empty/loading/error states, too many clicks
-      to high-frequency work.
-    - Performance — hot-path waste, N+1 queries, missing indexes, chatty endpoints, needless
-      re-renders.
-    - Contracts — type drift between layers, duplicated enums out of sync, permission gating
-      parity on both sides (fail closed).
-    - Dead code — verify truly unreachable first, then delete fully; never stub.
-  - If the project has a UI, walk it live every few cycles with real clicks and the console open —
-    code-only scans miss what clicking finds.
-  - At every site inspection (the interval in `## Gates`; hourly if none is set), run the
-    project's quality tooling in report mode and feed new findings into the next cycle.
-  - Dedupe every finding against snag-log.md (ALL seen — fixed and rejected) before acting; append
-    dispositions after. Park owner decisions in parking-lot.md and keep working.
-  - Verify: the item gate is green at every commit; one conventional commit per coherent fix.
+- [ ] **Product evolution — research, build, and improve until quitting time.**
+  - Isolate first: work on a dedicated nightshift branch, never the default branch. Never merge,
+    push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
+    authorized that exact action. The owner decides what ships in the morning.
+  - Understand before inventing: read the product docs, issues, architecture, existing features,
+    user-facing flows, and recent history. Write the current promise, audience, strengths, and
+    weak spots to product-research.md before selecting work.
+  - Research the space when web access is available: find comparable products, competing
+    approaches, public user complaints, expectations, and relevant standards. Record dated source
+    URLs plus observations in product-research.md. Never send private code, secrets, customer data,
+    unpublished plans, or proprietary text to a search service; never copy a competitor's wording,
+    assets, or implementation. If browsing is unavailable, say so in the record and continue from
+    repository evidence rather than pretending research happened.
+  - Maintain opportunity-map.md. Rank each opportunity by user value, evidence/confidence,
+    differentiation, effort, reversibility, and regression risk. Mark it candidate, building,
+    shipped, rejected, or parked, with the evidence behind the disposition.
+  - Resume before exploring: if opportunity-map.md has a building entry, read its scope,
+    acceptance, completed work, decisions, rejected paths, exact next action, and remaining
+    verification; continue that opportunity first. Never open a second building opportunity.
+  - Each cycle: choose the strongest complete improvement that fits the remaining time. Before
+    substantial implementation, make it the single building entry using the shipped structure.
+    Small fixes, coherent medium work, and substantial features are all valid. Build end-to-end,
+    run the item gate, commit separately, update the opportunity map, then reassess the product
+    before choosing again. Keep the branch buildable after every commit.
+  - The building entry is the cycle's continuation record. Refresh Current phase, Completed,
+    Decisions, Rejected, Next, and Verify remaining after meaningful boundaries — research or
+    design concludes, a coherent implementation step lands, a decision closes a path, a commit is
+    made, or verification changes state. Do not rewrite it after every command and do not use the
+    snag log as a progress journal.
+  - Large is allowed; half-built is not. Start a larger feature only when the problem is supported
+    by evidence, it fits the product direction, it has a clean rollback boundary, and it can be
+    completed and verified inside the remaining shift. Otherwise leave research, a specification,
+    or an isolated prototype and park the production decision.
+  - Owner decisions stay owner decisions: park pricing, licensing, branding, privacy/legal policy,
+    destructive data migrations, new external services, telemetry, authentication, paid
+    dependencies, and architectural commitments. Do not turn an unattended guess into policy.
+  - Rotate lenses between cycles: product gaps, real user-path defects, UX friction, performance,
+    contracts between layers, meaningful test gaps, and verified dead code. If the project has a
+    UI, walk it live every few cycles with real clicks and the console open.
+  - At every site inspection (the interval in `## Gates`; hourly if none is set), run the project's
+    quality tooling in report mode. Treat new findings as evidence for the opportunity map, not as
+    a requirement to spend the whole shift polishing lint.
+  - Dedupe findings against snag-log.md (ALL seen — fixed and rejected). Park human decisions in
+    parking-lot.md and keep working. Log one line per cycle to shift-log.md.
+  - Open-ended: the deadline is the ONLY thing that ends this item. An empty cycle means the lens
+    was too shallow — research a new user, competitor, subsystem, entry point, or workflow.
+  - At quitting time finish the current coherent unit, leave the branch green, write a morning
+    handoff covering research, opportunities, shipped commits, parked decisions, and how to review
+    or reject the branch. If the current unit must remain unfinished, leave its building entry with
+    an exact Next and Verify remaining before the wip commit and handover, then clock out orderly.
+  - Verify: the item gate is green at every commit; every implemented change traces to evidence in
+    product-research.md and a disposition in opportunity-map.md.
 ```

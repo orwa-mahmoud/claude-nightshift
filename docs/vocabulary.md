@@ -13,6 +13,8 @@ Everything is named from a real construction site — learn one term, guess the 
 | **hunt** | `/nightshift:hunt` | writes a ready-made walkthrough as a work order; cuts it into the punch list only on your word |
 | **work order** | `.nightshift/work-orders.md` | a prepared job ticket — the item plus its hours, clock not running until the cut |
 | **snag log** | `.nightshift/snag-log.md` | findings ledger across runs — cycle 4 never re-reports cycle 1 |
+| **product research** | `.nightshift/product-research.md` | dated evidence about the product, users, comparable tools, and unmet needs; conclusions keep their source links |
+| **opportunity map** | `.nightshift/opportunity-map.md` | ranked product opportunities with evidence, value, differentiation, effort, reversibility, risk, and an honest status; its single `building` entry is the resumable current cycle |
 | **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
 | **park, don't ask** | hardhat rule | during a shift the ask-tool is denied — the question is parked with a default chosen; answer mid-run in the session and the agent applies it |
 | **quality survey** | `/nightshift:quality` | the optional debt audit — existing lint/type findings become proposed items; accept, edit, or decline |

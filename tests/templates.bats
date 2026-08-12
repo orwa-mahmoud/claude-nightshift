@@ -36,11 +36,21 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 }
 
 @test "every template setup copies is present" {
-  for t in punch-list drafting-table parking-lot snag-log; do
+  for t in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
     [ -f "$REF/$t-template.md" ] || { echo "missing $t-template.md"; return 1; }
     grep -qF "$t-template.md" "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md" \
       || { echo "setup does not scaffold $t-template.md"; return 1; }
   done
+}
+
+@test "the opportunity map carries a resumable single-building record" {
+  t="$REF/opportunity-map-template.md"
+  grep -qF 'Only one opportunity may be `building` at a time' "$t"
+  grep -qF 'Current phase:' "$t"
+  grep -qF 'Completed:' "$t"
+  grep -qF 'Rejected:' "$t"
+  grep -qF 'Next:' "$t"
+  grep -qF 'Verify remaining:' "$t"
 }
 
 # The rules template is the owner's whole config surface — every synced key ships in it.
