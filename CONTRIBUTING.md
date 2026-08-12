@@ -21,7 +21,8 @@ so contributions should keep that shape.
 
 ```bash
 git clone https://github.com/orwa-mahmoud/claude-nightshift.git
-# install as a local plugin and run /nightshift:setup in a scratch project
+# install as a local plugin, then run Nightshift: Setup in Codex or
+# /nightshift:setup in Claude Code inside a scratch project
 ```
 
 ## Checks
@@ -73,13 +74,13 @@ it will never do, its verification, and the stacks it supports. Every catalog PR
 read by a human before merge: a plausible entry can still be a bad night on someone
 else's repository, and no automated check catches that.
 
-nightshift extends Claude Code through Claude Code's own extension points — hooks,
-skills, the plugin manifest. Changes that stand outside that are declined, however
-useful they sound: schedulers (your OS already has one), dashboards, proxies, and
-second install channels such as npm or Homebrew, which would mean reimplementing
-what `/plugin install` already does. The one exception the design allows is code
-that stands outside only to keep an *inside* promise — the watchman exists because
-no hook can fire in a session that has died.
+nightshift supports Claude Code and Codex through each host's own extension points:
+hooks, skills, and plugin manifests. Shared behaviour should stay aligned across
+both hosts; host-specific code should be a thin integration, not a generic adapter
+layer. Changes that stand outside those extension points are declined, however
+useful they sound: dashboards, proxies, and second install channels such as npm or
+Homebrew. The exceptions are OS scheduling and recovery code that exist only to
+keep an *inside* promise when no live session can act.
 
 ## License
 
