@@ -1,7 +1,7 @@
 {
   "name": "nightshift",
   "version": "0.8.1",
-  "description": "Claude works the night shift: it can't clock out until the punch list is done, parks questions instead of waking you, and revives the session an API 500 killed at 3 AM.",
+  "description": "Keep long Claude Code runs on task: enforce the punch list, park questions, preserve progress, recover crashes, and run product or quality shifts until done.",
   "author": {
     "name": "Orwa Mahmoud",
     "url": "https://github.com/orwa-mahmoud"
@@ -18,6 +18,7 @@
     "hooks",
     "crash-recovery",
     "session-resume",
-    "api-error-500"
+    "api-error-500",
+    "product-evolution"
   ]
 }

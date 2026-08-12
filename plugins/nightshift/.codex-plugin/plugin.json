@@ -1,7 +1,7 @@
 {
   "name": "nightshift",
   "version": "0.8.1",
-  "description": "Give Codex a job for the night. Run accountable, time-bounded engineering shifts from a persistent punch list, with ready-made hunts for test coverage, quality debt, defects, vulnerabilities, dependency upgrades, and continuous improvement.",
+  "description": "Keep long Codex runs on task with a persistent punch list, durable progress across compaction and resume, mechanical safety rules, recovery, and ready-made product and quality shifts.",
   "author": {
     "name": "Orwa Mahmoud",
     "url": "https://github.com/orwa-mahmoud"
@@ -13,14 +13,15 @@
   "hooks": "./hooks/codex/hooks.json",
   "interface": {
     "displayName": "Nightshift",
-    "shortDescription": "Put Codex to work on an accountable engineering shift",
-    "longDescription": "Give Codex a persistent punch list and a time budget, then leave it working. Start with your own tasks or choose a ready-made shift: increase meaningful test coverage, clear lint and type debt, hunt and fix defects, address security advisories, upgrade direct dependencies, or continuously improve bugs, UX, performance, contracts, and dead code. Nightshift parks decisions instead of waiting, enforces owner-defined safety rules, leaves reviewable progress, and recovers interrupted sessions.",
+    "shortDescription": "Keep long coding runs on task",
+    "longDescription": "Keep long Codex runs anchored to an authoritative punch list when conversations compact, sessions resume, or unattended work is interrupted. Nightshift keeps goals, completion state, decisions, research, active progress, exact next actions, and verification on disk; parks questions instead of waiting; enforces owner-defined safety rules; and leaves reviewable commits and run history. Give it your own work or use a ready-made shift for evidence-backed product evolution, meaningful test coverage, lint and type debt, defect hunting, security advisories, or direct dependency upgrades. Add a time budget to turn otherwise-unused capacity into product progress on an isolated branch while you retain the decision to merge or publish.",
     "developerName": "Orwa Mahmoud",
     "category": "Productivity",
     "capabilities": [
       "Persistent punch-list shifts",
       "Time-bounded engineering work",
       "Ready-made quality hunts",
+      "Evidence-backed product evolution",
       "Mechanical safety rules",
       "Question parking",
       "Reviewable run history",
@@ -29,8 +30,11 @@
     "defaultPrompt": [
       "Set up Nightshift in this project.",
       "Show me the ready-made shifts I can run tonight.",
-      "Find useful work for a four-hour shift."
+      "Use the next four hours to research and improve this product."
     ],
+    "websiteURL": "https://orwamahmoud.com/nightshift/",
+    "privacyPolicyURL": "https://orwamahmoud.com/nightshift/privacy/",
+    "termsOfServiceURL": "https://orwamahmoud.com/nightshift/terms/",
     "composerIcon": "./assets/nightshift-logo.png",
     "logo": "./assets/nightshift-logo.png"
   }

@@ -115,4 +115,14 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'never ticks a box' "$s"                # files paperwork, does no work
   grep -qF 'archive/<YYYY-MM-DD>/' "$s"            # dated folders are the shape
   grep -qF 'unanswered stay' "$s"                  # open questions are not history
+  grep -qF 'product-research.md' "$s"             # completed research is preserved
+  grep -qF '`candidate`, `building`, and `parked`' "$s" # nonterminal opportunities stay live
+}
+
+@test "status surfaces the active product cycle without mutating it" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+  grep -qF 'current phase' "$s"
+  grep -qF 'exact Next action' "$s"
+  grep -qF 'Verify remaining' "$s"
+  grep -qF 'without changing them' "$s"
 }

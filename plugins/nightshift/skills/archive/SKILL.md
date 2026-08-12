@@ -1,6 +1,6 @@
 ---
 name: archive
-description: File the finished part of the run state into a dated archive — shipped items, the rotated journal, handled snags. The live files stay lean; the facts stay on disk.
+description: File the finished part of the run state into a dated archive — shipped items, research, opportunities, the rotated journal, and handled snags. The live files stay lean; the facts stay on disk.
 ---
 
 Archive the finished paperwork. Work in `$CLAUDE_PROJECT_DIR`. This files records — it never
@@ -32,6 +32,16 @@ run (create parents; re-running on the same day appends to that day's files).
 - **Parking lot — only what's answered.** Same rule: answered entries move, unanswered stay.
 - **Work orders — only what's spent.** Orders already cut into a punch list or marked done
   move; pending orders stay.
+- **Product research → the archive after its shift.** When no shift is active, append the completed
+  entries from `product-research.md` to the archive's `product-research.md`, preserving their dates,
+  sources, evidence, and conclusions; then restore the live file from the shipped template. During
+  an active shift, leave all research live. Research is evidence, so never summarize it away or
+  strip its source URLs while filing it.
+- **Opportunity map — only terminal outcomes.** Move `shipped` and `rejected` entries from
+  `opportunity-map.md` into the archive's `opportunity-map.md`, preserving their evidence links and
+  reasons. Keep `candidate`, `building`, and `parked` entries live: they can still affect a future
+  cycle or need the owner. Restore the shipped headings if moving the last terminal entry leaves an
+  empty section. Never renumber or silently change a status during archive.
 
 ## Timing
 

@@ -31,7 +31,7 @@ SETUP="$SKILLS/setup/SKILL.md"
 }
 
 @test "setup scaffolds every template to an absolute path" {
-  for f in punch-list drafting-table parking-lot snag-log; do
+  for f in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
     grep -qF "\$CLAUDE_PROJECT_DIR/.nightshift/$f.md" "$SETUP" \
       || { echo "scaffold target not absolute: $f"; return 1; }
   done

@@ -28,7 +28,7 @@ exists in the folder but not in the offer is a job the owner never gets.
 
 Per the entry's declared ending:
 
-- **Open-ended** (coverage hunt, defect hunt, standing loop) — hours are REQUIRED. These have no
+- **Open-ended** (coverage hunt, defect hunt, product evolution / standing loop) — hours are REQUIRED. These have no
   natural end but the clock; a walkthrough may not start without a deadline.
 - **Finite** (clear quality debt) — ask the ending as an explicit either/or: *until every finding
   is clear, or capped at N hours?* Both are real answers; the work ends when the list is empty

@@ -21,6 +21,12 @@ Read `.nightshift/` and print:
   the gate does not count it either.
 - **Parked** — the count and one-line titles of entries in `.nightshift/parking-lot.md`.
 - **Snag log** — the last few dispositions from `.nightshift/snag-log.md`, if any.
+- **Product evolution** — when `.nightshift/product-research.md` or
+  `.nightshift/opportunity-map.md` contains more than its template headings, report the most recent
+  research entry and the counts of candidate, building, shipped, rejected, and parked
+  opportunities. If one opportunity is building, show its title, current phase, exact Next action,
+  and Verify remaining. Flag multiple building entries as inconsistent without changing them.
+  Do not turn the map into work or change a status.
 - **Deadline** — if `.nightshift/deadline` exists, the time remaining until quitting time (it holds a
   UNIX epoch; compare with `date +%s`). Otherwise "no deadline (finite list)".
 - **State** — whether `.nightshift/STOP` is present (and its reason), and the current

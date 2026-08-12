@@ -48,6 +48,12 @@ so it looks at what is parked and asks which of it to work.
 - **The punch list is the shift.** If `.nightshift/punch-list.md` has at least one open `- [ ]`
   under `## Items`, that is the work — start it. Do not promote, cut, or add anything: parked
   orders and drafts stay exactly where the owner left them.
+- **Resume the active product cycle before rediscovery.** When the open item is product evolution,
+  inspect `.nightshift/opportunity-map.md` for its single `Status: building` entry before doing new
+  research or selecting work. If present, its `Next` action and `Verify remaining` are the
+  continuation point. More than one building entry is inconsistent state: do not guess between
+  them; keep the earliest one active, mark the others `candidate`, record the repair in
+  `shift-log.md`, and continue.
 - **Only when the punch list is empty, offer what is parked.** Read `.nightshift/work-orders.md`
   and `.nightshift/drafting-table.md`. If either holds work, show it in one short list and ask
   which to work now. On the owner's choice, **cut it — move, never copy**: the item goes under
@@ -86,7 +92,7 @@ The deadline is written when the work is composed, not here.
 - No deadline and the list is entirely **finite** items: correct — their natural end is the last
   tick, and a stuck run is red-flagged in the shift log and held for review.
 - No deadline and `## Items` contains an **open-ended walkthrough** (coverage hunt, defect hunt,
-  standing loop): **refuse to start.** A walkthrough with no clock never ends. Say so in one line
+  product evolution / standing loop): **refuse to start.** A walkthrough with no clock never ends. Say so in one line
   and point at `/nightshift:hunt`, which asks for hours; never invent a number.
 - One deadline governs the whole shift: finite items first, the walkthrough soaks up the rest.
 

@@ -1,15 +1,30 @@
 # nightshift
 
-> **Give Claude a checklist before bed. It can't clock out until every box is ticked, never stalls
-> on a question, and revives itself if the API dies at 3 AM.**
+> **Keep long coding runs on task.**
 
-A [Claude Code](https://claude.com/claude-code) plugin for long, unattended runs (hours → days) —
-a harness for the accountability half of an agent loop. You write the checklist. Hooks keep the
-agent on site until every box is ticked, under rules you set and it can't bend. You go to sleep.
+Nightshift gives [OpenAI Codex](https://openai.com/codex/) and
+[Claude Code](https://claude.com/claude-code) accountable, time-bounded engineering shifts. Hand it
+your own punch list or let it research the product, rank opportunities, and build the strongest
+complete improvements until quitting time. State stays on disk, safety rules are enforced by
+hooks, and the morning handoff is reviewable. Claude Code cannot quietly clock out with open work;
+Codex can recover the active objective and exact next action after compaction or resume.
 
 Overview and FAQ: <https://orwamahmoud.com/nightshift/>
 
 ## Install
+
+### Codex and ChatGPT
+
+[Install Nightshift from the official OpenAI Plugin Directory](https://chatgpt.com/plugins/plugins_6a7c58f65d708191b3a705a8625baffe).
+
+For local Codex development, the same package can be installed from its marketplace:
+
+```text
+codex plugin marketplace add orwa-mahmoud/claude-nightshift
+codex plugin add nightshift@nightshift
+```
+
+### Claude Code
 
 Two commands inside Claude Code — no npm, no Homebrew, no separate CLI, no API keys, no server:
 
@@ -18,14 +33,7 @@ Two commands inside Claude Code — no npm, no Homebrew, no separate CLI, no API
 /plugin install nightshift
 ```
 
-Also runs on **OpenAI Codex** — same package, same skills, its own hook wiring:
-
-```text
-codex plugin marketplace add orwa-mahmoud/claude-nightshift
-codex plugin add nightshift@nightshift
-```
-
-The clock-out gate, the guards, the skills and crash revival are live-verified on Codex — a
+The punch-list gate, guards, skills and crash revival are live-verified on Codex — a
 killed session is resumed into its own conversation, same as on Claude Code. One boundary
 remains: a Codex session that is alive but wedged on an API error is left alone until that
 signature has been observed in the wild.
@@ -34,7 +42,8 @@ signature has been observed in the wild.
 
 You do not need to learn the whole system first.
 
-1. Open a project you trust and run `/nightshift:setup`. Accept the proposed gates you want.
+1. Open a project you trust and ask Nightshift to set itself up (`/nightshift:setup` on Claude
+   Code). Accept the proposed gates you want.
    For an unattended run, either pre-allow the tools your work needs or let setup configure
    `bypassPermissions` for that project.
 2. In `.nightshift/punch-list.md`, add one small, real task under `## Items`:
@@ -46,18 +55,19 @@ You do not need to learn the whole system first.
      - Commit: `<type: concise message>`
    ```
 
-3. Run `/nightshift:start`.
-4. Later, run `/nightshift:status`.
+3. Ask Nightshift to start (`/nightshift:start` on Claude Code).
+4. Later, ask for status (`/nightshift:status` on Claude Code).
 5. Review the local commit, then push it yourself.
 
 Only four ideas matter on the first run:
 
-- **Punch list:** the work Claude must finish.
+- **Punch list:** the work the agent must finish.
 - **Gates:** checks that must pass before an item is ticked.
 - **Parking lot:** questions Claude records instead of waking you.
 - **Shift log:** the record of progress and problems.
 
-Drafting tables, work orders, hunts, the watchman, receipts, and archives are useful later, but
+Product research, opportunity maps, drafting tables, work orders, hunts, the watchman, receipts,
+and archives are useful later, but
 none is required to try one shift.
 
 ## The screen that made me build nightshift
@@ -166,9 +176,14 @@ clocks out only once every box is ticked.
 ## When to call in the night shift
 
 - **Two days left in the cycle, 80% of your credit unspent.** It doesn't roll over — and you do
-  not need a backlog ready to spend it. `/nightshift:hunt` offers a ready-made shift, writes it as
-  the punch list, and the night turns the credit into tests, fixes or upgrades you would otherwise
-  have lost.
+  not need a backlog ready to spend it. Ask for the product-evolution shift: Nightshift studies the
+  product and its history, researches comparable tools and user needs, ranks opportunities by
+  evidence, value, differentiation, effort and risk, then builds the strongest complete
+  improvements on an isolated branch. Or choose a bounded test, quality, defect, security or
+  dependency shift. On Claude Code, `/nightshift:hunt` stages any of them in seconds.
+  During a long build, the active opportunity records completed work, rejected paths, the exact
+  next action and verification still due, so a compacted or resumed session continues the cycle
+  instead of rediscovering it.
 - **The API is throwing 500s and you are about to leave.** Write the items, start the shift, and
   go. The first call comes back `API Error: 500` and nothing runs — the watchman keeps knocking
   all night, and picks up that same conversation the moment the API answers.
@@ -181,8 +196,7 @@ clocks out only once every box is ticked.
   nobody owns. `/nightshift:quality` turns the debt into punch-list items — accept the ones you
   care about, decline the rest, and let the night clear them.
 - **The classics.** Add real test coverage overnight, ride the review → fix loop until it
-  converges, or run the standing loop until the whistle. All ready-made — `/nightshift:hunt`
-  stages one in seconds.
+  converges, or evolve the product until the whistle. All ready-made.
 
 If you can write it as a checklist, you can hand it to the night.
 
@@ -206,8 +220,8 @@ receipts repo if you opt in at setup.
 ## The ready shifts
 
 You do not have to invent the night's work. `/nightshift:hunt` reads the catalog, offers what it
-finds — test coverage, a review loop ridden to convergence, your lint and type debt, dependency
-upgrades, security advisories, a standing improve-and-discover loop — and writes the one you pick
+finds — evidence-backed product evolution, test coverage, a review loop ridden to convergence,
+your lint and type debt, dependency upgrades, and security advisories — and writes the one you pick
 as a work order: the item plus its hours, parked with the clock not running. Say the word and it
 cuts the order into the punch list and the gate takes over.
 
@@ -249,17 +263,29 @@ my-project/            ← plain folder, not a repo — open Claude Code here
 Outside the repo, run state can never be committed by any mistake — separation by construction,
 not configuration. (This repo is built exactly this way.)
 
-## Built into Claude Code, not bolted on
+## Built into both hosts, not pasted into a prompt
 
-nightshift extends Claude Code through its own extension points — hooks for enforcement, skills
-for the method, the plugin marketplace for install. It wraps nothing, proxies nothing, and needs
-no package manager: `/plugin install` is the whole setup. A harness that stands outside an agent
-can only re-invoke it; one that runs inside can refuse the exit, deny the tool call, and park the
-question.
+Nightshift ships native skills and hook wiring for Codex and Claude Code from one package. It wraps
+nothing and proxies nothing. The skills carry the working method; disk files keep the objective,
+evidence and decisions available across compaction or a resumed session; hooks enforce the
+host-specific boundaries that are available.
 
-The *method* travels further than the plugin does. A punch list, one commit per item, decisions
-parked instead of asked — that is plain markdown and git, and you can follow it by hand with any
-agent. The mechanical enforcement is Claude Code's, deliberately.
+Claude Code gets the original hard clock-out guarantee: an attempted stop with open boxes receives
+the focused contract again, questions are parked, and a dead session can be revived. Codex already
+persists more naturally through an active task, so its strongest value is different: a bounded
+shift, a durable product-research and opportunity trail, mechanical safety rules, isolated changes,
+and reviewable progress that converts otherwise-unused capacity into product work.
+
+This does not claim to repair a host's conversation history. It makes the important state
+independent of it. That matters when long Codex tasks lose intent after compaction, limits, or
+resume—failure modes reported by users in
+[#25900](https://github.com/openai/codex/issues/25900),
+[#8310](https://github.com/openai/codex/issues/8310), and
+[#29356](https://github.com/openai/codex/issues/29356). Claude Code users report the other side of
+the same continuity problem—premature completion and lost resume context—in
+[#6159](https://github.com/anthropics/claude-code/issues/6159) and
+[#43044](https://github.com/anthropics/claude-code/issues/43044). Nightshift addresses the working
+contract around those failures; it does not claim to patch either host's internal context engine.
 
 ## The fine print
 
