@@ -8,8 +8,10 @@ version users receive. Dates are release dates; the tags carry the exact trees.
 
 ### Features
 
-* keep long coding runs on task ([6cb5ace](https://github.com/orwa-mahmoud/claude-nightshift/commit/6cb5ace93420b8d160fd23f0d5a78fdcadce2385))
-* keep long coding runs on task ([7f62a2d](https://github.com/orwa-mahmoud/claude-nightshift/commit/7f62a2dd1e59f1653b363191c1d9d7d3afad3a12))
+* add evidence-backed product evolution to the ready-made hunt catalog
+* preserve active opportunity progress across compaction and resumed sessions
+* integrate product research and opportunity tracking with setup, status, and archive
+* make Codex a first-class host alongside Claude Code ([7f62a2d](https://github.com/orwa-mahmoud/claude-nightshift/commit/7f62a2dd1e59f1653b363191c1d9d7d3afad3a12))
 
 ## [0.8.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
 
