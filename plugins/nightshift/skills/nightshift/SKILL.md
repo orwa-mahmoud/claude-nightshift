@@ -17,10 +17,9 @@ decisions plus the default chosen so work continues; `work-orders.md` → timed 
 only through Hunt. Never route an ordinary plan through Hunt, call later work “parked,” or put a
 known task in the parking lot.
 
-Every `.nightshift/` path below is relative to `$CLAUDE_PROJECT_DIR` — use the variable. (On Codex the variable does not exist; the session's working directory is the project root — treat it identically.) The shell's
-working directory persists between Bash calls and is not the project root once a gate or a build has
-run from inside the code repo; a bare relative path then reads a punch list that isn't there and
-writes receipts nobody will find.
+Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; use the
+validated absolute target for every `.nightshift/` path, otherwise use the task root. Never search
+or guess. The shell's working directory persists between Bash calls, so never rely on a bare path.
 
 ## Real-project boundary
 

@@ -11,10 +11,16 @@ a summary. Work in `$CLAUDE_PROJECT_DIR`.
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
 only through Hunt. Ordinary plans belong in the drafting table, never in Hunt or the parking lot.
 
-Every `.nightshift/` and `.claude/` path below is relative to `$CLAUDE_PROJECT_DIR` (on Codex, the
-session's working directory is the project root — treat it identically) — write it with
-the variable. The shell's working directory persists between Bash calls and drifts into the code
-repo during stack detection, so a bare relative path lands wherever the last `cd` left it.
+Resolve the task root as `${CLAUDE_PROJECT_DIR:-$PWD}`. If its `.nightshift-link` exists, validate
+the one absolute workspace path inside it and use that workspace for every `.nightshift/` read or
+write; otherwise use the task root. Never search surrounding folders or guess. Claude's
+`.claude/` settings stay at the task root. The shell's working directory persists between Bash calls,
+so never rely on a bare relative path.
+
+If the user explicitly identifies a different existing workspace containing `.nightshift/`, show
+both absolute paths and ask for confirmation. On yes, run
+`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/link-workspace.sh --host-root "$TASK_ROOT" --workspace "$PROPOSED_WORKSPACE"`.
+The pointer is local-only and state remains in the authoritative workspace; never copy it.
 
 ## 0. Require a real project workspace
 
@@ -42,7 +48,7 @@ Resolve the code repository before stack detection:
 - If several child repositories exist and `.nightshift/work-target` does not already select one,
   show the choices and require an explicit target; never guess.
 - Persist the chosen repository's absolute Git top-level path, followed by one newline, in
-  `$CLAUDE_PROJECT_DIR/.nightshift/work-target`. On later setup runs, validate and retain that
+  `$NIGHTSHIFT_WORKSPACE/.nightshift/work-target`. On later setup runs, validate and retain that
   target unless the owner explicitly changes it. Stack detection, Git checks, gates, commits, and
   verification operate in this work target—not necessarily in the workspace holding run state.
 
@@ -50,19 +56,19 @@ Resolve the code repository before stack detection:
 
 For each target below, copy the template only if the target does not already exist:
 
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/punch-list-template.md`   → `$CLAUDE_PROJECT_DIR/.nightshift/punch-list.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/drafting-table-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/drafting-table.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/parking-lot-template.md`  → `$CLAUDE_PROJECT_DIR/.nightshift/parking-lot.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/snag-log-template.md`     → `$CLAUDE_PROJECT_DIR/.nightshift/snag-log.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/product-research-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/product-research.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/opportunity-map-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/opportunity-map.md`
-- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/work-orders-template.md` → `$CLAUDE_PROJECT_DIR/.nightshift/work-orders.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/punch-list-template.md`   → `$NIGHTSHIFT_WORKSPACE/.nightshift/punch-list.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/drafting-table-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/drafting-table.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/parking-lot-template.md`  → `$NIGHTSHIFT_WORKSPACE/.nightshift/parking-lot.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/snag-log-template.md`     → `$NIGHTSHIFT_WORKSPACE/.nightshift/snag-log.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/product-research-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/product-research.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/opportunity-map-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/opportunity-map.md`
+- `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/work-orders-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/work-orders.md`
 
-Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` with a one-line header if it does not exist.
+Create `$NIGHTSHIFT_WORKSPACE/.nightshift/shift-log.md` with a one-line header if absent.
 
 ## 2. Private by default
 
-- Keep run state out of git. If `$CLAUDE_PROJECT_DIR` is itself a git repo, append a line
+- Keep run state out of git. If `$NIGHTSHIFT_WORKSPACE` is itself a git repo, append a line
   `.nightshift/` to its `.gitignore` (create the file if needed; do not duplicate the line). If it
   is not one — the recommended layout, where the code repo sits a level below — `.nightshift/` is
   already outside every repo, so write no `.gitignore` there. Run history is the owner's; it never
@@ -73,8 +79,8 @@ Create `$CLAUDE_PROJECT_DIR/.nightshift/shift-log.md` with a one-line header if 
   receipts repo? (never pushed, never touches your project's history)"* — and on anything but a
   clear yes, skip it: the receipts still exist as plain files. Present the question neutrally —
   never describe the repo as recommended; the default is no. On yes: if `.nightshift/.git` does
-  not exist, run `git -C "$CLAUDE_PROJECT_DIR/.nightshift" init` rather than `cd`-ing there, add a
-  `$CLAUDE_PROJECT_DIR/.nightshift/.gitignore` that ignores the
+  not exist, run `git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init` rather than `cd`-ing there, add a
+  `$NIGHTSHIFT_WORKSPACE/.nightshift/.gitignore` that ignores the
   transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
   `.watchman`, `.watchman-tick`, and `.lock.d/`, and make one initial commit. **Never add a
   remote to it, never push it.**
@@ -91,7 +97,7 @@ user, showing the detected proposal, with three first-class answers:
 
 If gates were accepted or edited, also ask the **site-inspection interval** (every N items or every
 H hours). Write the result into the `## Gates` block of
-`$CLAUDE_PROJECT_DIR/.nightshift/punch-list.md`, replacing the placeholder. If the answer was none,
+`$NIGHTSHIFT_WORKSPACE/.nightshift/punch-list.md`, replacing the placeholder. If the answer was none,
 leave the placeholder as-is.
 
 The `## Gates` block is plain markdown the owner may edit anytime — re-run `/nightshift:setup` to
@@ -125,7 +131,7 @@ denied means denied. Ask one question:
 ## 5. The rules file — every knob in one place
 
 Copy `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/nightshift-rules-template.json` to
-`$CLAUDE_PROJECT_DIR/.nightshift/rules.json` as-is, if it does not already exist — the owner's one config file,
+`$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json` as-is, if it does not already exist — the owner's one config file,
 defaults inline. It lives in nightshift's own folder on purpose: everything nightshift is in
 one place, kept out of repo history by the same `.nightshift/` gitignore, versioned by the
 receipts repo when one exists — and deleting `.nightshift/` removes all of nightshift, rules

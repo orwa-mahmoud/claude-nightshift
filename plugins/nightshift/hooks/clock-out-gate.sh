@@ -40,7 +40,11 @@ else
   TPATH="$(printf '%s' "$INPUT" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 
-PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+HOST_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
+if ! PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)"; then
+  printf '%s\n' '{"decision":"block","reason":"DO NOT STOP — .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."}'
+  exit 0
+fi
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 STOP="$NS/STOP"

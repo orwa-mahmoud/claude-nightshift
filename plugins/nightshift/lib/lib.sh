@@ -1,6 +1,63 @@
 #!/usr/bin/env bash
 # lib.sh — shared hook helpers.
 
+# ns_workspace_root <host-root>
+#
+# Resolve the one workspace that owns Nightshift state. Normally that is the task root itself.
+# A task opened elsewhere may opt in explicitly with a local .nightshift-link containing one
+# absolute path to a directory that already owns .nightshift/. We never search parent or sibling
+# directories: an absent link means local state; a malformed link returns 2 so callers can fail
+# closed instead of silently running without the owner's contract.
+ns_workspace_root() {
+  local host="$1" link="$1/.nightshift-link" target="" lines="" canonical=""
+  canonical="$(cd -P "$host" 2>/dev/null && pwd)" || {
+    return 2
+  }
+  if [ ! -e "$link" ] && [ ! -L "$link" ]; then
+    printf '%s' "$canonical"
+    return 0
+  fi
+  if [ ! -f "$link" ] || [ -L "$link" ]; then
+    return 2
+  fi
+  IFS= read -r target <"$link" || true
+  lines="$(awk 'END { print NR + 0 }' "$link" 2>/dev/null)"
+  if [ -z "$target" ] || [ "$lines" -ne 1 ]; then
+    return 2
+  fi
+  case "$target" in /*) ;; *)
+    return 2
+  esac
+  canonical="$(cd -P "$target" 2>/dev/null && pwd)" || {
+    return 2
+  }
+  [ -d "$canonical/.nightshift" ] || {
+    return 2
+  }
+  printf '%s' "$canonical"
+}
+
+# ns_record_workspace_link <host-root> <workspace>
+# Validate and atomically record a cross-workspace link. The pointer is machine-local, so when
+# the host is a Git repository it goes in .git/info/exclude rather than changing tracked files.
+ns_record_workspace_link() {
+  local host target canonical tmp exclude git_dir
+  host="$(cd -P "$1" 2>/dev/null && pwd)" || return 1
+  target="$2"
+  case "$target" in /*) ;; *) return 1 ;; esac
+  canonical="$(cd -P "$target" 2>/dev/null && pwd)" || return 1
+  [ -d "$canonical/.nightshift" ] || return 1
+  tmp="$host/.nightshift-link.$$"
+  printf '%s\n' "$canonical" >"$tmp" || return 1
+  mv "$tmp" "$host/.nightshift-link" || return 1
+  if git_dir="$(git -C "$host" rev-parse --git-dir 2>/dev/null)"; then
+    case "$git_dir" in /*) ;; *) git_dir="$host/$git_dir" ;; esac
+    exclude="$git_dir/info/exclude"
+    mkdir -p "${exclude%/*}" || return 1
+    grep -qxF '.nightshift-link' "$exclude" 2>/dev/null || printf '%s\n' '.nightshift-link' >>"$exclude"
+  fi
+}
+
 # repo_root <project-dir> [candidate-dir ...]
 #
 # Echo the top level of the git repository the hooks should inspect, or return 1 when that

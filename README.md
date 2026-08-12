@@ -68,6 +68,18 @@ you see how your permissions, gates, STOP order, notifications, and host-specifi
 4. Later, ask for status (`/nightshift:status` on Claude Code).
 5. Review the local commit, then push it yourself.
 
+If the Codex or Claude Code task must remain open on a different folder, explicitly link it to the
+workspace that owns `.nightshift/`; Nightshift never searches nearby folders:
+
+```bash
+plugins/nightshift/runtime/link-workspace.sh \
+  --host-root /absolute/task/root \
+  --workspace /absolute/nightshift/workspace
+```
+
+The task root receives one local-only `.nightshift-link`; all run state remains authoritative in
+the linked workspace and every hook resolves the same pointer.
+
 Only four ideas matter on the first run:
 
 - **Punch list:** the work the agent must finish.

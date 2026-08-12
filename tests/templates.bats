@@ -83,7 +83,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 @test "setup pins the neutral ask and the rules home" {
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   grep -qF 'never describe the repo as recommended; the default is no' "$s"
-  grep -qF '`$CLAUDE_PROJECT_DIR/.nightshift/rules.json` as-is' "$s"
+  grep -qF '`$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json` as-is' "$s"
   grep -qF 'removes all of nightshift, rules' "$s"
 }
 
