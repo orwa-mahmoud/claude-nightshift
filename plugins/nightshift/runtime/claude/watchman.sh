@@ -7,7 +7,8 @@
 # wakes every interval and, only when the site is BOTH mid-shift and dead quiet, resumes the
 # shift's OWN conversation by id — the hours of context it already had, not a briefing. Only if
 # that conversation is itself unusable does it fall back, and the punch list on disk is what
-# carries a fresh session when it must.
+# carries a fresh session when it must. A persisted .nightshift/work-target tells that session
+# which child repository contains the code when run state lives in a parent workspace.
 #
 #   watchman.sh [--project DIR] [--interval MIN] [--agent CMD] [--max-wakes N]
 #
@@ -100,6 +101,11 @@ while [ $# -gt 0 ]; do
     *) printf 'watchman: unknown argument: %s\n' "$1" >&2; usage ;;
   esac
 done
+
+cd "$PROJECT" 2>/dev/null || exit 1
+PROJECT="$PWD"
+WORK_TARGET="$(ns_work_target "$PROJECT" 2>/dev/null || true)"
+[ -n "$WORK_TARGET" ] || WORK_TARGET="$PROJECT"
 
 cd "$PROJECT" || { printf 'watchman: cannot cd to %s\n' "$PROJECT" >&2; exit 1; }
 PROJECT="$PWD"
@@ -198,7 +204,7 @@ spawn() { # $1 optionally overrides the agent for this one attempt; $2 the order
   # owner's hand on the door — without the mark, the worker's own exit would write .session-end
   # under the recorded id and stand the watchman down mid-outage.
   # shellcheck disable=SC2086
-  NIGHTSHIFT_REVIVAL=1 $a "$p" >/dev/null 2>&1
+  ( cd "$WORK_TARGET" && CLAUDE_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 $a "$p" >/dev/null 2>&1 )
 }
 
 # The transcript the tells read: the shift's own, recorded by the hooks; the newest in the

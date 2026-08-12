@@ -9,7 +9,9 @@
 #
 #   codex exec resume -c 'sandbox_mode="danger-full-access"' <session-id> "<revival order>"
 #
-# which appends to the same rollout the session was writing when it died (verified live: a
+# A persisted .nightshift/work-target keeps the resumed session aimed at the same child repository
+# when run state lives in a parent workspace. The command appends to the same rollout the session
+# was writing when it died (verified live: a
 # SIGKILLed session's rollout ends mid-event with no terminal marker, and the resume continues
 # that very file). The fallback is a fresh headless run; the punch list on disk is its handover.
 #
@@ -74,6 +76,8 @@ done
 cd "$PROJECT" 2>/dev/null || exit 1
 PROJECT="$PWD"
 NS="$PROJECT/.nightshift"
+WORK_TARGET="$(ns_work_target "$PROJECT" 2>/dev/null || true)"
+[ -n "$WORK_TARGET" ] || WORK_TARGET="$PROJECT"
 PUNCH="$NS/punch-list.md"
 LOG="$NS/shift-log.md"
 TICK="$NS/.watchman-tick"
@@ -156,13 +160,13 @@ spawn() { # $1 = rung (1|2)
   local cmd prompt
   if [ -n "$AGENT" ]; then
     if [ "$1" -eq 1 ]; then prompt="$PROMPT_RESUME"; else prompt="$PROMPT_FRESH"; fi
-    ( cd "$PROJECT" && NIGHTSHIFT_REVIVAL=1 $AGENT "$prompt" >/dev/null 2>&1 )
+    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 $AGENT "$prompt" >/dev/null 2>&1 )
     return $?
   fi
   if [ "$1" -eq 1 ] && [ -n "$(sid)" ]; then
-    ( cd "$PROJECT" && NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
+    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
   else
-    ( cd "$PROJECT" && NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
+    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
   fi
 }
 

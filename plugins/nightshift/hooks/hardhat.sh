@@ -228,7 +228,7 @@ if is_commit && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }
   REPO="$(target_repo "$CMD" "${CWD:-$PROJECT_DIR}")"
   case "$?" in
     1) deny "BLOCKED: this commit names a directory that is not a git repository, so the configured commit guards cannot inspect it. Do not retry a rephrased form." ;;
-    2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || deny "BLOCKED: cannot tell which git repository this commit targets, so the configured commit guards cannot run. Run the commit from inside the repository." ;;
+    2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || REPO="$(ns_work_target "$PROJECT_DIR")" || deny "BLOCKED: cannot tell which git repository this commit targets, so the configured commit guards cannot run. Run the commit from inside the repository." ;;
   esac
 
   # 2) Expected identity — commits must be authored by the configured email.

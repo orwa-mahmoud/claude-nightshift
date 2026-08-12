@@ -59,19 +59,12 @@ ticked_boxes() { ns_ticked_boxes "$PUNCH"; }
 # one level below the project dir. Where several repos sit there, fingerprint all of them — a
 # commit in any one still counts.
 project_head() {
-  local r child base heads=""
-  if r="$(repo_root "$PROJECT_DIR")"; then
+  local r
+  if r="$(ns_work_target "$PROJECT_DIR")"; then
     git -C "$r" rev-parse HEAD 2>/dev/null || printf 'nohead'
     return 0
   fi
-  for child in "$PROJECT_DIR"/*/; do
-    base="${child%/}"
-    base="${base##*/}"
-    case "$base" in .*) continue ;; esac
-    r="$(git -C "$child" rev-parse HEAD 2>/dev/null)" || continue
-    heads="$heads$r"
-  done
-  printf '%s' "${heads:-nohead}"
+  printf 'nohead'
 }
 
 deadline_passed() {
