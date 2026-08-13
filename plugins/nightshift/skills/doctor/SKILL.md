@@ -32,9 +32,9 @@ The report tags every suggestion:
 - `[safe]` — mechanical leftover with no live session (for example a stale watchman pid file whose
   process is already gone). Still do **not** apply it because Doctor was invoked; offer it.
 - `[confirm]` — owner decision (broken link, missing setup, leftover STOP while they still want
-  the night). During an **unattended active shift** (`/.shift-armed` and open boxes), park each of
-  these in `parking-lot.md` with the default "leave in place until morning" and keep going. Do not
-  ask.
+  the night). During an **unattended active shift** (`.shift-armed` and open boxes), report that
+  the recommendation should be parked with the default "leave in place until morning", but do not
+  write the parking lot or ask—the Doctor invocation remains byte-identical.
 - `[blocked]` — Nightshift cannot fix this here (non-resumable Codex id, missing host binary,
   unverified wedge). Say so. Never guess a session id.
 
@@ -43,6 +43,7 @@ Doctor was invoked.
 
 ## 3. After the report
 
-If the owner explicitly asks to apply a `[safe]` leftover while no shift is armed, they are no
-longer in Doctor — follow stop/start/setup as those skills specify. Until that explicit ask,
-change nothing.
+Offer the classified repairs after the report. If the owner explicitly asks to apply a `[safe]`
+leftover while no shift is armed, they are no longer in Doctor — follow stop/start/setup as those
+skills specify. Until that explicit ask, change nothing. During an unattended shift, the offer is
+informational only: continue the active work without asking or writing state.

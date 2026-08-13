@@ -8,7 +8,6 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
   grep -qF 'Claude Code (hooks)' "$BUG"
   grep -qF 'OpenAI Codex (hooks and skills)' "$BUG"
 }
-
 @test "the pull request template asks about parity, not generic adapters" {
   grep -qF 'Harness parity (shared Claude Code / Codex behaviour)' "$PR"
   ! grep -qi 'Adapter (support for another harness)' "$PR"
@@ -68,4 +67,3 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   grep -qi 'unattended' "$CATALOG_FORM"
   [ -f "$RECIPE" ]
 }
-

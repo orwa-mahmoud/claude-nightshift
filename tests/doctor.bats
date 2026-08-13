@@ -21,10 +21,18 @@ doctor() {
   grep -qF '[safe]' "$SKILL"
   grep -qF '[confirm]' "$SKILL"
   grep -qF '[blocked]' "$SKILL"
-  grep -qF 'park' "$SKILL"
+  grep -qF 'do not' "$SKILL"
+  grep -qF 'write the parking lot or ask' "$SKILL"
+  grep -qF 'Offer the classified repairs' "$SKILL"
   grep -qF 'Never perform a repair' "$SKILL" || grep -qF 'change nothing' "$SKILL"
   jq -e '.skills == "./skills/"' "$CODEX_PLUGIN" >/dev/null
   [ -d "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor" ]
+}
+
+@test "Doctor tells unattended runs to report, never write, confirmation repairs" {
+  grep -qF 'report that' "$SKILL"
+  grep -qF 'write the parking lot or ask' "$SKILL"
+  grep -qF 'the Doctor invocation remains byte-identical' "$SKILL"
 }
 
 @test "a healthy armed site reports facts and never repairs" {
