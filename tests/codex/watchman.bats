@@ -195,3 +195,86 @@ STUB
   run "$WATCHMAN" --project "$P"
   [ "$(reason)" = "unreadable-rules" ]
 }
+
+@test "an unsupported Codex identity stands down without invoking Codex" {
+  printf 'thread_abc\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  cat >"$BIN/codex" <<'STUB'
+#!/usr/bin/env bash
+echo "invoked $*" >>.nightshift/agent-calls
+exit 0
+STUB
+  chmod +x "$BIN/codex"
+  punch="$(cat "$P/.nightshift/punch-list.md")"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(reason)" = "non-resumable-session" ]
+  [ ! -f "$P/.nightshift/agent-calls" ]
+  [ "$(cat "$P/.nightshift/punch-list.md")" = "$punch" ]
+  grep -q 'not resuming' "$P/.nightshift/shift-log.md"
+}
+
+@test "a rollout path is malformed and never resumed or replaced" {
+  printf '/tmp/rollout.jsonl\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  cat >"$BIN/codex" <<'STUB'
+#!/usr/bin/env bash
+echo invoked >>.nightshift/agent-calls
+exit 0
+STUB
+  chmod +x "$BIN/codex"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$(reason)" = "non-resumable-session" ]
+  [ ! -f "$P/.nightshift/agent-calls" ]
+}
+
+@test "a missing Codex session id uses the fresh fallback, never claims revived" {
+  printf '\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  cat >"$BIN/codex" <<'STUB'
+#!/usr/bin/env bash
+echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+mv .nightshift/pl.tmp .nightshift/punch-list.md
+STUB
+  chmod +x "$BIN/codex"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$(reason)" = "fresh-fallback" ]
+  [ "$(calls)" -ge 1 ]
+  ! grep -q 'exec resume' "$P/.nightshift/agent-calls"
+}
+
+@test "a resumable UUID is passed to exec resume and not replaced" {
+  sid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+  printf '%s\n%s\n99999\nnever\ncodex\n' "$sid" "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  cat >"$BIN/codex" <<'STUB'
+#!/usr/bin/env bash
+echo "called $*" >>.nightshift/agent-calls
+awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+mv .nightshift/pl.tmp .nightshift/punch-list.md
+STUB
+  chmod +x "$BIN/codex"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$(reason)" = "revived" ]
+  grep -q 'exec resume' "$P/.nightshift/agent-calls"
+  grep -q "$sid" "$P/.nightshift/agent-calls"
+}
+
+@test "identity rejection still holds on a linked workspace" {
+  host="$BATS_TEST_TMPDIR/host-link"
+  mkdir -p "$host"
+  printf 'thread_abc\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  bash "$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/link-workspace.sh" \
+    --host-root "$host" --workspace "$P" >/dev/null
+  cat >"$BIN/codex" <<'STUB'
+#!/usr/bin/env bash
+echo invoked >>.nightshift/agent-calls
+exit 0
+STUB
+  chmod +x "$BIN/codex"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$(reason)" = "non-resumable-session" ]
+  [ ! -f "$P/.nightshift/agent-calls" ]
+}

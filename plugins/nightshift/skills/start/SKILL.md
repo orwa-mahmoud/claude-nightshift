@@ -157,8 +157,12 @@ nohup "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/runtime/codex/watchman.sh" --project 
 
 One stance to state plainly on Codex: there is no owner-interrupt tell yet, so closing an
 interactive session with open boxes hands the night to the watchman — it will resume the
-conversation headless and finish the list. The stop-work order (`touch .nightshift/STOP`) is
-the off switch, on every host.
+conversation headless and finish the list, but only when `.shift-session` holds a resumable
+session id (a UUID or a long hex token). ChatGPT thread/conversation handles, rollout paths, and
+other non-resumable identities are refused: the watchman stands down rather than guessing or
+starting an unrelated conversation. A missing id (a 500 before the first record) still falls
+back to a fresh session whose handover is the punch list. The stop-work order
+(`touch .nightshift/STOP`) is the off switch, on every host.
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
 spawning a fresh session that resumes from the punch list, and it stands down on done, a

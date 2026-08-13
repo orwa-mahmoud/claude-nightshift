@@ -167,18 +167,23 @@ rollout_grew() {
 # Spawn one revival attempt. Rung 1 resumes the recorded conversation; rung 2 is a fresh
 # headless run with the punch list as its handover. NIGHTSHIFT_REVIVAL marks the child for the
 # hooks, so it inherits the shift's binding whatever id the fallback gave it.
+# A non-resumable recorded id is never passed to `codex exec resume` and never treated as a
+# successful resume of that thread.
 spawn() { # $1 = rung (1|2)
-  local cmd prompt
+  local prompt kind
   if [ -n "$AGENT" ]; then
     if [ "$1" -eq 1 ]; then prompt="$PROMPT_RESUME"; else prompt="$PROMPT_FRESH"; fi
     ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 $AGENT "$prompt" >/dev/null 2>&1 )
     return $?
   fi
-  if [ "$1" -eq 1 ] && [ -n "$(sid)" ]; then
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
-  else
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
+  if [ "$1" -eq 1 ]; then
+    kind="$(ns_codex_identity_kind "$(sid)")"
+    if [ "$kind" = "resumable" ]; then
+      ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
+      return $?
+    fi
   fi
+  ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
 }
 
 rung_name() { if [ "$1" -eq 1 ] && [ -n "$(sid)" ]; then printf 'resuming the recorded conversation'; else printf 'fresh session'; fi; }
@@ -229,6 +234,18 @@ while :; do
     : >"$TICK" 2>/dev/null || true
     if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
     continue
+  fi
+
+  # A recorded identity that cannot be resumed is not a missing first-record (that still gets
+  # the fresh fallback). Guessing, or starting an unrelated conversation, would claim a thread
+  # this watchman did not resume.
+  if [ -z "$AGENT" ]; then
+    kind="$(ns_codex_identity_kind "$(sid)")"
+    if [ "$kind" != "resumable" ] && [ "$kind" != "missing" ]; then
+      note non-resumable-session "$kind"
+      log_line "watchman: recorded Codex identity is $kind — standing down; not resuming and not starting a fresh thread"
+      exit 0
+    fi
   fi
 
   # Dead quiet, mid-shift: revive. Up to 3 attempts this wake, re-checking life between them —
