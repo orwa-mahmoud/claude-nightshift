@@ -239,6 +239,12 @@ landed each item as a separate reviewable commit, passed 248 tests plus ShellChe
 validation, and shipped as v0.9.2. The permanent PR, release, and item links are in
 [`examples/codex-hardening-shift.md`](examples/codex-hardening-shift.md).
 
+**Bad nights are evidence too.** Interrupted, stalled, owner-stopped, or incorrectly completed
+runs can be filed from
+[`examples/bad-night-template.md`](examples/bad-night-template.md) — facts separated from
+interpretation, public links only when they exist, ticks never treated as proof. Open them on
+[#22](https://github.com/orwa-mahmoud/nightshift/issues/22).
+
 The live `.nightshift/` state stays out of this repo — the same default nightshift sets for your
 projects: your run history is yours, ignored by your repo, and versioned in its own local
 receipts repo if you opt in at setup.
