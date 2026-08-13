@@ -31,6 +31,9 @@ Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an in
 Escape is the immediate halt; STOP is what reaches a headless run, and it ends
 the shift at the agent's next stop attempt.
 
+When a shift is not where you think it is — wrong folder, broken `.nightshift-link`, leftover
+`STOP`, watchman stood down — walk [Troubleshooting](troubleshooting.md) before changing files.
+
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
 and a watchman revival runs headless — a denied tool stays denied. For long runs,
 `bypassPermissions` is the recommended mode, set in the project's `.claude/settings.local.json` so

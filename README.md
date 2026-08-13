@@ -269,6 +269,8 @@ likely to be merged.
 
 - [**Command reference**](docs/commands.md) — every slash command, what it asks, and the offline
   paths that need no session.
+- [**Troubleshooting**](docs/troubleshooting.md) — wrong workspace, broken link, STOP, missing
+  session, unreadable rules, and watchman stand-down. Read-only checks first.
 - [**Owner knobs**](docs/knobs.md) — every rule you can set for a shift, and what each one denies.
 - [**Vocabulary**](docs/vocabulary.md) — the words nightshift uses for its own parts, and the file
   behind each one.
