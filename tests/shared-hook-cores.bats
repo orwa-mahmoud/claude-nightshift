@@ -1,4 +1,7 @@
+load helpers
+
 HOOKS="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks"
+CODEX_HOOKS="$HOOKS/codex"
 
 @test "both gate wrappers source one shared decision core" {
   grep -qF 'shared/gate-core.sh' "$HOOKS/clock-out-gate.sh"
@@ -13,8 +16,65 @@ HOOKS="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks"
   grep -qF 'ns_hardhat_active' "$HOOKS/codex/hardhat.sh"
 }
 
+@test "command, park, and scrub decisions live in the shared core" {
+  for fn in ns_hardhat_command_reason ns_hardhat_park_reason ns_hardhat_scrub ns_hardhat_rules_has; do
+    grep -qF "$fn" "$HOOKS/shared/hardhat-core.sh" || { echo "missing $fn"; return 1; }
+  done
+  grep -qF 'ns_hardhat_command_reason' "$HOOKS/hardhat.sh"
+  grep -qF 'ns_hardhat_command_reason' "$HOOKS/codex/hardhat.sh"
+  grep -qF 'ns_hardhat_park_reason' "$HOOKS/hardhat.sh"
+  grep -qF 'ns_hardhat_park_reason' "$HOOKS/codex/hardhat.sh"
+}
+
 @test "host protocols remain in their wrappers" {
   ! grep -qE 'codex_emit|hookSpecificOutput' "$HOOKS/shared/gate-core.sh" "$HOOKS/shared/hardhat-core.sh"
   grep -qF 'codex_emit_block' "$HOOKS/codex/clock-out-gate.sh"
   grep -qF 'permissionDecision' "$HOOKS/hardhat.sh"
+  grep -qF 'request_user_input' "$HOOKS/codex/hardhat.sh"
+  ! grep -qF 'request_user_input' "$HOOKS/hardhat.sh"
+}
+
+# Table: command -> expected (deny|allow) -> reason fragment
+parity_row() {
+  local cmd="$1" expect="$2" needle="$3"
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "$cmd" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' \
+    NIGHTSHIFT_PROTECTED_DIRS='secrets' NIGHTSHIFT_EXPECTED_EMAIL='dev@example.com'
+  if [ "$expect" = deny ]; then
+    is_deny "$output" || { echo "claude allow: $cmd -> $output"; return 1; }
+    printf '%s' "$output" | grep -qF "$needle" || { echo "claude reason: $output"; return 1; }
+  else
+    is_allow || { echo "claude deny: $cmd -> $output"; return 1; }
+  fi
+  claude="$output"
+
+  run bash -c 'jq -nc --arg c "$2" '\''{tool_name:"Bash",tool_input:{command:$c}}'\'' | env CODEX_PROJECT_DIR="$1" NIGHTSHIFT_FORBIDDEN_COMMANDS="git push" NIGHTSHIFT_PROTECTED_DIRS="secrets" NIGHTSHIFT_EXPECTED_EMAIL="dev@example.com" bash "$3/hardhat.sh"' \
+    _ "$p" "$cmd" "$CODEX_HOOKS"
+  if [ "$expect" = deny ]; then
+    is_deny "$output" || { echo "codex allow: $cmd -> $output"; return 1; }
+    printf '%s' "$output" | grep -qF "$needle" || { echo "codex reason: $output"; return 1; }
+  else
+    is_allow || { echo "codex deny: $cmd -> $output"; return 1; }
+  fi
+}
+
+@test "table-driven hardhat parity across hosts" {
+  parity_row 'git push origin main' deny 'forbidden'
+  parity_row 'git status' allow ''
+  parity_row 'git add secrets/key' deny 'protected'
+  parity_row 'echo hi' allow ''
+}
+
+@test "park-don't-ask is the same decision on both ask tools" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_ask "$p"
+  is_deny "$output"
+  printf '%s' "$output" | grep -q 'park, don'
+  claude_reason="$(printf '%s' "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')"
+  run bash -c 'jq -nc '\''{tool_name:"request_user_input",tool_input:{}}'\'' | env CODEX_PROJECT_DIR="$1" bash "$2/hardhat.sh"' _ "$p" "$CODEX_HOOKS"
+  is_deny "$output"
+  codex_reason="$(printf '%s' "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')"
+  [ "$claude_reason" = "$codex_reason" ]
 }
