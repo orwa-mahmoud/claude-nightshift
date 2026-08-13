@@ -17,12 +17,13 @@ the PreToolUse denial as the `hookSpecificOutput` `permissionDecision` shape; `$
 as the plugin root in commands. Codex-side mapping: shell commands, including unified exec,
 match as `Bash`; file edits arrive as `apply_patch` with the patch text in
 `tool_input.command`, with `Edit`/`Write` as matcher-side aliases; hosted tools never reach
-the hook path.
+the hook path. Codex's local `request_user_input` function tool does reach `PreToolUse`; an
+armed shift denies it mechanically and reuses the shared `AskUserQuestion` parking message.
 
-Two points the docs leave open are held conservatively in `lib-io.sh`: no project-dir env var
+One point the docs leave open is held conservatively in `lib-io.sh`: no project-dir env var
 is documented for hooks, so the payload's `cwd` locates the shift and `CODEX_PROJECT_DIR` is
-honored first as an explicit override; and no ask-the-user tool is documented, so the
-`AskUserQuestion` wiring stays armed for any tool that carries the name.
+honored first as an explicit override. `AskUserQuestion` stays wired as a compatibility alias
+beside Codex's native `request_user_input` name.
 
 The repo-root `.agents/plugins/marketplace.json` is the Codex marketplace entry; the
 `.claude-plugin/marketplace.json` beside it is also read as a legacy-compatible path, and both
