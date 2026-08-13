@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to claude-nightshift! -->
+<!-- Thanks for contributing to Nightshift! -->
 
 ## What does this PR do?
 
