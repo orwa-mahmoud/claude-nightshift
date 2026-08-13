@@ -65,7 +65,8 @@ you see how your permissions, gates, STOP order, notifications, and host-specifi
    ```
 
 3. Ask Nightshift to start (`/nightshift:start` on Claude Code).
-4. Later, ask for status (`/nightshift:status` on Claude Code).
+4. Later, ask for status (`/nightshift:status` on Claude Code). If the site looks wrong, diagnose
+   it first (`/nightshift:doctor`) — the report never repairs.
 5. Review the local commit, then push it yourself.
 
 If the Codex or Claude Code task must remain open on a different folder, explicitly link it to the

@@ -1,7 +1,8 @@
 # Troubleshooting
 
 Read-only checks first. Do not delete markers, rewrite `rules.json`, or kill processes until the
-matching **Repair** says so. For a failed night you want to report, use the
+matching **Repair** says so. `/nightshift:doctor` prints what Nightshift resolved and classifies
+offers; invoking it changes nothing. For a failed night you want to report, use the
 [Failed shift](https://github.com/orwa-mahmoud/nightshift/issues/new?template=failed_shift.yml)
 form — not a paste of the transcript.
 
@@ -178,7 +179,7 @@ with sanitized markers only.
 
 ## See also
 
-- [Command reference](commands.md) — setup, start, status, stop, schedule
+- [Command reference](commands.md) — setup, start, status, doctor, stop, schedule
 - [Owner knobs](knobs.md) — `rules.json` and env overrides
 - [First-night safety checklist](first-night-checklist.md)
 - [Security policy](../SECURITY.md) — gate-bypass reports stay private
