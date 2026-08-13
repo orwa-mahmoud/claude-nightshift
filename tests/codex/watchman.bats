@@ -132,3 +132,66 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 0 ]
 }
+
+reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
+
+@test "Codex stop-work records owner-stop" {
+  touch "$P/.nightshift/STOP"
+  run watch --max-wakes 3
+  [ "$(reason)" = "owner-stop" ]
+}
+
+@test "Codex .ended records completed" {
+  touch "$P/.nightshift/.ended"
+  run watch --max-wakes 3
+  [ "$(reason)" = "completed" ]
+}
+
+@test "Codex foreign host records wrong-host" {
+  printf 'sid\n\n\n\nclaude\n' >"$P/.nightshift/.shift-session"
+  run watch --max-wakes 1
+  [ "$(reason)" = "wrong-host" ]
+}
+
+@test "Codex ticked boxes record completed" {
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  run watch --max-wakes 3
+  [ "$(reason)" = "completed" ]
+}
+
+@test "Codex spent deadline records deadline" {
+  echo $(($(date +%s) - 60)) >"$P/.nightshift/deadline"
+  run watch --max-wakes 1
+  [ "$(reason)" = "deadline" ]
+}
+
+@test "Codex live pid records silent-standby" {
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'sid\n%s\n%s\n%s\ncodex\n' "$ROLLOUT" "$$" "$start" >"$P/.nightshift/.shift-session"
+  run watch --max-wakes 2
+  [ "$(reason)" = "silent-standby" ]
+}
+
+@test "Codex successful resume records revived" {
+  printf 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  run watch --max-wakes 1
+  [ "$(reason)" = "revived" ]
+}
+
+@test "Codex failed revival records exhausted-retry" {
+  cat >"$BIN/fail.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+exit 1
+STUB
+  chmod +x "$BIN/fail.sh"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  [ "$(reason)" = "exhausted-retry" ]
+}
+
+@test "Codex missing rules record unreadable-rules" {
+  rm "$P/.nightshift/rules.json"
+  run "$WATCHMAN" --project "$P"
+  [ "$(reason)" = "unreadable-rules" ]
+}

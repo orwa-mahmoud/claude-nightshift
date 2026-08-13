@@ -39,5 +39,9 @@ Read `.nightshift/` and print:
 - **State** — whether `.nightshift/STOP` is present (and its reason), and the current
   `.nightshift/.stall` attempt count if any. If a shift is running, the bound session from
   `.nightshift/.shift-session` and whether its process is still alive.
+- **Watchman** — if `.nightshift/.watch-reason` exists, print line 1 (the stable code) and the
+  same human label Doctor prints (`ns_reason_label` in the shared library). Do not print
+  transcript paths, session ids, prompts, or any other payload. Line 2 is optional non-sensitive
+  detail only.
 
 Keep it a compact glanceable summary. Do not modify any file, do not begin work.
