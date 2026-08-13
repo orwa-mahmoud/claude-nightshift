@@ -3,6 +3,14 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.9.4](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.3...v0.9.4) (2026-08-13)
+
+
+### Bug Fixes
+
+* **codex:** park native user questions during shifts ([a058e36](https://github.com/orwa-mahmoud/claude-nightshift/commit/a058e369f849fef7f23223646ded38cdfdea0f1c))
+* **codex:** park native user questions during shifts ([#58](https://github.com/orwa-mahmoud/claude-nightshift/issues/58)) ([a39626e](https://github.com/orwa-mahmoud/claude-nightshift/commit/a39626e1eee5433749492f9b7e64fa4c8086e32d))
+
 ## [0.9.3](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.2...v0.9.3) (2026-08-12)
 
 
