@@ -26,6 +26,12 @@ Instead, report privately via GitHub's
 flow (Security → Advisories). If that is unavailable, you can open a regular
 issue asking the maintainer to contact you, without disclosing details.
 
+A failed or interrupted *night* that is not a bypass — stalled watchman, wrong
+workspace, revival that did not fire — belongs on a public
+[Failed shift](https://github.com/orwa-mahmoud/nightshift/issues/new?template=failed_shift.yml)
+report. That form asks for host/version and sanitized markers; it must not
+include prompts, credentials, repository content, or a full transcript.
+
 When reporting, please include:
 
 - The Claude Code version and the plugin version.
