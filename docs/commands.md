@@ -67,6 +67,7 @@ slash command works, because a command is read by the model. The generator under
 shell that spends no tokens and needs no session:
 
 ```bash
+plugins/nightshift/runtime/schedule.sh --project . --preflight   # check both hosts; writes nothing
 plugins/nightshift/runtime/schedule.sh --project . --at 04:05    # print the config + the install command
 plugins/nightshift/runtime/schedule.sh --project . --at 04:05 --agent 'codex exec -s danger-full-access'
                                               # same entry, run by Codex instead of Claude

@@ -6,13 +6,15 @@
 # This generates their config, filled in for one project, and prints the single command that
 # installs it. It registers nothing itself.
 #
-#   schedule.sh [--project DIR] [--at HH:MM] [--agent CMD] [--list] [--remove]
+#   schedule.sh [--project DIR] [--at HH:MM] [--agent CMD] [--list] [--remove] [--preflight]
 #
-#   --at HH:MM   24-hour local time. Required unless --list or --remove.
+#   --at HH:MM   24-hour local time. Required unless --list, --remove, or --preflight.
 #   --agent CMD  the headless runner the entry invokes (default: claude -p).
-#                Codex projects pass: --agent 'codex exec -a never -s workspace-write'
+#                Codex projects pass: --agent 'codex exec -s danger-full-access'
 #   --list       what is already registered for this project, and nothing else
 #   --remove     print the command that unregisters it
+#   --preflight  check the site and both hosts; print a report; write nothing
+#                (no --at required). Exit 0 when the shared site is schedulable.
 #
 # It runs offline and spends no model tokens — a session that has exhausted its credit can still
 # register the run that starts when the credit returns.
@@ -47,13 +49,22 @@ while [ $# -gt 0 ]; do
     --agent) need_value "$1" $#; AGENT="$2"; shift 2 ;;
     --list) MODE="list"; shift ;;
     --remove) MODE="remove"; shift ;;
+    --preflight) MODE="preflight"; shift ;;
     -h | --help) usage ;;
     *) printf 'schedule: unknown argument: %s\n' "$1" >&2; usage ;;
   esac
 done
 
 cd "$PROJECT" 2>/dev/null || { printf 'schedule: cannot cd to %s\n' "$PROJECT" >&2; exit 1; }
-PROJECT="$PWD"
+HOST="$(pwd)"
+if [ -e "$HOST/.nightshift-link" ] || [ -L "$HOST/.nightshift-link" ]; then
+  if ! PROJECT="$(ns_workspace_root "$HOST")"; then
+    printf 'schedule: invalid .nightshift-link at %s — Nightshift will not guess a workspace\n' "$HOST" >&2
+    exit 1
+  fi
+else
+  PROJECT="$HOST"
+fi
 [ -d "$PROJECT/.nightshift" ] || {
   printf 'schedule: no .nightshift at %s — run /nightshift:setup first\n' "$PROJECT" >&2
   exit 1
@@ -120,6 +131,152 @@ if [ "$MODE" = "remove" ]; then
     printf '  crontab -l | grep -vF %s | crontab -\n\n' "'$MARKER'"
   fi
   exit 0
+fi
+
+if [ "$MODE" = "preflight" ]; then
+  fail=0
+  pf() { printf '%s\n' "$1"; }
+  pf "Nightshift schedule preflight"
+  pf "Host:      $HOST"
+  pf "Workspace: $PROJECT"
+  if [ "$HOST" != "$PROJECT" ]; then
+    pf "Link:      valid"
+  else
+    pf "Link:      none (task root is the workspace)"
+  fi
+  if target="$(ns_work_target "$PROJECT" 2>/dev/null)"; then
+    pf "Work:      $target"
+  else
+    pf "Work:      unresolved (workspace itself will be the cwd)"
+  fi
+
+  RULES="$PROJECT/.nightshift/rules.json"
+  if [ ! -f "$RULES" ]; then
+    pf "FAIL rules.json is missing"
+    fail=1
+  elif command -v jq >/dev/null 2>&1 && jq -e 'type == "object"' "$RULES" >/dev/null 2>&1; then
+    wm="$(rule "$PROJECT" watchMinutes "")"
+    case "$wm" in
+      '' | *[!0-9]*) pf "FAIL watchMinutes missing or not a whole number"; fail=1 ;;
+      *) pf "OK   rules.json (watchMinutes $wm)" ;;
+    esac
+  else
+    pf "FAIL rules.json is unreadable or not a JSON object"
+    fail=1
+  fi
+
+  open="$(ns_open_boxes "$PROJECT/.nightshift/punch-list.md")"
+  if [ "$open" -eq 0 ]; then
+    pf "FAIL punch list has no open items — a scheduled start promotes nothing"
+    fail=1
+  else
+    pf "OK   punch list has $open open item(s)"
+  fi
+
+  pf "OK   generated label $LABEL"
+  pf "OK   run log $LOG"
+  if [ "$OS" = "macos" ]; then
+    pf "OK   launchd plist path $PLIST"
+  else
+    pf "OK   cron marker $MARKER"
+  fi
+
+  SAMPLE_RUN="cd $QPROJECT && claude -p $QSTART >> $QLOG 2>&1"
+  if bash -n <<<"$SAMPLE_RUN" 2>/dev/null; then
+    pf "OK   Claude shell entry parses"
+  else
+    pf "FAIL Claude shell entry is not valid shell"
+    fail=1
+  fi
+  CODEX_RUN="cd $QPROJECT && codex exec -s danger-full-access $QSTART >> $QLOG 2>&1"
+  if bash -n <<<"$CODEX_RUN" 2>/dev/null; then
+    pf "OK   Codex shell entry parses"
+  else
+    pf "FAIL Codex shell entry is not valid shell"
+    fail=1
+  fi
+
+  SAMPLE_XML="$(xml_escape "$SAMPLE_RUN")"
+  SAMPLE_PLIST="<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\"><dict>
+<key>Label</key><string>${LABEL}</string>
+<key>ProgramArguments</key><array><string>/bin/sh</string><string>-c</string><string>${SAMPLE_XML}</string></array>
+<key>StartCalendarInterval</key><dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>5</integer></dict>
+<key>RunAtLoad</key><false/>
+</dict></plist>"
+  if command -v plutil >/dev/null 2>&1; then
+    tmp="$(mktemp -t nightshift-preflight)"
+    printf '%s\n' "$SAMPLE_PLIST" >"$tmp"
+    if plutil -lint "$tmp" >/dev/null 2>&1; then
+      pf "OK   launchd plist syntax"
+    else
+      pf "FAIL launchd plist syntax"
+      fail=1
+    fi
+    rm -f "$tmp"
+  else
+    if printf '%s' "$SAMPLE_PLIST" | grep -q '<key>Label</key>' \
+      && printf '%s' "$SAMPLE_PLIST" | grep -q '</plist>'; then
+      pf "OK   launchd plist structure"
+    else
+      pf "FAIL launchd plist structure"
+      fail=1
+    fi
+  fi
+  CRON_LINE="5 4 * * * ${SAMPLE_RUN}  ${MARKER}"
+  if printf '%s' "$CRON_LINE" | grep -Eq '^[0-9]+ [0-9]+ \* \* \* .+ # nightshift:'; then
+    pf "OK   cron line syntax"
+  else
+    pf "FAIL cron line syntax"
+    fail=1
+  fi
+
+  pf ""
+  pf "Claude Code"
+  claude_bin="claude"
+  if command -v "$claude_bin" >/dev/null 2>&1; then
+    pf "OK   binary $(command -v "$claude_bin")"
+  else
+    pf "WARN claude is not on PATH — a Claude scheduled run cannot start"
+  fi
+  perm_ok=0
+  for f in "$PROJECT/.claude/settings.local.json" "$PROJECT/.claude/settings.json" \
+           "$HOST/.claude/settings.local.json" "$HOST/.claude/settings.json"; do
+    [ -f "$f" ] || continue
+    if grep -q 'bypassPermissions\|allow' "$f" 2>/dev/null; then perm_ok=1; break; fi
+  done
+  if [ "$perm_ok" -eq 1 ]; then
+    pf "OK   headless permissions look granted"
+  else
+    pf "WARN no bypassPermissions/allow in .claude/settings*.json — a headless Claude run may stall"
+  fi
+
+  pf ""
+  pf "Codex"
+  if command -v codex >/dev/null 2>&1; then
+    pf "OK   binary $(command -v codex)"
+  else
+    pf "WARN codex is not on PATH — a Codex scheduled run cannot start"
+  fi
+  pf "OK   recommended agent: codex exec -s danger-full-access"
+  case "$AGENT" in
+    *codex*)
+      case "$AGENT" in
+        *danger-full-access*|*bypass*) pf "OK   --agent carries a headless sandbox grant" ;;
+        *) pf "WARN --agent names Codex without a headless grant; the run may stall on the first tool" ;;
+      esac
+      ;;
+  esac
+
+  if registered; then
+    pf ""
+    pf "WARN an entry is already registered for this project — generate will refuse a second one"
+  fi
+
+  pf ""
+  pf "Preflight writes nothing and registers nothing."
+  exit "$fail"
 fi
 
 case "$AT" in

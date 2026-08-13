@@ -168,3 +168,74 @@ STUB
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF "claude -p '/nightshift:start'"
 }
+
+@test "--preflight does not require --at" {
+  cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
+  run "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'Nightshift schedule preflight'
+  printf '%s' "$output" | grep -q 'Claude Code'
+  printf '%s' "$output" | grep -q 'Codex'
+  printf '%s' "$output" | grep -q 'punch list has'
+}
+
+@test "--preflight fails closed on an empty punch list" {
+  cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
+  printf '## Items\n' >"$P/.nightshift/punch-list.md"
+  run "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q 'no open items'
+}
+
+@test "--preflight fails on missing rules" {
+  run "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q 'rules.json is missing'
+}
+
+@test "--preflight writes no scheduler entries" {
+  cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
+  home="$BATS_TEST_TMPDIR/home"
+  mkdir -p "$home/Library/LaunchAgents"
+  before="$(find "$home" "$P" -type f | sort)"
+  run env HOME="$home" "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 0 ]
+  after="$(find "$home" "$P" -type f | sort)"
+  [ "$before" = "$after" ]
+  [ -z "$(find "$home/Library/LaunchAgents" -type f)" ]
+}
+
+@test "--preflight covers spaced paths and a linked workspace" {
+  ws="$BATS_TEST_TMPDIR/workspace with spaces"
+  mkdir -p "$ws/.nightshift"
+  cp "$RULES_TEMPLATE" "$ws/.nightshift/rules.json"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$ws/.nightshift/punch-list.md"
+  host="$BATS_TEST_TMPDIR/host with spaces"
+  mkdir -p "$host"
+  bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/link-workspace.sh" \
+    --host-root "$host" --workspace "$ws" >/dev/null
+  run "$SCHED" --project "$host" --preflight
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'Link:      valid'
+  printf '%s' "$output" | grep -qF "$ws"
+}
+
+@test "--preflight reports a missing agent binary without installing" {
+  cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
+  bindir="$BATS_TEST_TMPDIR/nobin"
+  mkdir -p "$bindir"
+  for t in bash sh grep sed awk mktemp plutil jq cat uname basename cksum cut git python3 rm; do
+    command -v "$t" >/dev/null 2>&1 && ln -sf "$(command -v "$t")" "$bindir/$t"
+  done
+  run env PATH="$bindir" "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'WARN claude is not on PATH'
+  printf '%s' "$output" | grep -q 'WARN codex is not on PATH'
+}
+
+@test "the schedule skill documents the no-install preflight" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
+  grep -qF -- '--preflight' "$s"
+  grep -qi 'installs nothing' "$s"
+  grep -qF -- '--preflight' "$BATS_TEST_DIRNAME/../docs/commands.md"
+}
