@@ -2,8 +2,9 @@
 # hardhat.sh — Codex PreToolUse guard. Same rules as Claude's hardhat; only the wire format
 # differs, and that lives entirely in lib-io.sh.
 #
-# One zero-config rule: AskUserQuestion is denied during an active shift — park, don't
-# ask. Every other rule is shift-scoped and opt-in, read from the owner's rules file
+# One zero-config rule: the host's ask-user tool is denied during an active shift — park,
+# don't ask. Codex calls it request_user_input; AskUserQuestion remains a compatibility
+# alias. Every other rule is shift-scoped and opt-in, read from the owner's rules file
 # (.nightshift/rules.json) — each empty by default, so an unset one is skipped silently:
 #   protectedDirs        space/pipe-separated dir names never to git add/commit/tag/remote
 #   expectedEmail        commits must be authored by this identity
@@ -95,8 +96,9 @@ fi
 
 # Tool rules — the rules file's toolDeny map: tool name -> denial message. A key's message
 # is the denial the model reads; an empty message lifts the rule; an absent key means the
-# default — AskUserQuestion parked so a 2:40am question cannot kill the run, every other
-# tool allowed. (sed backs up the jq path; the park rule holds even without jq.)
+# default — ask-user tools parked so a 2:40am question cannot kill the run, every other
+# tool allowed. Both Codex names use the shared AskUserQuestion rule, so the owner has one
+# policy to configure across hosts. (sed backs up jq; the park rule holds without jq.)
 TOOL_RULES="$(rule "$PROJECT_DIR" toolDeny "${NIGHTSHIFT_TOOL_RULES:-}")"
 rules_has() {
   [ -n "$TOOL_RULES" ] || return 1
@@ -117,7 +119,9 @@ if [ -n "$TOOL_RULES" ] && command -v jq >/dev/null 2>&1 \
   && ! printf '%s' "$TOOL_RULES" | jq -e 'type == "object"' >/dev/null 2>&1; then
   deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or re-run /nightshift:setup."
 fi
-if [ "$TOOL" = "AskUserQuestion" ] || codex_input_mentions_tool "AskUserQuestion"; then
+if [ "$TOOL" = "AskUserQuestion" ] || [ "$TOOL" = "request_user_input" ] \
+  || codex_input_mentions_tool "AskUserQuestion" \
+  || codex_input_mentions_tool "request_user_input"; then
   # The park message is the map's AskUserQuestion entry — the one copy, shipped in the
   # template setup copies. No readable entry still parks the question (fail closed), with the
   # repair named.

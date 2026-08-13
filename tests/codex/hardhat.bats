@@ -13,11 +13,16 @@ codex_hardhat_bash() {
     env "$@" CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh"
 }
 
-# codex_hardhat_ask <project> [ENV=VAL ...]
+# codex_hardhat_ask <project> [tool-name] [ENV=VAL ...]
 codex_hardhat_ask() {
   local p="$1"
   shift
-  jq -nc '{tool_name:"AskUserQuestion",tool_input:{}}' |
+  local tool="AskUserQuestion"
+  if [ "${1:-}" = "AskUserQuestion" ] || [ "${1:-}" = "request_user_input" ]; then
+    tool="$1"
+    shift
+  fi
+  jq -nc --arg tool "$tool" '{tool_name:$tool,tool_input:{}}' |
     env "$@" CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh"
 }
 
@@ -89,6 +94,22 @@ codex_hardhat_ask() {
   printf '%s' "$output" | grep -q "park" # the template's toolDeny entry, read from the file
 }
 
+@test "request_user_input is parked with the shared template message" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_ask "$p" request_user_input
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "park"
+}
+
+@test "request_user_input remains available outside an armed shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  rm "$p/.nightshift/.shift-armed"
+  run codex_hardhat_ask "$p" request_user_input
+  is_allow
+}
+
 @test "an open checkbox outside Items does not activate the codex hardhat" {
   p="$(new_project)"
   printf '%s\n' '- [ ] planning example' '## Items' '- [x] **1. done.**' >"$p/.nightshift/punch-list.md"
@@ -115,6 +136,15 @@ codex_hardhat_ask() {
   p="$(new_project)"
   punch_open "$p"
   run codex_hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"park it and keep welding"}'
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "park it and keep welding"
+}
+
+@test "request_user_input uses the owner's shared AskUserQuestion message" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_ask "$p" request_user_input \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"park it and keep welding"}'
   is_deny "$output"
   printf '%s' "$output" | grep -q "park it and keep welding"
 }
