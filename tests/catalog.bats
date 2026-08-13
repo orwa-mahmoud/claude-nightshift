@@ -66,3 +66,9 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   grep -qF 'shifts/' "$RECIPE"
   grep -qi 'tests/shifts/' "$RECIPE"
 }
+
+@test "the recipe points at the proposal form without replacing the two-file contract" {
+  grep -qF 'issues/new?template=catalog_shift.yml' "$RECIPE"
+  grep -qF 'orwa-mahmoud/nightshift/issues/21' "$RECIPE"
+  grep -qi 'does not replace' "$RECIPE"
+}

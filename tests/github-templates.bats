@@ -50,3 +50,22 @@ parse_yaml() {
   [ -f "$FAILED" ]
 }
 
+CATALOG_FORM="$BATS_TEST_DIRNAME/../.github/ISSUE_TEMPLATE/catalog_shift.yml"
+RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/catalog-recipe.md"
+
+@test "the catalog proposal form is valid YAML and covers every contract field" {
+  parse_yaml "$CATALOG_FORM"
+  grep -qF 'name: Catalog shift proposal' "$CATALOG_FORM"
+  grep -qF 'id: ending' "$CATALOG_FORM"
+  grep -qF 'id: discovery' "$CATALOG_FORM"
+  grep -qF 'id: done' "$CATALOG_FORM"
+  grep -qF 'id: refusals' "$CATALOG_FORM"
+  grep -qF 'id: verification' "$CATALOG_FORM"
+  grep -qF 'id: stacks' "$CATALOG_FORM"
+  grep -qF 'orwa-mahmoud/nightshift/issues/21' "$CATALOG_FORM"
+  grep -qF 'catalog-recipe.md' "$CATALOG_FORM"
+  grep -qF 'does **not** add the shift' "$CATALOG_FORM"
+  grep -qi 'unattended' "$CATALOG_FORM"
+  [ -f "$RECIPE" ]
+}
+
