@@ -22,7 +22,7 @@ lie** — clocking out with unticked items, forging receipts, or escaping the
 contract via hook manipulation.
 
 Instead, report privately via GitHub's
-[**Report a vulnerability**](https://github.com/orwa-mahmoud/claude-nightshift/security/advisories/new)
+[**Report a vulnerability**](https://github.com/orwa-mahmoud/nightshift/security/advisories/new)
 flow (Security → Advisories). If that is unavailable, you can open a regular
 issue asking the maintainer to contact you, without disclosing details.
 

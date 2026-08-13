@@ -20,7 +20,7 @@ Overview and FAQ: <https://orwamahmoud.com/nightshift/>
 For local Codex development, the same package can be installed from its marketplace:
 
 ```text
-codex plugin marketplace add orwa-mahmoud/claude-nightshift
+codex plugin marketplace add orwa-mahmoud/nightshift
 codex plugin add nightshift@nightshift
 ```
 
@@ -34,7 +34,7 @@ real repository.
 Two commands inside Claude Code — no npm, no Homebrew, no separate CLI, no API keys, no server:
 
 ```text
-/plugin marketplace add orwa-mahmoud/claude-nightshift
+/plugin marketplace add orwa-mahmoud/nightshift
 /plugin install nightshift
 ```
 
@@ -360,7 +360,7 @@ Read this before you trust it overnight:
 all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
 session alive at an API error is stood by, not revived, until that transcript signature has been
 observed in a real outage — see
-[#41](https://github.com/orwa-mahmoud/claude-nightshift/issues/41).
+[#41](https://github.com/orwa-mahmoud/nightshift/issues/41).
 
 ## Development
 

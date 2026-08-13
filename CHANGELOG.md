@@ -3,44 +3,44 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
-## [0.9.4](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.3...v0.9.4) (2026-08-13)
+## [0.9.4](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.3...v0.9.4) (2026-08-13)
 
 
 ### Bug Fixes
 
-* **codex:** park native user questions during shifts ([a058e36](https://github.com/orwa-mahmoud/claude-nightshift/commit/a058e369f849fef7f23223646ded38cdfdea0f1c))
-* **codex:** park native user questions during shifts ([#58](https://github.com/orwa-mahmoud/claude-nightshift/issues/58)) ([a39626e](https://github.com/orwa-mahmoud/claude-nightshift/commit/a39626e1eee5433749492f9b7e64fa4c8086e32d))
+* **codex:** park native user questions during shifts ([a058e36](https://github.com/orwa-mahmoud/nightshift/commit/a058e369f849fef7f23223646ded38cdfdea0f1c))
+* **codex:** park native user questions during shifts ([#58](https://github.com/orwa-mahmoud/nightshift/issues/58)) ([a39626e](https://github.com/orwa-mahmoud/nightshift/commit/a39626e1eee5433749492f9b7e64fa4c8086e32d))
 
-## [0.9.3](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.2...v0.9.3) (2026-08-12)
-
-
-### Bug Fixes
-
-* **state:** align remaining active-shift checks ([7108184](https://github.com/orwa-mahmoud/claude-nightshift/commit/7108184233697097c4f70eabfbfc3999e0dcc593))
-* **workspace:** link tasks to authoritative shift state ([a3a1992](https://github.com/orwa-mahmoud/claude-nightshift/commit/a3a19927bd7fd53371a653df8594d670d31e5423))
-* **workspace:** reject ambiguous link files ([13235d6](https://github.com/orwa-mahmoud/claude-nightshift/commit/13235d6a219ea1b4d373f9b43277c02a070d0b04))
-
-## [0.9.2](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.1...v0.9.2) (2026-08-12)
+## [0.9.3](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.2...v0.9.3) (2026-08-12)
 
 
 ### Bug Fixes
 
-* harden Nightshift across Claude Code and Codex ([#53](https://github.com/orwa-mahmoud/claude-nightshift/issues/53)) ([2ebfce5](https://github.com/orwa-mahmoud/claude-nightshift/commit/2ebfce5ceaa2b3daf7f803e2c49a9887b4762ebb))
-* **hardhat:** align active-shift detection across hosts ([0374ac8](https://github.com/orwa-mahmoud/claude-nightshift/commit/0374ac876fb66706da67fa33cd1622ce76f9f67c))
-* **schedule:** safely encode generated cron and launchd paths ([e713d3c](https://github.com/orwa-mahmoud/claude-nightshift/commit/e713d3c1ee8a696d4a7b8ebfaba46410ec433e55))
-* **session:** always record the Claude host in shift identity ([bdfb0aa](https://github.com/orwa-mahmoud/claude-nightshift/commit/bdfb0aaad57369e9f2eceb9be17efef31da0f0af))
-* **setup:** resolve a single repository inside parent workspaces ([20424b1](https://github.com/orwa-mahmoud/claude-nightshift/commit/20424b1432bc55f2e06be75d2c4a4cfbedacb031))
-* **skills:** clarify state-file roles across model workflows ([6ef7014](https://github.com/orwa-mahmoud/claude-nightshift/commit/6ef701409774d2dc4eff5c3186fa6f785b875f55))
-* **test:** measure coverage from current plugin paths ([0a3e6f7](https://github.com/orwa-mahmoud/claude-nightshift/commit/0a3e6f7742ebf1a1342b75e47a1b9b5063a891e1))
+* **state:** align remaining active-shift checks ([7108184](https://github.com/orwa-mahmoud/nightshift/commit/7108184233697097c4f70eabfbfc3999e0dcc593))
+* **workspace:** link tasks to authoritative shift state ([a3a1992](https://github.com/orwa-mahmoud/nightshift/commit/a3a19927bd7fd53371a653df8594d670d31e5423))
+* **workspace:** reject ambiguous link files ([13235d6](https://github.com/orwa-mahmoud/nightshift/commit/13235d6a219ea1b4d373f9b43277c02a070d0b04))
 
-## [0.9.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.9.0...v0.9.1) (2026-08-12)
+## [0.9.2](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.1...v0.9.2) (2026-08-12)
 
 
 ### Bug Fixes
 
-* redirect temporary ChatGPT workspaces ([809c906](https://github.com/orwa-mahmoud/claude-nightshift/commit/809c9066288a5f2d5c397d05d88e27c3fce20970))
+* harden Nightshift across Claude Code and Codex ([#53](https://github.com/orwa-mahmoud/nightshift/issues/53)) ([2ebfce5](https://github.com/orwa-mahmoud/nightshift/commit/2ebfce5ceaa2b3daf7f803e2c49a9887b4762ebb))
+* **hardhat:** align active-shift detection across hosts ([0374ac8](https://github.com/orwa-mahmoud/nightshift/commit/0374ac876fb66706da67fa33cd1622ce76f9f67c))
+* **schedule:** safely encode generated cron and launchd paths ([e713d3c](https://github.com/orwa-mahmoud/nightshift/commit/e713d3c1ee8a696d4a7b8ebfaba46410ec433e55))
+* **session:** always record the Claude host in shift identity ([bdfb0aa](https://github.com/orwa-mahmoud/nightshift/commit/bdfb0aaad57369e9f2eceb9be17efef31da0f0af))
+* **setup:** resolve a single repository inside parent workspaces ([20424b1](https://github.com/orwa-mahmoud/nightshift/commit/20424b1432bc55f2e06be75d2c4a4cfbedacb031))
+* **skills:** clarify state-file roles across model workflows ([6ef7014](https://github.com/orwa-mahmoud/nightshift/commit/6ef701409774d2dc4eff5c3186fa6f785b875f55))
+* **test:** measure coverage from current plugin paths ([0a3e6f7](https://github.com/orwa-mahmoud/nightshift/commit/0a3e6f7742ebf1a1342b75e47a1b9b5063a891e1))
 
-## [0.9.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.1...v0.9.0) (2026-08-12)
+## [0.9.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.0...v0.9.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* redirect temporary ChatGPT workspaces ([809c906](https://github.com/orwa-mahmoud/nightshift/commit/809c9066288a5f2d5c397d05d88e27c3fce20970))
+
+## [0.9.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.8.1...v0.9.0) (2026-08-12)
 
 
 ### Features
@@ -48,27 +48,27 @@ version users receive. Dates are release dates; the tags carry the exact trees.
 * add evidence-backed product evolution to the ready-made hunt catalog
 * preserve active opportunity progress across compaction and resumed sessions
 * integrate product research and opportunity tracking with setup, status, and archive
-* make Codex a first-class host alongside Claude Code ([7f62a2d](https://github.com/orwa-mahmoud/claude-nightshift/commit/7f62a2dd1e59f1653b363191c1d9d7d3afad3a12))
+* make Codex a first-class host alongside Claude Code ([7f62a2d](https://github.com/orwa-mahmoud/nightshift/commit/7f62a2dd1e59f1653b363191c1d9d7d3afad3a12))
 
-## [0.8.1](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
+## [0.8.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.8.0...v0.8.1) (2026-08-05)
 
 
 ### Bug Fixes
 
-* Codex packaging and host wording catch up to the release ([a1ab3a1](https://github.com/orwa-mahmoud/claude-nightshift/commit/a1ab3a1fb5063c86051f13641d2d5ac9ab1afa93))
+* Codex packaging and host wording catch up to the release ([a1ab3a1](https://github.com/orwa-mahmoud/nightshift/commit/a1ab3a1fb5063c86051f13641d2d5ac9ab1afa93))
 
-## [0.8.0](https://github.com/orwa-mahmoud/claude-nightshift/compare/v0.7.4...v0.8.0) (2026-08-05)
+## [0.8.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.7.4...v0.8.0) (2026-08-05)
 
 nightshift runs on OpenAI Codex. One package, a manifest per host, and the same night either
 way — the gate, the guards, the skills, the scheduler, and the watchman.
 
 ### Features
 
-* the Codex clock-out gate and hardhat enforce the same shift — Claude's decisions behind Codex's own hook wiring, verified in a live session ([2bac060](https://github.com/orwa-mahmoud/claude-nightshift/commit/2bac06066a4a72b2a6ce13e7ab1e89935ab77450))
-* the night watchman works Codex shifts — a killed session is revived into its own conversation and the list is finished with nobody attached, verified with a live SIGKILL mid-shift ([fc3510f](https://github.com/orwa-mahmoud/claude-nightshift/commit/fc3510f2b0ae6437763bb70467f327237b9852cb))
-* the shift record names its host, so each watchman minds only its own shifts ([19d619f](https://github.com/orwa-mahmoud/claude-nightshift/commit/19d619f18f451cd57e90b39d2ef9c9ee637d7f47))
-* the skills speak both hosts — permissions, liveness and the watchman step fork per host, and the schedule generator takes `--agent` so one entry serves either runner ([349bfed](https://github.com/orwa-mahmoud/claude-nightshift/commit/349bfedc775aab94364f92136de75f357428f7e6))
-* Codex install is advertised: the `.agents` marketplace entry and the README's `codex plugin` commands ([e52c18a](https://github.com/orwa-mahmoud/claude-nightshift/commit/e52c18a29b1238f4562eda3ea121bd8cdc2ce598))
+* the Codex clock-out gate and hardhat enforce the same shift — Claude's decisions behind Codex's own hook wiring, verified in a live session ([2bac060](https://github.com/orwa-mahmoud/nightshift/commit/2bac06066a4a72b2a6ce13e7ab1e89935ab77450))
+* the night watchman works Codex shifts — a killed session is revived into its own conversation and the list is finished with nobody attached, verified with a live SIGKILL mid-shift ([fc3510f](https://github.com/orwa-mahmoud/nightshift/commit/fc3510f2b0ae6437763bb70467f327237b9852cb))
+* the shift record names its host, so each watchman minds only its own shifts ([19d619f](https://github.com/orwa-mahmoud/nightshift/commit/19d619f18f451cd57e90b39d2ef9c9ee637d7f47))
+* the skills speak both hosts — permissions, liveness and the watchman step fork per host, and the schedule generator takes `--agent` so one entry serves either runner ([349bfed](https://github.com/orwa-mahmoud/nightshift/commit/349bfedc775aab94364f92136de75f357428f7e6))
+* Codex install is advertised: the `.agents` marketplace entry and the README's `codex plugin` commands ([e52c18a](https://github.com/orwa-mahmoud/nightshift/commit/e52c18a29b1238f4562eda3ea121bd8cdc2ce598))
 
 Unattended Codex runs that commit use the `danger-full-access` sandbox — `workspace-write`
 blocks `git commit`. nightshift's guards hold in every mode. A Codex session alive at an API

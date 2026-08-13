@@ -1,4 +1,4 @@
-# Contributing to claude-nightshift
+# Contributing to Nightshift
 
 Thanks for looking under the hood. The plugin is deliberately small — a
 punch-list contract, a stop-gate hook, and skills that hold an agent to both —
@@ -20,7 +20,7 @@ so contributions should keep that shape.
 ## Setup
 
 ```bash
-git clone https://github.com/orwa-mahmoud/claude-nightshift.git
+git clone https://github.com/orwa-mahmoud/nightshift.git
 # install as a local plugin, then run Nightshift: Setup in Codex or
 # /nightshift:setup in Claude Code inside a scratch project
 ```
