@@ -15,6 +15,10 @@ Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` wh
 every `.nightshift/` path to the validated absolute target, otherwise the task root. Never search
 or guess. The shell's working directory persists between Bash calls, so never use a bare path.
 
+Read `.nightshift/state-version` first. Legacy (missing) and current (`1`) may be archived.
+A newer or malformed marker fails closed — file nothing, rewrite nothing, and never migrate.
+`state-version` itself stays live; it is not an archive record.
+
 ## Where it goes
 
 Everything lands in `.nightshift/archive/<YYYY-MM-DD>/` — today's date, one folder per archive

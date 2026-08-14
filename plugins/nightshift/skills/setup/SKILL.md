@@ -66,6 +66,16 @@ For each target below, copy the template only if the target does not already exi
 
 Create `$NIGHTSHIFT_WORKSPACE/.nightshift/shift-log.md` with a one-line header if absent.
 
+**State version.** `.nightshift/state-version` is the schema marker. This plugin supports
+integer `1`. If this run created `.nightshift/` (the directory did not exist when setup
+started), write exactly `1` followed by a newline to
+`$NIGHTSHIFT_WORKSPACE/.nightshift/state-version` after the templates. If `.nightshift/`
+already existed and the marker is missing, that workspace is legacy version `0` — offer
+`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/migrate-state.sh --project "$NIGHTSHIFT_WORKSPACE"`
+and run it only after an explicit yes; the script writes only the marker and refuses while
+armed. A marker newer than `1`, or a malformed file, fails closed: print the diagnostic, do
+not rewrite or downgrade it, and do not continue scaffolding as if the site were current.
+
 ## 2. Private by default
 
 - Keep run state out of git. If `$NIGHTSHIFT_WORKSPACE` is itself a git repo, append a line

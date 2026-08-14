@@ -69,6 +69,13 @@ fi
   printf 'schedule: no .nightshift at %s — run /nightshift:setup first\n' "$PROJECT" >&2
   exit 1
 }
+STATE_KIND="$(ns_state_kind "$PROJECT")"
+case "$STATE_KIND" in
+  malformed | future)
+    printf 'schedule: %s\n' "$(ns_state_refuse_message "$STATE_KIND")" >&2
+    exit 1
+    ;;
+esac
 
 # One id per project PATH, not per folder name: two checkouts called "api" must not collide, and
 # the same project must always produce the same id so a second run recognises its own entry.

@@ -63,6 +63,12 @@ else
 fi
 
 NS="$WORKSPACE/.nightshift"
+STATE_KIND="absent"
+STATE_VER=""
+if [ -d "$NS" ]; then
+  STATE_KIND="$(ns_state_kind "$WORKSPACE")"
+  STATE_VER="$(ns_state_version "$WORKSPACE" || true)"
+fi
 if [ ! -d "$NS" ]; then
   warn "no .nightshift/ at $WORKSPACE"
   act confirm "run Nightshift setup in the real project (not a ChatGPT scratch workspace)"
@@ -114,6 +120,28 @@ STALL=""
 [ -f "$NS/.stall" ] && STALL="$(tr -d '[:space:]' <"$NS/.stall" 2>/dev/null)"
 
 if [ "$ARMED" -eq 1 ]; then fact "shift is armed"; else fact "shift is not armed"; fi
+case "$STATE_KIND" in
+  current)
+    fact "state version ${STATE_VER:-$NS_STATE_VERSION} (current)"
+    ;;
+  legacy)
+    fact "state version 0 (legacy — no state-version marker)"
+    if [ "$ARMED" -eq 1 ]; then
+      warn "legacy workspace cannot be migrated while a shift is armed"
+      act blocked "wait until the shift is unarmed, then write version 1 with runtime/migrate-state.sh"
+    else
+      act confirm "write .nightshift/state-version as 1 with runtime/migrate-state.sh — only the marker is added"
+    fi
+    ;;
+  future)
+    warn "state version ${STATE_VER:-unknown} is newer than this plugin supports ($NS_STATE_VERSION)"
+    act blocked "upgrade Nightshift; never rewrite or downgrade a newer state-version"
+    ;;
+  malformed)
+    warn "state-version is malformed"
+    act confirm "inspect .nightshift/state-version and replace it with a single integer while unarmed — never guess"
+    ;;
+esac
 [ "$ENDED" -eq 1 ] && fact "gate has clocked the shift out (.ended)"
 [ "$STOP" -eq 1 ] && fact "STOP is present"
 [ "$SESSION_END" -eq 1 ] && fact "clean session-end marker is present"
@@ -230,6 +258,7 @@ emit "Workspace:   $WORKSPACE"
 emit "Link:        $LINK_STATE"
 emit "Work target: $TARGET"
 emit "Recorded:    ${HOST_REC:-none}"
+emit "State:       ${STATE_VER:--} ($STATE_KIND)"
 emit "Armed:       $ARMED  Open: $OPEN  Ticked: $TICKED  STOP: $STOP  Ended: $ENDED"
 emit ""
 emit "Facts"

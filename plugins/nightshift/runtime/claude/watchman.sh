@@ -116,6 +116,14 @@ PROJECT="$PWD"
 NS="$PROJECT/.nightshift"
 [ -d "$NS" ] || { printf 'watchman: no .nightshift at %s\n' "$PROJECT" >&2; exit 1; }
 note() { ns_record_reason "$NS" "$1" "${2:-}"; }
+STATE_KIND="$(ns_state_kind "$PROJECT")"
+case "$STATE_KIND" in
+  malformed | future)
+    note unsupported-state "$STATE_KIND"
+    printf 'watchman: %s\n' "$(ns_state_refuse_message "$STATE_KIND")" >&2
+    exit 1
+    ;;
+esac
 [ -n "$INTERVAL_MIN" ] || INTERVAL_MIN="$(rule "$PROJECT" watchMinutes "")"
 case "$INTERVAL_MIN" in
   '' | *[!0-9]*)

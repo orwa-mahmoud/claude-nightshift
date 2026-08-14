@@ -17,6 +17,12 @@ owner-provided path is authorization to link it: print both absolute paths, run
 then continue from the resolved workspace. Without an explicit path or an existing valid link,
 refuse to arm outside the task root and direct the owner to Setup; never discover a target.
 
+Read `.nightshift/state-version` before preflight. A missing marker is legacy version `0` and
+is operable — do not migrate it. Integer `1` is current. A newer integer or a malformed marker
+fails closed: print the shared diagnostic, do not arm, and never rewrite or downgrade the
+file. Migration is setup/Doctor repair only (`runtime/migrate-state.sh`); start never writes
+the marker.
+
 Read `.nightshift/work-target` before preflight. It is the absolute code repository selected by
 Setup. Keep every `.nightshift/` read and write rooted in the opened workspace, but run project
 inspection, edits, gates, Git operations, commits, and verification in that work target. Validate

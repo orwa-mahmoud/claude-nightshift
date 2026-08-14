@@ -281,6 +281,7 @@ ns_reason_label() {
     non-resumable-session) printf 'recorded Codex identity cannot be resumed' ;;
     unreadable-rules) printf 'rules file missing or incomplete' ;;
     fresh-fallback) printf 'fresh session — punch list is the handover' ;;
+    unsupported-state) printf 'workspace state-version is unsupported' ;;
     *) printf 'unknown watchman outcome' ;;
   esac
 }
@@ -289,7 +290,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback) ;;
+    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
@@ -330,4 +331,147 @@ ns_codex_identity_kind() {
   fi
   printf 'unsupported'
   return 1
+}
+
+# Workspace schema. One integer in .nightshift/state-version is the authority. This plugin
+# supports version 1. A missing marker is legacy version 0 — existing files stay compatible,
+# and only an explicit setup/Doctor repair writes the marker. Newer integers fail closed.
+# Never rewrite or downgrade a future marker; never migrate from hooks, start, status,
+# archive, or recovery.
+NS_STATE_VERSION=1
+
+# ns_state_kind <workspace>
+# Prints: absent | legacy | current | malformed | future
+# Return: 0 operable (legacy or current) · 1 malformed · 2 future · 3 absent
+ns_state_kind() {
+  local ws="$1" ns marker raw lines
+  ns="$ws/.nightshift"
+  if [ ! -d "$ns" ]; then
+    printf 'absent'
+    return 3
+  fi
+  marker="$ns/state-version"
+  if [ ! -e "$marker" ] && [ ! -L "$marker" ]; then
+    printf 'legacy'
+    return 0
+  fi
+  if [ -L "$marker" ] || [ ! -f "$marker" ]; then
+    printf 'malformed'
+    return 1
+  fi
+  IFS= read -r raw <"$marker" || true
+  raw="$(printf '%s' "$raw" | tr -d '\r')"
+  lines="$(awk 'END { print NR + 0 }' "$marker" 2>/dev/null)"
+  case "$raw" in
+    '' | *[!0-9]*)
+      printf 'malformed'
+      return 1
+      ;;
+    0) ;;
+    0*)
+      printf 'malformed'
+      return 1
+      ;;
+  esac
+  if [ "${#raw}" -gt 8 ] || [ "$lines" -gt 1 ]; then
+    printf 'malformed'
+    return 1
+  fi
+  if [ "$raw" -gt "$NS_STATE_VERSION" ]; then
+    printf 'future'
+    return 2
+  fi
+  if [ "$raw" -eq "$NS_STATE_VERSION" ]; then
+    printf 'current'
+    return 0
+  fi
+  printf 'legacy'
+  return 0
+}
+
+# ns_state_version <workspace>
+# Prints the integer when it can be read (0 if the marker is missing). Empty on
+# absent or malformed. Return matches ns_state_kind.
+ns_state_version() {
+  local ws="$1" kind raw
+  kind="$(ns_state_kind "$ws")"
+  case "$kind" in
+    absent)
+      return 3
+      ;;
+    legacy)
+      printf '0'
+      return 0
+      ;;
+    current)
+      printf '%s' "$NS_STATE_VERSION"
+      return 0
+      ;;
+    future)
+      IFS= read -r raw <"$ws/.nightshift/state-version" || true
+      raw="$(printf '%s' "$raw" | tr -d '\r')"
+      printf '%s' "$raw"
+      return 2
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# ns_state_refuse_message <kind> — hook and skill diagnostic; no paths, no guesses.
+ns_state_refuse_message() {
+  case "$1" in
+    future)
+      printf 'Nightshift state-version is newer than this plugin supports (supported: %s). Upgrade Nightshift; never rewrite or downgrade the marker.' "$NS_STATE_VERSION"
+      ;;
+    malformed)
+      printf 'Nightshift state-version is malformed. Inspect it only while unarmed; never guess a version.'
+      ;;
+    *)
+      printf 'Nightshift state-version is unsupported.'
+      ;;
+  esac
+}
+
+# ns_write_state_version <workspace> <integer>
+# Atomic replace of the marker. Refuses a symlink destination. Touches no other file.
+ns_write_state_version() {
+  local ws="$1" n="$2" ns marker tmp
+  ns="$ws/.nightshift"
+  marker="$ns/state-version"
+  case "$n" in
+    '' | *[!0-9]* | 0?*) return 1 ;;
+  esac
+  [ -d "$ns" ] || return 1
+  if [ -L "$marker" ]; then
+    return 1
+  fi
+  tmp="$ns/.state-version.$$"
+  printf '%s\n' "$n" >"$tmp" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$marker" || { rm -f "$tmp"; return 1; }
+}
+
+# ns_migrate_state <workspace>
+# Legacy 0 → 1: write only the marker. Idempotent when already current.
+# Return: 0 migrated or already current · 1 armed · 2 unsupported · 3 write failed
+# Callers: setup and an explicit Doctor repair only. Never hooks, start, status, archive, recovery.
+ns_migrate_state() {
+  local ws="$1" kind
+  kind="$(ns_state_kind "$ws")"
+  case "$kind" in
+    current)
+      return 0
+      ;;
+    legacy)
+      if [ -f "$ws/.nightshift/.shift-armed" ]; then
+        return 1
+      fi
+      ns_write_state_version "$ws" "$NS_STATE_VERSION" || return 3
+      return 0
+      ;;
+    *)
+      return 2
+      ;;
+  esac
 }

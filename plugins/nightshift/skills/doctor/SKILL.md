@@ -5,7 +5,10 @@ description: Read-only Nightshift diagnosis — workspace, rules, markers, sessi
 
 Diagnose `$CLAUDE_PROJECT_DIR` **without changing anything**. Doctor is deeper than status: it
 explains what Nightshift resolved and which failures that implies. It does not arm, stop, revive,
-rewrite, or delete.
+rewrite, or delete. Report `.nightshift/state-version` as current (`1`), legacy (missing = `0`),
+malformed, or future. Offer `runtime/migrate-state.sh` as `[confirm]` only for unarmed legacy
+workspaces; never run it because Doctor was invoked. Future versions are `[blocked]` — never
+downgrade.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner

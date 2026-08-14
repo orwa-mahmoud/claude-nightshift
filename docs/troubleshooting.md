@@ -43,7 +43,32 @@ plugins/nightshift/runtime/link-workspace.sh \
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected.
 
-## 1. Invalid `.nightshift-link`
+## 1. Unsupported or malformed `state-version`
+
+**Check.** After resolving the workspace:
+
+```sh
+ls -l .nightshift/state-version
+cat .nightshift/state-version
+```
+
+A current workspace has a regular file containing the integer `1` and a newline. A missing
+file is legacy version `0` — hooks still run. A newer integer, a symlink, extra text, or
+anything that is not a single unsigned integer fails closed: start, hooks, status, archive,
+and recovery will not guess and will not rewrite the marker.
+
+**Repair.** Upgrade Nightshift when the marker is newer than this plugin supports. Never
+downgrade or overwrite a future version. For a missing marker, migrate only while unarmed
+and only after an explicit yes:
+
+```sh
+plugins/nightshift/runtime/migrate-state.sh --project /absolute/workspace
+```
+
+That command writes only `.nightshift/state-version`. Doctor offers it as a confirmation
+repair; invoking Doctor does not run it.
+
+## 2. Invalid `.nightshift-link`
 
 **Check.** If `.nightshift-link` exists:
 
@@ -59,7 +84,7 @@ that contains `.nightshift/`. Anything else fails closed: hooks and skills will 
 **Repair.** Remove the broken file and run `link-workspace.sh` again, or work from the workspace
 that already owns `.nightshift/`. Do not hand-write a relative path.
 
-## 2. Wrong workspace or work target
+## 3. Wrong workspace or work target
 
 **Check.** Run state lives in the resolved workspace. The code repository may be that same folder,
 or the single git child named in `.nightshift/work-target`:
@@ -76,7 +101,7 @@ guards deny rather than pick one.
 **Repair.** Re-run setup and choose the repository explicitly. Do not invent a `work-target` by
 hand unless it is the absolute git top-level of the repo you mean.
 
-## 3. Unreadable rules
+## 4. Unreadable rules
 
 **Check.**
 
@@ -94,7 +119,7 @@ against the [rules schema](knobs.md) without changing behaviour.
 owner-edited `rules.json`. During an active shift the session working the night is denied
 editing this file — change it yourself between sessions.
 
-## 4. STOP vs stale arming
+## 5. STOP vs stale arming
 
 **Check.**
 
@@ -126,7 +151,7 @@ touch .nightshift/STOP
 **Repair (you want a new shift and no session is alive).** Run start. It is what clears last
 night's leftovers. Killing `.watchman`'s pid is start's job when that pid is still live.
 
-## 5. Missing session identity
+## 6. Missing session identity
 
 **Check.** `.nightshift/.shift-session` is written on first work. Typical layout: session id,
 transcript or rollout path, pid, process start time, host (`claude` or `codex`).
@@ -144,7 +169,7 @@ back to a fresh headless run; the punch list on disk is the handover.
 watchman run, or start a fresh session that reads the punch list. Pasting an id from another
 project will append to the wrong conversation.
 
-## 6. Watchman stood down or will not revive
+## 7. Watchman stood down or will not revive
 
 **Check (read-only).** Tail the journal; do not truncate it:
 
@@ -164,7 +189,7 @@ Stand-down is success when the night already ended honestly. Matching log lines:
 | `long silent work; standing by` | Claude Code | Process alive, quiet, no API-error tail. |
 | `a claude session is live in this project` | Claude Code | Another Claude process in the project; revival refused to avoid two writers. |
 | Codex process or rollout still growing | Codex | Alive; stood by. A live-but-errored Codex session is **not** revived. |
-| `watchMinutes missing` / `cannot arm` | both | Unreadable rules. See §3. |
+| `watchMinutes missing` / `cannot arm` | both | Unreadable rules. See §4. |
 | `all N attempts failed` | Claude Code | API still down; knocks again next wake. |
 | `resumed session returned` / `revival returned` | both | Revival succeeded. |
 

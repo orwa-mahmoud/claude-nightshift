@@ -10,11 +10,13 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
 }
 
 @test "troubleshooting covers the decision branches against live paths" {
-  for phrase in 'Where is the site?' 'Invalid `.nightshift-link`' 'Wrong workspace' \
+  for phrase in 'Where is the site?' 'Unsupported or malformed `state-version`' \
+    'Invalid `.nightshift-link`' 'Wrong workspace' \
     'Unreadable rules' 'STOP vs stale arming' 'Missing session identity' \
     'Watchman stood down'; do
     grep -qF "$phrase" "$DOC" || { echo "missing branch: $phrase"; return 1; }
   done
+  grep -qF 'migrate-state.sh' "$DOC"
   grep -qF 'link-workspace.sh' "$DOC"
   grep -qF '.nightshift-link' "$DOC"
   grep -qF 'work-target' "$DOC"

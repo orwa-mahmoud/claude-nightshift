@@ -23,6 +23,10 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 INPUT="$(cat)"
 HOST_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || exit 0
+STATE_KIND="$(ns_state_kind "$PROJECT_DIR")"
+case "$STATE_KIND" in
+  malformed | future) exit 0 ;;
+esac
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 

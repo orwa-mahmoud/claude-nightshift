@@ -35,6 +35,13 @@ if ! PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)"; then
   codex_emit_block "DO NOT STOP — .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
   exit 0
 fi
+STATE_KIND="$(ns_state_kind "$PROJECT_DIR")"
+case "$STATE_KIND" in
+  malformed | future)
+    codex_emit_block "DO NOT STOP — $(ns_state_refuse_message "$STATE_KIND")"
+    exit 0
+    ;;
+esac
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 STOP="$NS/STOP"
