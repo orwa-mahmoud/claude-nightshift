@@ -3,6 +3,19 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.11.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.10.0...v0.11.0) (2026-08-14)
+
+
+### Features
+
+* **catalog:** add accessibility repair shift ([aa1c0e4](https://github.com/orwa-mahmoud/nightshift/commit/aa1c0e454339cddf0e620e978087e4112a39900a))
+* **catalog:** add API contract drift shift ([8c12b05](https://github.com/orwa-mahmoud/nightshift/commit/8c12b0545bbb3491b9e66ffc2965d62dda212fd4))
+* **catalog:** add dead-code cleanup shift ([410bd66](https://github.com/orwa-mahmoud/nightshift/commit/410bd66e6dce250e93ff04012b9c37d9a9326c34))
+* **catalog:** add flaky-test repair shift ([f289d53](https://github.com/orwa-mahmoud/nightshift/commit/f289d5332b0999e2c1b11a05dc1c08fd5735296e))
+* **catalog:** add localization parity shift ([323d21f](https://github.com/orwa-mahmoud/nightshift/commit/323d21fff370902a838425e7c9ed8968bf6fc79c))
+* **catalog:** add TODO debt shift ([593ea7b](https://github.com/orwa-mahmoud/nightshift/commit/593ea7bd380ffafeb5ef03b8a8f508147cf70049))
+* **shifts:** add guided and automatic execution modes ([52946d1](https://github.com/orwa-mahmoud/nightshift/commit/52946d1d946774cf149294cca173c0ffea4584c5))
+
 ## [0.10.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.4...v0.10.0) (2026-08-14)
 
 
