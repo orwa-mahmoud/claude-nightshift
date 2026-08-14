@@ -17,6 +17,7 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
 }
 
 @test "the template separates facts from interpretation and refuses tick-as-proof" {
+  grep -qF '[receipt library](README.md)' "$T"
   grep -qF '## Facts (observed)' "$T"
   grep -qF '## Interpretation (yours, not the agent' "$T"
   grep -qi 'not independent proof' "$T"
