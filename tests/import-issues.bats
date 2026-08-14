@@ -105,7 +105,12 @@ prep_draft() {
   [ "$status" -eq 2 ]
   printf '%s' "$output" | grep -qi 'not authenticated'
   [ "$(cksum "$p/.nightshift/drafting-table.md")" = "$before" ]
-  run env PATH="/usr/bin:/bin" bash "$IMPORT" --project "$p" --stage https://github.com/acme/widgets/issues/12
+  no_gh="$BATS_TEST_TMPDIR/no-gh-bin"
+  mkdir -p "$no_gh"
+  for tool in awk mktemp mv rm; do
+    ln -s "$(command -v "$tool")" "$no_gh/$tool"
+  done
+  run env PATH="$no_gh" /bin/bash "$IMPORT" --project "$p" --stage https://github.com/acme/widgets/issues/12
   [ "$status" -eq 2 ]
   printf '%s' "$output" | grep -qi 'not installed'
   [ "$(cksum "$p/.nightshift/drafting-table.md")" = "$before" ]

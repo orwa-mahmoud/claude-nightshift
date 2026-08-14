@@ -481,7 +481,10 @@ ns_migrate_state() {
 # also mean 0: a broken file must never become a delete. Hooks, start, status,
 # Doctor, and recovery must not call these apply helpers.
 ns_mtime() {
-  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null
+  case "$(uname -s)" in
+    Darwin) stat -f %m "$1" 2>/dev/null ;;
+    *) stat -c %Y "$1" 2>/dev/null ;;
+  esac
 }
 
 ns_age_days() {
