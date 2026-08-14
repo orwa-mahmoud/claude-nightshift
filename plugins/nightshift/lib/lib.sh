@@ -282,6 +282,7 @@ ns_reason_label() {
     unreadable-rules) printf 'rules file missing or incomplete' ;;
     fresh-fallback) printf 'fresh session — punch list is the handover' ;;
     unsupported-state) printf 'workspace state-version is unsupported' ;;
+    process-evidence-unavailable) printf 'process evidence is unavailable' ;;
     *) printf 'unknown watchman outcome' ;;
   esac
 }
@@ -290,7 +291,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state) ;;
+    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
@@ -634,6 +635,56 @@ ns_retention_apply() {
   done <<EOF
 $(ns_retention_eligible "$ws")
 EOF
+}
+
+# Process evidence. kill -0 is the POSIX primary. ps, pgrep, and lsof are
+# optional enhancers: missing tools never mean the session is dead.
+ns_have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+# ns_pid_alive <pid>
+# 0 alive · 1 dead · 2 malformed · 3 evidence unavailable (EPERM or unknown)
+ns_pid_alive() {
+  local pid="$1" err
+  case "$pid" in
+    '' | *[!0-9]*) return 2 ;;
+  esac
+  err="$(kill -0 "$pid" 2>&1)" && return 0
+  case "$err" in
+    *[Nn]'o such process'*) return 1 ;;
+  esac
+  return 3
+}
+
+# ns_recorded_process <pid> <optional-start>
+# Start-time check runs only when ps is available. Missing ps does not kill the pid.
+ns_recorded_process() {
+  local pid="$1" start="${2:-}" now rc
+  ns_pid_alive "$pid"
+  rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  [ -n "$start" ] || return 0
+  ns_have_cmd ps || return 0
+  now="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [ -n "$now" ] || return 0
+  [ "$now" = "$start" ] || return 1
+  return 0
+}
+
+# ns_proc_cwd <pid> — /proc first, then lsof. Return 1 when neither can answer.
+ns_proc_cwd() {
+  local pid="$1" cwd
+  case "$pid" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  if [ -r "/proc/$pid/cwd" ]; then
+    cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null)" || return 1
+    printf '%s' "$cwd"
+    return 0
+  fi
+  ns_have_cmd lsof || return 1
+  cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | sed -n 1p)"
+  [ -n "$cwd" ] || return 1
+  printf '%s' "$cwd"
 }
 
 # Support-bundle redaction. If a line still looks secret or contains an

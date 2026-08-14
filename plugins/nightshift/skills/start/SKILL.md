@@ -47,14 +47,17 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
 - **One shift, one agent — check before touching anything.** Read `.nightshift/.shift-session`.
   Line 5 names the host that owns it. If the record is still alive, an agent is ALREADY working
   this punch list — do not start a second one beside it; hand the owner the running thread and
-  stop here. On Claude Code, alive means line 3's pid exists and `ps -o lstart= -p <pid>` matches
-  line 4, or the id on line 1 appears in `claude agents --json`; the handoff is
-  `claude --resume <id>` for a terminal, `vscode://anthropic.claude-code/open?session=<id>` for
-  the IDE. On Codex the record carries no pid (lines 3–4 are empty by design), so prove life the
-  way its watchman does: a `codex` process (exact name — `pgrep -x codex`) whose working
-  directory (`lsof -a -p <pid> -d cwd`) is this project, or a rollout (line 2) still growing
-  across a short recheck — either tell means live, hand the owner `codex resume <id>`. Neither
-  tell means the session and its watchman are both gone, however the record looks.
+  stop here. The primary process tell is POSIX `kill -0` on a recorded numeric pid; `ps`,
+  `pgrep`, and `lsof` are optional enhancers and must never be installed. If `kill -0` cannot
+  classify the pid, or the optional tools are absent and no host roster or transcript/rollout
+  pulse answers, treat it as `process-evidence-unavailable` and stop — missing tools are not
+  a dead session. On Claude Code, a matching `ps -o lstart=` or the id in `claude agents --json`
+  still means live; the handoff is `claude --resume <id>` for a terminal,
+  `vscode://anthropic.claude-code/open?session=<id>` for the IDE. On Codex a recorded pid uses
+  the same `kill -0` primary; otherwise a `codex` process (exact name — `pgrep -x codex` when
+  available) whose cwd is this project, or a rollout (line 2) still growing, means live —
+  hand the owner `codex resume <id>`. A pid that `kill -0` proves dead, with no other live
+  tell, is last night's leftover.
   `touch .nightshift/STOP` is the lever if they want a live shift ended first. A record whose
   process is provably dead is last night's leftover: fall through and clear it below.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's

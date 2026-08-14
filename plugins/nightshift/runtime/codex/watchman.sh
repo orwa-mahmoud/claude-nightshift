@@ -136,20 +136,19 @@ open_boxes() { ns_open_boxes "$PUNCH"; }
 # The recorded pid counts only as the exact recorded process: pid + start time, a pair that pid
 # reuse cannot counterfeit.
 recorded_process_alive() {
-  local p s now
+  local p s
   p="$(rec_pid)"; s="$(rec_start)"
-  [ -n "$p" ] && [ -n "$s" ] || return 1
-  kill -0 "$p" 2>/dev/null || return 1
-  now="$(ps -o lstart= -p "$p" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-  [ -n "$now" ] && [ "$now" = "$s" ]
+  [ -n "$p" ] || return 1
+  ns_recorded_process "$p" "$s"
 }
 
 # Any codex working in this project stands the watchman by — matched on the exact executable
 # name, never a substring: unrelated processes carry "codex" deep in their environment.
 codex_in_project() {
   local p cwd
+  ns_have_cmd pgrep || return 2
   for p in $(pgrep -x codex 2>/dev/null); do
-    cwd="$(lsof -a -d cwd -p "$p" -Fn 2>/dev/null | sed -n 's/^n//p' | sed -n 1p)"
+    cwd="$(ns_proc_cwd "$p")" || continue
     [ "$cwd" = "$PROJECT" ] && return 0
   done
   return 1
@@ -236,10 +235,31 @@ while :; do
   fi
 
   # Life, in evidence order: the recorded process, any codex in the project, the rollout pulse.
-  if recorded_process_alive || codex_in_project || rollout_grew; then
+  # Missing optional tools are not death — stand down rather than revive beside a living session.
+  rec_rc=1
+  if [ -n "$(rec_pid)" ]; then
+    recorded_process_alive
+    rec_rc=$?
+    if [ "$rec_rc" -eq 0 ]; then
+      note silent-standby
+      baseline_rollout
+      : >"$TICK" 2>/dev/null || true
+      if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
+      continue
+    fi
+  fi
+  codex_in_project
+  in_rc=$?
+  if [ "$in_rc" -eq 0 ] || rollout_grew; then
     note silent-standby
     baseline_rollout
     : >"$TICK" 2>/dev/null || true
+    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
+    continue
+  fi
+  if [ "$rec_rc" -eq 3 ] || { [ "$in_rc" -eq 2 ] && [ "$rec_rc" -ne 1 ]; }; then
+    note process-evidence-unavailable
+    log_line "watchman: process evidence unavailable — standing down, not reviving"
     if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
     continue
   fi
