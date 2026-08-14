@@ -10,9 +10,6 @@ The result was [PR #353](https://github.com/orwa-mahmoud/adapttable/pull/353): *
 changed files, six roadmap phases, and 57 issues closed** after owner review. The full GitHub check
 suite passed before merge.
 
-This is the scale example. For a small first run that is easier to reproduce, see
-[`adapttable-overnight.md`](adapttable-overnight.md).
-
 ## The durable handoff
 
 Nightshift's files, not either conversation, held the authority:

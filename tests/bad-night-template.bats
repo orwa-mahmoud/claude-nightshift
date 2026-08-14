@@ -1,10 +1,19 @@
 README="$BATS_TEST_DIRNAME/../README.md"
+INDEX="$BATS_TEST_DIRNAME/../examples/README.md"
 T="$BATS_TEST_DIRNAME/../examples/bad-night-template.md"
 SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
 
-@test "README points at the bad-night template beside real receipts" {
-  grep -qF '[`examples/bad-night-template.md`](examples/bad-night-template.md)' "$README"
-  grep -qF 'orwa-mahmoud/nightshift/issues/22' "$README"
+@test "README points at the receipt index" {
+  grep -qF '[`examples/`](examples/README.md)' "$README"
+}
+
+@test "receipt index organizes real runs and the bad-night template" {
+  grep -qF '(adapttable-continuity.md)' "$INDEX"
+  grep -qF '(adapttable-overnight.md)' "$INDEX"
+  grep -qF '(self-build.md)' "$INDEX"
+  grep -qF '(codex-hardening-shift.md)' "$INDEX"
+  grep -qF '(bad-night-template.md)' "$INDEX"
+  grep -qF 'orwa-mahmoud/nightshift/issues/22' "$INDEX"
 }
 
 @test "the template separates facts from interpretation and refuses tick-as-proof" {

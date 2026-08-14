@@ -224,32 +224,13 @@ If you can write it as a checklist, you can hand it to the night.
 
 ## Receipts
 
-**What the contract can scale to.** One Nightshift contract ran for 45 elapsed hours on AdaptTable,
-survived a Claude Code → Cursor handoff, and finished as a human-reviewed 67-commit PR spanning six
-roadmap phases and 57 closed issues. The public timeline, handoff, checks and permanent links are in
-[`examples/adapttable-continuity.md`](examples/adapttable-continuity.md).
+**Start with the receipts, not the promise.** The evidence library leads with a 45-hour AdaptTable
+contract that survived a Claude Code → Cursor handoff and became a human-reviewed 67-commit PR
+covering six roadmap phases and 57 closed issues. It also includes a smaller four-hour first night,
+Nightshift's self-build, a Codex hardening shift and a template for reporting bad nights honestly.
 
-**nightshift was built by nightshift.** An enforced punch list guarded every build session of this
-repo, and the hooks refused every early clock-out. Each item landed as its own conventional commit
-— `git log --oneline` reads like the shift log — and the final punch list + shift log are in
-[`examples/self-build.md`](examples/self-build.md).
-
-**Your first night.** One small list, one night, on the same published library: 9 items — a
-CSV export button, 7 new locales, a Tailwind starter, inline cell editing and row grouping across
-every adapter — landed as unsquashed per-item commits, closed 4 issues on merge, and shipped as
-v1.2.0 on npm the same day. Public links:
-[`examples/adapttable-overnight.md`](examples/adapttable-overnight.md).
-
-**Codex hardened Nightshift itself.** An 11-item maintenance shift kept the work on one branch,
-landed each item as a separate reviewable commit, passed 248 tests plus ShellCheck and strict plugin
-validation, and shipped as v0.9.2. The permanent PR, release, and item links are in
-[`examples/codex-hardening-shift.md`](examples/codex-hardening-shift.md).
-
-**Bad nights are evidence too.** Interrupted, stalled, owner-stopped, or incorrectly completed
-runs can be filed from
-[`examples/bad-night-template.md`](examples/bad-night-template.md) — facts separated from
-interpretation, public links only when they exist, ticks never treated as proof. Open them on
-[#22](https://github.com/orwa-mahmoud/nightshift/issues/22).
+Browse the timelines, checks and permanent links in
+[`examples/`](examples/README.md).
 
 The live `.nightshift/` state stays out of this repo — the same default nightshift sets for your
 projects: your run history is yours, ignored by your repo, and versioned in its own local
