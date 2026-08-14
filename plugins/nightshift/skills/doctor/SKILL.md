@@ -51,6 +51,9 @@ leftover while no shift is armed, they are no longer in Doctor — follow stop/s
 skills specify. Until that explicit ask, change nothing. During an unattended shift, the offer is
 informational only: continue the active work without asking or writing state.
 
+Doctor may list local rule profiles and show a preview. Applying a profile is a separate
+owner action (`runtime/apply-profile.sh`); invoking Doctor never writes `rules.json`.
+
 If the owner then explicitly asks to **Export support bundle**, they are no longer in Doctor.
 Run `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/export-support.sh --project "$CLAUDE_PROJECT_DIR"`.
 Print its path, included sections, and omitted categories. Do not upload, attach, transmit, or

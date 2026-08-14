@@ -158,6 +158,14 @@ remain session-start overrides for tests and one-off exceptions — say so only 
 On Claude Code, `$CLAUDE_PROJECT_DIR/.claude/settings.local.json` may still carry `NIGHTSHIFT_*` env keys that an
 earlier version synced from this file, offer to remove them: the file is the one copy.
 
+**Local rule profiles — offer, never impose.** Setup may list the shipped examples in
+`skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`) and preview
+one with
+`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/apply-profile.sh --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
+Applying requires an explicit yes and `--apply`. Fill never overwrites an owner value. Replace
+shows the complete next file first. Profiles are a one-time local copy — no network, no
+subscription. Refuse `--apply` while armed.
+
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's keys to the owner's file (`jq -r 'keys[]'` on each): offer any
 missing key with its default — "this version added `stallWarnEvery`; add it?" — and never
