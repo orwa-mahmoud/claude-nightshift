@@ -4,11 +4,13 @@
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)
 /nightshift:quality    # read-only survey: what the project's own tooling reports. Writes nothing
 /nightshift:hunt       # compose tonight: pick ready shifts, set hours, add your scope
+/nightshift:import-issues  # stage explicitly named GitHub issues onto the drafting table
 # or write your items in the punch list by hand — one checkbox per task
 #   item anatomy, with real items: examples/overnight-webapp.md
 /nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
+                       # optional follow-up: export a redacted local support bundle (never uploaded)
 /nightshift:stop       # end the shift now; open boxes stay open, honestly
 /nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags
 # you review the local commits and push — or forbid pushing outright (one env line below)
@@ -71,6 +73,8 @@ plugins/nightshift/runtime/schedule.sh --project . --preflight   # check both ho
 plugins/nightshift/runtime/schedule.sh --project . --at 04:05    # print the config + the install command
 plugins/nightshift/runtime/schedule.sh --project . --at 04:05 --agent 'codex exec -s danger-full-access'
                                               # same entry, run by Codex instead of Claude
+plugins/nightshift/runtime/schedule.sh --project . --at 04:05 --target systemd
+                                              # print user .service/.timer; never runs systemctl
 plugins/nightshift/runtime/schedule.sh --project . --list        # what is already registered for this project
 plugins/nightshift/runtime/schedule.sh --project . --remove      # the command that unregisters it
 ```

@@ -116,6 +116,14 @@ PROJECT="$PWD"
 NS="$PROJECT/.nightshift"
 [ -d "$NS" ] || { printf 'watchman: no .nightshift at %s\n' "$PROJECT" >&2; exit 1; }
 note() { ns_record_reason "$NS" "$1" "${2:-}"; }
+STATE_KIND="$(ns_state_kind "$PROJECT")"
+case "$STATE_KIND" in
+  malformed | future)
+    note unsupported-state "$STATE_KIND"
+    printf 'watchman: %s\n' "$(ns_state_refuse_message "$STATE_KIND")" >&2
+    exit 1
+    ;;
+esac
 [ -n "$INTERVAL_MIN" ] || INTERVAL_MIN="$(rule "$PROJECT" watchMinutes "")"
 case "$INTERVAL_MIN" in
   '' | *[!0-9]*)
@@ -275,30 +283,20 @@ transcript_pulse() {
 # time re-read, because a reused pid wears the number but not the birthday. 1: provably dead.
 # 2: nothing recorded to check.
 shift_process_alive() {
-  local pid start now
-  pid="$(shift_pid)"
-  case "$pid" in '' | *[!0-9]*) return 2 ;; esac
-  kill -0 "$pid" 2>/dev/null || return 1
-  start="$(shift_pid_start)"
-  if [ -n "$start" ]; then
-    now="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-    [ "$now" = "$start" ] || return 1
-  fi
-  return 0
+  ns_recorded_process "$(shift_pid)" "$(shift_pid_start)"
 }
 
 # Fallback witness when no pid was recorded: any claude process whose working directory is this
 # project. Not the shift's identity — just reason enough not to spawn beside it.
 project_has_claude() {
   local p comm cwd
+  ns_have_cmd pgrep || return 2
   for p in $(pgrep -f claude 2>/dev/null); do
-    comm="$(ps -o comm= -p "$p" 2>/dev/null)"
-    case "${comm##*/}" in claude) ;; *) continue ;; esac
-    if [ -r "/proc/$p/cwd" ]; then
-      cwd="$(readlink "/proc/$p/cwd" 2>/dev/null)"
-    else
-      cwd="$(lsof -a -p "$p" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')"
+    if ns_have_cmd ps; then
+      comm="$(ps -o comm= -p "$p" 2>/dev/null)"
+      case "${comm##*/}" in claude) ;; *) continue ;; esac
     fi
+    cwd="$(ns_proc_cwd "$p")" || continue
     case "$cwd" in "$PROJECT" | "$PROJECT"/*) return 0 ;; esac
   done
   return 1
@@ -322,8 +320,8 @@ registry_state() {
 # then the shift's transcript, then its process, then the host's registry. Project files never
 # vote: folder noise (a detached loop, a build, a sync) must never mute the owner's Esc, and
 # must never mask a dead session as alive.
-site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead
-  local sid ps rg
+site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead | unavailable
+  local sid ps rg ph
   if owner_paused; then printf 'esc'; return; fi
   if transcript_pulse; then printf 'alive'; return; fi
   sid="$(shift_session_id)"
@@ -342,15 +340,20 @@ site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead
       return
     fi
     if [ "$ps" -eq 1 ] || [ "$rg" -eq 1 ]; then printf 'dead'; return; fi
-    # Identity recorded but no oracle answered: the conservative reading.
-    if project_has_claude; then printf 'tabs'; return; fi
+    project_has_claude
+    ph=$?
+    if [ "$ph" -eq 0 ]; then printf 'tabs'; return; fi
+    if [ "$ps" -eq 3 ] || [ "$ph" -eq 2 ]; then printf 'unavailable'; return; fi
     printf 'dead'
     return
   fi
   # No identity recorded — a 500 can land before the first tool call writes one. The newest
   # conversation ending in the host's error event is the wedge; --continue resumes it.
   if errored_tail; then printf 'wedge'; return; fi
-  if project_has_claude; then printf 'tabs'; return; fi
+  project_has_claude
+  ph=$?
+  if [ "$ph" -eq 0 ]; then printf 'tabs'; return; fi
+  if [ "$ph" -eq 2 ]; then printf 'unavailable'; return; fi
   printf 'dead'
 }
 
@@ -368,6 +371,7 @@ hold_reason() {
     esc) printf 'owner Esc' ;;
     silent) printf 'live shift session' ;;
     tabs) printf 'a live claude session in the project' ;;
+    unavailable) printf 'process evidence unavailable' ;;
   esac
 }
 
@@ -439,6 +443,12 @@ while :; do
         note silent-standby "live claude in project"
         [ "$standby_prev" = "tabs" ] || log_line "watchman: a claude session is live in this project — standing by"
         standby_prev="tabs"
+        down_notified=0
+        ;;
+      unavailable)
+        note process-evidence-unavailable
+        [ "$standby_prev" = "unavailable" ] || log_line "watchman: process evidence unavailable — standing down, not reviving"
+        standby_prev="unavailable"
         down_notified=0
         ;;
       wedge | dead)

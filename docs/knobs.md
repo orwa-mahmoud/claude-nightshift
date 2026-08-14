@@ -48,6 +48,17 @@ with a workspace setting — it does not change runtime behaviour:
 | `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. |
 | `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs as unrestricted owner-provided shell with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`). It can access the network if your command does. The watchman rings it too — once per outage — when a dead session could not be revived: the one night event that needs you. A successful revival never pages; it lands as a notice in `parking-lot.md` with the thread's resume command and deep links |
 
+**Local profiles.** `runtime/apply-profile.sh` can preview or copy `balanced`, `no-push`, or
+`strict-secrets` from `plugins/nightshift/skills/nightshift/references/profiles/`. That is a
+one-time local write, not a policy subscription. Fill keeps every owner value; replace shows
+the next file first. Apply only while unarmed.
+
+**Retention** lives in the same rules file under `retention`, and is not shift-scoped: it is
+read only by `/nightshift:archive`. Both `runtimeLogDays` and `archiveDays` default to `0`
+(keep forever). A positive integer is an opt-in age in days. Archive prints the exact
+eligible paths first; deletion needs an explicit yes and never runs from a hook, start,
+status, Doctor, or recovery.
+
 Every rule above is **shift-scoped**: it applies while `.nightshift/punch-list.md` has an open
 `- [ ]` and the gate has not yet ended the shift. With no punch list, or once the last box is
 ticked, your session is ordinary again and none of them are watching. They are site rules for the

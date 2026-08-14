@@ -281,6 +281,8 @@ ns_reason_label() {
     non-resumable-session) printf 'recorded Codex identity cannot be resumed' ;;
     unreadable-rules) printf 'rules file missing or incomplete' ;;
     fresh-fallback) printf 'fresh session — punch list is the handover' ;;
+    unsupported-state) printf 'workspace state-version is unsupported' ;;
+    process-evidence-unavailable) printf 'process evidence is unavailable' ;;
     *) printf 'unknown watchman outcome' ;;
   esac
 }
@@ -289,7 +291,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback) ;;
+    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
@@ -330,4 +332,404 @@ ns_codex_identity_kind() {
   fi
   printf 'unsupported'
   return 1
+}
+
+# Workspace schema. One integer in .nightshift/state-version is the authority. This plugin
+# supports version 1. A missing marker is legacy version 0 — existing files stay compatible,
+# and only an explicit setup/Doctor repair writes the marker. Newer integers fail closed.
+# Never rewrite or downgrade a future marker; never migrate from hooks, start, status,
+# archive, or recovery.
+NS_STATE_VERSION=1
+
+# ns_state_kind <workspace>
+# Prints: absent | legacy | current | malformed | future
+# Return: 0 operable (legacy or current) · 1 malformed · 2 future · 3 absent
+ns_state_kind() {
+  local ws="$1" ns marker raw lines
+  ns="$ws/.nightshift"
+  if [ ! -d "$ns" ]; then
+    printf 'absent'
+    return 3
+  fi
+  marker="$ns/state-version"
+  if [ ! -e "$marker" ] && [ ! -L "$marker" ]; then
+    printf 'legacy'
+    return 0
+  fi
+  if [ -L "$marker" ] || [ ! -f "$marker" ]; then
+    printf 'malformed'
+    return 1
+  fi
+  IFS= read -r raw <"$marker" || true
+  raw="$(printf '%s' "$raw" | tr -d '\r')"
+  lines="$(awk 'END { print NR + 0 }' "$marker" 2>/dev/null)"
+  case "$raw" in
+    '' | *[!0-9]*)
+      printf 'malformed'
+      return 1
+      ;;
+    0) ;;
+    0*)
+      printf 'malformed'
+      return 1
+      ;;
+  esac
+  if [ "${#raw}" -gt 8 ] || [ "$lines" -gt 1 ]; then
+    printf 'malformed'
+    return 1
+  fi
+  if [ "$raw" -gt "$NS_STATE_VERSION" ]; then
+    printf 'future'
+    return 2
+  fi
+  if [ "$raw" -eq "$NS_STATE_VERSION" ]; then
+    printf 'current'
+    return 0
+  fi
+  printf 'legacy'
+  return 0
+}
+
+# ns_state_version <workspace>
+# Prints the integer when it can be read (0 if the marker is missing). Empty on
+# absent or malformed. Return matches ns_state_kind.
+ns_state_version() {
+  local ws="$1" kind raw
+  kind="$(ns_state_kind "$ws")"
+  case "$kind" in
+    absent)
+      return 3
+      ;;
+    legacy)
+      printf '0'
+      return 0
+      ;;
+    current)
+      printf '%s' "$NS_STATE_VERSION"
+      return 0
+      ;;
+    future)
+      IFS= read -r raw <"$ws/.nightshift/state-version" || true
+      raw="$(printf '%s' "$raw" | tr -d '\r')"
+      printf '%s' "$raw"
+      return 2
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+# ns_state_refuse_message <kind> — hook and skill diagnostic; no paths, no guesses.
+ns_state_refuse_message() {
+  case "$1" in
+    future)
+      printf 'Nightshift state-version is newer than this plugin supports (supported: %s). Upgrade Nightshift; never rewrite or downgrade the marker.' "$NS_STATE_VERSION"
+      ;;
+    malformed)
+      printf 'Nightshift state-version is malformed. Inspect it only while unarmed; never guess a version.'
+      ;;
+    *)
+      printf 'Nightshift state-version is unsupported.'
+      ;;
+  esac
+}
+
+# ns_write_state_version <workspace> <integer>
+# Atomic replace of the marker. Refuses a symlink destination. Touches no other file.
+ns_write_state_version() {
+  local ws="$1" n="$2" ns marker tmp
+  ns="$ws/.nightshift"
+  marker="$ns/state-version"
+  case "$n" in
+    '' | *[!0-9]* | 0?*) return 1 ;;
+  esac
+  [ -d "$ns" ] || return 1
+  if [ -L "$marker" ]; then
+    return 1
+  fi
+  tmp="$ns/.state-version.$$"
+  printf '%s\n' "$n" >"$tmp" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$marker" || { rm -f "$tmp"; return 1; }
+}
+
+# ns_migrate_state <workspace>
+# Legacy 0 → 1: write only the marker. Idempotent when already current.
+# Return: 0 migrated or already current · 1 armed · 2 unsupported · 3 write failed
+# Callers: setup and an explicit Doctor repair only. Never hooks, start, status, archive, recovery.
+ns_migrate_state() {
+  local ws="$1" kind
+  kind="$(ns_state_kind "$ws")"
+  case "$kind" in
+    current)
+      return 0
+      ;;
+    legacy)
+      if [ -f "$ws/.nightshift/.shift-armed" ]; then
+        return 1
+      fi
+      ns_write_state_version "$ws" "$NS_STATE_VERSION" || return 3
+      return 0
+      ;;
+    *)
+      return 2
+      ;;
+  esac
+}
+
+# Retention — archive-only, preview-first. 0 means keep forever. Unreadable rules
+# also mean 0: a broken file must never become a delete. Hooks, start, status,
+# Doctor, and recovery must not call these apply helpers.
+ns_mtime() {
+  case "$(uname -s)" in
+    Darwin) stat -f %m "$1" 2>/dev/null ;;
+    *) stat -c %Y "$1" 2>/dev/null ;;
+  esac
+}
+
+ns_age_days() {
+  local m now
+  m="$(ns_mtime "$1")" || return 1
+  case "$m" in '' | *[!0-9]*) return 1 ;; esac
+  now="$(date +%s)"
+  printf '%s' "$(((now - m) / 86400))"
+}
+
+# ns_retention_days <workspace> <runtimeLogDays|archiveDays>
+# Prints a non-negative integer. Missing, nested, or unreadable → 0.
+ns_retention_days() {
+  local ws="$1" key="$2" f="$1/.nightshift/rules.json" raw=""
+  case "$key" in
+    runtimeLogDays)
+      [ -z "${NIGHTSHIFT_RETENTION_RUNTIME_LOG_DAYS:-}" ] || { printf '%s' "$NIGHTSHIFT_RETENTION_RUNTIME_LOG_DAYS"; return 0; }
+      ;;
+    archiveDays)
+      [ -z "${NIGHTSHIFT_RETENTION_ARCHIVE_DAYS:-}" ] || { printf '%s' "$NIGHTSHIFT_RETENTION_ARCHIVE_DAYS"; return 0; }
+      ;;
+    *)
+      printf '0'
+      return 0
+      ;;
+  esac
+  if [ -f "$f" ] && command -v jq >/dev/null 2>&1; then
+    raw="$(jq -r --arg k "$key" '.retention[$k] // 0' "$f" 2>/dev/null)" || raw=0
+  elif [ -f "$f" ]; then
+    raw="$(sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$f" | sed -n 1p)"
+  fi
+  case "$raw" in
+    '' | *[!0-9]*) printf '0' ;;
+    *) printf '%s' "$raw" ;;
+  esac
+}
+
+# ns_under_nightshift <workspace> <relative-path>
+# Print the canonical path when it resolves to a real child of .nightshift/.
+# Rejects symlinks, traversal, and anything that escapes the root.
+ns_under_nightshift() {
+  local ws="$1" rel="$2" ns root parent base canon
+  case "$rel" in
+    '' | /* | *..*) return 1 ;;
+  esac
+  ns="$ws/.nightshift"
+  root="$(cd -P "$ns" 2>/dev/null && pwd)" || return 1
+  [ ! -L "$ns/$rel" ] || return 1
+  if [ -d "$ns/$rel" ]; then
+    canon="$(cd -P "$ns/$rel" 2>/dev/null && pwd)" || return 1
+  elif [ -f "$ns/$rel" ]; then
+    base="${rel##*/}"
+    if [ "$rel" = "$base" ]; then
+      parent="$root"
+    else
+      parent="$(cd -P "$ns/${rel%/*}" 2>/dev/null && pwd)" || return 1
+    fi
+    [ -f "$parent/$base" ] || return 1
+    [ ! -L "$parent/$base" ] || return 1
+    canon="$parent/$base"
+  else
+    return 1
+  fi
+  case "$canon" in
+    "$root"/*) ;;
+    *) return 1 ;;
+  esac
+  printf '%s' "$canon"
+}
+
+# True when a dated archive still holds open punch-list work or an armed marker.
+ns_archive_has_open_work() {
+  local dir="$1" f
+  [ -d "$dir" ] || return 1
+  [ ! -e "$dir/.shift-armed" ] || return 0
+  [ ! -L "$dir/.shift-armed" ] || return 0
+  for f in "$dir"/*; do
+    if [ ! -f "$f" ] || [ -L "$f" ]; then
+      continue
+    fi
+    case "${f##*/}" in
+      punch-list.md | shipped.md)
+        [ "$(ns_open_boxes "$f")" -eq 0 ] || return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# ns_retention_eligible <workspace>
+# Print "kind<TAB>rel<TAB>age<TAB>days" for allowlisted, old-enough, unprotected targets.
+ns_retention_eligible() {
+  local ws="$1" ns log_days arch_days age path rel
+  ns="$ws/.nightshift"
+  [ -d "$ns" ] || return 0
+  log_days="$(ns_retention_days "$ws" runtimeLogDays)"
+  arch_days="$(ns_retention_days "$ws" archiveDays)"
+
+  if [ "$log_days" -gt 0 ] && [ -e "$ns/scheduled.log" ]; then
+    path="$(ns_under_nightshift "$ws" scheduled.log)" && {
+      age="$(ns_age_days "$path")" || age=""
+      if [ -n "$age" ] && [ "$age" -ge "$log_days" ]; then
+        printf '%s\t%s\t%s\t%s\n' runtime-log scheduled.log "$age" "$log_days"
+      fi
+    }
+  fi
+
+  [ "$arch_days" -gt 0 ] || return 0
+  [ -d "$ns/archive" ] && [ ! -L "$ns/archive" ] || return 0
+  for rel in "$ns/archive"/*; do
+    [ -e "$rel" ] || continue
+    rel="${rel#"$ns/"}"
+    case "$rel" in
+      archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+      archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) rel="${rel%/}" ;;
+      *) continue ;;
+    esac
+    [ -d "$ns/$rel" ] || continue
+    path="$(ns_under_nightshift "$ws" "$rel")" || continue
+    ns_archive_has_open_work "$path" && continue
+    age="$(ns_age_days "$path")" || continue
+    [ "$age" -ge "$arch_days" ] || continue
+    printf '%s\t%s\t%s\t%s\n' archive "$rel" "$age" "$arch_days"
+  done
+}
+
+# ns_retention_apply <workspace> — delete currently eligible allowlisted targets.
+# Return: 0 deleted or nothing eligible · 1 armed · 2 refused/failed
+ns_retention_apply() {
+  local ws="$1" ns kind rel path
+  ns="$ws/.nightshift"
+  [ -d "$ns" ] || return 2
+  if [ -f "$ns/.shift-armed" ]; then
+    return 1
+  fi
+  while IFS="$(printf '\t')" read -r kind rel _ _; do
+    [ -n "$rel" ] || continue
+    path="$(ns_under_nightshift "$ws" "$rel")" || return 2
+    case "$kind" in
+      runtime-log)
+        [ -f "$path" ] && [ ! -L "$path" ] || return 2
+        rm -f "$path" || return 2
+        ;;
+      archive)
+        [ -d "$path" ] && [ ! -L "$path" ] || return 2
+        ns_archive_has_open_work "$path" && return 2
+        rm -rf "$path" || return 2
+        ;;
+      *)
+        return 2
+        ;;
+    esac
+  done <<EOF
+$(ns_retention_eligible "$ws")
+EOF
+}
+
+# Process evidence. kill -0 is the POSIX primary. ps, pgrep, and lsof are
+# optional enhancers: missing tools never mean the session is dead.
+ns_have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+# ns_pid_alive <pid>
+# 0 alive · 1 dead · 2 malformed · 3 evidence unavailable (EPERM or unknown)
+ns_pid_alive() {
+  local pid="$1" err
+  case "$pid" in
+    '' | *[!0-9]*) return 2 ;;
+  esac
+  err="$(kill -0 "$pid" 2>&1)" && return 0
+  case "$err" in
+    *[Nn]'o such process'*) return 1 ;;
+  esac
+  return 3
+}
+
+# ns_recorded_process <pid> <optional-start>
+# Start-time check runs only when ps is available. Missing ps does not kill the pid.
+ns_recorded_process() {
+  local pid="$1" start="${2:-}" now rc
+  ns_pid_alive "$pid"
+  rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  [ -n "$start" ] || return 0
+  ns_have_cmd ps || return 0
+  now="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [ -n "$now" ] || return 0
+  [ "$now" = "$start" ] || return 1
+  return 0
+}
+
+# ns_proc_cwd <pid> — /proc first, then lsof. Return 1 when neither can answer.
+ns_proc_cwd() {
+  local pid="$1" cwd
+  case "$pid" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  if [ -r "/proc/$pid/cwd" ]; then
+    cwd="$(readlink "/proc/$pid/cwd" 2>/dev/null)" || return 1
+    printf '%s' "$cwd"
+    return 0
+  fi
+  ns_have_cmd lsof || return 1
+  cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | sed -n 1p)"
+  [ -n "$cwd" ] || return 1
+  printf '%s' "$cwd"
+}
+
+# Support-bundle redaction. If a line still looks secret or contains an
+# unresolved absolute path, omit it — never guess.
+ns_secret_line() {
+  printf '%s' "$1" | grep -qiE \
+    '(password|passwd|secret|token|api[_-]?key|authorization|bearer|credential)[[:space:]]*[=:]' && return 0
+  printf '%s' "$1" | grep -qE '://[^/@[:space:]]+:[^/@[:space:]]+@' && return 0
+  printf '%s' "$1" | grep -qiE '[?&](token|key|secret|password|auth|access_token)=' && return 0
+  return 1
+}
+
+ns_sed_escape() {
+  printf '%s' "$1" | sed 's/[][\\.*^$]/\\&/g'
+}
+
+# ns_tokenize_text <text> <home> <workspace> <work-target>
+# Longest prefix wins. Remaining absolute paths make the function return 1 (omit).
+ns_tokenize_text() {
+  local text="$1" home="$2" workspace="$3" target="$4" out
+  out="$text"
+  if [ -n "$target" ]; then
+    out="$(printf '%s' "$out" | sed "s#$(ns_sed_escape "$target")#\$WORK_TARGET#g")"
+  fi
+  if [ -n "$workspace" ]; then
+    out="$(printf '%s' "$out" | sed "s#$(ns_sed_escape "$workspace")#\$WORKSPACE#g")"
+  fi
+  if [ -n "$home" ]; then
+    out="$(printf '%s' "$out" | sed "s#$(ns_sed_escape "$home")#\$HOME#g")"
+  fi
+  if printf '%s' "$out" | grep -qE '(^|[[:space:]=])(/|file://)'; then
+    return 1
+  fi
+  printf '%s' "$out"
+}
+
+# ns_sanitize_line <text> <home> <workspace> <work-target>
+# Prints the tokenized line, or returns 1 to omit.
+ns_sanitize_line() {
+  local text="$1"
+  ns_secret_line "$text" && return 1
+  ns_tokenize_text "$text" "$2" "$3" "$4"
 }

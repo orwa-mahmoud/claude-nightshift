@@ -5,7 +5,10 @@ description: Read-only Nightshift diagnosis — workspace, rules, markers, sessi
 
 Diagnose `$CLAUDE_PROJECT_DIR` **without changing anything**. Doctor is deeper than status: it
 explains what Nightshift resolved and which failures that implies. It does not arm, stop, revive,
-rewrite, or delete.
+rewrite, or delete. Report `.nightshift/state-version` as current (`1`), legacy (missing = `0`),
+malformed, or future. Offer `runtime/migrate-state.sh` as `[confirm]` only for unarmed legacy
+workspaces; never run it because Doctor was invoked. Future versions are `[blocked]` — never
+downgrade.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
@@ -47,3 +50,11 @@ Offer the classified repairs after the report. If the owner explicitly asks to a
 leftover while no shift is armed, they are no longer in Doctor — follow stop/start/setup as those
 skills specify. Until that explicit ask, change nothing. During an unattended shift, the offer is
 informational only: continue the active work without asking or writing state.
+
+Doctor may list local rule profiles and show a preview. Applying a profile is a separate
+owner action (`runtime/apply-profile.sh`); invoking Doctor never writes `rules.json`.
+
+If the owner then explicitly asks to **Export support bundle**, they are no longer in Doctor.
+Run `${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/export-support.sh --project "$CLAUDE_PROJECT_DIR"`.
+Print its path, included sections, and omitted categories. Do not upload, attach, transmit, or
+open the file. Invoking Doctor alone must not create `.nightshift/support/`.

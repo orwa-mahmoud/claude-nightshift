@@ -66,6 +66,16 @@ For each target below, copy the template only if the target does not already exi
 
 Create `$NIGHTSHIFT_WORKSPACE/.nightshift/shift-log.md` with a one-line header if absent.
 
+**State version.** `.nightshift/state-version` is the schema marker. This plugin supports
+integer `1`. If this run created `.nightshift/` (the directory did not exist when setup
+started), write exactly `1` followed by a newline to
+`$NIGHTSHIFT_WORKSPACE/.nightshift/state-version` after the templates. If `.nightshift/`
+already existed and the marker is missing, that workspace is legacy version `0` — offer
+`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/migrate-state.sh --project "$NIGHTSHIFT_WORKSPACE"`
+and run it only after an explicit yes; the script writes only the marker and refuses while
+armed. A marker newer than `1`, or a malformed file, fails closed: print the diagnostic, do
+not rewrite or downgrade it, and do not continue scaffolding as if the site were current.
+
 ## 2. Private by default
 
 - Keep run state out of git. If `$NIGHTSHIFT_WORKSPACE` is itself a git repo, append a line
@@ -147,6 +157,14 @@ Env vars of the matching names (`NIGHTSHIFT_FORBIDDEN_COMMANDS`, `NIGHTSHIFT_TOO
 remain session-start overrides for tests and one-off exceptions — say so only if asked. If
 On Claude Code, `$CLAUDE_PROJECT_DIR/.claude/settings.local.json` may still carry `NIGHTSHIFT_*` env keys that an
 earlier version synced from this file, offer to remove them: the file is the one copy.
+
+**Local rule profiles — offer, never impose.** Setup may list the shipped examples in
+`skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`) and preview
+one with
+`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/apply-profile.sh --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
+Applying requires an explicit yes and `--apply`. Fill never overwrites an owner value. Replace
+shows the complete next file first. Profiles are a one-time local copy — no network, no
+subscription. Refuse `--apply` while armed.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's keys to the owner's file (`jq -r 'keys[]'` on each): offer any

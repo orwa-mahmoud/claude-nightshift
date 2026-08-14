@@ -57,6 +57,7 @@ and show its output as it comes:
 "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --preflight
 "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --at <HH:MM>
 # Codex projects add:  --agent 'codex exec -s danger-full-access'
+# Linux user timers:    --target systemd
 ```
 
 `--preflight` checks the agent binary, permissions, resolved workspace, rules, queued work,

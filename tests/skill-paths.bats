@@ -32,6 +32,12 @@ STOP="$SKILLS/stop/SKILL.md"
   grep -qF '$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json' "$SETUP"
 }
 
+@test "setup writes state-version on a new workspace and migrates only on confirmation" {
+  grep -qF '$NIGHTSHIFT_WORKSPACE/.nightshift/state-version' "$SETUP"
+  grep -qF 'runtime/migrate-state.sh' "$SETUP"
+  grep -qF 'only after an explicit yes' "$SETUP"
+}
+
 @test "setup scaffolds every template to an absolute path" {
   for f in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
     grep -qF "\$NIGHTSHIFT_WORKSPACE/.nightshift/$f.md" "$SETUP" \

@@ -19,6 +19,7 @@ Quality includes: lint, types, tests, flaky tests, coverage, dead code, TODO/FIX
 accessibility, localization, API contract drift, documentation drift, CI warnings, direct
 dependencies, and vulnerability advisories. `clear-quality-debt.md` remains the generic finite
 core-tooling entry; specialized entries retain their own safety rules and definitions of done.
+GitHub issue hunts are catalogued under Hunt and start from imported drafts. Quality does not import, search, or work GitHub issues.
 
 ## 1. Choose selection and launch
 

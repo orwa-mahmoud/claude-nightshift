@@ -17,6 +17,8 @@ or guess. The shell's working directory persists between Bash calls, so never us
 
 Read `.nightshift/` and print:
 
+- **Schema** — `.nightshift/state-version`: missing means legacy `0`, `1` is current. Report a
+  newer or malformed marker and stop there; never rewrite it and never run migration from status.
 - **Shift** — whether one is running: `.nightshift/.shift-armed` exists. Without it the punch list
   is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
   `/nightshift:start` as what begins the shift.

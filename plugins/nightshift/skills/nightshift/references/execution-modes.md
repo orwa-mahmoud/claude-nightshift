@@ -56,3 +56,7 @@ Any combination becomes one ordered work order, one punch list, one branch, one 
 required, and one set of receipts. Never arm a separate shift per entry. The catalog entry remains
 the definition of done; selection and launch modes decide who chooses it and whether discovery
 pauses for approval.
+
+A GitHub issue hunt cannot grow past the imported `Status: proposed` set the owner already
+staged. Direct mode may rank inside that set; it must not search GitHub or add issues that were
+not imported.

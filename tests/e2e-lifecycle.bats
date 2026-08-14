@@ -30,6 +30,7 @@ scaffold() { # <workspace> — the files setup copies, via the shipped templates
   done
   cp "$REF/nightshift-rules-template.json" "$w/.nightshift/rules.json"
   printf '# Shift Log\n' >"$w/.nightshift/shift-log.md"
+  printf '1\n' >"$w/.nightshift/state-version"
 }
 
 @test "setup templates, arming, and both host gates share the open-item block" {

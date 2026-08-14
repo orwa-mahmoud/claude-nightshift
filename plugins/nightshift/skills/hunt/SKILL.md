@@ -33,6 +33,12 @@ the whistle.
 Read the directory rather than reciting from memory: entries are added over time, and a job that
 exists in the folder but not in the offer is a job the owner never gets.
 
+The GitHub issue-hunt entry is offered with the rest of the catalog. It consumes only
+drafting-table entries created by `/nightshift:import-issues` (canonical Source URL and
+`Status: proposed`). List them with `runtime/import-issues.sh --list-proposed` and move a
+selection with `--promote` — a cut, never a copy. It does not replace defect hunt or product
+evolution, and it never searches GitHub or writes back to it.
+
 ## 2. Ask when execution starts
 
 Ask **review first, or run directly?** This choice is independent from Guided or Automatic.

@@ -1,0 +1,8 @@
+{
+  "body": "Please add a dry-run flag so owners can preview the change.",
+  "labels": [{"name": "enhancement"}],
+  "number": 12,
+  "state": "OPEN",
+  "title": "Add a dry-run flag",
+  "url": "https://github.com/acme/widgets/issues/12"
+}

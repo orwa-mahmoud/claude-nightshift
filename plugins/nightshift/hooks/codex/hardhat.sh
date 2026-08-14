@@ -55,6 +55,12 @@ deny() {
 }
 
 [ -z "$LINK_ERROR" ] || deny "BLOCKED: .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
+STATE_KIND="$(ns_state_kind "$PROJECT_DIR")"
+case "$STATE_KIND" in
+  malformed | future)
+    deny "BLOCKED: $(ns_state_refuse_message "$STATE_KIND")"
+    ;;
+esac
 
 # A commit message must not read as the command it mentions, so blank the message argument
 # before matching. Only that argument: scrubbing every quoted span would also hide a genuinely
