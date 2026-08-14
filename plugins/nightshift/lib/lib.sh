@@ -559,7 +559,9 @@ ns_archive_has_open_work() {
   [ ! -e "$dir/.shift-armed" ] || return 0
   [ ! -L "$dir/.shift-armed" ] || return 0
   for f in "$dir"/*; do
-    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    if [ ! -f "$f" ] || [ -L "$f" ]; then
+      continue
+    fi
     case "${f##*/}" in
       punch-list.md | shipped.md)
         [ "$(ns_open_boxes "$f")" -eq 0 ] || return 0
