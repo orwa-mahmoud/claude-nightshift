@@ -71,7 +71,7 @@ fi
 # A commit message must not read as the command it mentions, so blank the message argument
 # before matching. Only that argument: scrubbing every quoted span would also hide a genuinely
 # forbidden command that happens to be quoted, such as sh -c "git push".
-SCRUBBED="$(printf '%s' "$CMD" | sed -E "s/(-m|--message)([[:space:]]*|=)'[^']*'/\1 MSG/g; s/(-m|--message)([[:space:]]*|=)\"[^\"]*\"/\1 MSG/g")"
+SCRUBBED="$(ns_hardhat_scrub "$CMD")"
 
 # Every remaining rule is shift-scoped: inert unless a shift is truly active. A stop-work order
 # is a request, not the ending — the agent keeps working until its next stop attempt, which is
@@ -120,41 +120,14 @@ fi
 # default — AskUserQuestion parked so a 2:40am question cannot kill the run, every other
 # tool allowed. (sed backs up the jq path; the park rule holds even without jq.)
 TOOL_RULES="$(rule "$PROJECT_DIR" toolDeny "${NIGHTSHIFT_TOOL_RULES:-}")"
-rules_has() {
-  [ -n "$TOOL_RULES" ] || return 1
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | jq -e --arg t "$1" 'has($t)' >/dev/null 2>&1
-  else
-    printf '%s' "$TOOL_RULES" | grep -q "\"$1\"[[:space:]]*:"
-  fi
-}
-rules_msg() {
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | jq -r --arg t "$1" '.[$t] // empty' 2>/dev/null
-  else
-    printf '%s' "$TOOL_RULES" | sed -n 's/.*"'"$1"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
-  fi
-}
-if [ -n "$TOOL_RULES" ] && command -v jq >/dev/null 2>&1 \
-  && ! printf '%s' "$TOOL_RULES" | jq -e 'type == "object"' >/dev/null 2>&1; then
+if ns_hardhat_tool_deny_broken; then
   deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or re-run /nightshift:setup."
 fi
 if [ "$TOOL" = "AskUserQuestion" ] || printf '%s' "$INPUT" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then
-  # The park message is the map's AskUserQuestion entry — the one copy, shipped in the
-  # template setup copies. No readable entry still parks the question (fail closed), with the
-  # repair named.
-  if rules_has "AskUserQuestion"; then
-    m="$(rules_msg AskUserQuestion)"
-    [ -z "$m" ] || deny "$m"
-  else
-    deny "BLOCKED (park, don't ask): a shift is active — record the decision and a sensible default in .nightshift/parking-lot.md and keep working. (nightshift: the owner's park message lives in .nightshift/rules.json toolDeny — unreadable here; re-run /nightshift:setup.)"
-  fi
+  if m="$(ns_hardhat_park_reason)"; then deny "$m"; fi
   exit 0 # a permitted question is not a command; the command guards have no business with it
 fi
-if [ -n "$TOOL" ] && [ "$TOOL" != "Bash" ] && rules_has "$TOOL"; then
-  m="$(rules_msg "$TOOL")"
-  [ -z "$m" ] || deny "$m"
-fi
+if m="$(ns_hardhat_named_tool_reason "$TOOL")"; then deny "$m"; fi
 
 # The rules file is the owner's leash on the night, and the night never rewrites it: during a
 # shift, deny any file tool aimed at the rules file and any Bash command that names it. An
@@ -173,97 +146,12 @@ case "$TOOL" in
     exit 0 # a file tool is not a command; the command guards have no business with it
     ;;
 esac
-if printf '%s' "$SCRUBBED" | grep -qE '\.nightshift/rules\.json|nightshift-rules\.json'; then
+if ns_hardhat_rules_targeted "$SCRUBBED"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
-# An unparseable owner pattern makes grep exit 2, which a plain `if` reads as "no match" — the
-# guard would wave everything through. Say so instead.
-for _p in "FORBIDDEN_COMMANDS:$FORBIDDEN_COMMANDS" "NEVER_COMMIT_PATTERNS:$NEVER_COMMIT_PATTERNS"; do
-  _name="${_p%%:*}"
-  _pat="${_p#*:}"
-  [ -n "$_pat" ] || continue
-  valid_ere "$_pat" || deny "BLOCKED: NIGHTSHIFT_$_name is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in your session settings."
-done
-
-git_verb() { printf '%s' "$SCRUBBED" | grep -qE "(^|[^[:alnum:]_-])git([^[:alnum:]]|$)" \
-  && printf '%s' "$SCRUBBED" | grep -qE "(^|[^[:alnum:]_-])$1([^[:alnum:]]|$)"; }
-is_git_write() { git_verb add || git_verb commit || git_verb tag || git_verb remote; }
-is_commit()    { git_verb commit; }
-
-# 1) Protected dirs — never stage/commit/tag/remote inside them. Match the scrubbed command so a
-# commit message naming the directory is not mistaken for a path, and require a path boundary so
-# 'ai_docs' does not also condemn 'ai_docs_public'.
-if [ -n "$PROTECTED_DIRS" ] && is_git_write; then
-  IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
-  read -ra _toks <<<"$SCRUBBED"
-  for d in "${_dirs[@]}"; do
-    [ -n "$d" ] || continue
-    for _tok in "${_toks[@]}"; do
-      case "$_tok" in
-        "$d" | "$d"/* | */"$d" | */"$d"/* | *="$d" | *="$d"/*)
-          deny "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
-          ;;
-      esac
-    done
-  done
-fi
-
-# 2) and 3) — the commit guards read git, so they need the repository the commit lands in,
-# which the recommended layout puts one level below the project dir. Resolve it once, and fail
-# closed: a guard that cannot see the repo denies rather than waving the commit through.
-if is_commit && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }; then
-  # `--git-dir`/`--work-tree` relocate the commit somewhere the resolution below does not follow,
-  # so the guards would inspect one repository while the commit lands in another. Unverifiable —
-  # deny, exactly like the ambiguous-repo case: a guard that cannot look never approves.
-  if printf '%s' "$SCRUBBED" | grep -qE -- '--git-dir|--work-tree'; then
-    deny "BLOCKED: --git-dir/--work-tree point this commit somewhere the configured commit guards cannot verify. Run the commit from inside the repository instead."
-  fi
-
-  # The identity guard reads the repository's configuration, and a command can override identity
-  # past that read — `-c user.email=`, `--author`, or a GIT_*_EMAIL prefix. With an override
-  # present the config describes nothing, so it is denied rather than misread.
-  if [ -n "$EXPECTED_EMAIL" ] && printf '%s' "$SCRUBBED" |
-    grep -qE -- '-c[[:space:]]*user\.email=|--author|GIT_(AUTHOR|COMMITTER)_EMAIL='; then
-    deny "BLOCKED: this commit overrides the author identity on the command line, which the expected-identity guard cannot verify. Commit with the repository's configured identity."
-  fi
-
-  # A command can name its own repository — `git -C <dir> commit`, `cd <dir> && git commit` —
-  # and that is where the commit lands, whatever the session's working directory says.
-  REPO="$(target_repo "$CMD" "${CWD:-$PROJECT_DIR}")"
-  case "$?" in
-    1) deny "BLOCKED: this commit names a directory that is not a git repository, so the configured commit guards cannot inspect it. Do not retry a rephrased form." ;;
-    2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || REPO="$(ns_work_target "$PROJECT_DIR")" || deny "BLOCKED: cannot tell which git repository this commit targets, so the configured commit guards cannot run. Run the commit from inside the repository." ;;
-  esac
-
-  # 2) Expected identity — commits must be authored by the configured email.
-  if [ -n "$EXPECTED_EMAIL" ]; then
-    email="$(git -C "$REPO" config user.email 2>/dev/null || true)"
-    if [ "$email" != "$EXPECTED_EMAIL" ]; then
-      deny "BLOCKED: committer identity ('$email') is not the expected '$EXPECTED_EMAIL'. Fix git config user.email, then retry."
-    fi
-  fi
-
-  # 3) Never-commit patterns — everything this commit would write must be clean. `git commit -a`
-  # and a pathspec commit stage as they run, so the index alone does not describe them; widen to
-  # the working tree against HEAD whenever the command stages implicitly.
-  if [ -n "$NEVER_COMMIT_PATTERNS" ]; then
-    if commit_stages_implicitly "$CMD"; then
-      _scope="the diff this commit would write"
-      _diff="$(git -C "$REPO" diff HEAD 2>/dev/null)"
-    else
-      _scope="the staged diff"
-      _diff="$(git -C "$REPO" diff --cached 2>/dev/null)"
-    fi
-    if printf '%s' "$_diff" | grep -qiE "$NEVER_COMMIT_PATTERNS"; then
-      deny "BLOCKED: $_scope matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list."
-    fi
-  fi
-fi
-
-# 4) Forbidden commands — the owner's own site rules for this run.
-if [ -n "$FORBIDDEN_COMMANDS" ] && printf '%s' "$SCRUBBED" | grep -qE "$FORBIDDEN_COMMANDS"; then
-  deny "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
+if reason="$(ns_hardhat_command_reason)"; then
+  deny "$reason"
 fi
 
 exit 0

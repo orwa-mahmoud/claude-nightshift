@@ -67,6 +67,21 @@ STOP="$SKILLS/stop/SKILL.md"
   grep -qF 'runtime/codex/watchman.sh' "$START"
 }
 
+@test "start validates the captured Codex identity before its watchman or item work" {
+  checkpoint="$(grep -n '^### Codex identity checkpoint' "$START" | cut -d: -f1)"
+  watchman="$(grep -n '^## 5\. Arm the night watchman' "$START" | cut -d: -f1)"
+  work="$(grep -n '^## 6\. Work' "$START" | cut -d: -f1)"
+  [ -n "$checkpoint" ]
+  [ "$checkpoint" -lt "$watchman" ]
+  [ "$checkpoint" -lt "$work" ]
+  grep -qF 'ns_codex_identity_kind' "$START"
+  grep -qF 'pwd' "$START"
+  grep -qF 'Remove only the markers created by' "$START"
+  grep -qF '.shift-armed' "$START"
+  grep -qF '.shift-session' "$START"
+  grep -qF 'stop before the watchman or item work' "$START"
+}
+
 @test "stop writes the stop-work order and disarms the watchman" {
   grep -qF '.nightshift/STOP' "$STOP"
   grep -qF '.nightshift/.watchman' "$STOP"

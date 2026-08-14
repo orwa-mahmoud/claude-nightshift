@@ -1,0 +1,79 @@
+name: Catalog shift proposal
+description: Propose a ready-made overnight shift. A merged entry still needs the recipe files and a contract test.
+title: "[catalog]: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose a shift the catalog does not yet have. This form does **not** add the shift —
+        a merged entry is still two new files plus human review, per the
+        [catalog recipe](https://github.com/orwa-mahmoud/nightshift/blob/main/plugins/nightshift/skills/nightshift/references/catalog-recipe.md).
+
+        Discuss ideas on [#21](https://github.com/orwa-mahmoud/nightshift/issues/21). Open a pull
+        request that references `#21` when you implement one.
+
+        A shift is a contract handed to an agent that will work **unattended, on a stranger's
+        repository, while they sleep.** Every line below is followed literally. Narrow is better
+        than broad.
+  - type: input
+    id: name
+    attributes:
+      label: Shift name
+      description: "Short title, e.g. Documentation drift."
+    validations:
+      required: true
+  - type: dropdown
+    id: ending
+    attributes:
+      label: Ending
+      description: Finite work is a known list and stops when it is clear. Open-ended work has no natural end but the clock and must not start without a deadline.
+      options:
+        - finite — known list, ends when the list is clear
+        - open-ended — ends only at quitting time (or at stated convergence)
+    validations:
+      required: true
+  - type: textarea
+    id: discovery
+    attributes:
+      label: Discovery
+      description: "How the work is found. Name the mechanism (gate commands, a directory scan, an outdated report). \"Look for problems\" is not a discovery method."
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: "What ends the shift, precisely. \"A full scan reports nothing new\" is testable. \"The code is better\" is not."
+    validations:
+      required: true
+  - type: textarea
+    id: refusals
+    attributes:
+      label: What it will never do
+      description: The most important field. Unattended safety boundaries — what a tired model must not reach for at 4am (silencing linters, deleting tests, rewriting history, inventing product behaviour).
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Commands that must be green at every commit for this entry's work.
+    validations:
+      required: true
+  - type: textarea
+    id: stacks
+    attributes:
+      label: Supported stacks
+      description: Which projects this makes sense on, and how it detects them. An entry that assumes vitest should say so rather than failing quietly on a Go repo.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Unattended safety
+      options:
+        - label: I have listed concrete refusals, not "be careful".
+          required: true
+        - label: "I understand a merged shift still requires catalog-recipe.md plus tests/shifts/<name>.bats — this form does not replace them."
+          required: true

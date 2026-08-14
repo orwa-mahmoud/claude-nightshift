@@ -760,3 +760,112 @@ STUB
   ! grep -q 'owned by' "$P/.nightshift/shift-log.md" || false
   [ "$(calls)" -ge 1 ]
 }
+
+reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
+
+@test "stop-work records owner-stop and nothing else" {
+  touch "$P/.nightshift/STOP"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(reason)" = "owner-stop" ]
+  [ "$(wc -l <"$P/.nightshift/.watch-reason" | tr -d ' ')" -le 2 ]
+}
+
+@test "an ended shift records completed" {
+  touch "$P/.nightshift/.ended"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$(reason)" = "completed" ]
+}
+
+@test "a clean session end records clean-session-end" {
+  echo 'clean session end (exit)' >"$P/.nightshift/.session-end"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$(reason)" = "clean-session-end" ]
+}
+
+@test "ticked boxes without .ended record completed after the clock-out spawn" {
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$(reason)" = "completed" ]
+}
+
+@test "quitting time records deadline" {
+  printf '%s' "$(( $(date +%s) - 60 ))" >"$P/.nightshift/deadline"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$(reason)" = "deadline" ]
+}
+
+@test "a foreign host records wrong-host" {
+  printf 'sid\n/tmp/t.jsonl\n99999\nstart\ncodex\n' >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 1
+  [ "$(reason)" = "wrong-host" ]
+}
+
+@test "Esc standby records esc-standby without transcript content" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"secret-prompt-xyz"}\n{"type":"user","content":"[Request interrupted by user]"}\n' >"$T/session.jsonl"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$(reason)" = "esc-standby" ]
+  ! grep -q 'secret-prompt-xyz' "$P/.nightshift/.watch-reason"
+}
+
+@test "a live silent process records silent-standby" {
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'sid-shift\n\n%s\n%s\n' "$$" "$start" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$(reason)" = "silent-standby" ]
+}
+
+@test "failed revival attempts record exhausted-retry" {
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 2
+  [ "$(reason)" = "exhausted-retry" ]
+}
+
+@test "a successful resume records revived" {
+  printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  agents*) echo "[]" ;;
+  *--resume*) echo resume >>.nightshift/agent-calls
+     awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+     mv .nightshift/pl.tmp .nightshift/punch-list.md ;;
+  *) echo other >>.nightshift/agent-calls ;;
+esac
+STUB
+  chmod +x "$BIN/claude"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$(reason)" = "revived" ]
+}
+
+@test "the fresh-session fallback records fresh-fallback, not revived" {
+  printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  agents*) echo "[]" ;;
+  *--resume*) echo resume >>.nightshift/agent-calls; exit 1 ;;
+  *--continue*) echo continue >>.nightshift/agent-calls; exit 1 ;;
+  *) echo fresh >>.nightshift/agent-calls
+     awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
+     mv .nightshift/pl.tmp .nightshift/punch-list.md ;;
+esac
+STUB
+  chmod +x "$BIN/claude"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$(reason)" = "fresh-fallback" ]
+}
+
+@test "missing rules record unreadable-rules" {
+  rm "$P/.nightshift/rules.json"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
+  [ "$(reason)" = "unreadable-rules" ]
+}

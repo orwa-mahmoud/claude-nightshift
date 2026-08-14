@@ -16,6 +16,23 @@ shift the file itself is guarded: the session working the night is denied touchi
 you set or lift a rule. The env vars below remain as session-start overrides for tests and
 one-off exceptions.
 
+Editors that honor JSON Schema (VS Code, Cursor, JetBrains) catch invalid names, types, and
+values in `.nightshift/rules.json` before a shift. The shipped template sets `$schema` to the
+schema file in this repository. If your copy has no `$schema` line, point the editor at
+[`nightshift-rules.schema.json`](../plugins/nightshift/skills/nightshift/references/nightshift-rules.schema.json)
+with a workspace setting — it does not change runtime behaviour:
+
+```json
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["**/.nightshift/rules.json"],
+      "url": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/nightshift-rules.schema.json"
+    }
+  ]
+}
+```
+
 | Env var | Effect |
 |---|---|
 | `NIGHTSHIFT_TOOL_RULES` | JSON map of tool name → denial message (rules file: `toolDeny`). A key denies that tool with your wording; an empty message lifts the rule; absent keys mean the default — AskUserQuestion parked, everything else allowed |

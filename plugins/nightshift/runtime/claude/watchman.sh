@@ -113,16 +113,23 @@ PROJECT="$PWD"
 # One copy: the rules file is the config; a flag or env var is a session-start override. The
 # shipped values live visibly in the file setup copies — there are no fallbacks hiding here,
 # and a missing knob refuses to arm, loudly, naming the repair.
+NS="$PROJECT/.nightshift"
+[ -d "$NS" ] || { printf 'watchman: no .nightshift at %s\n' "$PROJECT" >&2; exit 1; }
+note() { ns_record_reason "$NS" "$1" "${2:-}"; }
 [ -n "$INTERVAL_MIN" ] || INTERVAL_MIN="$(rule "$PROJECT" watchMinutes "")"
-case "$INTERVAL_MIN" in '' | *[!0-9]*) printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2; exit 1 ;; esac
+case "$INTERVAL_MIN" in
+  '' | *[!0-9]*)
+    note unreadable-rules watchMinutes
+    printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2
+    exit 1
+    ;;
+esac
 [ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
 RETRY_SPACING="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
 NOTIFY="$(rule "$PROJECT" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")" # empty = silent, a real value
-NS="$PROJECT/.nightshift"
 PUNCH="$NS/punch-list.md"
 PIDFILE="$NS/.watchman"
 SENTINEL="$NS/.watchman-tick"
-[ -d "$NS" ] || { printf 'watchman: no .nightshift at %s\n' "$PROJECT" >&2; exit 1; }
 
 # Claude Code keeps transcripts under ~/.claude/projects/<project path, non-alnum -> dashes>.
 TRANSCRIPTS="${NIGHTSHIFT_WATCH_TRANSCRIPTS:-$HOME/.claude/projects/$(printf '%s' "$PROJECT" | tr -c 'A-Za-z0-9' '-')}"
@@ -185,6 +192,7 @@ PROMPT_RESUME="$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")
 PROMPT_FRESH="$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")"
 for _req in "watchRetrySeconds:$RETRY_SPACING" "revivalPrompt:$PROMPT_RESUME" "freshRevivalPrompt:$PROMPT_FRESH"; do
   if [ -z "${_req#*:}" ]; then
+    note unreadable-rules "${_req%%:*}"
     printf 'watchman: %s missing — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' "${_req%%:*}" >&2
     log_line "watchman: rules.json is missing ${_req%%:*} — cannot arm; re-run /nightshift:setup"
     exit 1
@@ -376,26 +384,31 @@ while :; do
   sleep "$BASE_SLEEP"
   wake=$((wake + 1))
 
-  if [ -f "$NS/STOP" ]; then log_line "watchman: stop-work order — standing down"; exit 0; fi
-  if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then exit 0; fi
+  if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
+  if [ -f "$NS/.ended" ]; then note completed; exit 0; fi
+  if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
   # This watchman revives Claude sessions. A record naming another host belongs to that host's
   # watchman: resuming it here would spawn claude against a shift another agent is working.
   host="$(ns_session_host "$NS")"
   if [ "$host" != claude ]; then
+    note wrong-host "$host"
     log_line "watchman: shift is owned by $host — standing down"
     exit 0
   fi
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
+    note completed
     exit 0
   fi
   if deadline_passed; then
     log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
+    note deadline
     exit 0
   fi
   if [ -f "$NS/.session-end" ]; then
+    note clean-session-end
     log_line "watchman: clean session end — the owner closed it; standing down (start re-arms)"
     exit 0
   fi
@@ -411,16 +424,19 @@ while :; do
         down_notified=0
         ;;
       esc)
+        note esc-standby
         [ "$standby_prev" = "esc" ] || log_line "watchman: owner pressed Esc — standing by, not resuming (STOP ends the shift; resuming re-arms)"
         standby_prev="esc"
         down_notified=0
         ;;
       silent)
+        note silent-standby
         [ "$standby_prev" = "silent" ] || log_line "watchman: the shift session is alive with a quiet transcript — long silent work; standing by"
         standby_prev="silent"
         down_notified=0
         ;;
       tabs)
+        note silent-standby "live claude in project"
         [ "$standby_prev" = "tabs" ] || log_line "watchman: a claude session is live in this project — standing by"
         standby_prev="tabs"
         down_notified=0
@@ -463,6 +479,13 @@ while :; do
         # once per outage, not once per wake.
         if [ "$revived" -eq 0 ]; then
           down_notified=0
+          if [ "$AGENT_IS_DEFAULT" -eq 1 ] && [ "$attempt" -ge "$total" ] && [ "$total" -gt 1 ]; then
+            note fresh-fallback
+          elif [ -z "$sid" ]; then
+            note fresh-fallback
+          else
+            note revived
+          fi
           if [ -n "$sid" ]; then
             log_line "watchman: resumed session returned — the night is one thread: claude --resume $sid · vscode://anthropic.claude-code/open?session=$sid"
             printf -- '- [notice] %s — the shift session died and the watchman revived it. One thread: claude --resume %s · cursor://anthropic.claude-code/open?session=%s · vscode://anthropic.claude-code/open?session=%s\n' \
@@ -472,6 +495,7 @@ while :; do
             printf -- '- [notice] %s — the shift session died and the watchman revived it (details in shift-log.md).\n' "$(ts)" >>"$NS/parking-lot.md"
           fi
         elif [ -z "$aborted" ]; then
+          note exhausted-retry
           log_line "watchman: all $attempt attempts failed (api down?) — knocking again in ${INTERVAL_MIN}m"
           if [ -n "$NOTIFY" ] && [ "$down_notified" -eq 0 ]; then
             down_notified=1

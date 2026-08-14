@@ -23,6 +23,11 @@ Before writing, understand what you are writing: **a shift is a contract handed 
 will work unattended, on a stranger's repository, while they sleep.** It is not documentation and
 not a suggestion. Every line is an instruction that will be followed literally.
 
+To discuss an idea before writing files, open a
+[catalog shift proposal](https://github.com/orwa-mahmoud/nightshift/issues/new?template=catalog_shift.yml)
+or comment on [#21](https://github.com/orwa-mahmoud/nightshift/issues/21). The form does not replace
+this recipe or the contract test — a merged entry is still the two new files below.
+
 ## The six things an entry must declare
 
 An entry that leaves any of these unanswered cannot be reviewed and will not be merged.

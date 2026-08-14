@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/nightshift-rules.schema.json",
+  "title": "Nightshift rules",
+  "description": "Owner knobs for an unattended shift. Extra top-level keys are rejected; missing keys keep runtime defaults. An empty string lifts a string rule. Schema validation never changes hook behaviour.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional pointer for editors. Ignored by Nightshift runtime."
+    },
+    "toolDeny": {
+      "type": "object",
+      "description": "Tool name to denial message. A key denies that tool; an empty message lifts the rule.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "forbiddenCommands": {
+      "type": "string",
+      "description": "grep -E pattern matched against Bash command text during a shift. Empty disables the guard."
+    },
+    "neverCommitPatterns": {
+      "type": "string",
+      "description": "grep -E pattern matched against a commit diff during a shift. Empty disables the guard."
+    },
+    "expectedEmail": {
+      "type": "string",
+      "description": "During a shift, deny commits authored under any other identity. Empty disables the guard."
+    },
+    "protectedDirs": {
+      "type": "string",
+      "description": "Space- or pipe-separated directory names never to git add/commit/tag/remote during a shift. Empty disables the guard."
+    },
+    "stallMax": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0 holds a stuck run (default). N clocks the shift out after N stuck stop attempts."
+    },
+    "stallWarnEvery": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Warn in the shift log every N stuck stop attempts while holding. 0 disables the cadence warning."
+    },
+    "watchMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Minutes between watchman wakes. 0 disarms the watchman."
+    },
+    "watchRetrySeconds": {
+      "type": "string",
+      "pattern": "^([0-9]+( [0-9]+)*)?$",
+      "description": "Space-separated seconds between revival attempts in one wake, e.g. \"30 120\"."
+    },
+    "notifyCommand": {
+      "type": "string",
+      "description": "Unrestricted owner-provided shell run at shift-end or unrecoverable outage. Empty is silent."
+    },
+    "revivalPrompt": {
+      "type": "string",
+      "description": "Order a resumed conversation receives after a crash or outage."
+    },
+    "freshRevivalPrompt": {
+      "type": "string",
+      "description": "Order a fresh-session fallback receives when the recorded conversation cannot be resumed."
+    },
+    "clockOutMessage": {
+      "type": "string",
+      "description": "Text the Stop hook re-injects when open punch-list items remain."
+    }
+  }
+}

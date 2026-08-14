@@ -1,0 +1,111 @@
+name: Failed shift
+description: A Nightshift run stopped, stalled, revived incorrectly, or ended with open work — without publishing secrets.
+title: "[shift]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when a shift did not end the way the contract says it should.
+
+        **Do not paste** prompts, credentials, API keys, `.env` files, repository source, private
+        punch-list items, or a full session transcript. Redact host logs to structural lines
+        (watchman stand-down, revival attempt, gate block) — strip paths that are not
+        `.nightshift/` markers, command arguments, and file contents.
+
+        **Gate bypass, forged receipts, or a way to clock out with open boxes** belongs in a
+        [private security advisory](https://github.com/orwa-mahmoud/nightshift/security/advisories/new),
+        not here. See [SECURITY.md](https://github.com/orwa-mahmoud/nightshift/blob/main/SECURITY.md).
+  - type: dropdown
+    id: harness
+    attributes:
+      label: Host
+      options:
+        - Claude Code
+        - OpenAI Codex
+        - Both / unsure
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Nightshift version
+      description: "The `version` in the installed plugin manifest (e.g. 0.9.4)."
+      placeholder: "0.9.4"
+    validations:
+      required: true
+  - type: input
+    id: host-version
+    attributes:
+      label: Host version
+      description: "`claude --version` or `codex --version`, plus OS."
+      placeholder: "e.g. claude 2.x / macOS 15"
+    validations:
+      required: true
+  - type: dropdown
+    id: expected
+    attributes:
+      label: What should have happened?
+      options:
+        - Shift continues until every punch-list box is ticked
+        - Stop-work order ends the shift with open boxes still open
+        - Quitting time clocks the shift out after the unit in hand
+        - Watchman revives a dead session into the same conversation
+        - Watchman stands by (Esc, live silent work, or Codex live-but-errored)
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened instead?
+      description: Facts only — timestamps and what you saw. No prompts, no repo contents, no full transcript.
+    validations:
+      required: true
+  - type: checkboxes
+    id: markers
+    attributes:
+      label: Sanitized state (which markers existed — not their contents)
+      description: "Tick what was present under `.nightshift/` when the failure was noticed. Do not paste the files."
+      options:
+        - label: "punch-list.md had open `- [ ]` items"
+        - label: ".shift-armed"
+        - label: ".shift-session"
+        - label: "STOP"
+        - label: ".ended"
+        - label: ".session-end"
+        - label: ".stall"
+        - label: "deadline"
+        - label: ".watchman (pid file)"
+        - label: ".nightshift-link (task root pointed at another workspace)"
+  - type: dropdown
+    id: recovery
+    attributes:
+      label: Recovery outcome
+      options:
+        - No revival attempted
+        - Watchman revived the same conversation
+        - Watchman stood by (session looked alive)
+        - Watchman retried and could not revive
+        - Manual resume / continue
+        - Fresh session picked up the punch list
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs
+      description: |
+        Optional. Paste only watchman or gate lines from `shift-log.md`, with secrets and
+        project paths stripped. Never paste a transcript, prompt, or command that includes
+        credentials. Example of a safe line: `watchman: stop-work order — standing down`.
+  - type: checkboxes
+    id: redaction
+    attributes:
+      label: Redaction
+      options:
+        - label: I have removed prompts, credentials, repository content, and full transcripts from this report.
+          required: true
+        - label: This is not a stop-gate bypass or security report (those go to a private advisory).
+          required: true

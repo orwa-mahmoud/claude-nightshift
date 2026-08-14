@@ -136,7 +136,10 @@ defaults inline. It lives in nightshift's own folder on purpose: everything nigh
 one place, kept out of repo history by the same `.nightshift/` gitignore, versioned by the
 receipts repo when one exists — and deleting `.nightshift/` removes all of nightshift, rules
 included. Validate the file with `jq -e 'type == "object"'` and report a broken one plainly —
-never half-apply it.
+never half-apply it. The template's `$schema` field points at
+`skills/nightshift/references/nightshift-rules.schema.json` so editors catch invalid names,
+types, and values; it is ignored at runtime. Editor discovery, including a `json.schemas`
+workspace setting for copies that lack `$schema`, is documented in `docs/knobs.md`.
 
 The hooks read this file directly on every tool call: an owner's edit applies from their very
 next action. Nothing is synced anywhere, nothing needs a restart, and there is no second copy.

@@ -259,3 +259,75 @@ ns_session_host() {
   h="$(sed -n 5p "$1/.shift-session" 2>/dev/null | tr -d '[:space:]')"
   printf '%s' "${h:-claude}"
 }
+
+# Watchman reason codes — one token, no transcript. Written to .nightshift/.watch-reason
+# (line 1 = code, line 2 = optional non-sensitive detail). Status and Doctor render the same
+# labels. Adding a code here is the contract; callers must not invent ad-hoc strings.
+ns_reason_label() {
+  case "$1" in
+    completed) printf 'shift completed' ;;
+    owner-stop) printf 'owner stop-work order' ;;
+    stale-pid) printf 'recorded process is stale' ;;
+    invalid-session) printf 'session identity is missing or unreadable' ;;
+    exhausted-retry) printf 'revival retries exhausted this wake' ;;
+    unknown-wedge) printf 'session looks wedged without a verified error signature' ;;
+    revived) printf 'session revived into its own conversation' ;;
+    stand-down) printf 'watchman stood down' ;;
+    wrong-host) printf 'watchman stood down — shift belongs to another host' ;;
+    deadline) printf 'quitting time passed' ;;
+    clean-session-end) printf 'owner closed the session' ;;
+    esc-standby) printf 'standing by — owner interrupt in the transcript' ;;
+    silent-standby) printf 'standing by — session alive and quiet' ;;
+    non-resumable-session) printf 'recorded Codex identity cannot be resumed' ;;
+    unreadable-rules) printf 'rules file missing or incomplete' ;;
+    fresh-fallback) printf 'fresh session — punch list is the handover' ;;
+    *) printf 'unknown watchman outcome' ;;
+  esac
+}
+
+ns_record_reason() { # <nightshift-dir> <code> [detail]
+  local dir="$1" code="$2" detail="${3:-}"
+  [ -d "$dir" ] || return 1
+  case "$code" in
+    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback) ;;
+    *) code="stand-down" ;;
+  esac
+  detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
+  printf '%s\n%s\n' "$code" "$detail" >"$dir/.watch-reason"
+}
+
+ns_reason_code() { sed -n 1p "$1/.watch-reason" 2>/dev/null | tr -d '[:space:]'; }
+ns_reason_detail() { sed -n 2p "$1/.watch-reason" 2>/dev/null; }
+
+# Codex `exec resume` accepts a session/thread id, not a rollout path or ChatGPT scratch handle.
+# Fail closed on anything that is not a known resumable shape so recovery never claims it
+# resumed a thread it did not.
+# Prints: missing | resumable | malformed | unsupported
+# Return 0 only for resumable.
+ns_codex_identity_kind() {
+  local id="$1"
+  if [ -z "$id" ]; then
+    printf 'missing'
+    return 1
+  fi
+  if printf '%s' "$id" | grep -qE '[[:space:]/\\\$`;|&<>*]'; then
+    printf 'malformed'
+    return 1
+  fi
+  case "$id" in
+    thread_*|conv_*|chatgpt-*|rollout-*|task_*|scratch_*|local|unknown)
+      printf 'unsupported'
+      return 1
+      ;;
+  esac
+  if printf '%s' "$id" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'; then
+    printf 'resumable'
+    return 0
+  fi
+  if printf '%s' "$id" | grep -Eq '^[0-9a-fA-F]{32,}$'; then
+    printf 'resumable'
+    return 0
+  fi
+  printf 'unsupported'
+  return 1
+}

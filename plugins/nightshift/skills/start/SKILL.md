@@ -130,6 +130,24 @@ session that trips them — this one — and hold it to the list.
 Write it last. A marker left behind by a preflight that stopped early would put the next session
 on a shift it never started.
 
+### Codex identity checkpoint — before the watchman
+
+Codex exposes the current task identity to Nightshift through hook payloads, not as a shell
+environment variable. Immediately after writing `.shift-armed`, make one harmless read-only tool
+call (`pwd` is sufficient) so the Codex hardhat records `.shift-session`, then classify line 1 with
+`ns_codex_identity_kind` from `lib/lib.sh` **before arming the watchman or beginning item work**.
+
+- `resumable` — continue.
+- `missing` — continue only with the already-documented fresh-session fallback; say plainly that
+  same-thread recovery is unavailable until an identity is recorded.
+- `unsupported` or `malformed` — refuse the unattended start. Remove only the markers created by
+  this attempted start (`.shift-armed` and its new `.shift-session`), append one failed-preflight
+  line to `shift-log.md`, and stop before the watchman or item work. Never pass the value to Codex,
+  print it, guess a replacement, or start a fresh unrelated task.
+
+This capture-and-check is part of Start, not an owner instruction to remember. An attended session
+that does not request an unattended shift remains unaffected.
+
 ## 4. Heads-up
 
 Surface any still-unanswered entries in `.nightshift/parking-lot.md` (read-only) so the owner sees
@@ -155,10 +173,15 @@ neither is set in your shell, it is the installed plugin cache directory):
 nohup "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/runtime/codex/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
-One stance to state plainly on Codex: there is no owner-interrupt tell yet, so closing an
+The Codex identity checkpoint above has already passed before this command is reached. One stance
+to state plainly on Codex: there is no owner-interrupt tell yet, so closing an
 interactive session with open boxes hands the night to the watchman — it will resume the
-conversation headless and finish the list. The stop-work order (`touch .nightshift/STOP`) is
-the off switch, on every host.
+conversation headless and finish the list, but only when `.shift-session` holds a resumable
+session id (a UUID or a long hex token). ChatGPT thread/conversation handles, rollout paths, and
+other non-resumable identities are refused: the watchman stands down rather than guessing or
+starting an unrelated conversation. A missing id (a 500 before the first record) still falls
+back to a fresh session whose handover is the punch list. The stop-work order
+(`touch .nightshift/STOP`) is the off switch, on every host.
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
 spawning a fresh session that resumes from the punch list, and it stands down on done, a

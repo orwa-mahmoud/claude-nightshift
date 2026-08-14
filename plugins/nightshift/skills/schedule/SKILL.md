@@ -54,13 +54,17 @@ Ask for the time if the owner has not given one — 24-hour `HH:MM`, local — t
 and show its output as it comes:
 
 ```bash
+"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --preflight
 "${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --at <HH:MM>
 # Codex projects add:  --agent 'codex exec -s danger-full-access'
 ```
 
-`--list` shows what is already registered for this project; `--remove` prints the command that
-unregisters it. The generator refuses to hand over a second entry where one exists — two scheduled
-starts on one punch list is two agents on one shift.
+`--preflight` checks the agent binary, permissions, resolved workspace, rules, queued work,
+generated paths, and scheduler syntax for Claude Code and Codex. It installs nothing, writes
+nothing under LaunchAgents, and does not enable, start, or register an entry. `--list` shows what
+is already registered for this project; `--remove` prints the command that unregisters it. The
+generator refuses to hand over a second entry where one exists — two scheduled starts on one punch
+list is two agents on one shift.
 
 **Install nothing.** The owner runs the command it prints, or does not.
 

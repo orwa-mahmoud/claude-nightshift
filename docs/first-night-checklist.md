@@ -27,5 +27,6 @@ The emergency stop is always available from the workspace root:
 touch .nightshift/STOP
 ```
 
-See [Owner knobs](knobs.md) for the exact rule and notification settings, and
-[Command reference](commands.md) for setup, start, status, stop, and archive.
+See [Owner knobs](knobs.md) for the exact rule and notification settings,
+[Command reference](commands.md) for setup, start, status, doctor, stop, and archive, and
+[Troubleshooting](troubleshooting.md) if the site is not where you expect.

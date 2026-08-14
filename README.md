@@ -65,7 +65,8 @@ you see how your permissions, gates, STOP order, notifications, and host-specifi
    ```
 
 3. Ask Nightshift to start (`/nightshift:start` on Claude Code).
-4. Later, ask for status (`/nightshift:status` on Claude Code).
+4. Later, ask for status (`/nightshift:status` on Claude Code). If the site looks wrong, diagnose
+   it first (`/nightshift:doctor`) — the report never repairs.
 5. Review the local commit, then push it yourself.
 
 If the Codex or Claude Code task must remain open on a different folder, explicitly link it to the
@@ -239,6 +240,12 @@ landed each item as a separate reviewable commit, passed 248 tests plus ShellChe
 validation, and shipped as v0.9.2. The permanent PR, release, and item links are in
 [`examples/codex-hardening-shift.md`](examples/codex-hardening-shift.md).
 
+**Bad nights are evidence too.** Interrupted, stalled, owner-stopped, or incorrectly completed
+runs can be filed from
+[`examples/bad-night-template.md`](examples/bad-night-template.md) — facts separated from
+interpretation, public links only when they exist, ticks never treated as proof. Open them on
+[#22](https://github.com/orwa-mahmoud/nightshift/issues/22).
+
 The live `.nightshift/` state stays out of this repo — the same default nightshift sets for your
 projects: your run history is yours, ignored by your repo, and versioned in its own local
 receipts repo if you opt in at setup.
@@ -269,6 +276,8 @@ likely to be merged.
 
 - [**Command reference**](docs/commands.md) — every slash command, what it asks, and the offline
   paths that need no session.
+- [**Troubleshooting**](docs/troubleshooting.md) — wrong workspace, broken link, STOP, missing
+  session, unreadable rules, and watchman stand-down. Read-only checks first.
 - [**Owner knobs**](docs/knobs.md) — every rule you can set for a shift, and what each one denies.
 - [**Vocabulary**](docs/vocabulary.md) — the words nightshift uses for its own parts, and the file
   behind each one.

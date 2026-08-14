@@ -81,16 +81,27 @@ WORK_TARGET="$(ns_work_target "$PROJECT" 2>/dev/null || true)"
 PUNCH="$NS/punch-list.md"
 LOG="$NS/shift-log.md"
 TICK="$NS/.watchman-tick"
+note() { ns_record_reason "$NS" "$1" "${2:-}"; }
 
 [ -n "$INTERVAL_MIN" ] || INTERVAL_MIN="$(rule "$PROJECT" watchMinutes "")"
-case "$INTERVAL_MIN" in '' | *[!0-9]*) printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2; exit 1 ;; esac
+case "$INTERVAL_MIN" in
+  '' | *[!0-9]*)
+    note unreadable-rules watchMinutes
+    printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2
+    exit 1
+    ;;
+esac
 [ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
 
 RETRY_SPACING="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
 PROMPT_RESUME="$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")"
 PROMPT_FRESH="$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")"
 for _req in "watchRetrySeconds:$RETRY_SPACING" "revivalPrompt:$PROMPT_RESUME" "freshRevivalPrompt:$PROMPT_FRESH"; do
-  [ -n "${_req#*:}" ] || { printf 'watchman: %s unreadable — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' "${_req%%:*}" >&2; exit 1; }
+  if [ -z "${_req#*:}" ]; then
+    note unreadable-rules "${_req%%:*}"
+    printf 'watchman: %s unreadable — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' "${_req%%:*}" >&2
+    exit 1
+  fi
 done
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
@@ -156,18 +167,23 @@ rollout_grew() {
 # Spawn one revival attempt. Rung 1 resumes the recorded conversation; rung 2 is a fresh
 # headless run with the punch list as its handover. NIGHTSHIFT_REVIVAL marks the child for the
 # hooks, so it inherits the shift's binding whatever id the fallback gave it.
+# A non-resumable recorded id is never passed to `codex exec resume` and never treated as a
+# successful resume of that thread.
 spawn() { # $1 = rung (1|2)
-  local cmd prompt
+  local prompt kind
   if [ -n "$AGENT" ]; then
     if [ "$1" -eq 1 ]; then prompt="$PROMPT_RESUME"; else prompt="$PROMPT_FRESH"; fi
     ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 $AGENT "$prompt" >/dev/null 2>&1 )
     return $?
   fi
-  if [ "$1" -eq 1 ] && [ -n "$(sid)" ]; then
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
-  else
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
+  if [ "$1" -eq 1 ]; then
+    kind="$(ns_codex_identity_kind "$(sid)")"
+    if [ "$kind" = "resumable" ]; then
+      ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
+      return $?
+    fi
   fi
+  ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
 }
 
 rung_name() { if [ "$1" -eq 1 ] && [ -n "$(sid)" ]; then printf 'resuming the recorded conversation'; else printf 'fresh session'; fi; }
@@ -182,13 +198,15 @@ while :; do
   sleep "$BASE_SLEEP"
   wake=$((wake + 1))
 
-  if [ -f "$NS/STOP" ]; then log_line "watchman: stop-work order — standing down"; exit 0; fi
-  if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then exit 0; fi
+  if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
+  if [ -f "$NS/.ended" ]; then note completed; exit 0; fi
+  if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
 
   # Another host's shift is another watchman's business: resuming it from here would spawn
   # codex against a conversation a different agent owns.
   host="$(ns_session_host "$NS")"
   if [ "$host" != codex ]; then
+    note wrong-host "$host"
     log_line "watchman: shift is owned by $host — standing down"
     exit 0
   fi
@@ -196,6 +214,7 @@ while :; do
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn 1 || true
+    note completed
     exit 0
   fi
   if [ -f "$NS/deadline" ]; then
@@ -203,24 +222,40 @@ while :; do
     if printf '%s' "$dl" | grep -qE '^[0-9]+$' && [ "$(date +%s)" -ge "$dl" ]; then
       log_line "watchman: past the deadline with the session gone — spawning the clock-out"
       spawn 1 || true
+      note deadline
       exit 0
     fi
   fi
 
   # Life, in evidence order: the recorded process, any codex in the project, the rollout pulse.
   if recorded_process_alive || codex_in_project || rollout_grew; then
+    note silent-standby
     baseline_rollout
     : >"$TICK" 2>/dev/null || true
     if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
     continue
   fi
 
+  # A recorded identity that cannot be resumed is not a missing first-record (that still gets
+  # the fresh fallback). Guessing, or starting an unrelated conversation, would claim a thread
+  # this watchman did not resume.
+  if [ -z "$AGENT" ]; then
+    kind="$(ns_codex_identity_kind "$(sid)")"
+    if [ "$kind" != "resumable" ] && [ "$kind" != "missing" ]; then
+      note non-resumable-session "$kind"
+      log_line "watchman: recorded Codex identity is $kind — standing down; not resuming and not starting a fresh thread"
+      exit 0
+    fi
+  fi
+
   # Dead quiet, mid-shift: revive. Up to 3 attempts this wake, re-checking life between them —
   # a site that comes back mid-wake cancels the rest.
   attempt=0
+  revived=1
   for gap in 0 $RETRY_SPACING; do
     [ "$gap" -gt 0 ] && sleep "$gap"
     if recorded_process_alive || codex_in_project || rollout_grew; then
+      note silent-standby
       log_line "watchman: session activity during retries — holding the remaining attempts"
       break
     fi
@@ -228,11 +263,20 @@ while :; do
     [ "$attempt" -le 3 ] || break
     log_line "watchman: site dead quiet mid-shift — resume attempt $attempt ($(rung_name $attempt))"
     if spawn "$attempt"; then
+      revived=0
+      if [ "$attempt" -ge 2 ] || [ -z "$(sid)" ]; then
+        note fresh-fallback
+      else
+        note revived
+      fi
       log_line "watchman: revival returned — the night continues: codex exec resume $(sid)"
       break
     fi
     baseline_rollout
   done
+  if [ "$revived" -eq 1 ] && [ "$attempt" -gt 0 ]; then
+    note exhausted-retry
+  fi
   baseline_rollout
   : >"$TICK" 2>/dev/null || true
 
