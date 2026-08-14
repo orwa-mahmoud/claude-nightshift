@@ -1,9 +1,8 @@
 # Bad-night receipt template
 
 Use this when a shift was interrupted, stalled, owner-stopped, revived incorrectly, or ended with
-work that did not match the punch list. Successful nights belong in a filled example (see
-[`adapttable-overnight.md`](adapttable-overnight.md) and
-[`codex-hardening-shift.md`](codex-hardening-shift.md)).
+work that did not match the punch list. Successful nights belong in a filled example; use the
+[receipt library](README.md) to see how those are structured and evidenced.
 
 A ticked box is the agent's own claim that the item is done. It is not independent proof. Link
 public commits, pull requests, or logs when they exist; do not paste private repository content
