@@ -4,6 +4,7 @@
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)
 /nightshift:quality    # read-only survey: what the project's own tooling reports. Writes nothing
 /nightshift:hunt       # compose tonight: pick ready shifts, set hours, add your scope
+/nightshift:import-issues  # stage explicitly named GitHub issues onto the drafting table
 # or write your items in the punch list by hand — one checkbox per task
 #   item anatomy, with real items: examples/overnight-webapp.md
 /nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list

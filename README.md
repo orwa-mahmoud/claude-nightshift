@@ -252,6 +252,9 @@ receipts repo if you opt in at setup.
 
 ## The ready shifts
 
+Named GitHub issues can be copied onto the drafting table with `/nightshift:import-issues` — explicit
+URLs or `owner/repo` plus numbers only. Nightshift never searches GitHub and never writes back.
+
 You do not have to invent the night's work. `/nightshift:hunt` reads the catalog and can either let
 you choose the work (**Guided**) or inspect the repository and rank the strongest applicable work
 for the time available (**Automatic**). Then choose when execution begins:

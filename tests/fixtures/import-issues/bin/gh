@@ -1,0 +1,38 @@
+#!/bin/sh
+# Fixture GitHub CLI — records argv and serves local JSON. Never talks to the network.
+log="${IMPORT_GH_LOG:-/dev/null}"
+printf '%s\n' "$*" >>"$log"
+
+if [ "${IMPORT_GH_AUTH:-ok}" != ok ]; then
+  [ "$1" = auth ] && [ "$2" = status ] && exit 1
+fi
+
+case "$1" in
+  auth)
+    [ "$2" = status ] || exit 3
+    printf 'Logged in to github.com\n'
+    exit 0
+    ;;
+  issue)
+    [ "$2" = view ] || exit 3
+    num="$3"
+    repo=""
+    shift 3
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --repo) repo="$2"; shift 2 ;;
+        --json) shift 2 ;;
+        *) exit 3 ;;
+      esac
+    done
+    [ -n "$repo" ] && [ -n "$num" ] || exit 1
+    key=$(printf '%s' "$repo" | tr '/' '_')
+    fixture="${IMPORT_GH_FIXTURES:-${0%/*}/../issues}/${key}_${num}.json"
+    [ -f "$fixture" ] || exit 1
+    cat "$fixture"
+    exit 0
+    ;;
+  *)
+    exit 3
+    ;;
+esac
