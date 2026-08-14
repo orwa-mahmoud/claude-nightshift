@@ -423,15 +423,34 @@ if [ "$MODE" = list-proposed ] || [ "$MODE" = promote ]; then
     rm -f "$DRAFT.next" "$NS/punch-list.md.next"
     exit 2
   }
-  mv "$DRAFT.next" "$DRAFT" || {
+  draft_backup="$NS/.drafting-table.md.rollback.$$"
+  punch_backup="$NS/.punch-list.md.rollback.$$"
+  if ! cp "$DRAFT" "$draft_backup" || ! cp "$NS/punch-list.md" "$punch_backup"; then
+    rm -f "$DRAFT.next" "$NS/punch-list.md.next" "$draft_backup" "$punch_backup"
+    printf 'import-issues: could not prepare a rollback copy. Both live queues are unchanged.\n' >&2
+    exit 2
+  fi
+  # Replace the destination first while the source remains live. If the second
+  # replace fails, restore both files so an issue is never lost between queues.
+  if ! mv "$NS/punch-list.md.next" "$NS/punch-list.md"; then
+    rm -f "$DRAFT.next" "$NS/punch-list.md.next" "$draft_backup" "$punch_backup"
+    printf 'import-issues: could not update the punch list. Both live queues are unchanged.\n' >&2
+    exit 2
+  fi
+  if ! mv "$DRAFT.next" "$DRAFT"; then
+    rollback_ok=1
+    cp "$punch_backup" "$NS/punch-list.md" || rollback_ok=0
+    cp "$draft_backup" "$DRAFT" || rollback_ok=0
     rm -f "$DRAFT.next" "$NS/punch-list.md.next"
-    printf 'import-issues: could not update drafting table. Punch list unchanged.\n' >&2
+    if [ "$rollback_ok" -eq 1 ]; then
+      rm -f "$draft_backup" "$punch_backup"
+      printf 'import-issues: could not update the drafting table. Both live queues were restored.\n' >&2
+    else
+      printf 'import-issues: queue update and rollback failed. Inspect both live files and rollback copies before continuing.\n' >&2
+    fi
     exit 2
-  }
-  mv "$NS/punch-list.md.next" "$NS/punch-list.md" || {
-    printf 'import-issues: punch list write failed after the draft cut. Restore from receipts if needed.\n' >&2
-    exit 2
-  }
+  fi
+  rm -f "$draft_backup" "$punch_backup"
   printf 'Promoted %s issue(s) into the punch list. Removed from the drafting table.\n' "$#"
   exit 0
 fi

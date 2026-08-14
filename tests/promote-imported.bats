@@ -87,3 +87,30 @@ prep() {
   [ "$status" -eq 0 ]
   [ ! -s "$BATS_TEST_TMPDIR/gh.log" ]
 }
+
+@test "a partial queue replacement rolls both live files back" {
+  p="$(new_project)"
+  prep "$p"
+  run isolated_import "$p" --stage https://github.com/acme/widgets/issues/12
+  [ "$status" -eq 0 ]
+  before_d="$(cksum "$p/.nightshift/drafting-table.md")"
+  before_p="$(cksum "$p/.nightshift/punch-list.md")"
+
+  mkdir -p "$BATS_TEST_TMPDIR/fail-mv"
+  cat >"$BATS_TEST_TMPDIR/fail-mv/mv" <<'SH'
+#!/bin/sh
+case "$1" in
+  *drafting-table.md.next) exit 1 ;;
+esac
+exec /bin/mv "$@"
+SH
+  chmod +x "$BATS_TEST_TMPDIR/fail-mv/mv"
+
+  run env PATH="$BATS_TEST_TMPDIR/fail-mv:$PATH" bash "$IMPORT" --project "$p" \
+    --promote https://github.com/acme/widgets/issues/12
+  [ "$status" -eq 2 ]
+  printf '%s' "$output" | grep -q 'Both live queues were restored'
+  [ "$(cksum "$p/.nightshift/drafting-table.md")" = "$before_d" ]
+  [ "$(cksum "$p/.nightshift/punch-list.md")" = "$before_p" ]
+  ! find "$p/.nightshift" -name '*.rollback.*' -o -name '*.next' | grep -q .
+}
