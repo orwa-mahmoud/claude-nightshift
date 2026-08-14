@@ -98,6 +98,19 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qi 'or neither happens' "$q"
 }
 
+@test "quality covers the full catalog and shares hunt execution modes" {
+  q="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  grep -qF 'execution-modes.md' "$q"
+  grep -qi 'Guided' "$q"
+  grep -qi 'Automatic' "$q"
+  grep -qi 'Review first' "$q"
+  grep -qi 'Run directly' "$q"
+  for area in 'flaky tests' coverage 'dead code' 'TODO/FIXME' accessibility localization \
+    'API contract drift' 'documentation drift' 'CI warnings' dependencies 'vulnerability advisories'; do
+    grep -qi "$area" "$q" || { echo "quality omits $area"; return 1; }
+  done
+}
+
 # The install copies plugins/nightshift/ alone, and MIT asks for the notice to travel with every copy — so the
 # licence exists twice on purpose. Two copies drift; this fails the moment they do.
 @test "the shipped licence is the repository's licence" {
