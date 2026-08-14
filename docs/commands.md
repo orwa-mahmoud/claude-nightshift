@@ -9,6 +9,7 @@
 /nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
+                       # optional follow-up: export a redacted local support bundle (never uploaded)
 /nightshift:stop       # end the shift now; open boxes stay open, honestly
 /nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags
 # you review the local commits and push — or forbid pushing outright (one env line below)

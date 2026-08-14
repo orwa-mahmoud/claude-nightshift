@@ -250,6 +250,7 @@ fi
 
 [ -n "$TPATH" ] && [ ! -f "$TPATH" ] && warn "recorded transcript/rollout path is not a readable file"
 
+act confirm "export a redacted local support bundle with runtime/export-support.sh — written under .nightshift/support/, never uploaded"
 act blocked "Doctor never repairs, arms, stops, revives, or deletes"
 
 emit "Nightshift Doctor"
