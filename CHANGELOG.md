@@ -3,6 +3,27 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.10.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.4...v0.10.0) (2026-08-14)
+
+
+### Features
+
+* **catalog:** add a CI warning cleanup shift ([c26b6b0](https://github.com/orwa-mahmoud/nightshift/commit/c26b6b0821fadaf8c4c1371d34a37cef389192b8))
+* **catalog:** add a documentation drift shift ([3ae803b](https://github.com/orwa-mahmoud/nightshift/commit/3ae803b4e79ff95ff6b608ba15bd26268abbb4a6))
+* **community:** add a catalog shift proposal form ([ce24c61](https://github.com/orwa-mahmoud/nightshift/commit/ce24c61e03491fc6459388a09da89601167ccc24))
+* **community:** add a safe failed-shift report form ([20681e1](https://github.com/orwa-mahmoud/nightshift/commit/20681e12596355a78f524e70c8218a4018e3d529))
+* **config:** add a schema for Nightshift rules ([0b22de5](https://github.com/orwa-mahmoud/nightshift/commit/0b22de58d636a54cd78c190a7289486f2e4cb81a))
+* **diagnostics:** add a read-only Nightshift Doctor ([28c22eb](https://github.com/orwa-mahmoud/nightshift/commit/28c22eb075aea62e2dcc1b63fb4ea7f00ae1f66a))
+* harden Nightshift diagnostics and cross-host reliability ([#92](https://github.com/orwa-mahmoud/nightshift/issues/92)) ([08e3263](https://github.com/orwa-mahmoud/nightshift/commit/08e32636f3843ee6116f37f668837ea4f20a2fa1))
+* **recovery:** expose reason-coded watchman outcomes ([16bc18d](https://github.com/orwa-mahmoud/nightshift/commit/16bc18d5f36567aa2b47e4e4b79220df4505f71a))
+* **schedule:** add a no-install preflight check ([e0f3b83](https://github.com/orwa-mahmoud/nightshift/commit/e0f3b8300d53f6500b53b5dc27b57e00171a1fb8))
+
+
+### Bug Fixes
+
+* **codex:** reject non-resumable session identities ([1227a01](https://github.com/orwa-mahmoud/nightshift/commit/1227a01b6f6275f8ef72dc1016637a296510ead3))
+* **runtime:** close shift review gaps ([e530363](https://github.com/orwa-mahmoud/nightshift/commit/e530363e0d5e1bf39224ae4fb37288998190222b))
+
 ## [0.9.4](https://github.com/orwa-mahmoud/nightshift/compare/v0.9.3...v0.9.4) (2026-08-13)
 
 
