@@ -252,11 +252,19 @@ receipts repo if you opt in at setup.
 
 ## The ready shifts
 
-You do not have to invent the night's work. `/nightshift:hunt` reads the catalog, offers what it
-finds — evidence-backed product evolution, test coverage, a review loop ridden to convergence,
-your lint and type debt, dependency upgrades, and security advisories — and writes the one you pick
-as a work order: the item plus its hours, parked with the clock not running. Say the word and it
-cuts the order into the punch list and the gate takes over.
+You do not have to invent the night's work. `/nightshift:hunt` reads the catalog and can either let
+you choose the work (**Guided**) or inspect the repository and rank the strongest applicable work
+for the time available (**Automatic**). Then choose when execution begins:
+
+| | **Review first** | **Run directly** |
+|---|---|---|
+| **Guided** | Pick one or more shifts, inspect the assembled order, then approve or park it. | Pick the shifts and let Nightshift discover, implement, and verify their work without another pause. |
+| **Automatic** | Set the hours; Nightshift scans and ranks the work, but waits for approval before the clock starts. | Set the hours and leave; Nightshift starts the clock, selects the highest-value applicable work, and keeps shipping until quitting time. |
+
+Every combination becomes one ordered work order, one deadline where required, and one set of
+receipts. Review-first discovery is read-only and arms nothing until approval. Run-direct is
+explicit authority to cut and arm the shift immediately; significant decisions and rollback
+instructions are left in the parking lot for morning review.
 
 Each entry declares how it ends. **Open-ended** ones have no natural end but the clock, so hunt
 requires hours and a walkthrough never runs without a cost cap. **Finite** ones work a list your
@@ -334,11 +342,11 @@ Two different guarantees, never confused:
 
 Read this before you trust it overnight:
 
-- **The list is built with you; the shift runs without you.** Drafting, `/nightshift:quality` and
-  `/nightshift:hunt` are desk work — that is where the night's quality is decided, and none of it
-  arms anything. `/nightshift:start` is the boundary: from there the gate will not let the agent
-  stop and the ask-tool is denied, which is what you want at 3am and pure friction at 3pm. Arm it
-  when you're leaving.
+- **Review first is desk work; run directly is a start order.** Drafting and review-first scans in
+  `/nightshift:quality` or `/nightshift:hunt` arm nothing. Choosing **run directly** is different:
+  it cuts the assembled work into the punch list and starts the shift immediately. For work you
+  prepared by hand or parked earlier, `/nightshift:start` remains the explicit boundary. Once
+  armed, the gate will not let the shift quietly stop with open work.
 - **Esc is Claude's stop; Codex has none.** On Claude Code your interrupt is recorded in the
   session transcript, and the watchman reads it before reviving anything: an Esc-paused session
   is stood by, not resumed. What gets revived is a session that *died* — or errored with nobody
