@@ -1,6 +1,6 @@
 {
   "name": "nightshift",
-  "version": "0.9.4",
+  "version": "0.10.0",
   "description": "Keep long Codex runs on task with a persistent punch list, durable progress across compaction and resume, mechanical safety rules, recovery, and ready-made product and quality shifts.",
   "author": {
     "name": "Orwa Mahmoud",
