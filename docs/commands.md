@@ -72,6 +72,8 @@ plugins/nightshift/runtime/schedule.sh --project . --preflight   # check both ho
 plugins/nightshift/runtime/schedule.sh --project . --at 04:05    # print the config + the install command
 plugins/nightshift/runtime/schedule.sh --project . --at 04:05 --agent 'codex exec -s danger-full-access'
                                               # same entry, run by Codex instead of Claude
+plugins/nightshift/runtime/schedule.sh --project . --at 04:05 --target systemd
+                                              # print user .service/.timer; never runs systemctl
 plugins/nightshift/runtime/schedule.sh --project . --list        # what is already registered for this project
 plugins/nightshift/runtime/schedule.sh --project . --remove      # the command that unregisters it
 ```

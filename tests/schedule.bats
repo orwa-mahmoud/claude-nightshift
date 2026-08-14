@@ -233,6 +233,60 @@ STUB
   printf '%s' "$output" | grep -q 'WARN codex is not on PATH'
 }
 
+@test "systemd target prints units and never runs systemctl" {
+  p="$BATS_TEST_TMPDIR/unit proj %percent"
+  mkdir -p "$p/.nightshift"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
+  home="$BATS_TEST_TMPDIR/sdhome"
+  mkdir -p "$home"
+  run env HOME="$home" XDG_CONFIG_HOME="$home/.config" \
+    "$SCHED" --project "$p" --at 04:05 --target systemd --agent "codex exec -s danger-full-access"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q '\[Timer\]'
+  printf '%s' "$output" | grep -q 'OnCalendar=\*-\*-\* 04:05:00'
+  printf '%s' "$output" | grep -q 'Persistent=true'
+  printf '%s' "$output" | grep -q 'Type=oneshot'
+  printf '%s' "$output" | grep -q 'codex exec -s danger-full-access'
+  printf '%s' "$output" | grep -q '%%percent'
+  printf '%s' "$output" | grep -q 'Nightshift runs none'
+  printf '%s' "$output" | grep -q 'systemctl --user enable --now'
+  ! printf '%s' "$output" | grep -q 'After=network'
+  [ ! -e "$home/.config/systemd/user" ]
+}
+
+@test "systemd unit names are deterministic and differ by path" {
+  a="$BATS_TEST_TMPDIR/a/api"; b="$BATS_TEST_TMPDIR/b/api"
+  for d in "$a" "$b"; do
+    mkdir -p "$d/.nightshift"
+    printf '## Items\n- [ ] **1. work.**\n' >"$d/.nightshift/punch-list.md"
+  done
+  ida="$("$SCHED" --project "$a" --at 04:05 --target systemd | sed -n 's/.*nightshift-\([^ ]*\)\.timer.*/\1/p' | head -1)"
+  idb="$("$SCHED" --project "$b" --at 04:05 --target systemd | sed -n 's/.*nightshift-\([^ ]*\)\.timer.*/\1/p' | head -1)"
+  [ -n "$ida" ] && [ -n "$idb" ] && [ "$ida" != "$idb" ]
+  run "$SCHED" --project "$a" --at 04:05 --target systemd
+  ida2="$(printf '%s' "$output" | sed -n 's/.*nightshift-\([^ ]*\)\.timer.*/\1/p' | head -1)"
+  [ "$ida" = "$ida2" ]
+}
+
+@test "systemd generate refuses a second installed unit and invalid targets" {
+  p="$BATS_TEST_TMPDIR/sdproj"
+  mkdir -p "$p/.nightshift"
+  printf '## Items\n- [ ] **1. work.**\n' >"$p/.nightshift/punch-list.md"
+  home="$BATS_TEST_TMPDIR/sdhome2"
+  run env HOME="$home" XDG_CONFIG_HOME="$home/.config" \
+    "$SCHED" --project "$p" --at 04:05 --target systemd
+  [ "$status" -eq 0 ]
+  unit="$(printf '%s' "$output" | sed -n 's#.*/\(nightshift-[^/]*\)\.timer#\1#p' | head -1)"
+  [ -n "$unit" ]
+  mkdir -p "$home/.config/systemd/user"
+  : >"$home/.config/systemd/user/${unit}.timer"
+  run env HOME="$home" XDG_CONFIG_HOME="$home/.config" \
+    "$SCHED" --project "$p" --at 04:05 --target systemd
+  [ "$status" -eq 3 ]
+  run "$SCHED" --project "$p" --at 04:05 --target launchd-please
+  [ "$status" -eq 1 ]
+}
+
 @test "the schedule skill documents the no-install preflight" {
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
   grep -qF -- '--preflight' "$s"

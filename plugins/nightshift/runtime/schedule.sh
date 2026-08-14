@@ -6,11 +6,14 @@
 # This generates their config, filled in for one project, and prints the single command that
 # installs it. It registers nothing itself.
 #
-#   schedule.sh [--project DIR] [--at HH:MM] [--agent CMD] [--list] [--remove] [--preflight]
+#   schedule.sh [--project DIR] [--at HH:MM] [--agent CMD] [--target KIND]
+#               [--list] [--remove] [--preflight]
 #
 #   --at HH:MM   24-hour local time. Required unless --list, --remove, or --preflight.
 #   --agent CMD  the headless runner the entry invokes (default: claude -p).
 #                Codex projects pass: --agent 'codex exec -s danger-full-access'
+#   --target     launchd | cron | systemd. Default is launchd on macOS, cron elsewhere.
+#                systemd is generate-only: Nightshift never runs systemctl.
 #   --list       what is already registered for this project, and nothing else
 #   --remove     print the command that unregisters it
 #   --preflight  check the site and both hosts; print a report; write nothing
@@ -30,6 +33,7 @@ PROJECT="$PWD"
 AT=""
 AGENT="claude -p"
 MODE="generate"
+TARGET=""
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
@@ -47,6 +51,7 @@ while [ $# -gt 0 ]; do
     --project) need_value "$1" $#; PROJECT="$2"; shift 2 ;;
     --at) need_value "$1" $#; AT="$2"; shift 2 ;;
     --agent) need_value "$1" $#; AGENT="$2"; shift 2 ;;
+    --target) need_value "$1" $#; TARGET="$2"; shift 2 ;;
     --list) MODE="list"; shift ;;
     --remove) MODE="remove"; shift ;;
     --preflight) MODE="preflight"; shift ;;
@@ -95,6 +100,18 @@ case "$(uname -s)" in
   Darwin) OS="macos"; PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist" ;;
   *) OS="cron" ;;
 esac
+case "$TARGET" in
+  '') ;;
+  launchd) OS="macos"; PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist" ;;
+  cron) OS="cron" ;;
+  systemd) OS="systemd" ;;
+  *) printf 'schedule: --target must be launchd, cron, or systemd\n' >&2; exit 1 ;;
+esac
+UNIT="nightshift-${ID}"
+SDIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+SERVICE="$SDIR/${UNIT}.service"
+TIMER="$SDIR/${UNIT}.timer"
+systemd_escape() { printf '%s' "$1" | sed 's/%/%%/g'; }
 
 # Registered already? Two entries for one project means two agents on one punch list — the
 # failure the shift's own one-session rule exists to prevent, arriving from outside it.
@@ -102,6 +119,8 @@ registered() {
   if [ "$OS" = "macos" ]; then
     [ -f "$PLIST" ] && return 0
     launchctl list 2>/dev/null | grep -qF "$LABEL"
+  elif [ "$OS" = "systemd" ]; then
+    [ -f "$SERVICE" ] || [ -f "$TIMER" ]
   else
     crontab -l 2>/dev/null | grep -qF "$MARKER"
   fi
@@ -111,6 +130,9 @@ show_registered() {
   if [ "$OS" = "macos" ]; then
     [ ! -f "$PLIST" ] || printf '  plist:    %s\n' "$PLIST"
     launchctl list 2>/dev/null | grep -F "$LABEL" | sed 's/^/  launchd:  /'
+  elif [ "$OS" = "systemd" ]; then
+    [ ! -f "$SERVICE" ] || printf '  service:  %s\n' "$SERVICE"
+    [ ! -f "$TIMER" ] || printf '  timer:    %s\n' "$TIMER"
   else
     crontab -l 2>/dev/null | grep -F "$MARKER" | sed 's/^/  crontab:  /'
   fi
@@ -134,6 +156,10 @@ if [ "$MODE" = "remove" ]; then
   printf 'To unregister:\n\n'
   if [ "$OS" = "macos" ]; then
     printf '  launchctl unload -w %s && rm %s\n\n' "$(shell_quote "$PLIST")" "$(shell_quote "$PLIST")"
+  elif [ "$OS" = "systemd" ]; then
+    printf '  systemctl --user disable --now %s.timer\n' "$UNIT"
+    printf '  rm -f %s %s\n' "$(shell_quote "$SERVICE")" "$(shell_quote "$TIMER")"
+    printf '  systemctl --user daemon-reload\n\n'
   else
     printf '  crontab -l | grep -vF %s | crontab -\n\n' "'$MARKER'"
   fi
@@ -340,6 +366,50 @@ Then install it:
 PLIST_EOF
   printf 'A Mac that is asleep at %s runs nothing — launchd defers the job to the next wake.\n' "$AT"
   printf 'To have the machine wake for it: sudo pmset repeat wakeorpoweron MTWRFSU %s:00\n' "$AT"
+elif [ "$OS" = "systemd" ]; then
+  RUN_SD="$(systemd_escape "$RUN")"
+  WD="$(systemd_escape "$PROJECT")"
+  QSDIR="$(shell_quote "$SDIR")"
+  QSERVICE="$(shell_quote "$SERVICE")"
+  QTIMER="$(shell_quote "$TIMER")"
+  cat <<SYSTEMD_EOF
+Proposed unit files (Nightshift writes none of these):
+
+  $SERVICE
+  $TIMER
+
+# ${UNIT}.service
+[Unit]
+Description=Nightshift scheduled start
+
+[Service]
+Type=oneshot
+WorkingDirectory="$WD"
+ExecStart=/bin/sh -c $(shell_quote "$RUN_SD")
+
+# ${UNIT}.timer
+[Unit]
+Description=Nightshift scheduled start
+
+[Timer]
+OnCalendar=*-*-* ${HH}:${MM}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+
+Owner actions — Nightshift runs none of these:
+
+  mkdir -p $QSDIR
+  # write the two unit files above to those paths
+  systemctl --user daemon-reload
+  systemctl --user enable --now ${UNIT}.timer
+  systemctl --user list-timers ${UNIT}.timer
+  systemctl --user disable --now ${UNIT}.timer
+  rm -f $QSERVICE $QTIMER
+  systemctl --user daemon-reload
+
+SYSTEMD_EOF
 else
   cat <<CRON_EOF
 Add this line to your crontab (\`crontab -e\`):
