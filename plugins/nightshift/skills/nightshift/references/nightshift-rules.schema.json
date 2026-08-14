@@ -69,6 +69,23 @@
     "clockOutMessage": {
       "type": "string",
       "description": "Text the Stop hook re-injects when open punch-list items remain."
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional history retention. 0 keeps forever. Only /nightshift:archive may prune, and only after a printed preview and explicit confirmation.",
+      "properties": {
+        "runtimeLogDays": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Delete Nightshift-generated runtime logs older than N days. 0 keeps forever."
+        },
+        "archiveDays": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Delete dated .nightshift/archive/YYYY-MM-DD directories older than N days. 0 keeps forever."
+        }
+      }
     }
   }
 }

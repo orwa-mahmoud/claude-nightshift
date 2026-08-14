@@ -475,3 +475,163 @@ ns_migrate_state() {
       ;;
   esac
 }
+
+# Retention — archive-only, preview-first. 0 means keep forever. Unreadable rules
+# also mean 0: a broken file must never become a delete. Hooks, start, status,
+# Doctor, and recovery must not call these apply helpers.
+ns_mtime() {
+  stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null
+}
+
+ns_age_days() {
+  local m now
+  m="$(ns_mtime "$1")" || return 1
+  case "$m" in '' | *[!0-9]*) return 1 ;; esac
+  now="$(date +%s)"
+  printf '%s' "$(((now - m) / 86400))"
+}
+
+# ns_retention_days <workspace> <runtimeLogDays|archiveDays>
+# Prints a non-negative integer. Missing, nested, or unreadable → 0.
+ns_retention_days() {
+  local ws="$1" key="$2" f="$1/.nightshift/rules.json" raw=""
+  case "$key" in
+    runtimeLogDays)
+      [ -z "${NIGHTSHIFT_RETENTION_RUNTIME_LOG_DAYS:-}" ] || { printf '%s' "$NIGHTSHIFT_RETENTION_RUNTIME_LOG_DAYS"; return 0; }
+      ;;
+    archiveDays)
+      [ -z "${NIGHTSHIFT_RETENTION_ARCHIVE_DAYS:-}" ] || { printf '%s' "$NIGHTSHIFT_RETENTION_ARCHIVE_DAYS"; return 0; }
+      ;;
+    *)
+      printf '0'
+      return 0
+      ;;
+  esac
+  if [ -f "$f" ] && command -v jq >/dev/null 2>&1; then
+    raw="$(jq -r --arg k "$key" '.retention[$k] // 0' "$f" 2>/dev/null)" || raw=0
+  elif [ -f "$f" ]; then
+    raw="$(sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$f" | sed -n 1p)"
+  fi
+  case "$raw" in
+    '' | *[!0-9]*) printf '0' ;;
+    *) printf '%s' "$raw" ;;
+  esac
+}
+
+# ns_under_nightshift <workspace> <relative-path>
+# Print the canonical path when it resolves to a real child of .nightshift/.
+# Rejects symlinks, traversal, and anything that escapes the root.
+ns_under_nightshift() {
+  local ws="$1" rel="$2" ns root parent base canon
+  case "$rel" in
+    '' | /* | *..*) return 1 ;;
+  esac
+  ns="$ws/.nightshift"
+  root="$(cd -P "$ns" 2>/dev/null && pwd)" || return 1
+  [ ! -L "$ns/$rel" ] || return 1
+  if [ -d "$ns/$rel" ]; then
+    canon="$(cd -P "$ns/$rel" 2>/dev/null && pwd)" || return 1
+  elif [ -f "$ns/$rel" ]; then
+    base="${rel##*/}"
+    if [ "$rel" = "$base" ]; then
+      parent="$root"
+    else
+      parent="$(cd -P "$ns/${rel%/*}" 2>/dev/null && pwd)" || return 1
+    fi
+    [ -f "$parent/$base" ] || return 1
+    [ ! -L "$parent/$base" ] || return 1
+    canon="$parent/$base"
+  else
+    return 1
+  fi
+  case "$canon" in
+    "$root"/*) ;;
+    *) return 1 ;;
+  esac
+  printf '%s' "$canon"
+}
+
+# True when a dated archive still holds open punch-list work or an armed marker.
+ns_archive_has_open_work() {
+  local dir="$1" f
+  [ -d "$dir" ] || return 1
+  [ ! -e "$dir/.shift-armed" ] || return 0
+  [ ! -L "$dir/.shift-armed" ] || return 0
+  for f in "$dir"/*; do
+    [ -f "$f" ] && [ ! -L "$f" ] || continue
+    case "${f##*/}" in
+      punch-list.md | shipped.md)
+        [ "$(ns_open_boxes "$f")" -eq 0 ] || return 0
+        ;;
+    esac
+  done
+  return 1
+}
+
+# ns_retention_eligible <workspace>
+# Print "kind<TAB>rel<TAB>age<TAB>days" for allowlisted, old-enough, unprotected targets.
+ns_retention_eligible() {
+  local ws="$1" ns log_days arch_days age path rel
+  ns="$ws/.nightshift"
+  [ -d "$ns" ] || return 0
+  log_days="$(ns_retention_days "$ws" runtimeLogDays)"
+  arch_days="$(ns_retention_days "$ws" archiveDays)"
+
+  if [ "$log_days" -gt 0 ] && [ -e "$ns/scheduled.log" ]; then
+    path="$(ns_under_nightshift "$ws" scheduled.log)" && {
+      age="$(ns_age_days "$path")" || age=""
+      if [ -n "$age" ] && [ "$age" -ge "$log_days" ]; then
+        printf '%s\t%s\t%s\t%s\n' runtime-log scheduled.log "$age" "$log_days"
+      fi
+    }
+  fi
+
+  [ "$arch_days" -gt 0 ] || return 0
+  [ -d "$ns/archive" ] && [ ! -L "$ns/archive" ] || return 0
+  for rel in "$ns/archive"/*; do
+    [ -e "$rel" ] || continue
+    rel="${rel#"$ns/"}"
+    case "$rel" in
+      archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+      archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) rel="${rel%/}" ;;
+      *) continue ;;
+    esac
+    [ -d "$ns/$rel" ] || continue
+    path="$(ns_under_nightshift "$ws" "$rel")" || continue
+    ns_archive_has_open_work "$path" && continue
+    age="$(ns_age_days "$path")" || continue
+    [ "$age" -ge "$arch_days" ] || continue
+    printf '%s\t%s\t%s\t%s\n' archive "$rel" "$age" "$arch_days"
+  done
+}
+
+# ns_retention_apply <workspace> — delete currently eligible allowlisted targets.
+# Return: 0 deleted or nothing eligible · 1 armed · 2 refused/failed
+ns_retention_apply() {
+  local ws="$1" ns kind rel path
+  ns="$ws/.nightshift"
+  [ -d "$ns" ] || return 2
+  if [ -f "$ns/.shift-armed" ]; then
+    return 1
+  fi
+  while IFS="$(printf '\t')" read -r kind rel _ _; do
+    [ -n "$rel" ] || continue
+    path="$(ns_under_nightshift "$ws" "$rel")" || return 2
+    case "$kind" in
+      runtime-log)
+        [ -f "$path" ] && [ ! -L "$path" ] || return 2
+        rm -f "$path" || return 2
+        ;;
+      archive)
+        [ -d "$path" ] && [ ! -L "$path" ] || return 2
+        ns_archive_has_open_work "$path" && return 2
+        rm -rf "$path" || return 2
+        ;;
+      *)
+        return 2
+        ;;
+    esac
+  done <<EOF
+$(ns_retention_eligible "$ws")
+EOF
+}

@@ -57,6 +57,30 @@ anything — the ticked lines are the night's scoreboard, and the owner may want
 review to see them in place. If the receipts repo exists (`.nightshift/.git`), commit after
 archiving so the move itself has history.
 
+## Retention
+
+After filing, preview generated history that the owner has opted in to prune. Run:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/retain-history.sh" --project "$NIGHTSHIFT_WORKSPACE"
+```
+
+Print that preview verbatim — every eligible path, its age, and the governing rule
+(`retention.runtimeLogDays` or `retention.archiveDays`). Both default to `0` (keep forever);
+a preview that lists nothing is success, not a prompt to invent a number.
+
+Deletion is a second, explicit step. If the preview lists paths and the owner confirms in this
+interactive session, run the same command with `--apply`. If the shift is armed, the owner
+does not confirm, or either rule is `0`, stop after the preview. `--apply` deletes only the
+allowlisted runtime log (`scheduled.log`) and dated `archive/YYYY-MM-DD/` directories that
+are old enough, resolved under `.nightshift/`, not symlinks, and free of still-open work.
+
+Never call `retain-history.sh` from start, hooks, status, Doctor, or recovery. Never delete
+the live punch list, drafting table, parking lot, rules, current shift files, or owner-authored
+files.
+
 ## Summarize
 
 Print the archive path and one line per file moved or trimmed — and what stayed live and why.
+If a retention preview ran, include whether anything was eligible and whether the owner
+confirmed a delete.
