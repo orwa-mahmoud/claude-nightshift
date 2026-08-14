@@ -5,10 +5,13 @@
 #   import-issues.sh [--project DIR] --fetch SPEC...
 #   import-issues.sh [--project DIR] --fetch --repo owner/repo N [N...]
 #   import-issues.sh [--project DIR] --stage SPEC... [--allow-closed]
+#   import-issues.sh [--project DIR] --list-proposed [--authorized-repo owner/repo]
+#   import-issues.sh [--project DIR] --promote SPEC... [--authorized-repo owner/repo] [--allow-flagged]
 #
 # SPEC is an issue URL or owner/repo#N. Default is preview (--fetch).
 # --stage appends selected issues to drafting-table.md atomically.
-# Exit: 0 previewed or staged · 1 usage · 2 refused
+# --list-proposed and --promote are local markdown only; they never call gh.
+# Exit: 0 previewed, staged, listed, or promoted · 1 usage · 2 refused
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -19,7 +22,17 @@ PROJECT="${CLAUDE_PROJECT_DIR:-${CODEX_PROJECT_DIR:-$PWD}}"
 MODE=""
 REPO=""
 ALLOW_CLOSED=0
+ALLOW_FLAGGED=0
+AUTH_REPO=""
 SPECS=""
+
+set_mode() {
+  [ -z "$MODE" ] || [ "$MODE" = "$1" ] || {
+    printf 'import-issues: choose one of --fetch, --stage, --list-proposed, --promote\n' >&2
+    exit 1
+  }
+  MODE="$1"
+}
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
@@ -28,24 +41,14 @@ usage() {
 while [ $# -gt 0 ]; do
   case "$1" in
     --project) [ $# -ge 2 ] || exit 1; PROJECT="$2"; shift 2 ;;
-    --fetch)
-      [ -z "$MODE" ] || [ "$MODE" = fetch ] || {
-        printf 'import-issues: choose --fetch or --stage, not both\n' >&2
-        exit 1
-      }
-      MODE=fetch
-      shift
-      ;;
-    --stage)
-      [ -z "$MODE" ] || [ "$MODE" = stage ] || {
-        printf 'import-issues: choose --fetch or --stage, not both\n' >&2
-        exit 1
-      }
-      MODE=stage
-      shift
-      ;;
+    --fetch) set_mode fetch; shift ;;
+    --stage) set_mode stage; shift ;;
+    --list-proposed) set_mode list-proposed; shift ;;
+    --promote) set_mode promote; shift ;;
     --repo) [ $# -ge 2 ] || exit 1; REPO="$2"; shift 2 ;;
+    --authorized-repo) [ $# -ge 2 ] || exit 1; AUTH_REPO="$2"; shift 2 ;;
     --allow-closed) ALLOW_CLOSED=1; shift ;;
+    --allow-flagged) ALLOW_FLAGGED=1; shift ;;
     -h | --help) usage; exit 1 ;;
     --) shift; break ;;
     -*)
@@ -223,6 +226,215 @@ fetch_issue() {
   gh issue view "$num" --repo "${owner}/${repo}" --json title,body,labels,state,number,url 2>/dev/null |
     jq -e 'select(type == "object" and .title and .number and .url)'
 }
+
+# Local markdown cut. Never calls gh.
+import_md() {
+  if ! ns_have_cmd python3; then
+    printf 'import-issues: python3 is required to list or promote imported drafts\n' >&2
+    exit 2
+  fi
+  python3 - "$@" <<'PY'
+import re, sys
+
+ITEM_RE = re.compile(r"(?m)^- \[ \] \*\*.+\*\*\s*$")
+SOURCE_RE = re.compile(
+    r"(?m)^\s*- Source: (https://github.com/[^/\s]+/[^/\s]+/issues/\d+)\s*$"
+)
+STATUS_RE = re.compile(r"(?m)^\s*- Status: proposed\s*$")
+REPO_RE = re.compile(r"(?m)^\s*- Repository: (\S+)\s*$")
+FLAGS_RE = re.compile(r"(?m)^\s*- Review flags: (.+?)\s*$")
+TITLE_RE = re.compile(r"^- \[ \] \*\*(.+)\.\*\*\s*$")
+
+def split_items(text):
+    matches = list(ITEM_RE.finditer(text))
+    if not matches:
+        return text, []
+    head = text[: matches[0].start()]
+    items = []
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        items.append(text[m.start() : end])
+    return head, items
+
+def parse_import(block):
+    if not STATUS_RE.search(block):
+        return None
+    sm = SOURCE_RE.search(block)
+    if not sm:
+        return None
+    rm = REPO_RE.search(block)
+    fm = FLAGS_RE.search(block)
+    first = block.splitlines()[0] if block.splitlines() else ""
+    tm = TITLE_RE.search(first)
+    return {
+        "block": block,
+        "url": sm.group(1),
+        "repo": rm.group(1) if rm else "",
+        "flags": fm.group(1).strip() if fm else "none",
+        "title": tm.group(1) if tm else "",
+    }
+
+def load_imports(path):
+    text = open(path, encoding="utf-8").read()
+    head, items = split_items(text)
+    parsed = []
+    other = []
+    for block in items:
+        info = parse_import(block)
+        if info:
+            parsed.append(info)
+        else:
+            other.append(block)
+    return text, head, parsed, other
+
+cmd, draft_path = sys.argv[1], sys.argv[2]
+auth = sys.argv[3] if len(sys.argv) > 3 else ""
+_, head, imported, other = load_imports(draft_path)
+
+def allowed(info):
+    return not auth or info["repo"] == auth
+
+if cmd == "list":
+    for info in imported:
+        if allowed(info):
+            print("\t".join([info["url"], info["repo"], info["flags"], info["title"]]))
+    sys.exit(0)
+
+if cmd != "promote":
+    sys.exit(2)
+
+punch_path = sys.argv[4]
+allow_flagged = sys.argv[5] == "1"
+urls = sys.argv[6:]
+punch = open(punch_path, encoding="utf-8").read()
+if "## Items" not in punch:
+    sys.stderr.write("import-issues: punch list has no ## Items heading\n")
+    sys.exit(2)
+
+by_url = {info["url"]: info for info in imported}
+chosen = []
+for url in urls:
+    info = by_url.get(url)
+    if info is None:
+        sys.stderr.write("import-issues: not a proposed imported issue: %s\n" % url)
+        sys.exit(2)
+    if not allowed(info):
+        sys.stderr.write("import-issues: %s is outside the authorized repository\n" % url)
+        sys.exit(2)
+    if info["flags"] != "none" and not allow_flagged:
+        sys.stderr.write("import-issues: refuse flagged issue %s (%s)\n" % (url, info["flags"]))
+        sys.exit(2)
+    if info["url"] in punch:
+        sys.stderr.write("import-issues: already on the punch list: %s\n" % url)
+        sys.exit(2)
+    chosen.append(info)
+
+if not chosen:
+    sys.stderr.write("import-issues: nothing to promote\n")
+    sys.exit(1)
+
+remain = [info["block"] for info in imported if info["url"] not in {c["url"] for c in chosen}]
+new_draft = head + "".join(other) + "".join(remain)
+moved = "".join(c["block"].rstrip() + "\n\n" for c in chosen)
+if not punch.endswith("\n"):
+    punch += "\n"
+new_punch = punch + "\n" + moved
+open(draft_path + ".next", "w", encoding="utf-8").write(new_draft)
+open(punch_path + ".next", "w", encoding="utf-8").write(new_punch)
+print("promoted\t%d" % len(chosen))
+PY
+}
+
+canonical_specs() {
+  local spec
+  : >"$work/canon"
+  if [ -n "$REPO" ]; then
+    [ -n "$SPECS" ] || {
+      printf 'import-issues: --repo requires explicit issue numbers. Nightshift never lists a repository.\n' >&2
+      exit 1
+    }
+    printf '%s\n' "$SPECS" >"$work/specs"
+    while IFS= read -r spec; do
+      [ -n "$spec" ] || continue
+      case "$spec" in
+        *[!0-9]*)
+          printf 'import-issues: with --repo, arguments must be issue numbers (got %s)\n' "$spec" >&2
+          exit 1
+          ;;
+      esac
+      parse_repo_number "$REPO" "$spec" >>"$work/canon" || {
+        printf 'import-issues: cannot parse --repo %s issue %s\n' "$REPO" "$spec" >&2
+        exit 1
+      }
+    done <"$work/specs"
+  else
+    printf '%s\n' "$SPECS" >"$work/specs"
+    while IFS= read -r spec; do
+      [ -n "$spec" ] || continue
+      parse_spec "$spec" >>"$work/canon" || {
+        printf 'import-issues: not an explicit GitHub issue: %s\n' "$spec" >&2
+        exit 1
+      }
+    done <"$work/specs"
+  fi
+  awk -F '\t' '!seen[$4]++ { print $4 }' "$work/canon"
+}
+
+if [ "$MODE" = list-proposed ] || [ "$MODE" = promote ]; then
+  [ -d "$NS" ] || {
+    printf 'import-issues: no .nightshift/ — run setup first\n' >&2
+    exit 2
+  }
+  [ -f "$DRAFT" ] || {
+    printf 'import-issues: missing drafting-table.md — run setup first. No files were changed.\n' >&2
+    exit 2
+  }
+  if [ -n "$AUTH_REPO" ]; then
+    case "$AUTH_REPO" in
+      */*) ;;
+      *)
+        printf 'import-issues: --authorized-repo must be owner/repo\n' >&2
+        exit 1
+        ;;
+    esac
+  fi
+  if [ "$MODE" = list-proposed ]; then
+    import_md list "$DRAFT" "$AUTH_REPO"
+    exit $?
+  fi
+  [ -f "$NS/punch-list.md" ] || {
+    printf 'import-issues: missing punch-list.md — run setup first. No files were changed.\n' >&2
+    exit 2
+  }
+  [ -n "$SPECS" ] || [ -n "$REPO" ] || {
+    printf 'import-issues: name explicit issue URLs to promote. Nightshift never searches.\n' >&2
+    exit 1
+  }
+  work=$(mktemp -d "${TMPDIR:-/tmp}/ns-import.XXXXXX") || exit 2
+  trap 'rm -rf "$work"' EXIT
+  urls=$(canonical_specs) || exit 1
+  # shellcheck disable=SC2086
+  set -- $urls
+  [ $# -gt 0 ] || {
+    printf 'import-issues: nothing to promote\n' >&2
+    exit 1
+  }
+  import_md promote "$DRAFT" "$AUTH_REPO" "$NS/punch-list.md" "$ALLOW_FLAGGED" "$@" || {
+    rm -f "$DRAFT.next" "$NS/punch-list.md.next"
+    exit 2
+  }
+  mv "$DRAFT.next" "$DRAFT" || {
+    rm -f "$DRAFT.next" "$NS/punch-list.md.next"
+    printf 'import-issues: could not update drafting table. Punch list unchanged.\n' >&2
+    exit 2
+  }
+  mv "$NS/punch-list.md.next" "$NS/punch-list.md" || {
+    printf 'import-issues: punch list write failed after the draft cut. Restore from receipts if needed.\n' >&2
+    exit 2
+  }
+  printf 'Promoted %s issue(s) into the punch list. Removed from the drafting table.\n' "$#"
+  exit 0
+fi
 
 [ -n "$SPECS" ] || [ -n "$REPO" ] || {
   printf 'import-issues: name explicit issue URLs or --repo owner/repo plus issue numbers. Nightshift never searches.\n' >&2

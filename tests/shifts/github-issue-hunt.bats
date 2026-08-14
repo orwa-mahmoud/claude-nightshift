@@ -1,0 +1,43 @@
+E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/github-issue-hunt.md"
+HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
+QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
+MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+
+@test "the GitHub issue hunt consumes only imported proposed drafts" {
+  grep -qF 'Status: proposed' "$E"
+  grep -qF '/nightshift:import-issues' "$E"
+  grep -qi 'must not start' "$E"
+  grep -qi 'Never search GitHub' "$E"
+}
+
+@test "guided preview and direct ranking stay inside the imported set" {
+  grep -qi 'Guided mode' "$E"
+  grep -qi 'requires an explicit selection' "$E"
+  grep -qi 'Direct mode' "$E"
+  grep -qi 'authorized work-target repo' "$E"
+  grep -qi 'Do not expand the selected set' "$E"
+  grep -qi 'cannot grow past the imported' "$MODES"
+}
+
+@test "the hunt cuts drafts into one punch list and keeps one commit per issue" {
+  grep -qF -- '--promote' "$E"
+  grep -qi 'Cut, never copy' "$E"
+  grep -qi 'Do not paste' "$E"
+  grep -qi 'One conventional commit per issue' "$E"
+  grep -qi 'shift-log.md' "$E"
+  grep -qi 'deadline is reached' "$E"
+}
+
+@test "the hunt never mutates GitHub and reports ready for PR" {
+  grep -qi 'Never comment on, edit, assign, label, or close' "$E"
+  grep -qi 'ready for PR' "$E"
+  grep -qF 'Closes #N' "$E"
+  grep -qi 'Refuse flagged' "$E"
+}
+
+@test "Hunt offers the entry without replacing defect or product shifts" {
+  grep -qF 'GitHub issue-hunt' "$HUNT"
+  grep -qF -- '--list-proposed' "$HUNT"
+  grep -qi 'does not replace defect hunt or product' "$HUNT"
+  grep -qi 'Quality does not import, search, or work GitHub issues' "$QUALITY"
+}
