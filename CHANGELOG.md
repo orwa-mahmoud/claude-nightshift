@@ -3,6 +3,27 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.12.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.11.0...v0.12.0) (2026-08-14)
+
+
+### Features
+
+* **archive:** add explicit history retention ([1e4cc4f](https://github.com/orwa-mahmoud/nightshift/commit/1e4cc4fa2c6647a1cc56935e49cef2fbb7b6f92b))
+* **catalog:** add GitHub issue hunts ([c2257d7](https://github.com/orwa-mahmoud/nightshift/commit/c2257d72a94c330673cc8ab3472e1f5e3c35784a))
+* **doctor:** export redacted support bundles ([f63deb8](https://github.com/orwa-mahmoud/nightshift/commit/f63deb84eb144a8fc5ea4378ef236f65bc4a3539))
+* **github:** stage selected issues for shifts ([c182ef2](https://github.com/orwa-mahmoud/nightshift/commit/c182ef2cb8d9b2f07d12d6193e3266876c5d29b0))
+* **rules:** add opt-in local profiles ([d2ddbe7](https://github.com/orwa-mahmoud/nightshift/commit/d2ddbe7ba9edd6cb57fec4e52c9777b9f1a222aa))
+* **schedule:** generate systemd user timers ([7c6a010](https://github.com/orwa-mahmoud/nightshift/commit/7c6a010f74d2d522bad1e93006e4c24519c45def))
+* **state:** version Nightshift workspaces ([45cfeb9](https://github.com/orwa-mahmoud/nightshift/commit/45cfeb98a4dab19ca0054e65c6ea7f55d1c8e316))
+
+
+### Bug Fixes
+
+* **ci:** align Linux portability checks ([9162265](https://github.com/orwa-mahmoud/nightshift/commit/9162265736f3117e0fa0381b433a33122fb4de22))
+* **ci:** harden Linux runtime portability ([2c47003](https://github.com/orwa-mahmoud/nightshift/commit/2c470031c03c1c73a8039e802aefbc72d592db18))
+* **github:** roll back partial queue promotion ([f090099](https://github.com/orwa-mahmoud/nightshift/commit/f090099425a10b87dbafe391a9c1f0fb60fc71b1))
+* **recovery:** support minimal process environments ([4391c1f](https://github.com/orwa-mahmoud/nightshift/commit/4391c1f773ba35769ade9d89c131651aa5cda4e2))
+
 ## [0.11.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.10.0...v0.11.0) (2026-08-14)
 
 
