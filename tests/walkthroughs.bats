@@ -107,6 +107,39 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'park it for later' "$HUNT"
 }
 
+@test "hunt separates selection mode from launch mode" {
+  grep -qi 'Guided' "$HUNT"
+  grep -qi 'Automatic' "$HUNT"
+  grep -qi 'review first, or run directly' "$HUNT"
+  grep -qi 'independent from Guided or Automatic' "$HUNT"
+}
+
+@test "automatic hunt ranks evidence and uses one combined clock" {
+  mode="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+  grep -qi 'inspect the repository' "$mode"
+  grep -qi 'user or production impact' "$mode"
+  grep -qi 'Remove overlaps' "$mode"
+  grep -qi 'Run finite entries first' "$mode"
+  grep -qi 'at most one open-ended entry' "$mode"
+  grep -qi 'one deadline governs' "$mode"
+}
+
+@test "review-first and run-direct clocks begin at different boundaries" {
+  mode="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+  grep -qi 'clock starts only after' "$mode"
+  grep -qi 'Start the clock immediately' "$mode"
+  grep -qi 'Guided + run directly' "$mode"
+}
+
+@test "run-direct has a bounded decision policy and leaves receipts" {
+  mode="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+  grep -qi 'production-quality default' "$mode"
+  grep -qi 'parking-lot.md' "$mode"
+  grep -qi 'rollback' "$mode"
+  grep -qi 'publishing' "$mode"
+  grep -qi 'legal or licensing policy' "$mode"
+}
+
 # The archive files finished paperwork only — the contract and open work are untouchable.
 @test "the archive skill moves only finished records, never the contract or open items" {
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"

@@ -63,6 +63,14 @@ it anyway. Instead: choose the most sensible production-grade default, record th
 reasoning in `parking-lot.md` in plain language, and keep working. The owner reviews it over coffee.
 Known later work is not a decision: stage it in `drafting-table.md`.
 
+When the owner selected **run directly**, that is explicit authority to choose and implement
+reasonable, reversible production defaults within the stated scope and time. Do not turn ordinary
+code, API, design, localization, or cleanup judgments into blockers merely because alternatives
+exist. Preserve compatibility or provide migration and rollback, verify the result, and record the
+choice, evidence, alternatives, shipped result, and rollback in `parking-lot.md`. Stop only for
+publishing, merging, deploying, real-data deletion, secrets exposure, spending, or legal/licensing
+decisions outside the coding-work authorization.
+
 ## Snag log discipline
 
 Before reporting findings in a review or walkthrough, read `snag-log.md` and dedupe against ALL seen
