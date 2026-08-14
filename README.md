@@ -224,12 +224,17 @@ If you can write it as a checklist, you can hand it to the night.
 
 ## Receipts
 
+**What the contract can scale to.** One Nightshift contract ran for 45 elapsed hours on AdaptTable,
+survived a Claude Code → Cursor handoff, and finished as a human-reviewed 67-commit PR spanning six
+roadmap phases and 57 closed issues. The public timeline, handoff, checks and permanent links are in
+[`examples/adapttable-continuity.md`](examples/adapttable-continuity.md).
+
 **nightshift was built by nightshift.** An enforced punch list guarded every build session of this
 repo, and the hooks refused every early clock-out. Each item landed as its own conventional commit
 — `git log --oneline` reads like the shift log — and the final punch list + shift log are in
 [`examples/self-build.md`](examples/self-build.md).
 
-**And it ran a real production night.** One list, one night, on a published library: 9 items — a
+**Your first night.** One small list, one night, on the same published library: 9 items — a
 CSV export button, 7 new locales, a Tailwind starter, inline cell editing and row grouping across
 every adapter — landed as unsquashed per-item commits, closed 4 issues on merge, and shipped as
 v1.2.0 on npm the same day. Public links:
