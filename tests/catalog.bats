@@ -44,6 +44,15 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   done
 }
 
+@test "every open-ended entry carries its ending into the pasted item" {
+  for f in "$SHIFTS"/*.md; do
+    if head -n1 "$f" | grep -q '— open-ended —'; then
+      grep -qi 'Ending: open-ended' "$f" \
+        || { echo "open-ended marker is not carried into item: $f"; return 1; }
+    fi
+  done
+}
+
 # One file per entry is what keeps two contributors out of the same diff. An index that listed
 # them would put everyone back in it.
 @test "the catalog index points at the directory and lists no entries" {

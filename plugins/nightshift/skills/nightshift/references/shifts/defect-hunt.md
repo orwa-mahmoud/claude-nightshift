@@ -2,6 +2,7 @@
 
 ```text
 - [ ] **Defect hunt — review, fix, re-review until it converges.**
+  - Ending: open-ended — hours and a deadline are required; convergence may finish it earlier.
   - Each cycle: review for defects; dedupe every finding against snag-log.md (ALL seen — fixed and
     rejected) so a later cycle never re-reports an earlier one; fix each behind the item gate;
     append dispositions; re-review.

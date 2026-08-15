@@ -6,6 +6,7 @@ or a substantial feature, but never merges its own branch and never leaves a hal
 
 ```text
 - [ ] **Product evolution — research, build, and improve until quitting time.**
+  - Ending: open-ended — hours and a deadline are required.
   - Isolate first: work on a dedicated nightshift branch, never the default branch. Never merge,
     push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
     authorized that exact action. The owner decides what ships in the morning.

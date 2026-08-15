@@ -28,7 +28,8 @@ Offer two first-class modes:
   their findings, and rank them using `execution-modes.md`. Show evidence only in review-first
   mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
-the whistle.
+the whistle. Respect every entry's compatibility restrictions when composing a combination; never
+combine entries that claim the same single-writer state.
 
 Read the directory rather than reciting from memory: entries are added over time, and a job that
 exists in the folder but not in the offer is a job the owner never gets.
@@ -51,9 +52,9 @@ Ask **review first, or run directly?** This choice is independent from Guided or
 
 Per the entry's declared ending:
 
-- **Open-ended** (coverage hunt, defect hunt, product evolution / standing loop) — hours are REQUIRED. These have no
-  natural end but the clock; a walkthrough may not start without a deadline.
-- **Finite** (clear quality debt) — ask the ending as an explicit either/or: *until every finding
+- **Open-ended** — hours are REQUIRED. These have no natural end but the clock; a walkthrough may
+  not start without a deadline. The entry's declared open-ended title is the source of truth.
+- **Finite** — ask the ending as an explicit either/or: *until every finding
   is clear, or capped at N hours?* Both are real answers; the work ends when the list is empty
   either way, and hours are only a safeguard against a backlog bigger than the night.
 
@@ -68,6 +69,9 @@ work runs first, and the open-ended job soaks up whatever time is left.
 Ask this in Guided mode. In Automatic mode infer the safest valuable scope from evidence and the
 time budget. Free text is skippable. It is where the useful shift is made: *"only `packages/api/`"*, *"use
 `getTestInstance()` from the test package"*, *"one module — this becomes a single reviewable PR"*.
+If a selected entry declares Owner instructions required, free text is not skippable: ask for it
+and refuse to compose, cut, or arm that entry until the owner supplies a non-empty answer. Entries
+that require owner instructions are Guided-only and must never be selected in Automatic mode.
 Never edit the entry's own contract to fit it; the owner's words become their own sub-bullet:
 
 ```text
