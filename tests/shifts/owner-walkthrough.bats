@@ -16,6 +16,12 @@ START="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'stop-work order remains available' "$E"
 }
 
+@test "owner walkthrough ends early on a verified objective, never on busywork" {
+  grep -qi 'verified objective satisfaction may' "$E"
+  grep -qi 'clock out early' "$E"
+  grep -qi 'Never manufacture busywork' "$E"
+}
+
 @test "owner walkthrough keeps one durable continuation record" {
   grep -qF 'Status: building' "$E"
   grep -qF 'opportunity-map.md' "$E"

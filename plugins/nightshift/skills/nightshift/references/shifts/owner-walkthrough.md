@@ -2,7 +2,7 @@
 
 A custom hours-cycle for a goal the owner names. Nightshift keeps the objective verbatim, derives
 the next concrete unit from the repository, and implements, verifies, and reassesses until the
-clock ends the shift.
+objective is verifiably satisfied or the clock ends the shift.
 
 **Selection:** Guided only. Never select this entry in Automatic mode: its objective must come
 directly from the owner, not from repository discovery. Do not combine it with another open-ended
@@ -17,7 +17,8 @@ licensing decisions remain outside the coding-work authorization.
 
 ```text
 - [ ] **Owner walkthrough — pursue the owner's objective until quitting time.**
-  - Ending: open-ended — hours and a deadline are required.
+  - Ending: open-ended — hours and a deadline are required; verified objective satisfaction may
+    finish it earlier.
   - Objective: the Owner instructions attached by Hunt are authoritative and must remain verbatim.
     Never replace them with an easier, narrower, or merely adjacent goal.
   - Isolate first: work on a dedicated nightshift branch, never the default branch. Never merge,
@@ -42,9 +43,11 @@ licensing decisions remain outside the coding-work authorization.
   - Park genuine owner decisions with the strongest sensible reversible default and continue.
     Stop for the owner only when the action falls outside the authorized coding-work boundary.
   - Large work is allowed; an incoherent stopping point is not. Do not begin a unit that cannot be
-    left reviewable within the remaining time. Never manufacture busywork after the objective is
-    satisfied; deepen its verification, remove objective-related defects, or improve the same
-    path without expanding into unrelated work.
+    left reviewable within the remaining time.
+  - The objective can be finished before the whistle. When its recorded Acceptance is verified and
+    the item gate is green, record the evidence in the continuation record, write the handoff, tick
+    the item, and clock out early. Never manufacture busywork or expand into unrelated work to fill
+    the remaining hours.
   - Open-ended: quitting time is the normal ending. At the whistle, finish the coherent unit in
     hand, leave the branch green, update the continuation record, and write a morning handoff with
     delivered commits, decisions, remaining work, exact Next, and Verify remaining. The owner's

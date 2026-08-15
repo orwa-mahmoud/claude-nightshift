@@ -18,7 +18,7 @@ git history. For each applicable entry record one sentence of evidence. Rank by:
 4. risk and reversibility.
 
 Remove overlaps: one finding belongs to one entry. Run finite entries first. If useful time remains,
-choose at most one open-ended entry — coverage, defect hunting, or product evolution — to use it.
+choose at most one open-ended entry to use it.
 One deadline governs the whole automatic shift, and automatic mode always requires hours.
 
 ## Launch
