@@ -3,6 +3,13 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.13.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.12.0...v0.13.0) (2026-08-15)
+
+
+### Features
+
+* **shifts:** add custom timed owner walkthroughs ([4e484ed](https://github.com/orwa-mahmoud/nightshift/commit/4e484edc8ac5e4bdc88aaa7a04baa25cae1ffcf8))
+
 ## [0.12.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.11.0...v0.12.0) (2026-08-14)
 
 
