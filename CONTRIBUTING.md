@@ -17,6 +17,12 @@ so contributions should keep that shape.
   transcript of an actual blocked stop and an actual permitted one in the PR
   description. The tests in `tests/` must pass.
 
+## AI-assisted contributions
+
+AI-assisted contributions are welcome. Contributors remain responsible for the
+correctness, security, licensing, testing, and quality of everything they submit.
+The same review standards apply regardless of which tools were used.
+
 ## Setup
 
 ```bash

@@ -269,6 +269,8 @@ lands as its own file, so nothing you write collides with anyone else's.
 [`CONTRIBUTING.md`](CONTRIBUTING.md) has the recipe, and shift entries are the contribution most
 likely to be merged.
 
+Human and AI-assisted contributions are welcome.
+
 ## Reference
 
 - [**Command reference**](docs/commands.md) — every slash command, what it asks, and the offline
