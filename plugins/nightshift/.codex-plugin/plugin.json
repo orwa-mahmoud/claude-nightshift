@@ -13,7 +13,7 @@
   "hooks": "./hooks/codex/hooks.json",
   "interface": {
     "displayName": "Nightshift",
-    "shortDescription": "Keep long coding runs on task",
+    "shortDescription": "Run accountable coding shifts",
     "longDescription": "Keep long Codex runs anchored to an authoritative punch list when conversations compact, sessions resume, or unattended work is interrupted. Use Nightshift with a real project opened in Codex or connected to its GitHub repository—not a temporary ChatGPT scratch workspace. Nightshift keeps goals, completion state, decisions, research, active progress, exact next actions, and verification on disk; parks questions instead of waiting; enforces owner-defined safety rules; and leaves reviewable commits and run history. Give it your own work or use a ready-made shift for evidence-backed product evolution, meaningful test coverage, lint and type debt, defect hunting, security advisories, or direct dependency upgrades.",
     "developerName": "Orwa Mahmoud",
     "category": "Productivity",
