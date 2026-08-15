@@ -118,9 +118,10 @@ The deadline is written when the work is composed, not here.
   use it as is.
 - No deadline and the list is entirely **finite** items: correct — their natural end is the last
   tick, and a stuck run is red-flagged in the shift log and held for review.
-- No deadline and `## Items` contains an **open-ended walkthrough** (coverage hunt, defect hunt,
-  product evolution / standing loop): **refuse to start.** A walkthrough with no clock never ends. Say so in one line
-  and point at `/nightshift:hunt`, which asks for hours; never invent a number.
+- No deadline and `## Items` contains an `Ending: open-ended` marker: **refuse to start.** A
+  walkthrough with no clock never ends. Say so in one line and point at `/nightshift:hunt`, which
+  asks for hours; never invent a number. The marker copied from the entry is authoritative; do not
+  maintain a hardcoded list of open-ended entry names here.
 - One deadline governs the whole shift: finite items first, the walkthrough soaks up the rest.
 
 ## 3. Arm the gate

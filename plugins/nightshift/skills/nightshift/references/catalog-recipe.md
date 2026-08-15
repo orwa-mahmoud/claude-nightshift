@@ -34,7 +34,9 @@ An entry that leaves any of these unanswered cannot be reviewed and will not be 
 
 **1. Ending — finite or open-ended.** Finite work is a known list and stops when the list is clear;
 hours are an optional cap. Open-ended work has no natural end but the clock and must not start
-without a deadline. This single word decides whether `/nightshift:hunt` asks for hours.
+without a deadline. This single word decides whether `/nightshift:hunt` asks for hours. An
+open-ended entry must also carry `Ending: open-ended` as a sub-bullet inside its pasteable item, so
+Start can enforce the deadline after Hunt moves the item away from its catalog heading.
 
 **2. Discovery — how the work is found.** Name the mechanism: the project's own gate commands, a
 scan of a directory, a rotating set of lenses. "Look for problems" is not a discovery method.

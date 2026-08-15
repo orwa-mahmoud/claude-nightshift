@@ -255,6 +255,11 @@ receipts. Review-first discovery is read-only and arms nothing until approval. R
 explicit authority to cut and arm the shift immediately; significant decisions and rollback
 instructions are left in the parking lot for morning review.
 
+For your own high-level hours-cycle, choose **Guided → Owner walkthrough**, enter the objective in
+the scope question, set the hours, then review it first or run it directly. The objective is
+required and preserved verbatim; Nightshift derives coherent units, verifies each one, and keeps
+the exact next action on disk until quitting time. This entry is never selected automatically.
+
 Each entry declares how it ends. **Open-ended** ones have no natural end but the clock, so hunt
 requires hours and a walkthrough never runs without a cost cap. **Finite** ones work a list your
 own tooling produces and end when it is clear, so hours are a cap rather than a requirement.
