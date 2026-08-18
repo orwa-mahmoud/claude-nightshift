@@ -104,6 +104,23 @@ load helpers
   is_deny "$output"
 }
 
+@test "neverCommitPatterns inspects the exact commit Git would write" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'clean\n' >"$p/leak.txt"
+  git -C "$p" add leak.txt
+  git -C "$p" commit -q -m seed
+  printf 'API_KEY=sk-secret\n' >"$p/leak.txt"
+  run hardhat_bash "$p" "git commit -m pathspec-bypass leak.txt" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
+  is_deny "$output"
+  run hardhat_bash "$p" "git commit -m x --only leak.txt" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_deny "$output"
+  run hardhat_bash "$p" "git commit -m x --include leak.txt" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_deny "$output"
+  run hardhat_bash "$p" "git commit -m index-only" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_allow
+}
+
 @test "never-commit pattern check is skipped when unset" {
   p="$(new_project)"
   punch_open "$p"

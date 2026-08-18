@@ -292,7 +292,8 @@ function Get-NSProspectiveGitPaths {
     param(
         [Parameter(Mandatory = $true)][string]$Repository,
         [Parameter(Mandatory = $true)][string]$Command,
-        [Parameter(Mandatory = $true)][string]$Verb
+        [Parameter(Mandatory = $true)][string]$Verb,
+        [switch]$AsDiff
     )
     $gitDir = Invoke-NSGit $Repository @('rev-parse', '--absolute-git-dir')
     if ([string]::IsNullOrWhiteSpace($gitDir)) {
@@ -348,17 +349,16 @@ function Get-NSProspectiveGitPaths {
             }
             default { return $null }
         }
-        if ($Verb -eq 'add') {
-            $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff', 'HEAD')
-            if ([string]::IsNullOrEmpty($listed)) {
-                $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff')
+        if ($AsDiff) {
+            $diff = Invoke-NSGit $Repository @('diff', '--cached', '--no-ext-diff', 'HEAD')
+            if ($null -eq $diff) {
+                $diff = Invoke-NSGit $Repository @('diff', '--cached', '--no-ext-diff')
             }
+            return $diff
         }
-        else {
-            $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff', 'HEAD')
-            if ([string]::IsNullOrEmpty($listed)) {
-                $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff')
-            }
+        $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff', 'HEAD')
+        if ([string]::IsNullOrEmpty($listed)) {
+            $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff')
         }
         if ([string]::IsNullOrEmpty($listed)) { return @() }
         return @($listed -split "`0" | Where-Object { -not [string]::IsNullOrEmpty($_) })
@@ -456,25 +456,12 @@ function Get-NSCommandDenyReason {
             }
         }
         if ($null -ne $neverRegex) {
-            $diffArgs = @('diff', '--cached', '--no-ext-diff', '--')
-            $scope = 'the staged diff'
-            if ($Scrubbed -match '(?i)(^|\s)--all(\s|$)|(^|\s)-[A-Za-z]*a[A-Za-z]*(\s|$)|(^|\s)--(\s|$)') {
-                $diffArgs = @('diff', 'HEAD', '--no-ext-diff', '--')
-                $scope = 'the diff this commit would write'
-            }
-            $diff = Get-NSGitDiffText $repository $diffArgs
-            if ($null -eq $diff -and $diffArgs.Count -ge 2 -and $diffArgs[1] -eq 'HEAD') {
-                $cached = Get-NSGitDiffText $repository @('diff', '--cached', '--no-ext-diff', '--')
-                $worktree = Get-NSGitDiffText $repository @('diff', '--no-ext-diff', '--')
-                if ($null -ne $cached -or $null -ne $worktree) {
-                    $diff = "$(if ($null -eq $cached) { '' } else { $cached })`n$(if ($null -eq $worktree) { '' } else { $worktree })"
-                }
-            }
+            $diff = Get-NSProspectiveGitPaths $repository $Scrubbed 'commit' -AsDiff
             if ($null -eq $diff) {
-                return 'BLOCKED: the commit diff could not be read, so the forbidden-content guard cannot approve this commit.'
+                return 'BLOCKED: this commit uses a form the never-commit guard cannot verify. Do not retry a rephrased form.'
             }
-            if ($neverRegex.IsMatch($diff)) {
-                return "BLOCKED: $scope matches neverCommitPatterns. Remove the protected content before committing."
+            if ($neverRegex.IsMatch([string]$diff)) {
+                return 'BLOCKED: the diff this commit would write matches neverCommitPatterns. Remove the protected content before committing.'
             }
         }
     }

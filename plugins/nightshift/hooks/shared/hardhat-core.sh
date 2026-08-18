@@ -499,13 +499,12 @@ ns_hardhat_command_reason() {
       fi
     fi
     if [ -n "$NEVER_COMMIT_PATTERNS" ]; then
-      if commit_stages_implicitly "$CMD"; then
-        _scope="the diff this commit would write"
-        _diff="$(git -C "$REPO" diff HEAD 2>/dev/null)"
-      else
-        _scope="the staged diff"
-        _diff="$(git -C "$REPO" diff --cached 2>/dev/null)"
-      fi
+      _scope="the diff this commit would write"
+      _diff="$(ns_git_prospective_diff "$REPO" "$SCRUBBED")"
+      case "$?" in
+        2) printf '%s' "BLOCKED: this commit uses a form the never-commit guard cannot verify. Do not retry a rephrased form."
+           return 0 ;;
+      esac
       if printf '%s' "$_diff" | grep -qiE "$NEVER_COMMIT_PATTERNS"; then
         printf '%s' "BLOCKED: $_scope matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list."
         return 0
