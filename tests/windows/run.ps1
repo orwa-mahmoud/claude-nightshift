@@ -116,6 +116,38 @@ function Invoke-TestScript {
     }
 }
 
+function Invoke-NSParallelScript {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock]$ScriptBlock,
+        [Parameter(Mandatory = $true)][object[]]$ArgumentLists
+    )
+    $workers = foreach ($arguments in $ArgumentLists) {
+        $shell = [PowerShell]::Create()
+        $null = $shell.AddScript($ScriptBlock)
+        foreach ($argument in @($arguments)) {
+            $null = $shell.AddArgument($argument)
+        }
+        [pscustomobject]@{
+            Shell = $shell
+            Handle = $shell.BeginInvoke()
+        }
+    }
+    foreach ($worker in $workers) {
+        $output = @($worker.Shell.EndInvoke($worker.Handle))
+        $errorText = (($worker.Shell.Streams.Error | ForEach-Object { $_.ToString() }) -join '; ')
+        $worker.Shell.Dispose()
+        if (-not [string]::IsNullOrEmpty($errorText)) {
+            throw $errorText
+        }
+        if ($output.Count -eq 0) {
+            $false
+        }
+        else {
+            $output[$output.Count - 1]
+        }
+    }
+}
+
 function Invoke-TestCommandFile {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -312,21 +344,15 @@ try {
     $claimWorkspace = Join-Path $root 'concurrent claim workspace'
     $claimNightshift = Join-Path $claimWorkspace '.nightshift'
     $null = New-Item -ItemType Directory -Path $claimNightshift -Force
-    $claimJobs = @(
-        foreach ($number in 1..8) {
-            Start-Job -ScriptBlock {
-                param($ModulePath, $NightshiftDirectory, $Number)
-                Import-Module $ModulePath -Force -DisableNameChecking
-                Claim-NSSession $NightshiftDirectory "claim-$Number" '' '' '' 'claude'
-            } -ArgumentList $module, $claimNightshift, $number
-        }
-    )
-    $null = Wait-Job -Job $claimJobs
-    foreach ($job in $claimJobs) {
-        Assert-Equal 'Completed' $job.State "claim worker $($job.Id) completes"
+    $claimArgLists = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($number in 1..8) {
+        $claimArgLists.Add(@($module, $claimNightshift, $number))
     }
-    $claimResults = @($claimJobs | Receive-Job)
-    $claimJobs | Remove-Job
+    $claimResults = @(Invoke-NSParallelScript -ScriptBlock {
+            param($ModulePath, $NightshiftDirectory, $Number)
+            Import-Module $ModulePath -Force -DisableNameChecking
+            Claim-NSSession $NightshiftDirectory "claim-$Number" '' '' '' 'claude'
+        } -ArgumentLists $claimArgLists.ToArray())
     $claimWins = @($claimResults | Where-Object { $_ -eq $true })
     Assert-Equal 1 $claimWins.Count "exactly one concurrent session claim wins (results: $($claimResults -join ','))"
     $claimedSession = Read-NSSession $claimNightshift
