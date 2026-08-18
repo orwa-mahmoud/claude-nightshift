@@ -4,6 +4,8 @@ AI-assisted contributions are welcome. The same correctness, security, licensing
 testing, and quality standards apply regardless of which tools are used.
 
 - Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before changing the repository.
+- Use the [contribution map](docs/contribution-map.md) to choose an area, likely files, and focused
+  checks.
 - Work from an open issue for anything beyond a typo or small fix.
 - Keep Nightshift inside the native Codex and Claude Code plugin, skill, and hook
   ecosystems; do not introduce another runtime or installation channel.

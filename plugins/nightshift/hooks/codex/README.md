@@ -14,16 +14,23 @@ The wire format follows the documented Codex hooks contract
 `{"decision":"block","reason":…}` (Stop expects JSON on stdout even on exit 0, so a permitted
 stop answers `{"continue":true}` rather than silence);
 the PreToolUse denial as the `hookSpecificOutput` `permissionDecision` shape; `${PLUGIN_ROOT}`
-as the plugin root in commands. Codex-side mapping: shell commands, including unified exec,
-match as `Bash`; file edits arrive as `apply_patch` with the patch text in
-`tool_input.command`, with `Edit`/`Write` as matcher-side aliases; hosted tools never reach
-the hook path. Codex's local `request_user_input` function tool does reach `PreToolUse`; an
-armed shift denies it mechanically and reuses the shared `AskUserQuestion` parking message.
+as the plugin root in commands. The catch-all matcher sends every observable local tool to the
+hardhat, where `toolDeny` uses the canonical `tool_name`: shell commands, including unified exec,
+arrive as `Bash`; file edits arrive as `apply_patch` with the patch text in
+`tool_input.command`, while `Edit` and `Write` are matcher aliases only. MCP and other local
+function tools reach this path; hosted tools do not.
+
+Recovery ownership stays host-neutral too. The Codex watchman advances `.shift-lease` before each
+spawn and passes its generation/token through the child environment; the hardhat and Stop hook
+accept only that generation for the bound shift. Codex's hook payload does not provide process
+ancestry Nightshift can vouch for, so the watchman records its child process witness while the hook
+leaves the interactive pid fields empty.
 
 One point the docs leave open is held conservatively in `lib-io.sh`: no project-dir env var
 is documented for hooks, so the payload's `cwd` locates the shift and `CODEX_PROJECT_DIR` is
-honored first as an explicit override. `AskUserQuestion` stays wired as a compatibility alias
-beside Codex's native `request_user_input` name.
+honored first as an explicit override. Codex's native `request_user_input` and the
+`AskUserQuestion` compatibility alias each read their own exact `toolDeny` entry, so an owner may
+give them different messages or allow one with an empty value.
 
 The repo-root `.agents/plugins/marketplace.json` is the Codex marketplace entry; the
 `.claude-plugin/marketplace.json` beside it is also read as a legacy-compatible path, and both

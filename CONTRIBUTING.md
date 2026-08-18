@@ -4,6 +4,10 @@ Thanks for looking under the hood. The plugin is deliberately small — a
 punch-list contract, a stop-gate hook, and skills that hold an agent to both —
 so contributions should keep that shape.
 
+Not sure where to start? Use the
+[contribution map](docs/contribution-map.md) to choose catalog, documentation, testing, runtime,
+recovery, hook, platform, or public-run work with the relevant files and checks.
+
 ## Ground rules
 
 - **Open an issue first** for anything beyond a typo or small fix. The gate's
@@ -13,7 +17,7 @@ so contributions should keep that shape.
   bash 3.2 — no bashisms newer than 3.2, no GNU-only flags (`xargs -d`, `sed -i`
   without a suffix, etc.). Where a GNU tool has no portable equivalent, try it
   and fall back to the BSD form, as the deadline parser does.
-- **Test the gate honestly.** If your change touches the stop-gate, include the
+- **Test both gate outcomes.** If your change touches the stop-gate, include the
   transcript of an actual blocked stop and an actual permitted one in the PR
   description. The tests in `tests/` must pass.
 
@@ -71,6 +75,9 @@ the release it is trying to describe.
 
 Fixes that make the gate harder to fool, **new entries for the shift catalog**, and
 docs that shorten the path to a first successful shift.
+
+The [contribution map](docs/contribution-map.md) links current issues and gives each area an entry
+path, prerequisite knowledge, likely files, and focused verification commands.
 
 Shift catalog entries are the easiest way in: they are markdown, they touch no
 hooks, and they grow the catalog without growing the product. Read

@@ -15,9 +15,15 @@ Use this once before leaving Nightshift alone with a real project.
   deadline for open-ended work.
 - **Test notifications if configured.** `notifyCommand` is unrestricted owner-provided shell. Run
   it yourself first and remember it can access the network if your command does.
-- **Know the host boundary.** Claude Code's Stop hook mechanically rejects an early clock-out and
-  its watchman can revive a dead session. Codex keeps the same state, gates, and recovery target,
-  but its host lifecycle differs: do not treat closing a live Codex session as a crash test.
+- **Know the host boundary.** Both hosts' Stop hooks mechanically reject an early clock-out and
+  both watchmen target the recorded session. Recovery evidence differs: Claude Code records Escape
+  and clean session ends; Codex does not, so do not treat closing a live Codex session as a crash
+  test.
+- **Reopen a recovered thread only to inspect or interact.** The headless worker continues against
+  the punch list without being watched, but a stale Claude Code or Codex panel cannot display its
+  appended turns. Do not continue in that unchanged panel while recovery may still be working; the
+  process lease fences its tool calls. See the
+  [recovery handoff and upstream limitation](how-it-works.md#reopening-a-revived-thread).
 - **Leave pushing for morning.** Keep the default local-only commits, review the diff and receipts,
   then push or open a pull request yourself.
 

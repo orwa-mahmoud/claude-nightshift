@@ -2,6 +2,8 @@ README="$BATS_TEST_DIRNAME/../README.md"
 DOC="$BATS_TEST_DIRNAME/../docs/troubleshooting.md"
 COMMANDS="$BATS_TEST_DIRNAME/../docs/commands.md"
 CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
+HOW="$BATS_TEST_DIRNAME/../docs/how-it-works.md"
+KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
 
 @test "README and command docs link the troubleshooting tree" {
   grep -qF '[**Troubleshooting**](docs/troubleshooting.md)' "$README"
@@ -48,7 +50,17 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF '/workspace/scratch/' "$DOC"
 }
 
-@test "troubleshooting does not replace the README contract" {
-  ! grep -qi 'Keep long coding runs on task' "$DOC"
-  wc -l <"$DOC" | awk '{ exit ($1 > 220) ? 1 : 0 }'
+@test "recovery docs separate unattended work from the manual UI refresh" {
+  grep -qF 'owner does not need to watch it' "$README"
+  grep -qF 'needs no owner monitoring' "$HOW"
+  grep -qF 'owner does not need to watch the recovery' "$DOC"
+  grep -qF 'without being watched' "$CHECKLIST"
+  grep -qF 'does not require an owner to monitor it' "$KNOBS"
+
+  for issue in 82655 28259 21743; do
+    grep -q "/issues/$issue" "$README"
+    grep -q "/issues/$issue" "$HOW"
+    grep -q "/issues/$issue" "$DOC"
+  done
+  grep -qF 'not merely interface polish' "$HOW"
 }

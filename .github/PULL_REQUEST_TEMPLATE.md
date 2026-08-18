@@ -13,6 +13,8 @@
 
 ## Checklist
 
+- [ ] I ran the focused checks for this area from the
+      [contribution map](https://github.com/orwa-mahmoud/nightshift/blob/main/docs/contribution-map.md).
 - [ ] `shellcheck` and the `bats` suite pass locally.
 - [ ] Shell stays portable: macOS bash 3.2 / zsh — no newer bashisms, no GNU-only flags.
 - [ ] If the stop-gate changed: the PR description shows a transcript of one

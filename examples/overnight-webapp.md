@@ -43,5 +43,5 @@ writes the full one.
 - [ ] **5. Defect hunt — review, fix, re-review until it converges.**
   - Each cycle: review for defects; dedupe every finding against `snag-log.md` (all seen — fixed
     and rejected); fix each behind the item gate; append dispositions; re-review.
-  - Stop at the first honest ending: a full pass finds nothing new (converged), or quitting time.
+  - Stop at the first valid ending: a full pass finds nothing new (converged), or quitting time.
   - Verify: the item gate is green at every commit; snag-log dispositions are current.

@@ -1,0 +1,74 @@
+# Why Nightshift exists
+
+Nightshift started with an eight-item coding session. Four easy items shipped. The four hard ones
+were deferred by the agent because they “deserved a focused session.”
+
+![An agent checkpoint showing the smaller fixes completed, the larger items deferred, and a
+question left waiting](https://github.com/user-attachments/assets/a4816652-a2c1-4212-aff9-8a3dafd848a6)
+
+The problem was not a missing prompt. That screen was only the mildest of four predictable nights.
+
+## The quiet early finish
+
+The agent completes the easiest part, rewrites the meaning of “done,” and presents the remainder as
+future work. A conversational instruction to continue is easy to lose after enough tool output or
+context compaction. The unfinished work needs to remain a contract, not become a suggestion.
+
+Nightshift keeps completion in a file. Open checkboxes remain an explicit contract at every stop
+attempt.
+
+## The overnight question
+
+A long run stops at 02:40 with “quick question before I continue.” The owner sees it at 08:00,
+still waiting for the answer. The useful work window has gone and the list is not done. If an
+allowance reset landed that morning, the remaining capacity expired unused and the same items now
+consume the new cycle.
+
+Nightshift parks the question with the chosen default and continues. The owner can answer live or
+review the decision later.
+
+## The review loop that never converges
+
+One review finds twenty issues. After those are fixed, the next review finds twenty *new* issues.
+Where were those twenty the first time? The owner becomes a courier between repeated scans without
+a stable definition of done.
+
+Nightshift makes the work list, verification, and ending condition explicit before the run. A
+finite shift ends when its list is clear; an open-ended shift ends at its required deadline.
+
+## The dead session
+
+The API fails, the process exits, and no hook remains alive to restart it:
+
+![API Error: 500 Internal server error — a server-side issue that leaves the session waiting for a
+restart](https://github.com/user-attachments/assets/c9a72548-995b-47c3-a72e-03a0f890a5bc)
+
+Without recovery, the owner's night becomes one eye on the host status page, waiting to relaunch
+the second the service returns. So much for sleeping.
+
+Nightshift records the active session and keeps the work contract on disk. Its watchman can resume
+a session that has positive evidence of death. Both hosts stand down for completed shifts,
+stop-work orders, and deadlines. Claude Code also exposes Escape and clean-session-end signals;
+Codex does not, so its remaining recovery boundaries are documented separately.
+
+## The design response
+
+Nightshift changes the ending: the shift keeps working until its list is clear, quitting time
+arrives, or the owner stops it, and the first morning task is reviewing what happened rather than
+reconstructing the run.
+
+These failures need different mechanisms:
+
+- a persistent punch list for what remains;
+- hooks for rules the agent must not reinterpret;
+- a parking lot for decisions that should not block the night;
+- a deadline or finite ending condition;
+- recovery outside the dead session;
+- local receipts for what actually happened.
+
+That is Nightshift's scope. It does not make generated code inherently correct, replace review, or
+repair a host's internal context engine. It keeps the working contract available until the list is
+done, the deadline arrives, or the owner stops the shift.
+
+Read [how Nightshift works](how-it-works.md), or
+[run a first shift](../README.md#run-a-first-shift).
