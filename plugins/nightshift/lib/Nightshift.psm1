@@ -18,6 +18,21 @@ function Test-NSPathEntry {
     }
 }
 
+# rm -f: delete a file, succeed if it is already gone, never prompt. Remove-Item
+# on a non-empty directory asks for confirmation; a headless host then throws
+# NullReferenceException from ShouldContinue.
+function Remove-NSFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return
+    }
+    try {
+        [IO.File]::Delete($Path)
+    }
+    catch {
+    }
+}
+
 function Test-NSReparsePoint {
     param([Parameter(Mandatory = $true)][string]$Path)
     try {
@@ -1051,8 +1066,12 @@ function Release-NSLease {
         return $false
     }
     try {
-        Remove-Item -LiteralPath (Join-Path $NightshiftDir '.shift-lease') -Force -ErrorAction SilentlyContinue
-        return -not (Test-NSPathEntry (Join-Path $NightshiftDir '.shift-lease'))
+        $path = Join-Path $NightshiftDir '.shift-lease'
+        Remove-NSFile $path
+        return -not (Test-NSPathEntry $path)
+    }
+    catch {
+        return $false
     }
     finally {
         Exit-NSMutex $mutex
@@ -1066,7 +1085,7 @@ function Reset-NSStaleLease {
         return $false
     }
     try {
-        Remove-Item -LiteralPath (Join-Path $NightshiftDir '.shift-lease') -Force -ErrorAction SilentlyContinue
+        Remove-NSFile (Join-Path $NightshiftDir '.shift-lease')
         Get-ChildItem -LiteralPath $NightshiftDir -Filter '.shift-lease.tmp.*' -Force -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath (Join-Path $NightshiftDir '.lease-lock.d') -Recurse -Force -ErrorAction SilentlyContinue
