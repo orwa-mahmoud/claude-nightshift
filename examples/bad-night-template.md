@@ -9,8 +9,10 @@ public commits, pull requests, or logs when they exist; do not paste private rep
 to make a tick look verified.
 
 Contribute filled receipts against
-[#22](https://github.com/orwa-mahmoud/nightshift/issues/22). Gate-bypass reports go to a
-[private advisory](https://github.com/orwa-mahmoud/nightshift/security/advisories/new), not here.
+[#22](https://github.com/orwa-mahmoud/nightshift/issues/22). Local guard and gate reports
+are public issues; see [SECURITY.md](../SECURITY.md). Use a
+[private advisory](https://github.com/orwa-mahmoud/nightshift/security/advisories/new)
+only if secrets could leave this machine or other users could be affected.
 
 Copy from **Host** downward. Delete unused bullets. Keep **Facts** and **Interpretation** in
 separate sections.

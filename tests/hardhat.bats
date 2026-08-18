@@ -37,7 +37,47 @@ load helpers
 @test "protected-dir git write is denied when configured" {
   p="$(new_project)"
   punch_open "$p"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret"
   run hardhat_bash "$p" "git add ai_docs/secret" NIGHTSHIFT_PROTECTED_DIRS="ai_docs notes"
+  is_deny "$output"
+}
+
+@test "protectedDirs inspects the paths Git would add or commit" {
+  p="$(new_project)"
+  punch_open "$p"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  run hardhat_bash "$p" "git add -A" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  run hardhat_bash "$p" "git add ." NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" add ai_docs/secret.txt
+  run hardhat_bash "$p" "git commit -m protected-bypass" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" reset -q
+  printf 'also\n' >"$p/tracked.txt"
+  git -C "$p" add tracked.txt
+  git -C "$p" commit -q -m seed
+  printf 'dirty\n' >"$p/tracked.txt"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  git -C "$p" add ai_docs/secret.txt
+  run hardhat_bash "$p" "git commit -am all" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" reset -q
+  printf 'safe\n' >"$p/ok.txt"
+  git -C "$p" add ok.txt
+  run hardhat_bash "$p" "git commit -m ok" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_allow
+  run hardhat_bash "$p" "git tag ai_docs" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  git -C "$p" add ai_docs/secret.txt
+  git -C "$p" commit -q -m protected
+  rm -f "$p/ai_docs/secret.txt"
+  run hardhat_bash "$p" "git add -A" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
   is_deny "$output"
 }
 
@@ -69,6 +109,23 @@ load helpers
   git -C "$p" add leak.txt
   run hardhat_bash "$p" "git commit -m x" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
   is_deny "$output"
+}
+
+@test "neverCommitPatterns inspects the exact commit Git would write" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'clean\n' >"$p/leak.txt"
+  git -C "$p" add leak.txt
+  git -C "$p" commit -q -m seed
+  printf 'API_KEY=sk-secret\n' >"$p/leak.txt"
+  run hardhat_bash "$p" "git commit -m pathspec-bypass leak.txt" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret|API_KEY"
+  is_deny "$output"
+  run hardhat_bash "$p" "git commit -m x --only leak.txt" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_deny "$output"
+  run hardhat_bash "$p" "git commit -m x --include leak.txt" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_deny "$output"
+  run hardhat_bash "$p" "git commit -m index-only" NIGHTSHIFT_NEVER_COMMIT_PATTERNS="sk-secret"
+  is_allow
 }
 
 @test "never-commit pattern check is skipped when unset" {
@@ -625,6 +682,58 @@ STUB
   out="$(jq -nc --arg fp "$q/.nightshift/rules.json" '{tool_name:"Write",tool_input:{file_path:$fp,content:"{}"}}' |
     env CLAUDE_PROJECT_DIR="$q" bash "$HOOKS/hardhat.sh")"
   [ -z "$out" ] # no shift, no rules — the owner edits freely
+}
+
+@test "the bound worker cannot delete or forge armed-shift control files" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "unlink .nightshift/.shift-armed"
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "control files"
+  run hardhat_bash "$p" "cd .nightshift && unlink .shift-armed"
+  is_deny "$output"
+  run hardhat_bash "$p" "cd .nightshift && touch STOP"
+  is_deny "$output"
+  run hardhat_bash "$p" "touch STOP"
+  is_allow
+  run hardhat_bash "$p" "unlink .shift-armed"
+  is_allow
+  run hardhat_bash "$p" "touch .nightshift/STOP"
+  is_deny "$output"
+  run hardhat_bash "$p" "echo ended > .nightshift/.ended"
+  is_deny "$output"
+  run hardhat_bash "$p" "echo /tmp/other > .nightshift/work-target"
+  is_deny "$output"
+  run hardhat_bash "$p" "rm -f .nightshift/punch-list.md"
+  is_deny "$output"
+  out="$(jq -nc --arg fp "$p/.nightshift/.shift-session" '{tool_name:"Write",tool_input:{file_path:$fp,content:"forged"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+}
+
+@test "punch-list ticks stay allowed and Start can still create the armed marker" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc --arg fp "$p/.nightshift/punch-list.md" '{tool_name:"Write",tool_input:{file_path:$fp,content:"## Items\n- [x] **1.**\n"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+  run hardhat_bash "$p" "printf 'ticked\n' >> .nightshift/punch-list.md"
+  is_allow
+  rm "$p/.nightshift/.shift-armed"
+  run hardhat_bash "$p" "touch .nightshift/.shift-armed"
+  is_allow
+}
+
+@test "a helper session can still issue STOP" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\n' >"$p/.nightshift/.shift-session"
+  out="$(jq -nc --arg fp "$p/.nightshift/STOP" '{tool_name:"Write",session_id:"helper-tab",tool_input:{file_path:$fp,content:"stop"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+  out="$(jq -nc '{tool_name:"Bash",session_id:"helper-tab",tool_input:{command:"touch .nightshift/STOP"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ]
 }
 
 # No readable rules is a fault, never permission to invent an ask policy.

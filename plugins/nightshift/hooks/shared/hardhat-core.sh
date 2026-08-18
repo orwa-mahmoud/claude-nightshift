@@ -29,6 +29,27 @@ ns_hardhat_rules_targeted() {
     }
 }
 
+# True when the command is already inside .nightshift — by path, by cd/pushd, or by payload cwd.
+ns_hardhat_nightshift_dir_context() {
+  local normalized="$1" cwd_norm ns_norm
+  # `.nightshift && unlink .shift-armed` has no slash after the directory name.
+  if printf '%s' "$normalized" | grep -qE '\.nightshift([/[:space:];&]|$)'; then
+    return 0
+  fi
+  if printf '%s' "$normalized" |
+      grep -qE '(^|[;&|()[:space:]])(cd|pushd)[[:space:]]+([^;&|()[:space:]]*/)?\.nightshift/?([;&|()[:space:]]|$)'; then
+    return 0
+  fi
+  if [ -n "${CWD:-}" ] && [ -n "${NS:-}" ]; then
+    cwd_norm="${CWD%/}"
+    ns_norm="${NS%/}"
+    case "$cwd_norm" in
+      "$ns_norm" | "$ns_norm"/*) return 0 ;;
+    esac
+  fi
+  return 1
+}
+
 ns_hardhat_lease_targeted() {
   local normalized nightshift_context=0
   normalized="$(printf '%s' "$1" | sed "s#\\\\/#/#g; s#[\"']##g")"
@@ -36,9 +57,7 @@ ns_hardhat_lease_targeted() {
       grep -qE '(^|/)(\.shift-lease|\.mutex-scope)($|[^[:alnum:]_-])|(^|/)\.lease-lock\.d($|/)'; then
     return 0
   fi
-  case "$normalized" in *'.nightshift/'*) nightshift_context=1 ;; esac
-  if printf '%s' "$normalized" |
-      grep -qE '(^|[;&|()[:space:]])(cd|pushd)[[:space:]]+([^;&|()[:space:]]*/)?\.nightshift/?([;&|()[:space:]]|$)'; then
+  if ns_hardhat_nightshift_dir_context "$normalized"; then
     nightshift_context=1
   fi
   if [ "$nightshift_context" -eq 1 ]; then
@@ -50,8 +69,10 @@ ns_hardhat_lease_targeted() {
         | *'{'*'shift-lease'* | *'{'*'lease-lock'* | *'{'*'mutex-scope'* ) return 0 ;;
     esac
   fi
-  if printf '%s' "$normalized" | grep -qE '(^|[;&|[:space:]])(rm|rmdir|unlink|mv)([[:space:]]|$)' \
-    && printf '%s' "$normalized" | grep -qE '(^|[[:space:]])(\./)?\.nightshift/?([[:space:]]|$)'; then
+  # The delete verb must target .nightshift itself. `cd .nightshift && unlink .shift-armed`
+  # is a control-file write, not `rm .nightshift`.
+  if printf '%s' "$normalized" |
+      grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv)[[:space:]]+([^;&|\n]*[[:space:]]+)?(\./)?\.nightshift/?([;&|()[:space:]]|$)'; then
     return 0
   fi
   if printf '%s' "$normalized" | grep -qE '(^|[;&|[:space:]])find([[:space:]]|$)' \
@@ -191,6 +212,52 @@ sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/de
     if "$predicate" "$target"; then return 0; fi
   done <<<"$targets"
   return 1
+}
+
+# Bound-worker control plane: forge/delete of the files the gate keys off.
+# punch-list.md may be edited; only a delete/rename of that file is denied.
+ns_hardhat_control_rewrite_path() {
+  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target)(/|$|[^[:alnum:]_.-])'
+}
+
+ns_hardhat_control_list_path() {
+  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/punch-list\.md(/|$|[^[:alnum:]_.-])'
+}
+
+ns_hardhat_control_rewrite_name() {
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target)([;&|()[:space:]]|$)'
+}
+
+ns_hardhat_control_list_name() {
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?punch-list\.md([;&|()[:space:]]|$)'
+}
+
+ns_hardhat_control_delete_verb() {
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([[:space:]]|$)'
+}
+
+ns_hardhat_control_targeted() {
+  local normalized
+  normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
+  ns_hardhat_control_rewrite_path "$normalized" && return 0
+  ns_hardhat_control_list_path "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
+  if ns_hardhat_nightshift_dir_context "$normalized"; then
+    ns_hardhat_control_rewrite_name "$normalized" && return 0
+    ns_hardhat_control_list_name "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
+  fi
+  return 1
+}
+
+ns_hardhat_payload_targets_control() {
+  case "$1" in
+    Read | Grep | Glob | LS | WebFetch | WebSearch | Task | TodoWrite | AskUserQuestion | request_user_input | NotebookRead)
+      return 1
+      ;;
+    *read* | *Read*)
+      return 1
+      ;;
+  esac
+  ns_hardhat_payload_targets "$1" "$2" "$3" ns_hardhat_control_targeted
 }
 
 ns_hardhat_payload_targets_rules() {
@@ -365,7 +432,7 @@ ns_hardhat_is_commit() {
 # Uses globals: SCRUBBED CMD CWD PROJECT_DIR PROTECTED_DIRS EXPECTED_EMAIL
 # NEVER_COMMIT_PATTERNS FORBIDDEN_COMMANDS
 ns_hardhat_command_reason() {
-  local _p _name _pat d _tok _dirs _toks REPO email _scope _diff
+  local _p _name _pat d _tok _dirs _toks REPO email _scope _diff _verb _pathfile _pathrc _hit
   for _p in "FORBIDDEN_COMMANDS:$FORBIDDEN_COMMANDS" "NEVER_COMMIT_PATTERNS:$NEVER_COMMIT_PATTERNS"; do
     _name="${_p%%:*}"
     _pat="${_p#*:}"
@@ -377,19 +444,66 @@ ns_hardhat_command_reason() {
   done
 
   if [ -n "$PROTECTED_DIRS" ] && ns_hardhat_is_git_write "$SCRUBBED"; then
-    IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
-    read -ra _toks <<<"$SCRUBBED"
-    for d in "${_dirs[@]}"; do
-      [ -n "$d" ] || continue
-      for _tok in "${_toks[@]}"; do
-        case "$_tok" in
-          "$d" | "$d"/* | */"$d" | */"$d"/* | *="$d" | *="$d"/*)
-            printf '%s' "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
-            return 0
-            ;;
-        esac
+    _verb=""
+    ns_hardhat_git_verb "$SCRUBBED" add && _verb=add
+    ns_hardhat_git_verb "$SCRUBBED" commit && _verb=commit
+    if [ -n "$_verb" ]; then
+      if printf '%s' "$SCRUBBED" | grep -qE -- '--git-dir|--work-tree'; then
+        printf '%s' "BLOCKED: --git-dir/--work-tree point this $_verb somewhere the protected-directory guard cannot verify. Run it from inside the repository instead."
+        return 0
+      fi
+      REPO="$(target_repo "$CMD" "${CWD:-$PROJECT_DIR}")"
+      case "$?" in
+        1) printf '%s' "BLOCKED: this $_verb names a directory that is not a git repository, so the protected-directory guard cannot inspect it. Do not retry a rephrased form."
+           return 0 ;;
+        2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || REPO="$(ns_work_target "$PROJECT_DIR")" || {
+             printf '%s' "BLOCKED: cannot tell which git repository this $_verb targets, so the protected-directory guard cannot run. Run it from inside the repository."
+             return 0
+           } ;;
+      esac
+      _pathfile="$(mktemp "${TMPDIR:-/tmp}/ns-pd.XXXXXX")" || {
+        printf '%s' "BLOCKED: cannot tell which paths this $_verb would write, so the protected-directory guard cannot run."
+        return 0
+      }
+      ns_git_prospective_paths "$REPO" "$SCRUBBED" "$_verb" >"$_pathfile"
+      _pathrc=$?
+      if [ "$_pathrc" -eq 2 ]; then
+        rm -f "$_pathfile"
+        printf '%s' "BLOCKED: this $_verb uses a form the protected-directory guard cannot verify. Do not retry a rephrased form."
+        return 0
+      fi
+      _hit=""
+      while IFS= read -r -d '' _p; do
+        [ -n "$_p" ] || continue
+        if ns_path_under_protected "$_p" "$PROTECTED_DIRS"; then
+          _hit="$_p"
+          break
+        fi
+      done <"$_pathfile"
+      rm -f "$_pathfile"
+      if [ -n "$_hit" ]; then
+        IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
+        for d in "${_dirs[@]}"; do
+          ns_path_under_protected "$_hit" "$d" && break
+        done
+        printf '%s' "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
+        return 0
+      fi
+    else
+      IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
+      read -ra _toks <<<"$SCRUBBED"
+      for d in "${_dirs[@]}"; do
+        [ -n "$d" ] || continue
+        for _tok in "${_toks[@]}"; do
+          case "$_tok" in
+            "$d" | "$d"/* | */"$d" | */"$d"/* | *="$d" | *="$d"/*)
+              printf '%s' "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
+              return 0
+              ;;
+          esac
+        done
       done
-    done
+    fi
   fi
 
   if ns_hardhat_is_commit "$SCRUBBED" && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }; then
@@ -419,13 +533,12 @@ ns_hardhat_command_reason() {
       fi
     fi
     if [ -n "$NEVER_COMMIT_PATTERNS" ]; then
-      if commit_stages_implicitly "$CMD"; then
-        _scope="the diff this commit would write"
-        _diff="$(git -C "$REPO" diff HEAD 2>/dev/null)"
-      else
-        _scope="the staged diff"
-        _diff="$(git -C "$REPO" diff --cached 2>/dev/null)"
-      fi
+      _scope="the diff this commit would write"
+      _diff="$(ns_git_prospective_diff "$REPO" "$SCRUBBED")"
+      case "$?" in
+        2) printf '%s' "BLOCKED: this commit uses a form the never-commit guard cannot verify. Do not retry a rephrased form."
+           return 0 ;;
+      esac
       if printf '%s' "$_diff" | grep -qiE "$NEVER_COMMIT_PATTERNS"; then
         printf '%s' "BLOCKED: $_scope matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list."
         return 0

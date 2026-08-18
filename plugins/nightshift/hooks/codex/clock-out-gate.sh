@@ -126,9 +126,8 @@ honor_stop() {
     summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
     end_shift "$summary"
   else
-    # A stop-work order ends the shift even if the list did not survive to be summarized.
-    rm -f "$NS/.shift-armed"
-    release_lease
+    reason="$(head -n1 "$STOP" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    end_shift "shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
   fi
 }
 
@@ -189,8 +188,7 @@ fi
 
 # 2. Done — no punch list at all, or every box ticked.
 if [ ! -f "$PUNCH" ]; then
-  rm -f "$NS/.shift-armed"
-  release_lease
+  end_shift "shift done: $TICKED/$TOTAL"
   codex_emit_release
   exit 0
 fi

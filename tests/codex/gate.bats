@@ -46,6 +46,15 @@ codex_gate() {
   is_codex_release
 }
 
+@test "codex gate missing punch list still ends through end_shift" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/punch-list.md"
+  run codex_gate "$p"
+  is_codex_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+}
+
 @test "codex gate honors a stop-work order even with open boxes" {
   p="$(new_project)"
   punch_open "$p"

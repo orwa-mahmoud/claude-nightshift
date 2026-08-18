@@ -32,20 +32,25 @@ parse_yaml() {
   grep -qF 'id: logs' "$FAILED"
 }
 
-@test "the failed-shift form redacts secrets and routes bypasses privately" {
+@test "the failed-shift form redacts secrets and keeps an optional private path" {
   grep -qF 'Do not paste' "$FAILED"
   grep -qF 'prompts, credentials' "$FAILED"
   grep -qF 'full session transcript' "$FAILED"
   grep -qF 'https://github.com/orwa-mahmoud/nightshift/security/advisories/new' "$FAILED"
   grep -qF 'https://github.com/orwa-mahmoud/nightshift/blob/main/SECURITY.md' "$FAILED"
   grep -qF 'I have removed prompts, credentials, repository content, and full transcripts' "$FAILED"
+  grep -qF 'Local guard and gate reports are public issues' "$FAILED"
   ! grep -qi 'paste the full transcript' "$FAILED"
   ! grep -qi 'include your prompt' "$FAILED"
+  ! grep -qi 'those go to a private advisory' "$FAILED"
 }
 
-@test "SECURITY.md points failed nights at the form and bypasses at advisories" {
+@test "SECURITY.md points failed nights at the form and keeps an optional advisory" {
+  grep -qF 'A public issue is the default' "$SECURITY"
+  grep -qF 'A private advisory is optional' "$SECURITY"
   grep -qF 'issues/new?template=failed_shift.yml' "$SECURITY"
   grep -qF 'security/advisories/new' "$SECURITY"
+  ! grep -qi 'do not open a public issue' "$SECURITY"
   [ -f "$FAILED" ]
 }
 

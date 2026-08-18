@@ -20,6 +20,7 @@ $claudeSessionEndDispatch = Join-Path $plugin 'hooks/dispatch/claude-session-end
 $codexHooksManifest = Join-Path $plugin 'hooks/codex/hooks.json'
 $hostExecutable = (Get-Process -Id $PID).Path
 $script:Assertions = 0
+$script:Failures = New-Object 'System.Collections.Generic.List[string]'
 
 function Assert-True {
     param(
@@ -28,7 +29,8 @@ function Assert-True {
     )
     $script:Assertions++
     if (-not $Condition) {
-        throw "assertion failed: $Message"
+        $script:Failures.Add($Message)
+        Write-Host "FAIL: $Message"
     }
 }
 
@@ -40,7 +42,9 @@ function Assert-Equal {
     )
     $script:Assertions++
     if ([string]$Expected -ne [string]$Actual) {
-        throw "assertion failed: $Message (expected '$Expected', got '$Actual')"
+        $detail = "$Message (expected '$Expected', got '$Actual')"
+        $script:Failures.Add($detail)
+        Write-Host "FAIL: $detail"
     }
 }
 
@@ -506,6 +510,32 @@ try {
 
     $rulesRead = Invoke-Hardhat $workspace $sessionId 'Read' @{ path = (Join-Path $workspace '.nightshift/rules.json') }
     Assert-True ($rulesRead.Stdout -match 'rules file is the owner') 'rules reads are denied during a shift'
+    $armedDelete = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'Remove-Item -Force .nightshift\.shift-armed' }
+    Assert-True ($armedDelete.Stdout -match 'control files') 'bound worker cannot delete .shift-armed'
+    $cdArmed = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'cd .nightshift && unlink .shift-armed' }
+    Assert-True ($cdArmed.Stdout -match 'control files') "cd into .nightshift cannot unlink the armed marker ($(Format-HookResult $cdArmed))"
+    $cdStop = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'cd .nightshift && touch STOP' }
+    Assert-True ($cdStop.Stdout -match 'control files') "cd into .nightshift cannot forge STOP ($(Format-HookResult $cdStop))"
+    $punchTick = Invoke-Hardhat $workspace $sessionId 'Write' @{
+        path = (Join-Path $workspace '.nightshift/punch-list.md')
+        content = "## Items`n- [x] **1.**`n"
+    }
+    Assert-True ([string]::IsNullOrEmpty($punchTick.Stdout)) 'punch-list ticks stay allowed'
+
+    $protectedDir = Join-Path $workTarget 'ai_docs'
+    $null = New-Item -ItemType Directory -Path $protectedDir -Force
+    [IO.File]::WriteAllText((Join-Path $protectedDir 'secret.txt'), "secret`n")
+    $addAll = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git add -A' } @{
+        NIGHTSHIFT_PROTECTED_DIRS = 'ai_docs'
+    }
+    Assert-True ($addAll.Stdout -match 'protected directory') 'git add -A is checked from Git paths'
+    $null = & git -C $workTarget add -- ai_docs/secret.txt
+    $null = & git -C $workTarget commit --quiet -m 'protected'
+    Remove-Item -LiteralPath (Join-Path $protectedDir 'secret.txt') -Force
+    $addDeleted = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git add -A' } @{
+        NIGHTSHIFT_PROTECTED_DIRS = 'ai_docs'
+    }
+    Assert-True ($addDeleted.Stdout -match 'protected directory') 'git add -A sees a staged protected deletion'
 
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
@@ -838,6 +868,13 @@ exit 0
         @('-Project', $brokenLauncherWorkspace, '-HostName', 'claude') '' @{ NIGHTSHIFT_WATCH_SLEEP = '0' }
     Assert-True ($brokenLaunch.ExitCode -ne 0) 'watchman launcher reports a child that fails before publishing ownership'
 
+    if ($script:Failures.Count -gt 0) {
+        Write-Host "Windows-native verification failed ($($script:Failures.Count) of $script:Assertions):"
+        foreach ($failure in $script:Failures) {
+            Write-Host " - $failure"
+        }
+        exit 1
+    }
     Write-Host "Windows-native verification passed ($script:Assertions assertions)."
     # GitHub Actions' PowerShell shells fail the step on a leftover native
     # $LASTEXITCODE. The last child here is the broken-rules launcher, which
