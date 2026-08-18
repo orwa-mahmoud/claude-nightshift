@@ -15,6 +15,8 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
+$script:cwd = ''
+$script:ns = ''
 
 function Write-Deny {
     param([Parameter(Mandatory = $true)][string]$Reason)
@@ -169,8 +171,7 @@ function Test-NSLeaseTarget {
     if ($normalized -match '(?i)(^|/)(\.shift-lease|\.mutex-scope)($|[^A-Za-z0-9_-])|(^|/)\.lease-lock\.d($|/)') {
         return $true
     }
-    $nightshiftContext = $normalized -match '(?i)\.nightshift/' `
-        -or $normalized -match '(?i)(^|[;&|()\s])(cd|pushd|Set-Location)\s+[^\r\n;&|()]*\.nightshift/?([;&|()\s]|$)'
+    $nightshiftContext = Test-NSNightshiftDirContext $normalized
     if ($nightshiftContext -and
         $normalized -match '(?i)\.nightshift/(?:\.\*|\*|\?|\[|\{|\$|`)') {
         return $true
@@ -178,13 +179,33 @@ function Test-NSLeaseTarget {
     if ($nightshiftContext -and $normalized -match '(?i)\.(shift|lease|mutex)-(?:\*|\?|\[|\{|\$|`)') {
         return $true
     }
-    if ($normalized -match '(?i)(^|[;&|\s])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([\s;&|]|$)' `
-        -and $normalized -match '(?i)(^|\s)(\./)?\.nightshift/?(\s|$)') {
+    if ($normalized -match '(?i)(^|[;&|()\s])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)\s+([^;&|\r\n]*\s+)?(\./)?\.nightshift/?([;&|()\s]|$)') {
         return $true
     }
     if ($normalized -match '(?i)(^|[;&|\s])find(\s|$)' -and $normalized -match '(?i)\.nightshift' `
         -and $normalized -match '(?i)(-delete|-exec)') {
         return $true
+    }
+    return $false
+}
+
+function Test-NSNightshiftDirContext {
+    param([AllowEmptyString()][string]$Normalized)
+    # `cd .nightshift && unlink .shift-armed` has no slash after the directory name.
+    if ($Normalized -match '(?i)\.nightshift([/\s;&]|$)') {
+        return $true
+    }
+    if ($Normalized -match '(?i)(^|[;&|()\s])(cd|pushd|Set-Location)(?:\s+-LiteralPath)?\s+[''"]?\.nightshift\b') {
+        return $true
+    }
+    $cwdValue = [string]$script:cwd
+    $nsValue = [string]$script:ns
+    if (-not [string]::IsNullOrEmpty($cwdValue) -and -not [string]::IsNullOrEmpty($nsValue)) {
+        $cwdNorm = $cwdValue.Replace('\', '/').TrimEnd('/')
+        $nsNorm = $nsValue.Replace('\', '/').TrimEnd('/')
+        if ($cwdNorm -eq $nsNorm -or $cwdNorm.StartsWith("$nsNorm/")) {
+            return $true
+        }
     }
     return $false
 }
@@ -201,6 +222,16 @@ function Test-NSControlListPath {
     return $normalized -match '(?i)(^|/|\.)nightshift/punch-list\.md(/|$|[^A-Za-z0-9_.-])'
 }
 
+function Test-NSControlRewriteName {
+    param([AllowEmptyString()][string]$Target)
+    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target)([;&|()\s]|$)'
+}
+
+function Test-NSControlListName {
+    param([AllowEmptyString()][string]$Target)
+    return $Target -match '(?i)(^|[;&|()\s])(\./)?punch-list\.md([;&|()\s]|$)'
+}
+
 function Test-NSControlDeleteVerb {
     param([AllowEmptyString()][string]$Target)
     return $Target -match '(?i)(^|[;&|()\s])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([\s]|$)'
@@ -212,7 +243,18 @@ function Test-NSControlTarget {
     if (Test-NSControlRewritePath $normalized) {
         return $true
     }
-    return (Test-NSControlListPath $normalized) -and (Test-NSControlDeleteVerb $normalized)
+    if ((Test-NSControlListPath $normalized) -and (Test-NSControlDeleteVerb $normalized)) {
+        return $true
+    }
+    if (Test-NSNightshiftDirContext $normalized) {
+        if (Test-NSControlRewriteName $normalized) {
+            return $true
+        }
+        if ((Test-NSControlListName $normalized) -and (Test-NSControlDeleteVerb $normalized)) {
+            return $true
+        }
+    }
+    return $false
 }
 
 function Convert-NSErePattern {
@@ -308,6 +350,14 @@ function Get-NSProspectiveGitPaths {
     }
     $env:GIT_INDEX_FILE = $copy
     try {
+        $before = Invoke-NSGitCommand $Repository @('ls-files', '--stage')
+        $beforePaths = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+        foreach ($line in $before.Lines) {
+            $tab = $line.IndexOf("`t")
+            if ($tab -ge 0) {
+                [void]$beforePaths.Add($line.Substring($tab + 1).Replace('\', '/'))
+            }
+        }
         $words = @($Command -split '\s+' | Where-Object { $_ -ne '' })
         $start = [array]::IndexOf($words, $Verb)
         if ($start -lt 0) { return $null }
@@ -322,46 +372,91 @@ function Get-NSProspectiveGitPaths {
                 continue
             }
             switch -Regex ($word) {
-                '^--$' { $rest = $true }
-                '^(--all|-A)$' { $form = $(if ($Verb -eq 'add') { 'all' } else { 'tracked' }) }
-                '^(--update|-u)$' { $form = 'tracked' }
-                '^(--include|-i)$' { if ($Verb -eq 'commit') { $form = 'include' } }
-                '^(--only|-o)$' { if ($Verb -eq 'commit') { $form = 'only' } }
-                '^(-m|--message|--file|--author|--date|--cleanup)$' { $skip = $true }
-                '^(--message=|--file=|--author=|--date=|MSG)' { }
-                '^(--allow-empty|--allow-empty-message|--no-verify|--no-edit|--quiet|--signoff|-q|-s|-n|--no-gpg-sign|--verbose|-v|--force|-f|--ignore-missing|--refresh)$' { }
-                '^-[[:alpha:]]*a[[:alpha:]]*$' { if ($Verb -eq 'commit') { $form = 'tracked' } }
+                '^--$' { $rest = $true; break }
+                '^(--all|-A)$' { $form = $(if ($Verb -eq 'add') { 'all' } else { 'tracked' }); break }
+                '^(--update|-u)$' { $form = 'tracked'; break }
+                '^(--include|-i)$' { if ($Verb -eq 'commit') { $form = 'include' }; break }
+                '^(--only|-o)$' { if ($Verb -eq 'commit') { $form = 'only' }; break }
+                '^(-m|--message|--file|--author|--date|--cleanup)$' { $skip = $true; break }
+                '^(--message=|--file=|--author=|--date=|MSG)' { break }
+                '^(--allow-empty|--allow-empty-message|--no-verify|--no-edit|--quiet|--signoff|-q|-s|-n|--no-gpg-sign|--verbose|-v|--force|-f|--ignore-missing|--refresh|--porcelain)$' { break }
+                # .NET has no POSIX [[:alpha:]]; clustered shorts like -am must use [A-Za-z].
+                '^-[A-Za-z]*a[A-Za-z]*$' { if ($Verb -eq 'commit') { $form = 'tracked' }; break }
+                '^-[A-Za-z]*i[A-Za-z]*$' { if ($Verb -eq 'commit') { $form = 'include' }; break }
+                '^-[A-Za-z]*o[A-Za-z]*$' { if ($Verb -eq 'commit') { $form = 'only' }; break }
+                '^-[A-Za-z]*A[A-Za-z]*$' { if ($Verb -eq 'add') { $form = 'all' }; break }
+                '^-[A-Za-z]*u[A-Za-z]*$' { if ($Verb -eq 'add') { $form = 'tracked' }; break }
                 '^-' { return $null }
-                default { if ($word -ne 'MSG') { $paths.Add($word) } }
+                default { if ($word -ne 'MSG') { $paths.Add($word) }; break }
             }
         }
         if ($Verb -eq 'commit' -and $paths.Count -gt 0 -and $form -eq 'index') { $form = 'only' }
+        $replay = $null
         switch ("$Verb-$form") {
-            'add-all' { $null = Invoke-NSGit $Repository @('add', '-A') }
-            'add-tracked' { $null = Invoke-NSGit $Repository @('add', '-u') }
-            'add-index' { if ($paths.Count -gt 0) { $null = Invoke-NSGit $Repository (@('add', '--') + $paths) } }
-            'commit-index' { }
-            'commit-tracked' { $null = Invoke-NSGit $Repository @('add', '-u') }
-            'commit-include' { if ($paths.Count -gt 0) { $null = Invoke-NSGit $Repository (@('add', '--') + $paths) } }
+            'add-all' { $replay = Invoke-NSGitCommand $Repository @('add', '-A') }
+            'add-tracked' { $replay = Invoke-NSGitCommand $Repository @('add', '-u') }
+            'add-index' {
+                if ($paths.Count -gt 0) { $replay = Invoke-NSGitCommand $Repository (@('add', '--') + @($paths)) }
+                else { $replay = [pscustomobject]@{ ExitCode = 0 } }
+            }
+            'commit-index' { $replay = [pscustomobject]@{ ExitCode = 0 } }
+            'commit-tracked' { $replay = Invoke-NSGitCommand $Repository @('add', '-u') }
+            'commit-include' {
+                if ($paths.Count -gt 0) { $replay = Invoke-NSGitCommand $Repository (@('add', '--') + @($paths)) }
+                else { $replay = [pscustomobject]@{ ExitCode = 0 } }
+            }
             'commit-only' {
-                $null = Invoke-NSGit $Repository @('read-tree', 'HEAD')
-                if ($paths.Count -gt 0) { $null = Invoke-NSGit $Repository (@('add', '--') + $paths) }
+                $replay = Invoke-NSGitCommand $Repository @('read-tree', 'HEAD')
+                if ($null -eq $replay -or $replay.ExitCode -ne 0) {
+                    $replay = Invoke-NSGitCommand $Repository @('read-tree', '--empty')
+                }
+                if ($null -ne $replay -and $replay.ExitCode -eq 0 -and $paths.Count -gt 0) {
+                    $replay = Invoke-NSGitCommand $Repository (@('add', '--') + @($paths))
+                }
             }
             default { return $null }
         }
+        if ($null -eq $replay -or $replay.ExitCode -ne 0) {
+            return $null
+        }
         if ($AsDiff) {
-            $diff = Invoke-NSGit $Repository @('diff', '--cached', '--no-ext-diff', 'HEAD')
+            $diff = Get-NSGitDiffText $Repository @('diff', '--cached', '--no-ext-diff', 'HEAD')
             if ($null -eq $diff) {
-                $diff = Invoke-NSGit $Repository @('diff', '--cached', '--no-ext-diff')
+                $diff = Get-NSGitDiffText $Repository @('diff', '--cached', '--no-ext-diff')
             }
             return $diff
         }
-        $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff', 'HEAD')
-        if ([string]::IsNullOrEmpty($listed)) {
-            $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff')
+        $changed = New-Object System.Collections.Generic.List[string]
+        if ($Verb -eq 'add') {
+            $after = Invoke-NSGitCommand $Repository @('ls-files', '--stage')
+            $afterPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+            $beforeLines = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+            foreach ($line in $before.Lines) {
+                [void]$beforeLines.Add($line)
+            }
+            foreach ($line in $after.Lines) {
+                $tab = $line.IndexOf("`t")
+                if ($tab -ge 0) {
+                    $path = $line.Substring($tab + 1).Replace('\', '/')
+                    [void]$afterPaths.Add($path)
+                    if (-not $beforeLines.Contains($line)) {
+                        $changed.Add($path)
+                    }
+                }
+            }
+            foreach ($path in $beforePaths) {
+                if (-not $afterPaths.Contains($path)) {
+                    $changed.Add($path)
+                }
+            }
+            return @($changed | Select-Object -Unique)
+        }
+        $listed = Get-NSGitDiffText $Repository @('diff', '--cached', '--name-only', '--no-ext-diff', 'HEAD')
+        if ($null -eq $listed) {
+            $listed = Get-NSGitDiffText $Repository @('diff', '--cached', '--name-only', '--no-ext-diff')
         }
         if ([string]::IsNullOrEmpty($listed)) { return @() }
-        return @($listed -split "`0" | Where-Object { -not [string]::IsNullOrEmpty($_) })
+        return @($listed -split "(`r`n|`n|`0)" | Where-Object { -not [string]::IsNullOrEmpty($_) })
     }
     finally {
         Remove-Item -LiteralPath $env:GIT_INDEX_FILE -ErrorAction SilentlyContinue
@@ -470,6 +565,10 @@ function Get-NSCommandDenyReason {
         return 'BLOCKED: this command matches forbiddenCommands for the active shift. Do not retry a rephrased form.'
     }
     return ''
+}
+
+if ($env:NIGHTSHIFT_HARDHAT_LIB -eq '1') {
+    return
 }
 
 $raw = Get-NSStdinText -Piped $HookJson

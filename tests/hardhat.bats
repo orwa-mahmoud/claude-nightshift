@@ -72,6 +72,13 @@ load helpers
   is_allow
   run hardhat_bash "$p" "git tag ai_docs" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
   is_deny "$output"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  git -C "$p" add ai_docs/secret.txt
+  git -C "$p" commit -q -m protected
+  rm -f "$p/ai_docs/secret.txt"
+  run hardhat_bash "$p" "git add -A" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
 }
 
 @test "protected-dir check is skipped when unset" {
@@ -683,6 +690,14 @@ STUB
   run hardhat_bash "$p" "unlink .nightshift/.shift-armed"
   is_deny "$output"
   printf '%s' "$output" | grep -q "control files"
+  run hardhat_bash "$p" "cd .nightshift && unlink .shift-armed"
+  is_deny "$output"
+  run hardhat_bash "$p" "cd .nightshift && touch STOP"
+  is_deny "$output"
+  run hardhat_bash "$p" "touch STOP"
+  is_allow
+  run hardhat_bash "$p" "unlink .shift-armed"
+  is_allow
   run hardhat_bash "$p" "touch .nightshift/STOP"
   is_deny "$output"
   run hardhat_bash "$p" "echo ended > .nightshift/.ended"

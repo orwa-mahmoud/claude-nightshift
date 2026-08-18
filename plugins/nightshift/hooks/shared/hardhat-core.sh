@@ -29,6 +29,27 @@ ns_hardhat_rules_targeted() {
     }
 }
 
+# True when the command is already inside .nightshift — by path, by cd/pushd, or by payload cwd.
+ns_hardhat_nightshift_dir_context() {
+  local normalized="$1" cwd_norm ns_norm
+  # `.nightshift && unlink .shift-armed` has no slash after the directory name.
+  if printf '%s' "$normalized" | grep -qE '\.nightshift([/[:space:];&]|$)'; then
+    return 0
+  fi
+  if printf '%s' "$normalized" |
+      grep -qE '(^|[;&|()[:space:]])(cd|pushd)[[:space:]]+([^;&|()[:space:]]*/)?\.nightshift/?([;&|()[:space:]]|$)'; then
+    return 0
+  fi
+  if [ -n "${CWD:-}" ] && [ -n "${NS:-}" ]; then
+    cwd_norm="${CWD%/}"
+    ns_norm="${NS%/}"
+    case "$cwd_norm" in
+      "$ns_norm" | "$ns_norm"/*) return 0 ;;
+    esac
+  fi
+  return 1
+}
+
 ns_hardhat_lease_targeted() {
   local normalized nightshift_context=0
   normalized="$(printf '%s' "$1" | sed "s#\\\\/#/#g; s#[\"']##g")"
@@ -36,9 +57,7 @@ ns_hardhat_lease_targeted() {
       grep -qE '(^|/)(\.shift-lease|\.mutex-scope)($|[^[:alnum:]_-])|(^|/)\.lease-lock\.d($|/)'; then
     return 0
   fi
-  case "$normalized" in *'.nightshift/'*) nightshift_context=1 ;; esac
-  if printf '%s' "$normalized" |
-      grep -qE '(^|[;&|()[:space:]])(cd|pushd)[[:space:]]+([^;&|()[:space:]]*/)?\.nightshift/?([;&|()[:space:]]|$)'; then
+  if ns_hardhat_nightshift_dir_context "$normalized"; then
     nightshift_context=1
   fi
   if [ "$nightshift_context" -eq 1 ]; then
@@ -50,8 +69,10 @@ ns_hardhat_lease_targeted() {
         | *'{'*'shift-lease'* | *'{'*'lease-lock'* | *'{'*'mutex-scope'* ) return 0 ;;
     esac
   fi
-  if printf '%s' "$normalized" | grep -qE '(^|[;&|[:space:]])(rm|rmdir|unlink|mv)([[:space:]]|$)' \
-    && printf '%s' "$normalized" | grep -qE '(^|[[:space:]])(\./)?\.nightshift/?([[:space:]]|$)'; then
+  # The delete verb must target .nightshift itself. `cd .nightshift && unlink .shift-armed`
+  # is a control-file write, not `rm .nightshift`.
+  if printf '%s' "$normalized" |
+      grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv)[[:space:]]+([^;&|\n]*[[:space:]]+)?(\./)?\.nightshift/?([;&|()[:space:]]|$)'; then
     return 0
   fi
   if printf '%s' "$normalized" | grep -qE '(^|[;&|[:space:]])find([[:space:]]|$)' \
@@ -203,6 +224,14 @@ ns_hardhat_control_list_path() {
   printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/punch-list\.md(/|$|[^[:alnum:]_.-])'
 }
 
+ns_hardhat_control_rewrite_name() {
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target)([;&|()[:space:]]|$)'
+}
+
+ns_hardhat_control_list_name() {
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?punch-list\.md([;&|()[:space:]]|$)'
+}
+
 ns_hardhat_control_delete_verb() {
   printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([[:space:]]|$)'
 }
@@ -211,7 +240,12 @@ ns_hardhat_control_targeted() {
   local normalized
   normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
   ns_hardhat_control_rewrite_path "$normalized" && return 0
-  ns_hardhat_control_list_path "$normalized" && ns_hardhat_control_delete_verb "$normalized"
+  ns_hardhat_control_list_path "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
+  if ns_hardhat_nightshift_dir_context "$normalized"; then
+    ns_hardhat_control_rewrite_name "$normalized" && return 0
+    ns_hardhat_control_list_name "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
+  fi
+  return 1
 }
 
 ns_hardhat_payload_targets_control() {

@@ -327,17 +327,26 @@ ns_git_prospective_cleanup() {
 
 # Print NUL-delimited paths this add/commit would write. 2 = cannot model.
 ns_git_prospective_paths() { # <repo> <command> <add|commit>
-  local repo="$1" cmd="$2" verb="$3" rc line
+  local repo="$1" cmd="$2" verb="$3" rc line _path
   ns_git_prospective_prepare "$repo" "$cmd" "$verb"
   rc=$?
   [ "$rc" -eq 0 ] || return "$rc"
   if [ "$verb" = add ]; then
     tr '\0' '\n' <"$NS_GIT_PROSP_DIR/before" >"$NS_GIT_PROSP_DIR/before.nl" 2>/dev/null || :
-    git -C "$repo" ls-files --stage -z 2>/dev/null | tr '\0' '\n' | while IFS= read -r line; do
+    git -C "$repo" ls-files --stage -z 2>/dev/null | tr '\0' '\n' >"$NS_GIT_PROSP_DIR/after.nl" || :
+    while IFS= read -r line; do
       [ -n "$line" ] || continue
       grep -F -x -- "$line" "$NS_GIT_PROSP_DIR/before.nl" >/dev/null 2>&1 && continue
       printf '%s\0' "${line#*	}"
-    done
+    done <"$NS_GIT_PROSP_DIR/after.nl"
+    # A deletion has no after-index entry, so the loop above never emits it.
+    sed 's/^[^	]*	//' "$NS_GIT_PROSP_DIR/after.nl" | sort -u >"$NS_GIT_PROSP_DIR/after.paths"
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      _path="${line#*	}"
+      grep -F -x -- "$_path" "$NS_GIT_PROSP_DIR/after.paths" >/dev/null 2>&1 && continue
+      printf '%s\0' "$_path"
+    done <"$NS_GIT_PROSP_DIR/before.nl"
   else
     git -C "$repo" diff --cached --name-only -z --no-ext-diff HEAD 2>/dev/null \
       || git -C "$repo" diff --cached --name-only -z --no-ext-diff 2>/dev/null \

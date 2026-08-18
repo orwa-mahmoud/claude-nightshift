@@ -226,12 +226,21 @@ codex_hardhat_ask() {
   git -C "$p" add ai_docs/secret.txt
   run codex_hardhat_bash "$p" "git commit -m protected-bypass" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
   is_deny "$output"
+  git -C "$p" add ai_docs/secret.txt
+  git -C "$p" commit -q -m protected
+  rm -f "$p/ai_docs/secret.txt"
+  run codex_hardhat_bash "$p" "git add -A" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
 }
 
 @test "the bound worker cannot unlink the armed marker or delete the punch list" {
   p="$(new_project)"
   punch_open "$p"
   run codex_hardhat_bash "$p" "unlink .nightshift/.shift-armed"
+  is_deny "$output"
+  run codex_hardhat_bash "$p" "cd .nightshift && unlink .shift-armed"
+  is_deny "$output"
+  run codex_hardhat_bash "$p" "cd .nightshift && touch STOP"
   is_deny "$output"
   run codex_hardhat_bash "$p" "rm .nightshift/punch-list.md"
   is_deny "$output"
