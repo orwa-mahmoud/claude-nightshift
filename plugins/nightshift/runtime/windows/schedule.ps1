@@ -13,7 +13,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
-Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force
+Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
 function Escape-NSSingleQuoted {
     param([Parameter(Mandatory = $true)][string]$Value)

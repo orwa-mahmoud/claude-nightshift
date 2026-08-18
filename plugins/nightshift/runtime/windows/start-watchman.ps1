@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $watchman = Join-Path $PSScriptRoot 'watchman.ps1'
 $projectPath = (Resolve-Path -LiteralPath $Project -ErrorAction Stop).ProviderPath
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
-Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force
+Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 $workspace = Resolve-NSWorkspaceRoot $projectPath
 $marker = Join-Path $workspace '.nightshift/.watchman'
 

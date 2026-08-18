@@ -244,7 +244,7 @@ try {
         Assert-Equal 0 $errors.Count "$($file.FullName) parses"
     }
 
-    Import-Module $module -Force
+    Import-Module $module -Force -DisableNameChecking
 
     Write-Host 'Checking native setup and path handling'
     $workspace = Join-Path $root 'primary workspace'
@@ -285,6 +285,8 @@ try {
         'PowerShell Core creates named mutexes with an explicit ACL'
     Assert-True ($moduleSource.Contains('function Resolve-NSShiftOwnership')) `
         'Windows hooks share one shift-ownership protocol'
+    Assert-True (([IO.File]::ReadAllText($setup)).Contains('-DisableNameChecking')) `
+        'setup import stays quiet so its JSON summary is the only stdout'
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
@@ -309,7 +311,7 @@ try {
         foreach ($number in 1..8) {
             Start-Job -ScriptBlock {
                 param($ModulePath, $NightshiftDirectory, $Number)
-                Import-Module $ModulePath -Force
+                Import-Module $ModulePath -Force -DisableNameChecking
                 Claim-NSSession $NightshiftDirectory "claim-$Number" '' '' '' 'claude'
             } -ArgumentList $module, $claimNightshift, $number
         }
@@ -329,7 +331,7 @@ try {
         'private session claims leave no temporary capability file'
     $abandonedJob = Start-Job -ScriptBlock {
         param($ModulePath, $NightshiftDirectory)
-        Import-Module $ModulePath -Force
+        Import-Module $ModulePath -Force -DisableNameChecking
         $null = Enter-NSMutex $NightshiftDirectory '.abandoned-test'
     } -ArgumentList $module, $claimNightshift
     $null = Wait-Job -Job $abandonedJob
@@ -351,7 +353,7 @@ try {
     Assert-True ($null -ne $heldMutex) 'the canonical workspace acquires its alias-test mutex'
     $aliasJob = Start-Job -ScriptBlock {
         param($ModulePath, $AliasNightshift)
-        Import-Module $ModulePath -Force
+        Import-Module $ModulePath -Force -DisableNameChecking
         $candidate = Enter-NSMutex $AliasNightshift '.alias-test' 250
         if ($null -eq $candidate) {
             return $false

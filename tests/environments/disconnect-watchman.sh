@@ -5,10 +5,10 @@ set -euo pipefail
 ACTION="${1:-}"
 ROOT="${2:-}"
 FIXTURE="${3:-}"
-[ -n "$ROOT" ] && [ -n "$FIXTURE" ] || {
+if [ -z "$ROOT" ] || [ -z "$FIXTURE" ]; then
   printf 'usage: disconnect-watchman.sh start|verify|cleanup REPOSITORY FIXTURE\n' >&2
   exit 2
-}
+fi
 case "$FIXTURE" in
   /tmp/nightshift-environment.*)
     case "${FIXTURE#/tmp/}" in
@@ -42,10 +42,10 @@ RULES="$ROOT/plugins/nightshift/skills/nightshift/references/nightshift-rules-te
 read_watchman_pid() {
   local marker pid
   marker="$FIXTURE/.nightshift/.watchman"
-  [ -f "$marker" ] && [ ! -L "$marker" ] || {
+  if [ ! -f "$marker" ] || [ -L "$marker" ]; then
     printf 'disconnect fixture: watchman marker is unavailable or unsafe\n' >&2
     return 1
-  }
+  fi
   pid="$(sed -n '1p' "$marker")"
   case "$pid" in '' | *[!0-9]* | 0* | 1)
     printf 'disconnect fixture: watchman marker has an invalid pid\n' >&2
@@ -155,10 +155,10 @@ case "$ACTION" in
       fi
     fi
     rm -rf -- "$FIXTURE"
-    [ ! -e "$FIXTURE" ] && [ ! -L "$FIXTURE" ] || {
+    if [ -e "$FIXTURE" ] || [ -L "$FIXTURE" ]; then
       printf 'disconnect fixture: cleanup did not remove the fixture\n' >&2
       exit 1
-    }
+    fi
     ;;
   *)
     printf 'usage: disconnect-watchman.sh start|verify|cleanup REPOSITORY FIXTURE\n' >&2

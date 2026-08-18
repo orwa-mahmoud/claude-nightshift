@@ -56,10 +56,10 @@ cleanup() {
     wait "$watchman_pid" 2>/dev/null || true
   fi
   rm -rf -- "$fixture"
-  [ ! -e "$fixture" ] && [ ! -L "$fixture" ] || {
+  if [ -e "$fixture" ] || [ -L "$fixture" ]; then
     printf 'environment probe: fixture cleanup failed\n' >&2
     return 1
-  }
+  fi
 }
 cleanup_best_effort() { cleanup >/dev/null 2>&1 || true; }
 trap cleanup_best_effort EXIT

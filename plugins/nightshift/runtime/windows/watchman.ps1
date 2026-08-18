@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $utf8 = New-Object Text.UTF8Encoding($false)
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
-Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force
+Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
 function Write-NSLogLine {
     param([Parameter(Mandatory = $true)][string]$Message)
