@@ -3,6 +3,21 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.14.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.13.1...v0.14.0) (2026-08-18)
+
+
+### Features
+
+* **compatibility:** verify remote development environments ([4051f7c](https://github.com/orwa-mahmoud/nightshift/commit/4051f7cd579f0ab25a1e645b8ab4432b6ed9b7f6))
+* **recovery:** fence concurrent shift processes ([3efbac8](https://github.com/orwa-mahmoud/nightshift/commit/3efbac87f0f25a3d66e8339f405fb39f9b0eab65))
+* **windows:** add native runtime support ([7d80a66](https://github.com/orwa-mahmoud/nightshift/commit/7d80a664ece3592910699b28b233968d9c1f829e))
+
+
+### Bug Fixes
+
+* share shift ownership and close review gaps ([e3643e9](https://github.com/orwa-mahmoud/nightshift/commit/e3643e9730013dd4dfc026cd53adf1c1885c0290))
+* **skills:** align host roots and shift lifecycle ([46287d1](https://github.com/orwa-mahmoud/nightshift/commit/46287d1ccc3b1ebfb337440c362d82ce5ab3978c))
+
 ## [0.13.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.13.0...v0.13.1) (2026-08-15)
 
 
