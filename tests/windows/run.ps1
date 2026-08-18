@@ -341,17 +341,34 @@ try {
     Assert-Equal 'Dead' (Test-NSRecordedProcess ([string]$PID) '2000-01-01T00:00:00.0000000Z') 'a reused pid birthday is rejected'
 
     Write-Host 'Checking atomic concurrent ownership claims'
+    $probeNightshift = Join-Path $root 'claim probe/.nightshift'
+    $null = New-Item -ItemType Directory -Path $probeNightshift -Force
+    try {
+        Assert-True (Write-NSAtomicLines -Path (Join-Path $probeNightshift '.shift-session') `
+            -Lines @('claim-probe', '', '', '', 'claude') -Private -CreateOnly) `
+            'a sequential create-only write publishes .shift-session'
+    }
+    catch {
+        throw "sequential create-only claim failed: $($_.Exception.Message)"
+    }
+    Assert-True (-not (Write-NSAtomicLines -Path (Join-Path $probeNightshift '.shift-session') `
+        -Lines @('claim-probe-2', '', '', '', 'claude') -Private -CreateOnly)) `
+        'a second create-only write loses to the existing session record'
     $claimWorkspace = Join-Path $root 'concurrent claim workspace'
     $claimNightshift = Join-Path $claimWorkspace '.nightshift'
     $null = New-Item -ItemType Directory -Path $claimNightshift -Force
     $claimArgLists = New-Object 'System.Collections.Generic.List[object]'
     foreach ($number in 1..8) {
-        $claimArgLists.Add(@($module, $claimNightshift, $number))
+        $claimArgLists.Add([pscustomobject]@{
+                ModulePath = $module
+                NightshiftDirectory = $claimNightshift
+                SessionId = "claim-$number"
+            })
     }
     $claimResults = @(Invoke-NSParallelScript -ScriptBlock {
-            param($ModulePath, $NightshiftDirectory, $Number)
-            Import-Module $ModulePath -Force -DisableNameChecking
-            Claim-NSSession $NightshiftDirectory "claim-$Number" '' '' '' 'claude'
+            param($Work)
+            Import-Module $Work.ModulePath -Force -DisableNameChecking
+            Claim-NSSession $Work.NightshiftDirectory $Work.SessionId '' '' '' 'claude'
         } -ArgumentLists $claimArgLists.ToArray())
     $claimWins = @($claimResults | Where-Object { $_ -eq $true })
     Assert-Equal 1 $claimWins.Count "exactly one concurrent session claim wins (results: $($claimResults -join ','))"

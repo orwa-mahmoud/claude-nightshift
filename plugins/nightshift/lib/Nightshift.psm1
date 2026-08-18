@@ -363,26 +363,27 @@ function Write-NSAtomicLines {
     if ($CreateOnly -and (Test-NSPathEntry $Path)) {
         return $false
     }
+    $encoding = New-Object System.Text.UTF8Encoding $false
+    $createdHere = $false
     try {
         $stream = $null
         $writer = $null
         try {
-            # Open CreateNew without an ACL constructor: those constructors fail closed in
-            # Start-Job runspaces on the CI images, so every concurrent claim lost.
             $stream = [IO.FileStream]::new(
                 $writePath,
                 [IO.FileMode]::CreateNew,
                 [IO.FileAccess]::Write,
                 [IO.FileShare]::None
             )
-            $writer = [IO.StreamWriter]::new($stream, $script:NSUtf8NoBom)
+            $createdHere = $true
+            $writer = [IO.StreamWriter]::new($stream, $encoding)
             foreach ($line in $Lines) {
                 $writer.WriteLine($line)
             }
             $writer.Flush()
         }
-        catch {
-            if ($CreateOnly -and (Test-NSPathEntry $Path)) {
+        catch [IO.IOException] {
+            if ($CreateOnly -and -not $createdHere -and (Test-NSPathEntry $Path)) {
                 return $false
             }
             throw
@@ -422,6 +423,12 @@ function Write-NSAtomicLines {
         }
         $temp = $null
         return $true
+    }
+    catch {
+        if ($CreateOnly -and $createdHere -and (Test-NSPathEntry $Path)) {
+            Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        }
+        throw
     }
     finally {
         if ($null -ne $temp -and (Test-Path -LiteralPath $temp -PathType Leaf)) {
