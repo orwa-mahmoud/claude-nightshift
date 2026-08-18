@@ -3,25 +3,33 @@ name: start
 description: Begin the shift — preflight, cut whatever is queued, arm the site, work the punch list. Asks nothing, so a scheduled or headless run works exactly like an interactive one.
 ---
 
-Start a nightshift. Work in `$CLAUDE_PROJECT_DIR`.
+Start a Nightshift run in the host-opened project.
 
-Resolve the task root as `${CLAUDE_PROJECT_DIR:-$PWD}`. If its `.nightshift-link` exists, validate
-the one absolute workspace path inside it and use that workspace for every `.nightshift/` read or
-write; otherwise use the task root. Never search surrounding folders or guess. Print both paths
-when linked. The shell's working directory persists between Bash calls, so never rely on a bare
-relative path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. If `$TASK_ROOT/.nightshift-link` exists,
+validate the one absolute workspace path inside it and call that `$NIGHTSHIFT_WORKSPACE`; otherwise
+set `NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Use it for every `.nightshift/` read or write. Never search
+surrounding folders or guess. Print both paths when linked. The shell's working directory persists
+between Bash calls, so never rely on a bare relative path.
+
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/start/SKILL.md`). Substitute that
+absolute path in every command below; never search for the plugin.
 
 If the start request itself explicitly names a different existing Nightshift workspace, that
 owner-provided path is authorization to link it: print both absolute paths, run
-`${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/link-workspace.sh --host-root "$TASK_ROOT" --workspace "$PROPOSED_WORKSPACE"`,
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/link-workspace.sh" --host-root "$TASK_ROOT" --workspace "$PROPOSED_WORKSPACE"`,
 then continue from the resolved workspace. Without an explicit path or an existing valid link,
 refuse to arm outside the task root and direct the owner to Setup; never discover a target.
 
 Read `.nightshift/state-version` before preflight. A missing marker is legacy version `0` and
 is operable — do not migrate it. Integer `1` is current. A newer integer or a malformed marker
 fails closed: print the shared diagnostic, do not arm, and never rewrite or downgrade the
-file. Migration is setup/Doctor repair only (`runtime/migrate-state.sh`); start never writes
-the marker.
+file. Migration is Setup/Doctor repair only
+(`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh" --project "$NIGHTSHIFT_WORKSPACE"`);
+Start never writes the marker.
 
 Read `.nightshift/work-target` before preflight. It is the absolute code repository selected by
 Setup. Keep every `.nightshift/` read and write rooted in the opened workspace, but run project
@@ -44,10 +52,14 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
 
 ## 1. Preflight
 
-- **One shift, one agent — check before touching anything.** Read `.nightshift/.shift-session`.
-  Line 5 names the host that owns it. If the record is still alive, an agent is ALREADY working
-  this punch list — do not start a second one beside it; hand the owner the running thread and
-  stop here. The primary process tell is POSIX `kill -0` on a recorded numeric pid; `ps`,
+- **One shift, one agent — check before touching anything.** Read `.nightshift/.shift-session` and
+  validate `.nightshift/.shift-lease` with `ns_lease_valid` when it exists; never print its
+  capability line. Session line 5 names the host, while the lease records the current process
+  generation. A malformed lease is unowned state: refuse to start and direct the owner to issue
+  STOP, run the stale-lease reset command below themselves in a terminal, and retry. If either
+  valid record is still alive, an agent is ALREADY working this punch list — do not start a second
+  one beside it; hand the owner the running thread and stop here. The primary process tell is POSIX
+  `kill -0` on a recorded numeric pid; `ps`,
   `pgrep`, and `lsof` are optional enhancers and must never be installed. If `kill -0` cannot
   classify the pid, or the optional tools are absent and no host roster or transcript/rollout
   pulse answers, treat it as `process-evidence-unavailable` and stop — missing tools are not
@@ -58,15 +70,30 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
   available) whose cwd is this project, or a rollout (line 2) still growing, means live —
   hand the owner `codex resume <id>`. A pid that `kill -0` proves dead, with no other live
   tell, is last night's leftover.
+  A live `.nightshift/.watchman` beside an armed list with open Items is also an active shift,
+  including the gap between recovery attempts. Refuse the second Start and point the owner at
+  Status or STOP; never kill that watchman as stale.
   `touch .nightshift/STOP` is the lever if they want a live shift ended first. A record whose
   process is provably dead is last night's leftover: fall through and clear it below.
+- **Stand down a stale watchman before clearing its state.** Only after the checks above prove no
+  shift is live, kill a still-running pid from `.nightshift/.watchman` and wait for it to exit. A
+  watchman must not be able to advance the old lease while Start removes markers.
+- **Reset stale lease state through the shared library, never by reading or deleting its files
+  directly.** After the liveness checks and stale-watchman shutdown above, run:
+  ```bash
+  bash -c '. "$1/lib/lib.sh"; ns_lease_reset_stale "$2/.nightshift"' \
+    nightshift "$NIGHTSHIFT_PLUGIN_ROOT" "$NIGHTSHIFT_WORKSPACE"
+  ```
+  Refuse to continue if it fails. For malformed state, substitute the resolved absolute paths and
+  print this command for the owner to run directly after STOP; do not run it from the blocked
+  session.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
   leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
   present: `.nightshift/STOP`, `.nightshift/.stall`, `.nightshift/.notified`, `.nightshift/.ended`,
-  `.nightshift/.session-end`, `.nightshift/.shift-session`, `.nightshift/.shift-armed`,
-  `.nightshift/.watchman-tick`, and the `.nightshift/.lock.d/` directory. If
-  `.nightshift/.watchman` holds a live pid, kill it — last night's watchman must not double-arm
-  tonight's.
+  `.nightshift/.session-end`, `.nightshift/.shift-session`, any
+  `.nightshift/.shift-session.tmp.*`, `.nightshift/.shift-armed`, `.nightshift/.watchman-tick`, and
+  `.nightshift/.lock.d/`. The reset above already removed the lease, its temporary files, and its
+  internal mutex.
 - **The deadline is cleared only if it has already passed.** A shift that reached the whistle
   leaves a spent deadline behind, and keeping it clocks tonight out immediately with zero items
   done. But a deadline still in the future is tonight's plan — written by the owner or by hunt's
@@ -87,23 +114,27 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
   `## Items` and is removed from the file it came from, so it never exists in two places. From a
   work order, write `.nightshift/deadline` as a UNIX epoch from the recorded hours
   (`now + hours*3600`); an order marked finite with no hours writes no deadline.
-- If the punch list is empty and nothing is parked, stop and say so: `/nightshift:setup` if the
-  project is new, `/nightshift:hunt` to compose a shift, or write an item by hand.
+- If the punch list is empty and nothing is parked, stop and say so: use Setup if the project is
+  new, Hunt to compose a shift, or write an item by hand. Give host-native invocation when needed:
+  slash commands on Claude Code, or ask Nightshift for the named skill on Codex.
 - The working tree is clean enough to commit per item (warn if not).
 - **Rotate the journal before it becomes one.** If `.nightshift/shift-log.md` is larger than
   ~500 KB, move it to `.nightshift/archive/<YYYY-MM-DD>/shift-log.md` and start a fresh one
   with the same one-line header. Only the mechanical journal auto-rotates — `snag-log.md` and
-  `parking-lot.md` are the owner's review material; `/nightshift:archive` files those on the
-  owner's order.
-- **New knobs check:** if `.nightshift/rules.json` exists, compare the shipped
-  template's keys against the file's (`jq -r 'keys[]'` on each): keys the template has that
-  the file lacks mean a plugin update brought new knobs — say so once and point at
-  `/nightshift:setup` to review them; never add them yourself here. (The hooks read the file
-  live — there is no drift to check and no restart to suggest.)
+  `parking-lot.md` are the owner's review material; Archive files those on the owner's order.
+- **Require an exact JSON parser for tool rules.** `jq` or `python3` must be available before
+  arming; without either, refuse to arm and name the missing prerequisite. The hardhat never
+  approximates `toolDeny` with text matching.
+- **New knobs check:** if `.nightshift/rules.json` exists, compare the shipped template's
+  top-level keys and nested `toolDeny` keys against the same objects in the file (`jq -r 'keys[]'`
+  on each, or equivalent Python when jq is absent). Keys the template has that the file lacks mean
+  a plugin update brought new knobs — say so once and point at Setup to review them; never add
+  them yourself here. A missing native question-tool key must be repaired before an ask tool can
+  run. (The hooks read the file live — there is no drift to check and no restart to suggest.)
 - The night cannot click Allow. On Claude Code: if neither `.claude/settings.local.json` nor
   `.claude/settings.json` grants frictionless permissions (`bypassPermissions` default mode or an
   allowlist covering the gates' commands), warn once — a permission prompt mid-shift freezes the
-  night, and a headless revival is denied outright; `/nightshift:setup` offers the fix. On Codex:
+  night, and a headless revival is denied outright; Setup offers the fix. On Codex:
   approvals are per launch — a shift meant to run unattended is started
   `codex -a never -s danger-full-access` — the workspace-write sandbox blocks `git commit`
   (`.git` is protected). A contract that does not commit needs only `workspace-write`; ticks
@@ -119,7 +150,7 @@ The deadline is written when the work is composed, not here.
 - No deadline and the list is entirely **finite** items: correct — their natural end is the last
   tick, and a stuck run is red-flagged in the shift log and held for review.
 - No deadline and `## Items` contains an `Ending: open-ended` marker: **refuse to start.** A
-  walkthrough with no clock never ends. Say so in one line and point at `/nightshift:hunt`, which
+  walkthrough with no clock never ends. Say so in one line and point at Hunt, which
   asks for hours; never invent a number. The marker copied from the entry is authoritative; do not
   maintain a hardcoded list of open-ended entry names here.
 - One deadline governs the whole shift: finite items first, the walkthrough soaks up the rest.
@@ -134,26 +165,43 @@ touch "$NIGHTSHIFT_WORKSPACE/.nightshift/.shift-armed"
 
 **This, and nothing else, is what puts a session on shift.** Until it exists the punch list is an
 ordinary to-do file: the clock-out gate holds nobody and hardhat's guards apply to no one, so a
-session that writes items while planning still stops freely. From here the hooks bind the first
-session that trips them — this one — and hold it to the list.
+session that writes items while planning still stops freely.
 
-Write it last. A marker left behind by a preflight that stopped early would put the next session
-on a shift it never started.
+Write it only after every preflight check. A marker left behind by a preflight that stopped early
+would put the next session on a shift it never started.
+
+### Bind this session — before any other tool
+
+Immediately after writing `.shift-armed`, make this the next tool call on either host:
+
+```bash
+: nightshift-binding-probe
+```
+
+This harmless Bash probe makes the hardhat record this conversation in `.shift-session` and claim
+generation 1 in `.shift-lease` before item work or the watchman begins. Its distinctive marker also
+makes a concurrent second Start fail explicitly if another session won the atomic session-file
+claim. Do not read files, search, call MCP, or yield between the marker and the probe. Catch-all
+tool rules observe those calls, but passive tools cannot make the first session claim; the explicit
+probe can. Never create or edit the lease directly. A watchman advances it atomically before
+recovery, which fences the older process without restricting unrelated conversations in the
+project.
 
 ### Codex identity checkpoint — before the watchman
 
 Codex exposes the current task identity to Nightshift through hook payloads, not as a shell
-environment variable. Immediately after writing `.shift-armed`, make one harmless read-only tool
-call (`pwd` is sufficient) so the Codex hardhat records `.shift-session`, then classify line 1 with
+environment variable. After the binding probe, classify `.shift-session` line 1 with
 `ns_codex_identity_kind` from `lib/lib.sh` **before arming the watchman or beginning item work**.
 
 - `resumable` — continue.
 - `missing` — continue only with the already-documented fresh-session fallback; say plainly that
   same-thread recovery is unavailable until an identity is recorded.
 - `unsupported` or `malformed` — refuse the unattended start. Remove only the markers created by
-  this attempted start (`.shift-armed` and its new `.shift-session`), append one failed-preflight
-  line to `shift-log.md`, and stop before the watchman or item work. Never pass the value to Codex,
-  print it, guess a replacement, or start a fresh unrelated task.
+  this attempted start (`.shift-armed` and its new `.shift-session`) and reset the lease with
+  `ns_lease_reset_stale` in the same Bash call, so no hook call between those operations can
+  bootstrap the aborted lease again. Append one failed-preflight line to `shift-log.md`, and stop
+  before the watchman or item work. Never pass the value to Codex, print it, guess a replacement,
+  or start a fresh unrelated task.
 
 This capture-and-check is part of Start, not an owner instruction to remember. An attended session
 that does not request an unattended shift remains unaffected.
@@ -173,14 +221,13 @@ shift the other host owns. Unless the rules file's `watchMinutes` is `0` (or
 On Claude Code:
 
 ```bash
-nohup "${CLAUDE_PLUGIN_ROOT}/runtime/claude/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
+nohup "$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
-On Codex (the plugin root is `$PLUGIN_ROOT` or its `CLAUDE_PLUGIN_ROOT` compatibility twin; if
-neither is set in your shell, it is the installed plugin cache directory):
+On Codex:
 
 ```bash
-nohup "${PLUGIN_ROOT:-$CLAUDE_PLUGIN_ROOT}/runtime/codex/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
+nohup "$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
 The Codex identity checkpoint above has already passed before this command is reached. One stance
@@ -194,15 +241,15 @@ back to a fresh session whose handover is the punch list. The stop-work order
 (`touch .nightshift/STOP`) is the off switch, on every host.
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
-spawning a fresh session that resumes from the punch list, and it stands down on done, a
-stop-work order, quitting time, or a clean exit. On Claude Code, Esc is honored — the watchman
-reads the interrupt from the session transcript and stands by rather than resuming; on Codex
-there is no interrupt to read, which is the stance above. `STOP` remains the stop-work order on
-every host, and the only stop a headless run can receive.
+spawning a fresh session that resumes from the punch list. Both hosts stand down on done, a
+stop-work order, or quitting time. Claude Code additionally records clean session ends and Esc;
+its watchman stands down for either rather than resuming. Codex exposes neither signal, which is
+the stance above. `STOP` remains the stop-work order on every host, and the only stop a headless
+run can receive.
 
 ## 6. Work
 
-Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit, tick
-honestly, park don't ask, leave pushing to the owner unless the punch list says otherwise. From
-here the clock-out gate owns the session — it will not let
+Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit, tick only
+after the item is complete, park don't ask, leave pushing to the owner unless the punch list says
+otherwise. From here the clock-out gate owns the session — it will not let
 you stop while any box is open.

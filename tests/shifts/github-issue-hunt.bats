@@ -5,8 +5,9 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
 
 @test "the GitHub issue hunt consumes only imported proposed drafts" {
   grep -qF 'Status: proposed' "$E"
-  grep -qF '/nightshift:import-issues' "$E"
-  grep -qi 'must not start' "$E"
+  grep -qF 'Import issues skill' "$E"
+  grep -qi 'If none exist' "$E"
+  grep -qi 'point at Import issues and stop' "$E"
   grep -qi 'Never search GitHub' "$E"
 }
 
@@ -20,6 +21,8 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
 }
 
 @test "the hunt cuts drafts into one punch list and keeps one commit per issue" {
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh' "$E"
+  grep -qF -- '--project "$NIGHTSHIFT_WORKSPACE"' "$E"
   grep -qF -- '--promote' "$E"
   grep -qi 'Cut, never copy' "$E"
   grep -qi 'Do not paste' "$E"

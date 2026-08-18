@@ -11,7 +11,8 @@ setup() {
 @test "refuses a project with no .nightshift" {
   run "$SCHED" --project "$BATS_TEST_TMPDIR" --at 04:05
   [ "$status" -eq 1 ]
-  printf '%s' "$output" | grep -q 'nightshift:setup'
+  printf '%s' "$output" | grep -qF '/nightshift:setup'
+  printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
 }
 
 @test "an option with no value exits instead of spinning" {
@@ -135,13 +136,19 @@ STUB
 # The skill is the pleasant path; the script is the one that still works at 100% usage. Both must
 # exist, and the skill must do the checks an owner would otherwise fail at 4am.
 @test "the schedule skill checks the work is queued before printing config" {
+  local s arming
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
   [ -f "$s" ]
   grep -qi 'promotes nothing' "$s"           # an empty list is a run that does nothing
-  grep -qi 'nightshift:hunt' "$s"            # and how to fix that
+  grep -qF 'Hunt' "$s"                       # and how to fix that
   grep -qi 'cannot answer a prompt' "$s"     # headless permissions
-  grep -qi 'nightshift:stop' "$s"            # queuing arms the gate on this session
   grep -qi 'install nothing' "$s"            # generator, never a daemon
+
+  arming="$(awk '/^## 4\./ { capture=1; next } /^## 5\./ { exit } capture' "$s")"
+  printf '%s\n' "$arming" | grep -qF '.shift-armed'
+  printf '%s\n' "$arming" | grep -qi 'do not activate'
+  printf '%s\n' "$arming" | grep -qi 'must not create'
+  printf '%s\n' "$arming" | grep -qF 'Status'
 }
 
 # A README is reachable with no credit; a skill is not. The offline path has to be documented

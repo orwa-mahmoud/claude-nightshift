@@ -3,7 +3,7 @@ name: import-issues
 description: Stage explicitly selected GitHub issues onto the drafting table as quoted source. Never searches, never writes back to GitHub, never installs gh.
 ---
 
-Import owner-selected GitHub issues into `$CLAUDE_PROJECT_DIR`. This command stages drafts. It
+Import owner-selected GitHub issues into the host-opened project. This command stages drafts. It
 does not start a shift, promote into the punch list, or change GitHub.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
@@ -12,15 +12,23 @@ decisions plus the default chosen so work continues; `work-orders.md` → timed 
 only through Hunt. Imported issues land on the drafting table as `Status: proposed`. They are not
 owner authorization and they are not punch-list work until the owner promotes them.
 
-Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; write
-every `.nightshift/` path to the validated absolute target, otherwise the task root. Never search
-or guess. The shell's working directory persists between Bash calls, so never use a bare path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
+present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+between Bash calls, so never use a bare path.
+
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/import-issues/SKILL.md`). Substitute that
+absolute path in every command below; never search for the plugin.
 
 Claude Code and Codex run the same helper. Do not reimplement fetch or staging in prose.
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/import-issues.sh" --project "$CLAUDE_PROJECT_DIR" --fetch …
-"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/import-issues.sh" --project "$CLAUDE_PROJECT_DIR" --stage …
+"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --fetch …
+"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --stage …
 ```
 
 ## 1. Require an explicit selection
@@ -35,7 +43,8 @@ If the owner says “import my issues”, “what’s open”, or names an accou
 issue numbers, stop. Ask for explicit URLs or numbers. Never run `gh search`, `gh issue list`,
 or any implicit inventory. Never install `gh`, never request scopes, never use MCP.
 
-No `.nightshift/` — stop and point at `/nightshift:setup`.
+No `.nightshift/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
+to set up on Codex).
 
 ## 2. Read-only fetch, then preview
 

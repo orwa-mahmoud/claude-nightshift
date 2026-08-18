@@ -2,7 +2,7 @@
 
 Tests that sometimes pass and sometimes fail under the repository's existing test runner. The
 shift spends a declared repetition budget reproducing each suspect, fixes only demonstrated
-causes, and leaves an honest record when the failure cannot be reproduced.
+causes, and leaves an evidence-backed record when the failure cannot be reproduced.
 
 Use only when the project already has a test command and evidence of instability: repeated local
 failure, CI history, or a named suspect test. Supported on any stack whose existing test runner can
@@ -23,7 +23,7 @@ repeat a test or suite. Do not add a new flake service or test framework.
     by increasing a timeout without evidence that the timeout is the contract.
   - Never exceed the declared repetition budget chasing an unreproduced failure.
   - Ends when every discovered suspect is either repaired and stable for its declared budget or
-    recorded honestly as unreproduced with its evidence and commands.
+    recorded as unreproduced with its evidence and commands.
   - Verify: the item gate is green at every commit; each repaired test passes for its full declared
     repetition budget and its containing suite passes once normally.
 ```

@@ -19,8 +19,9 @@
 ## How the shift ends (and only these ways)
 
 - **Done** — every box in the Items list is `- [x]`. The ticks are the truth; no magic phrase ends it.
-- **Stop-work order** — `.nightshift/STOP` exists (`/nightshift:stop`, or `touch .nightshift/STOP`
-  from any terminal). Open boxes stay open — an honest snapshot of where work stopped.
+- **Stop-work order** — `.nightshift/STOP` exists (the Nightshift Stop skill, or
+  `touch .nightshift/STOP` from any terminal). Open boxes stay open as the record of where work
+  stopped.
 - **Quitting time** — past `.nightshift/deadline`, the gate clocks the shift out. Belongs to
   open-ended work: start NOTHING new past the whistle, finish the unit in hand, then clock out.
 - **Orderly clock-out** — if a shift must end with work in hand, commit it as a `wip:` commit plus
@@ -40,7 +41,7 @@
 ## Site discipline
 
 - **Deletion is not completion** — never remove an item or edit this contract to end the shift. If
-  either is ever altered, restore it, then tick honestly.
+  either is ever altered, restore it, then tick only after the item is complete.
 - **History is append-only on shift** — no `reset --hard`, no `rebase`, no `commit --amend`, no
   force operations. The night's receipts must survive to morning.
 - **Pushing is the owner's** — commit locally; the owner reviews and pushes. Push only where an
@@ -54,7 +55,7 @@ item. Only the Items list changes.
 
 ## Gates
 
-<!-- /nightshift:setup fills this from your stack, or leaves it empty (no automated checks).
+<!-- Nightshift Setup fills this from your stack, or leaves it empty (no automated checks).
      Item gate: runs every item, right before its commit — must be green to tick.
      Site inspection: the heavier batch (coverage, dead code, Sonar), every N items or H hours. -->
 

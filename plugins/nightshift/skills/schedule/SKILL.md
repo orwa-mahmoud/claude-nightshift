@@ -3,16 +3,25 @@ name: schedule
 description: Set a shift to start at a fixed time — check the work is queued, then print the launchd or cron config for this project and the one command that installs it. Generates; registers nothing.
 ---
 
-Get `$CLAUDE_PROJECT_DIR` ready to start on a clock, then hand the owner the config. Work through
+Get the host-opened project ready to start on a clock, then hand the owner the config. Work through
 these in order; each one is a check the owner would otherwise discover at 4am.
 
-Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; use the
-validated absolute target for every `.nightshift/` path, otherwise the task root. Never search or
-guess. The shell's working directory persists between Bash calls, so never use a bare path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
+present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+between Bash calls, so never use a bare path.
+
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/schedule/SKILL.md`). Substitute that
+absolute path in every command below; never search for the plugin.
 
 ## 1. Is there a site at all?
 
-No `.nightshift/` — stop and point at `/nightshift:setup`. Nothing below is meaningful without it.
+No `.nightshift/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
+to set up on Codex). Nothing below is meaningful without it.
 
 ## 2. Is there work queued?
 
@@ -24,9 +33,9 @@ Count the open `- [ ]` in `.nightshift/punch-list.md`:
 
 - **Items present** — say what they are in one line and carry on.
 - **None** — say so plainly and offer the ways to fix it: compose a shift now with
-  `/nightshift:hunt` (answer **later**, not **now** — a shift started here defeats scheduling it),
-  promote something from `.nightshift/drafting-table.md`, or write an item by hand. Then re-check.
-  Never schedule an empty list without saying it will do nothing.
+  Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), promote
+  something from `.nightshift/drafting-table.md`, or write an item by hand. Then re-check. Never
+  schedule an empty list without saying it will do nothing.
 
 A parked work order is not queued work. If one exists, say so: it must be moved into the punch list
 before the scheduled time, because start will not promote it.
@@ -38,15 +47,19 @@ A scheduled run is headless and cannot answer a prompt. On Claude Code, if neith
 once. On Codex the grant travels in the command itself — the generator's
 `--agent 'codex exec -s danger-full-access'` carries it — so a Codex entry generated
 without that agent will stall on the
-first tool that asks. `/nightshift:setup` offers the fix.
+first tool that asks. Setup offers the fix.
 
-## 4. Queuing arms the gate — say so
+## 4. Confirm the queued work is unarmed
 
-An open `- [ ]` holds the clock-out gate for the session doing the queuing, this one included. Tell
-the owner to end this session with `/nightshift:stop` once the list is ready: it releases the gate
-and leaves the boxes honestly open, and the stop-work order is one of the stale markers
-`/nightshift:start` clears at preflight — so the scheduled run begins on a clean site with the list
-intact.
+Open `- [ ]` Items do not activate the clock-out gate by themselves. `.shift-armed` does, and
+scheduling must not create it: the work stays queued until the scheduled Start preflight clears
+stale markers and arms the shift.
+
+If `.nightshift/.shift-armed` already exists, stop here. This workspace has an active or stale shift,
+not merely queued work. Report that state and point the owner to Status (`/nightshift:status` on
+Claude Code, or ask Nightshift for status on Codex); do not tell them to create a STOP marker just
+to schedule the list. Continue only after the existing shift has been ended or its stale state has
+been diagnosed.
 
 ## 5. Print the config
 
@@ -54,8 +67,8 @@ Ask for the time if the owner has not given one — 24-hour `HH:MM`, local — t
 and show its output as it comes:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --preflight
-"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --at <HH:MM>
+"$NIGHTSHIFT_PLUGIN_ROOT/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --preflight
+"$NIGHTSHIFT_PLUGIN_ROOT/runtime/schedule.sh" --project "$NIGHTSHIFT_WORKSPACE" --at <HH:MM>
 # Codex projects add:  --agent 'codex exec -s danger-full-access'
 # Linux user timers:    --target systemd
 ```
@@ -72,6 +85,6 @@ list is two agents on one shift.
 ## 6. Close
 
 Say where the run's output will land (`.nightshift/scheduled.log`), and mention once that the same
-generator runs from a terminal with no session — `runtime/schedule.sh` is plain shell and spends
-no model tokens, which is what makes it reachable on a day this command is not. The README carries
-the full offline note.
+generator runs from a terminal with no session —
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/schedule.sh` is plain shell and spends no model tokens, which is
+what makes it reachable on a day this command is not. The README carries the full offline note.
