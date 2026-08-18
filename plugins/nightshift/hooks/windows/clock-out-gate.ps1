@@ -232,14 +232,8 @@ if (Test-Path -LiteralPath $stop -PathType Leaf) {
         }
         catch {
         }
-        if (Test-Path -LiteralPath $punch -PathType Leaf) {
-            $suffix = if ([string]::IsNullOrEmpty($reason)) { '' } else { " ($reason)" }
-            Complete-NSShift ("shift ended${suffix}: $($counts.Ticked)/$($counts.Total) done")
-        }
-        else {
-            Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue
-            Release-NSLeaseWithRetry
-        }
+        $suffix = if ([string]::IsNullOrEmpty($reason)) { '' } else { " ($reason)" }
+        Complete-NSShift ("shift ended${suffix}: $($counts.Ticked)/$($counts.Total) done")
     }
     finally {
         if ($null -ne $mutex) {
@@ -295,8 +289,7 @@ try {
     }
 
     if (-not (Test-Path -LiteralPath $punch -PathType Leaf)) {
-        Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue
-        Release-NSLeaseWithRetry
+        Complete-NSShift "shift done: $($counts.Ticked)/$($counts.Total)"
         Write-Release
     }
     if ($counts.Open -eq 0) {

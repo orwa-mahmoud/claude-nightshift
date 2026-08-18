@@ -193,6 +193,39 @@ sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/de
   return 1
 }
 
+# Bound-worker control plane: forge/delete of the files the gate keys off.
+# punch-list.md may be edited; only a delete/rename of that file is denied.
+ns_hardhat_control_rewrite_path() {
+  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target)(/|$|[^[:alnum:]_.-])'
+}
+
+ns_hardhat_control_list_path() {
+  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/punch-list\.md(/|$|[^[:alnum:]_.-])'
+}
+
+ns_hardhat_control_delete_verb() {
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([[:space:]]|$)'
+}
+
+ns_hardhat_control_targeted() {
+  local normalized
+  normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
+  ns_hardhat_control_rewrite_path "$normalized" && return 0
+  ns_hardhat_control_list_path "$normalized" && ns_hardhat_control_delete_verb "$normalized"
+}
+
+ns_hardhat_payload_targets_control() {
+  case "$1" in
+    Read | Grep | Glob | LS | WebFetch | WebSearch | Task | TodoWrite | AskUserQuestion | request_user_input | NotebookRead)
+      return 1
+      ;;
+    *read* | *Read*)
+      return 1
+      ;;
+  esac
+  ns_hardhat_payload_targets "$1" "$2" "$3" ns_hardhat_control_targeted
+}
+
 ns_hardhat_payload_targets_rules() {
   ns_hardhat_payload_targets "$1" "$2" "$3" ns_hardhat_rules_targeted
 }

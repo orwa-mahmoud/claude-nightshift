@@ -189,6 +189,32 @@ function Test-NSLeaseTarget {
     return $false
 }
 
+function Test-NSControlRewritePath {
+    param([AllowEmptyString()][string]$Target)
+    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
+    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target)(/|$|[^A-Za-z0-9_.-])'
+}
+
+function Test-NSControlListPath {
+    param([AllowEmptyString()][string]$Target)
+    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
+    return $normalized -match '(?i)(^|/|\.)nightshift/punch-list\.md(/|$|[^A-Za-z0-9_.-])'
+}
+
+function Test-NSControlDeleteVerb {
+    param([AllowEmptyString()][string]$Target)
+    return $Target -match '(?i)(^|[;&|()\s])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([\s]|$)'
+}
+
+function Test-NSControlTarget {
+    param([AllowEmptyString()][string]$Target)
+    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
+    if (Test-NSControlRewritePath $normalized) {
+        return $true
+    }
+    return (Test-NSControlListPath $normalized) -and (Test-NSControlDeleteVerb $normalized)
+}
+
 function Convert-NSErePattern {
     param([Parameter(Mandatory = $true)][string]$Pattern)
     $result = $Pattern.Replace('[[:space:]]', '\s')
@@ -487,6 +513,18 @@ catch {
 foreach ($target in $targets) {
     if (Test-NSRulesTarget ([string]$target)) {
         Write-Deny 'BLOCKED: the rules file is the owner''s - the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working.'
+    }
+}
+
+$controlPassive = $tool -in @(
+    'Read', 'Grep', 'Glob', 'LS', 'WebFetch', 'WebSearch', 'Task', 'TodoWrite',
+    'AskUserQuestion', 'request_user_input', 'NotebookRead'
+) -or $tool -match '(?i)read'
+if (-not $controlPassive) {
+    foreach ($target in $targets) {
+        if (Test-NSControlTarget ([string]$target)) {
+            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, or work-target, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
+        }
     }
 }
 

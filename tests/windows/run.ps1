@@ -506,6 +506,13 @@ try {
 
     $rulesRead = Invoke-Hardhat $workspace $sessionId 'Read' @{ path = (Join-Path $workspace '.nightshift/rules.json') }
     Assert-True ($rulesRead.Stdout -match 'rules file is the owner') 'rules reads are denied during a shift'
+    $armedDelete = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'Remove-Item -Force .nightshift\.shift-armed' }
+    Assert-True ($armedDelete.Stdout -match 'control files') 'bound worker cannot delete .shift-armed'
+    $punchTick = Invoke-Hardhat $workspace $sessionId 'Write' @{
+        path = (Join-Path $workspace '.nightshift/punch-list.md')
+        content = "## Items`n- [x] **1.**`n"
+    }
+    Assert-True ([string]::IsNullOrEmpty($punchTick.Stdout)) 'punch-list ticks stay allowed'
 
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }

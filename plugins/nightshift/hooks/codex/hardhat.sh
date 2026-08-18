@@ -135,6 +135,9 @@ fi
 if ns_hardhat_payload_targets_rules "$TOOL" "$CODEX_RAW" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
+if ns_hardhat_payload_targets_control "$TOOL" "$CODEX_RAW" "$CMD"; then
+  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, or work-target, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
+fi
 
 if [ "$TOOL" = "request_user_input" ] \
   || { [ -z "$TOOL" ] && codex_input_mentions_tool "request_user_input"; }; then

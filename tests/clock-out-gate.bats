@@ -18,6 +18,8 @@ load helpers
   p="$(new_project)"
   run gate "$p"
   is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-armed" ]
 }
 
 @test "stop-work order releases even with open boxes" {

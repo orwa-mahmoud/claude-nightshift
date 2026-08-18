@@ -205,6 +205,15 @@ codex_hardhat_ask() {
 
 # Codex delivers file edits as apply_patch with the patch text in tool_input.command; the
 # payload's cwd is the documented way a hook finds the project — no env override here.
+@test "the bound worker cannot unlink the armed marker or delete the punch list" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_bash "$p" "unlink .nightshift/.shift-armed"
+  is_deny "$output"
+  run codex_hardhat_bash "$p" "rm .nightshift/punch-list.md"
+  is_deny "$output"
+}
+
 @test "an apply_patch aimed at the rules file is denied" {
   p="$(new_project)"
   punch_open "$p"
