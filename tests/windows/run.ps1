@@ -344,6 +344,7 @@ try {
     $workTarget = Initialize-TestWorkspace $workspace
     Assert-Equal 'current' (Get-NSStateKind $workspace) 'setup writes state version 1'
     Assert-True (Test-Path -LiteralPath (Join-Path $workspace '.nightshift/rules.json')) 'setup copies rules'
+    Assert-True ($null -ne (Get-NSRulesObject $workspace)) 'the first rules read after import succeeds'
     $receiptSetup = Invoke-TestScript $setup @('-Project', $workspace, '-WorkTarget', $workTarget, '-Receipts')
     Assert-Equal 0 $receiptSetup.ExitCode "setup creates local receipts: $($receiptSetup.Stderr)"
     Assert-True (([IO.File]::ReadAllLines((Join-Path $workspace '.nightshift/.gitignore'))) -contains '.mutex-scope') `
@@ -655,6 +656,7 @@ try {
     Write-Host 'Checking Task Scheduler generation'
     Remove-Item -LiteralPath (Join-Path $workspace '.nightshift/STOP') -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath (Join-Path $workspace '.nightshift/.ended') -Force -ErrorAction SilentlyContinue
+    Set-TestPunch $workspace $true
     $scheduled = Invoke-TestScript $schedule @('-Project', $workspace, '-At', '04:05', '-AsJson')
     Assert-Equal 0 $scheduled.ExitCode "scheduler generation succeeds: $($scheduled.Stderr)"
     $scheduleResult = $scheduled.Stdout | ConvertFrom-Json
@@ -685,7 +687,7 @@ try {
     }
 
     $preflight = Invoke-TestScript $schedule @('-Project', $workspace, '-Preflight')
-    Assert-Equal 0 $preflight.ExitCode "scheduler preflight succeeds without a host subscription: $($preflight.Stderr)"
+    Assert-Equal 0 $preflight.ExitCode "scheduler preflight succeeds without a host subscription: $(Format-HookResult $preflight)"
     Assert-True ($preflight.Stdout -match 'writes and registers nothing') 'preflight is generate-only'
     Assert-True ($preflight.Stdout -match 'headless Claude run may stall') `
         'preflight warns when Claude headless permissions are not evident'

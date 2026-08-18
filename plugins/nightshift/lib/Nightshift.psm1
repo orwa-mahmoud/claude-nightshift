@@ -2,6 +2,8 @@ Set-StrictMode -Version 2.0
 
 $script:NSStateVersion = 1
 $script:NSUtf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$script:NSRulesCacheStamp = ''
+$script:NSRulesCache = $null
 
 function Test-NSWindows {
     return [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
