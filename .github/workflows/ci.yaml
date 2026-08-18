@@ -88,8 +88,10 @@ jobs:
       - name: Configure an ephemeral OpenSSH target
         run: |
           set -eu
-          sudo apt-get update
-          sudo apt-get install -y git jq openssh-server procps
+          if ! command -v sshd >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y openssh-server
+          fi
           install -d -m 700 "$HOME/.ssh"
           ssh-keygen -q -t ed25519 -N '' -f "$HOME/.ssh/id_ed25519"
           cp "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/authorized_keys"
@@ -123,7 +125,8 @@ jobs:
           node-version: 20
       - name: Start the checked-in devcontainer
         run: |
-          npx --yes @devcontainers/cli@0.88.0 up \
+          npm install -g @devcontainers/cli@0.88.0
+          devcontainer up \
             --workspace-folder . \
             --config tests/environments/devcontainer/devcontainer.json
       - name: Verify the co-located container runtime
@@ -131,7 +134,7 @@ jobs:
           set -eu
           mkdir -p artifacts
           dc_exec() {
-            npx --yes @devcontainers/cli@0.88.0 exec \
+            devcontainer exec \
               --workspace-folder . \
               --config tests/environments/devcontainer/devcontainer.json \
               "$@"

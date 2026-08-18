@@ -70,7 +70,7 @@
 # apology, a lost night costs the night. $NIGHTSHIFT_WATCH_TRANSCRIPTS overrides the transcript
 # directory (tests use it).
 #
-# API outages: per wake, up to 3 spawn attempts spaced by the rules file's watchRetrySeconds
+# API outages: per wake, spawn attempts = watchRetrySeconds values + 1
 # (shipped "30 120"; $NIGHTSHIFT_WATCH_RETRY overrides). A wake that fails entirely just waits
 # for the next one — the watchman knocks every interval, all night, until the API answers.
 # Exit: 0 stood down · 1 usage/lock · 7 wake cap (tests).
@@ -220,25 +220,19 @@ rung_prompt() { # $1 attempt, $2 total attempts this wake
 # Claude hook replaces them with the exact Claude ancestor when its first tool arrives.
 # The owner-provided $AGENT command line is intentionally word-split below.
 spawn() { # $1 optionally overrides the agent for this one attempt; $2 the order for its rung
-  local a="${1:-$AGENT}" p="${2:-$PROMPT_RESUME}" lease generation token child start rc
-  lease="$(ns_lease_takeover "$NS" "$(shift_session_id)" claude)" || {
-    log_line "watchman: process lease transfer failed — not spawning beside an unfenced session"
-    return 1
-  }
-  generation="${lease%% *}"
-  token="${lease#* }"
+  local a="${1:-$AGENT}" p="${2:-$PROMPT_RESUME}" rc
   # NIGHTSHIFT_REVIVAL marks the child for the hooks: a revival session ending is never the
   # owner's hand on the door — without the mark, the worker's own exit would write .session-end
   # under the recorded id and stand the watchman down mid-outage.
+  # The owner-provided $a command line is intentionally word-split below.
   # shellcheck disable=SC2086
-  ( cd "$WORK_TARGET" && CLAUDE_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 \
-      NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token" \
-      $a "$p" >/dev/null 2>&1 ) &
-  child=$!
-  start="$(ns_process_start "$child" 2>/dev/null || true)"
-  ns_lease_attach_process "$NS" claude "$token" "$generation" "$child" "$start" || true
-  wait "$child"
+  ns_watchman_run_child "$NS" claude "$(shift_session_id)" "$WORK_TARGET" \
+    CLAUDE_PROJECT_DIR "$PROJECT" $a "$p"
   rc=$?
+  if [ "$rc" -eq 3 ]; then
+    log_line "watchman: process lease transfer failed — not spawning beside an unfenced session"
+    return 1
+  fi
   return "$rc"
 }
 
@@ -421,25 +415,27 @@ while :; do
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    if [ -f "$NS/.ended" ]; then
+    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    clock_rc=$?
+    if [ "$clock_rc" -eq 0 ]; then
       note completed
       exit 0
     fi
     log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
-    : >"$SENTINEL"
-    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 7; fi
+    [ "$clock_rc" -eq 2 ] && exit 7
     continue
   fi
   if deadline_passed; then
     log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    if [ -f "$NS/.ended" ]; then
+    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    clock_rc=$?
+    if [ "$clock_rc" -eq 0 ]; then
       note deadline
       exit 0
     fi
     log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
-    : >"$SENTINEL"
-    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 7; fi
+    [ "$clock_rc" -eq 2 ] && exit 7
     continue
   fi
   if [ -f "$NS/.session-end" ]; then

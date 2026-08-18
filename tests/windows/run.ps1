@@ -283,6 +283,8 @@ try {
         'named mutexes use the machine-wide Windows namespace'
     Assert-True ($moduleSource.Contains('[Threading.MutexAcl]::Create')) `
         'PowerShell Core creates named mutexes with an explicit ACL'
+    Assert-True ($moduleSource.Contains('function Resolve-NSShiftOwnership')) `
+        'Windows hooks share one shift-ownership protocol'
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
@@ -400,6 +402,32 @@ try {
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
     Assert-True ($forbidden.Stdout -match 'forbiddenCommands') 'PowerShell commands honor forbiddenCommands'
+
+    $secretFile = Join-Path $workTarget 'secret.txt'
+    [IO.File]::WriteAllText($secretFile, "SECRET_KEY=abc`n")
+    $null = & git -C $workTarget add -- secret.txt
+    $neverUpper = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
+        NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
+    }
+    Assert-True ($neverUpper.Stdout -match 'neverCommitPatterns') 'neverCommitPatterns is case-insensitive'
+
+    $null = & git -C $workTarget reset --quiet HEAD -- secret.txt
+    $amSecret = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
+        NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
+    }
+    Assert-True ($amSecret.Stdout -notmatch 'implicitly') 'implicit staging inspects the real diff'
+    Assert-True ($amSecret.Stdout -match 'neverCommitPatterns') 'git commit -am still sees working-tree secrets'
+    Remove-Item -LiteralPath $secretFile -Force
+    $amClean = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
+        NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
+    }
+    Assert-True ([string]::IsNullOrWhiteSpace($amClean.Stdout)) 'a clean git commit -am is allowed'
+
+    $unmapped = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git status' } @{
+        NIGHTSHIFT_FORBIDDEN_COMMANDS = '[[:punct:]]'
+    }
+    Assert-True ($unmapped.Stdout -match 'not a valid regular expression') `
+        'unmapped POSIX classes fail closed'
 
     $helper = Invoke-Hardhat $workspace '33333333-3333-3333-3333-333333333333' 'WebSearch' @{ query = 'ordinary helper work' }
     Assert-True ([string]::IsNullOrWhiteSpace($helper.Stdout)) 'an unrelated conversation remains unrestricted'
@@ -613,6 +641,8 @@ exit 0
     }
     Assert-True ([string]::IsNullOrWhiteSpace($recoveredTool.Stdout)) `
         'the child carrying the recovery capability remains allowed'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/parking-lot.md') -Raw) `
+        -match 'the watchman revived it') 'revival writes an owner-facing parking-lot notice'
 
     Write-Host 'Checking default Codex recovery through an npm-style command shim'
     $codexRecoveryWorkspace = Join-Path $root 'codex shim recovery workspace'

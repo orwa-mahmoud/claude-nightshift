@@ -99,9 +99,8 @@ receipts_commit() {
 }
 
 release_lease() {
-  ns_lease_release "$NS" && return 0
-  sleep 0.2
-  ns_lease_release "$NS" || log_line "process lease release deferred: lease mutex remained busy"
+  ns_lease_release_retry "$NS" \
+    || log_line "process lease release deferred: lease mutex remained busy"
 }
 
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
@@ -133,18 +132,7 @@ honor_stop() {
   fi
 }
 
-# Record conversation continuity and claim the original lease if hardhat did not already do it.
 # Codex cannot vouch for interactive process ancestry, so those record lines remain empty.
-record_shift_session() {
-  ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
-}
-replace_shift_session() {
-  local transcript tmp
-  transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
-  tmp="$NS/.shift-session.tmp.$$.$RANDOM"
-  (umask 077; printf '%s\n%s\n\n\ncodex\n' "$SID" "$transcript" >"$tmp") \
-    && mv -f "$tmp" "$NS/.shift-session"
-}
 # A shift exists because the owner started one, never because a list exists. Nightshift Start
 # writes .shift-armed; without it the punch list is a to-do file and every session stops freely —
 # including the one that just wrote the list while planning.
@@ -161,66 +149,28 @@ fi
 
 LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
-BOUND_BEFORE="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-if [ -z "$BOUND_BEFORE" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_TOKEN" ]; then
-  if [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] \
-    || ! ns_lease_token_matches "$NS" codex "$LEASE_TOKEN" "$LEASE_GENERATION"; then
-    codex_emit_release
-    exit 0
-  fi
-fi
-
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  record_shift_session
-fi
-
-# The shift binds ONE session — the recorded one. Any other conversation in this project stops
-# freely. A watchman revival may rebind only with the capability written before it was spawned.
-REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-  if ! ns_lease_token_matches "$NS" codex "$LEASE_TOKEN" "$LEASE_GENERATION"; then
-    codex_emit_release
-    exit 0
-  fi
-  if [ -n "${SID:-}" ]; then
-    if [ -z "$NS_LEASE_SID" ] \
-      && ! ns_lease_rebind_session "$NS" "$SID" codex "$LEASE_TOKEN" "$LEASE_GENERATION"; then
-      codex_emit_release
-      exit 0
-    fi
-    if [ "$REC" != "$SID" ] && ! replace_shift_session; then
-      codex_emit_release
-      exit 0
-    fi
-    REC="$SID"
-  fi
-fi
-
-LEASE_SCOPE=""
-if ns_lease_valid "$NS"; then LEASE_SCOPE="$NS_LEASE_SID"; fi
-if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ] \
-  && [ "$SID" != "$LEASE_SCOPE" ] && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
+ns_shift_unbound codex gate
+own_rc=$?
+if [ "$own_rc" -eq 1 ]; then
   codex_emit_release
   exit 0
 fi
-if [ -n "$REC" ]; then
-  CHECK_SID="${SID:-$REC}"
-  if [ ! -e "$NS/.shift-lease" ] && [ ! -L "$NS/.shift-lease" ]; then
-    if ! ns_lease_claim_initial "$NS" "$REC" codex "" ""; then
-      codex_emit_block "DO NOT STOP — the shift process lease is unreadable. Issue STOP from another session, then run Start again."
-      exit 0
-    fi
-  fi
-  ns_lease_allows "$NS" "$CHECK_SID" codex "" "" "$LEASE_TOKEN" "$LEASE_GENERATION"
-  lease_rc=$?
-  if [ "$lease_rc" -eq 1 ]; then
-    codex_emit_release
-    exit 0
-  fi
-  if [ "$lease_rc" -ne 0 ]; then
-    codex_emit_block "DO NOT STOP — the shift process lease is unreadable. Issue STOP from another session, then run Start again."
-    exit 0
-  fi
+if [ "$own_rc" -eq 2 ]; then
+  codex_emit_block "$NS_SHIFT_FAIL"
+  exit 0
+fi
+if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+  ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
+fi
+ns_shift_ownership codex "" "" gate
+own_rc=$?
+if [ "$own_rc" -eq 1 ]; then
+  codex_emit_release
+  exit 0
+fi
+if [ "$own_rc" -eq 2 ]; then
+  codex_emit_block "$NS_SHIFT_FAIL"
+  exit 0
 fi
 
 # One writer per site from here down: the stall fingerprint, the stop/ended markers, and the

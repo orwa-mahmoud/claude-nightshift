@@ -189,12 +189,24 @@ function Get-NSRulesObject {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     $path = Join-Path $Workspace '.nightshift/rules.json'
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $script:NSRulesCacheStamp = ''
+        $script:NSRulesCache = $null
         return $null
     }
     try {
-        return (Get-Content -LiteralPath $path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop)
+        $item = Get-Item -LiteralPath $path -ErrorAction Stop
+        $stamp = '{0}:{1}:{2}' -f $item.FullName, $item.Length, $item.LastWriteTimeUtc.Ticks
+        if ($script:NSRulesCacheStamp -eq $stamp) {
+            return $script:NSRulesCache
+        }
+        $parsed = Get-Content -LiteralPath $path -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $script:NSRulesCacheStamp = $stamp
+        $script:NSRulesCache = $parsed
+        return $parsed
     }
     catch {
+        $script:NSRulesCacheStamp = ''
+        $script:NSRulesCache = $null
         return $null
     }
 }
@@ -477,17 +489,22 @@ function Get-NSHostProcess {
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
         [int]$StartingProcessId = $PID
     )
+    try {
+        $records = @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId, Name -ErrorAction Stop)
+    }
+    catch {
+        return $null
+    }
+    $byId = @{}
+    foreach ($record in $records) {
+        $byId[[int]$record.ProcessId] = $record
+    }
     $current = $StartingProcessId
     for ($i = 0; $i -lt 8; $i++) {
         if ($current -le 1) {
             break
         }
-        try {
-            $record = Get-CimInstance Win32_Process -Filter "ProcessId = $current" -ErrorAction Stop
-        }
-        catch {
-            return $null
-        }
+        $record = $byId[$current]
         if ($null -eq $record) {
             return $null
         }
@@ -1063,6 +1080,183 @@ function Reset-NSStaleLease {
     finally {
         Exit-NSMutex $mutex
     }
+}
+
+function New-NSShiftDecision {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('Continue', 'Pass', 'Fail')][string]$Status,
+        [AllowEmptyString()][string]$Message = '',
+        $Session = $null
+    )
+    return [pscustomobject]@{
+        Status  = $Status
+        Message = $Message
+        Session = $Session
+    }
+}
+
+function Resolve-NSShiftUnbound {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Generation = '',
+        [bool]$Revival = $false,
+        [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode
+    )
+    $session = Read-NSSession $NightshiftDir
+    $lease = Read-NSLease $NightshiftDir
+    if ($null -eq $session -and $null -ne $lease -and -not [string]::IsNullOrEmpty($lease.Token)) {
+        if (-not $Revival -or -not (Test-NSLeaseToken $NightshiftDir $HostName $Token $Generation)) {
+            if ($Mode -eq 'hardhat') {
+                return New-NSShiftDecision -Status Fail -Message 'BLOCKED: this shift is being recovered before its new conversation is bound. Reopen the recorded conversation and retry after recovery.'
+            }
+            return New-NSShiftDecision -Status Pass
+        }
+    }
+    return New-NSShiftDecision -Status Continue -Session $session
+}
+
+function Resolve-NSShiftRebind {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [AllowEmptyString()][string]$SessionId = '',
+        [AllowEmptyString()][string]$Transcript = '',
+        [AllowEmptyString()][string]$ProcessId = '',
+        [AllowEmptyString()][string]$ProcessStart = '',
+        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Generation = '',
+        [bool]$Revival = $false,
+        [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode
+    )
+    $session = Read-NSSession $NightshiftDir
+    if (-not $Revival) {
+        return New-NSShiftDecision -Status Continue -Session $session
+    }
+    if (-not (Test-NSLeaseToken $NightshiftDir $HostName $Token $Generation)) {
+        if ($Mode -eq 'hardhat') {
+            return New-NSShiftDecision -Status Fail -Message 'BLOCKED: this recovered worker no longer owns the shift. Reopen the recorded conversation instead of continuing an older process.'
+        }
+        return New-NSShiftDecision -Status Pass
+    }
+    if ([string]::IsNullOrEmpty($SessionId)) {
+        return New-NSShiftDecision -Status Continue -Session $session
+    }
+    $lease = Read-NSLease $NightshiftDir
+    if ($null -ne $lease -and [string]::IsNullOrEmpty($lease.SessionId) `
+        -and -not (Bind-NSLeaseSession $NightshiftDir $SessionId $HostName $Token $Generation)) {
+        if ($Mode -eq 'hardhat') {
+            return New-NSShiftDecision -Status Fail -Message 'BLOCKED: the shift process lease could not bind the recovered conversation. Issue STOP from another session, then run Start again.'
+        }
+        return New-NSShiftDecision -Status Pass
+    }
+    if ($null -eq $session -or $session.SessionId -ne $SessionId -or $session.ProcessId -ne $ProcessId) {
+        $oldTranscript = if ([string]::IsNullOrEmpty($Transcript) -and $null -ne $session) { $session.Transcript } else { $Transcript }
+        if (-not (Write-NSSession $NightshiftDir $SessionId $oldTranscript $ProcessId $ProcessStart $HostName)) {
+            if ($Mode -eq 'hardhat') {
+                return New-NSShiftDecision -Status Fail -Message 'BLOCKED: the recovered conversation could not update .shift-session. Issue STOP from another session, then run Start again.'
+            }
+            return New-NSShiftDecision -Status Pass
+        }
+    }
+    $lease = Read-NSLease $NightshiftDir
+    if ($null -ne $lease -and -not [string]::IsNullOrEmpty($ProcessId) -and $lease.ProcessId -ne $ProcessId `
+        -and -not (Attach-NSLeaseProcess $NightshiftDir $HostName $Token $Generation $ProcessId $ProcessStart)) {
+        if ($Mode -eq 'hardhat') {
+            return New-NSShiftDecision -Status Fail -Message 'BLOCKED: the recovered process could not refresh its shift lease. Reopen the recorded conversation.'
+        }
+        return New-NSShiftDecision -Status Pass
+    }
+    return New-NSShiftDecision -Status Continue -Session (Read-NSSession $NightshiftDir)
+}
+
+function Resolve-NSShiftAuthorize {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [AllowEmptyString()][string]$SessionId = '',
+        [AllowEmptyString()][string]$ProcessId = '',
+        [AllowEmptyString()][string]$ProcessStart = '',
+        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Generation = '',
+        [bool]$Revival = $false,
+        [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode,
+        $Session = $null
+    )
+    if ($null -eq $Session) {
+        $Session = Read-NSSession $NightshiftDir
+    }
+    $lease = Read-NSLease $NightshiftDir
+    $leaseScope = if ($null -eq $lease) { '' } else { $lease.SessionId }
+    if ($null -ne $Session -and -not [string]::IsNullOrEmpty($SessionId) `
+        -and $SessionId -ne $Session.SessionId -and $SessionId -ne $leaseScope -and -not $Revival) {
+        return New-NSShiftDecision -Status Pass -Session $Session
+    }
+    if ($null -eq $Session) {
+        return New-NSShiftDecision -Status Continue
+    }
+    $leasePath = Join-Path $NightshiftDir '.shift-lease'
+    if (-not (Test-NSPathEntry $leasePath) `
+        -and -not (Claim-NSInitialLease $NightshiftDir $Session.SessionId $HostName $ProcessId $ProcessStart)) {
+        if ($Mode -eq 'hardhat') {
+            return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: the shift process lease could not be created. Issue STOP from another session, then run Start again.'
+        }
+        return New-NSShiftDecision -Status Fail -Session $Session -Message 'DO NOT STOP - the shift process lease is unreadable. Issue STOP from another session, then run Start again.'
+    }
+    $checkSession = if ([string]::IsNullOrEmpty($SessionId)) { $Session.SessionId } else { $SessionId }
+    $allow = Test-NSLeaseAllows $NightshiftDir $checkSession $HostName $ProcessId $ProcessStart $Token $Generation
+    if ($allow -eq 'Deny') {
+        if ($Mode -eq 'hardhat') {
+            return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
+        }
+        return New-NSShiftDecision -Status Pass -Session $Session
+    }
+    if ($allow -ne 'Allow') {
+        if ($Mode -eq 'hardhat') {
+            return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
+        }
+        return New-NSShiftDecision -Status Fail -Session $Session -Message 'DO NOT STOP - the shift process lease is unreadable. Issue STOP from another session, then run Start again.'
+    }
+    if (-not $Revival -and -not [string]::IsNullOrEmpty($ProcessId)) {
+        $lease = Read-NSLease $NightshiftDir
+        if ($null -ne $lease -and $lease.ProcessId -eq $ProcessId -and $Session.ProcessId -ne $ProcessId) {
+            if (-not (Write-NSSession $NightshiftDir $Session.SessionId $Session.Transcript $ProcessId $ProcessStart $HostName)) {
+                if ($Mode -eq 'hardhat') {
+                    return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: the reclaimed interactive process could not refresh .shift-session. Issue STOP from another session, then run Start again.'
+                }
+                return New-NSShiftDecision -Status Fail -Session $Session -Message 'DO NOT STOP - the reclaimed process could not refresh .shift-session. Issue STOP from another session, then run Start again.'
+            }
+            $Session = Read-NSSession $NightshiftDir
+        }
+    }
+    return New-NSShiftDecision -Status Continue -Session $Session
+}
+
+function Resolve-NSShiftOwnership {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [AllowEmptyString()][string]$SessionId = '',
+        [AllowEmptyString()][string]$Transcript = '',
+        [AllowEmptyString()][string]$ProcessId = '',
+        [AllowEmptyString()][string]$ProcessStart = '',
+        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Generation = '',
+        [bool]$Revival = $false,
+        [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode
+    )
+    $rebind = Resolve-NSShiftRebind -NightshiftDir $NightshiftDir -HostName $HostName `
+        -SessionId $SessionId -Transcript $Transcript -ProcessId $ProcessId `
+        -ProcessStart $ProcessStart -Token $Token -Generation $Generation `
+        -Revival $Revival -Mode $Mode
+    if ($rebind.Status -ne 'Continue') {
+        return $rebind
+    }
+    return Resolve-NSShiftAuthorize -NightshiftDir $NightshiftDir -HostName $HostName `
+        -SessionId $SessionId -ProcessId $ProcessId -ProcessStart $ProcessStart `
+        -Token $Token -Generation $Generation -Revival $Revival -Mode $Mode `
+        -Session $rebind.Session
 }
 
 function Write-NSReason {

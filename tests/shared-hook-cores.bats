@@ -18,13 +18,46 @@ CODEX_HOOKS="$HOOKS/codex"
 
 @test "command, tool-deny, and scrub decisions live in the shared core" {
   for fn in ns_hardhat_command_reason ns_hardhat_tool_deny_reason \
-    ns_hardhat_required_tool_deny_reason ns_hardhat_scrub ns_hardhat_rules_has; do
+    ns_hardhat_required_tool_deny_reason ns_hardhat_scrub ns_hardhat_rules_has \
+    ns_hardhat_is_command_tool; do
     grep -qF "$fn" "$HOOKS/shared/hardhat-core.sh" || { echo "missing $fn"; return 1; }
   done
   grep -qF 'ns_hardhat_command_reason' "$HOOKS/hardhat.sh"
   grep -qF 'ns_hardhat_command_reason' "$HOOKS/codex/hardhat.sh"
   grep -qF 'ns_hardhat_required_tool_deny_reason' "$HOOKS/hardhat.sh"
   grep -qF 'ns_hardhat_required_tool_deny_reason' "$HOOKS/codex/hardhat.sh"
+}
+
+@test "both hardhats and gates share one ownership protocol" {
+  LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+  for fn in ns_shift_unbound ns_shift_rebind ns_shift_authorize ns_shift_ownership; do
+    grep -qF "$fn() {" "$LIB" || { echo "missing $fn"; return 1; }
+  done
+  grep -qF 'ns_shift_unbound claude hardhat' "$HOOKS/hardhat.sh"
+  grep -qF 'ns_shift_rebind claude' "$HOOKS/hardhat.sh"
+  grep -qF 'ns_shift_authorize claude' "$HOOKS/hardhat.sh"
+  grep -qF 'ns_shift_unbound codex hardhat' "$HOOKS/codex/hardhat.sh"
+  grep -qF 'ns_shift_authorize codex' "$HOOKS/codex/hardhat.sh"
+  grep -qF 'ns_shift_unbound claude gate' "$HOOKS/clock-out-gate.sh"
+  grep -qF 'ns_shift_ownership claude' "$HOOKS/clock-out-gate.sh"
+  grep -qF 'ns_shift_unbound codex gate' "$HOOKS/codex/clock-out-gate.sh"
+  grep -qF 'ns_shift_ownership codex' "$HOOKS/codex/clock-out-gate.sh"
+  awk '/ns_shift_unbound/{u=NR} /ns_session_claim/{if(!c)c=NR} END{exit !(u && c && u<c)}' "$HOOKS/hardhat.sh"
+  awk '/ns_shift_unbound/{u=NR} /ns_session_claim/{if(!c)c=NR} END{exit !(u && c && u<c)}' "$HOOKS/codex/hardhat.sh"
+  awk '/ns_hardhat_binding_probe/{p=NR} /ns_shift_authorize/{a=NR} END{exit !(p && a && p<a)}' "$HOOKS/hardhat.sh"
+  awk '/ns_hardhat_binding_probe/{p=NR} /ns_shift_authorize/{a=NR} END{exit !(p && a && p<a)}' "$HOOKS/codex/hardhat.sh"
+}
+
+@test "both watchmen spawn through one child runner" {
+  LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+  CLAUDE_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/claude/watchman.sh"
+  CODEX_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
+  grep -qF 'ns_watchman_run_child() {' "$LIB"
+  grep -qF 'ns_watchman_clockout_pending() {' "$LIB"
+  grep -qF 'ns_watchman_run_child' "$CLAUDE_WM"
+  grep -qF 'ns_watchman_run_child' "$CODEX_WM"
+  grep -qF 'ns_watchman_clockout_pending' "$CLAUDE_WM"
+  grep -qF 'ns_watchman_clockout_pending' "$CODEX_WM"
 }
 
 @test "host protocols remain in their wrappers" {

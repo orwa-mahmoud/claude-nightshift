@@ -180,40 +180,33 @@ rollout_grew() {
 # A non-resumable recorded id is never passed to `codex exec resume` and never treated as a
 # successful resume of that thread.
 spawn() { # $1 = rung (1|2)
-  local prompt kind lease generation token child start rc
-  lease="$(ns_lease_takeover "$NS" "$(sid)" codex)" || {
-    log_line "watchman: process lease transfer failed — not spawning beside an unfenced session"
-    return 1
-  }
-  generation="${lease%% *}"
-  token="${lease#* }"
+  local prompt kind rc
   if [ -n "$AGENT" ]; then
     if [ "$1" -eq 1 ]; then prompt="$PROMPT_RESUME"; else prompt="$PROMPT_FRESH"; fi
     # shellcheck disable=SC2086 # owner-provided command line; splitting is intentional
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 \
-        NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token" \
-        $AGENT "$prompt" >/dev/null 2>&1 ) &
+    ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+      CODEX_PROJECT_DIR "$PROJECT" $AGENT "$prompt"
   elif [ "$1" -eq 1 ]; then
     kind="$(ns_codex_identity_kind "$(sid)")"
     if [ "$kind" = "resumable" ]; then
-      ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 \
-          NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token" \
-          codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 ) &
+      ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+        CODEX_PROJECT_DIR "$PROJECT" \
+        codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME"
     else
-      ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 \
-          NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token" \
-          codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 ) &
+      ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+        CODEX_PROJECT_DIR "$PROJECT" \
+        codex exec -s danger-full-access "$PROMPT_FRESH"
     fi
   else
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 \
-        NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token" \
-        codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 ) &
+    ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+      CODEX_PROJECT_DIR "$PROJECT" \
+      codex exec -s danger-full-access "$PROMPT_FRESH"
   fi
-  child=$!
-  start="$(ns_process_start "$child" 2>/dev/null || true)"
-  ns_lease_attach_process "$NS" codex "$token" "$generation" "$child" "$start" || true
-  wait "$child"
   rc=$?
+  if [ "$rc" -eq 3 ]; then
+    log_line "watchman: process lease transfer failed — not spawning beside an unfenced session"
+    return 1
+  fi
   return "$rc"
 }
 
@@ -245,13 +238,14 @@ while :; do
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn 1 || true
-    if [ -f "$NS/.ended" ]; then
+    ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+    clock_rc=$?
+    if [ "$clock_rc" -eq 0 ]; then
       note completed
       exit 0
     fi
     log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
-    : >"$TICK" 2>/dev/null || true
-    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 7; fi
+    [ "$clock_rc" -eq 2 ] && exit 7
     continue
   fi
   if [ -f "$NS/deadline" ]; then
@@ -259,13 +253,14 @@ while :; do
     if printf '%s' "$dl" | grep -qE '^[0-9]+$' && [ "$(date +%s)" -ge "$dl" ]; then
       log_line "watchman: past the deadline with the session gone — spawning the clock-out"
       spawn 1 || true
-      if [ -f "$NS/.ended" ]; then
+      ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+      clock_rc=$?
+      if [ "$clock_rc" -eq 0 ]; then
         note deadline
         exit 0
       fi
       log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
-      : >"$TICK" 2>/dev/null || true
-      if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 7; fi
+      [ "$clock_rc" -eq 2 ] && exit 7
       continue
     fi
   fi
@@ -312,10 +307,13 @@ while :; do
     fi
   fi
 
-  # Dead quiet, mid-shift: revive. Up to 3 attempts this wake, re-checking life between them —
-  # a site that comes back mid-wake cancels the rest.
+  # Dead quiet, mid-shift: revive. Attempts = watchRetrySeconds values + 1, re-checking
+  # life between them — a site that comes back mid-wake cancels the rest.
   attempt=0
   revived=1
+  # shellcheck disable=SC2086  # RETRY_SPACING is a space-separated list; splitting is the point
+  set -- $RETRY_SPACING
+  total=$(( $# + 1 ))
   for gap in 0 $RETRY_SPACING; do
     [ "$gap" -gt 0 ] && sleep "$gap"
     if recorded_process_alive || codex_in_project || rollout_grew; then
@@ -324,7 +322,7 @@ while :; do
       break
     fi
     attempt=$((attempt + 1))
-    [ "$attempt" -le 3 ] || break
+    [ "$attempt" -le "$total" ] || break
     log_line "watchman: site dead quiet mid-shift — resume attempt $attempt ($(rung_name $attempt))"
     if spawn "$attempt"; then
       revived=0

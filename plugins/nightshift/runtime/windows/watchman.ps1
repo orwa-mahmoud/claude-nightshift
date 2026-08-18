@@ -51,11 +51,21 @@ function Get-NSTranscript {
     if (-not [string]::IsNullOrEmpty($recorded) -and (Test-Path -LiteralPath $recorded -PathType Leaf)) {
         return $recorded
     }
-    if ($HostName -ne 'claude') {
+    $override = [string]$env:NIGHTSHIFT_WATCH_TRANSCRIPTS
+    if (-not [string]::IsNullOrEmpty($override) -and (Test-Path -LiteralPath $override -PathType Leaf)) {
+        return $override
+    }
+    $directory = ''
+    if (-not [string]::IsNullOrEmpty($override) -and (Test-Path -LiteralPath $override -PathType Container)) {
+        $directory = $override
+    }
+    elseif ($HostName -eq 'claude') {
+        $slug = $workspace -replace '[^A-Za-z0-9]', '-'
+        $directory = Join-Path $HOME ".claude/projects/$slug"
+    }
+    else {
         return ''
     }
-    $slug = $workspace -replace '[^A-Za-z0-9]', '-'
-    $directory = Join-Path $HOME ".claude/projects/$slug"
     if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
         return ''
     }
@@ -126,7 +136,7 @@ function Test-NSTranscriptPulse {
     try {
         $item = Get-Item -LiteralPath $transcript -ErrorAction Stop
         $current = "$($item.Length):$($item.LastWriteTimeUtc.Ticks)"
-        return -not [string]::IsNullOrEmpty($script:TranscriptStamp) -and $current -ne $script:TranscriptStamp
+        return [string]::IsNullOrEmpty($script:TranscriptStamp) -or $current -ne $script:TranscriptStamp
     }
     catch {
         return $false
@@ -280,7 +290,18 @@ function Start-NSAgent {
     $commandArguments = New-Object Collections.Generic.List[string]
     $arguments = New-Object Collections.Generic.List[string]
     if (-not [string]::IsNullOrEmpty($Agent)) {
-        $commandName = $Agent
+        if (Test-Path -LiteralPath $Agent.Trim("'`"") -PathType Leaf) {
+            $commandName = $Agent.Trim("'`"")
+        }
+        else {
+            $tokens = @($Agent.Trim() -split '\s+' | Where-Object { -not [string]::IsNullOrEmpty($_) })
+            $commandName = $tokens[0].Trim("'`"")
+            if ($tokens.Count -gt 1) {
+                foreach ($token in $tokens[1..($tokens.Count - 1)]) {
+                    $commandArguments.Add($token.Trim("'`""))
+                }
+            }
+        }
         $commandArguments.Add($prompt)
     }
     elseif ($HostName -eq 'claude') {
@@ -431,6 +452,8 @@ if ($IntervalMinutes -eq 0) {
 $retrySpacing = Get-NSRule $workspace 'watchRetrySeconds' ([string]$env:NIGHTSHIFT_WATCH_RETRY)
 $revivalPrompt = Get-NSRule $workspace 'revivalPrompt' ([string]$env:NIGHTSHIFT_REVIVAL_PROMPT)
 $freshPrompt = Get-NSRule $workspace 'freshRevivalPrompt' ([string]$env:NIGHTSHIFT_FRESH_PROMPT)
+$notify = Get-NSRule $workspace 'notifyCommand' ([string]$env:NIGHTSHIFT_NOTIFY_CMD)
+$downNotified = $false
 if ([string]::IsNullOrEmpty($retrySpacing) -or [string]::IsNullOrEmpty($revivalPrompt) `
     -or [string]::IsNullOrEmpty($freshPrompt)) {
     Write-NSReason $ns 'unreadable-rules' 'recovery prompt or retry spacing'
@@ -611,11 +634,42 @@ try {
                 else {
                     Write-NSReason $ns 'revived'
                 }
-                Write-NSLogLine 'watchman: revival returned - the night continues'
+                $downNotified = $false
+                $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+                $notice = if (-not [string]::IsNullOrEmpty($sessionId) -and $HostName -eq 'claude') {
+                    "- [notice] $stamp - the shift session died and the watchman revived it. One thread: claude --resume $sessionId · cursor://anthropic.claude-code/open?session=$sessionId · vscode://anthropic.claude-code/open?session=$sessionId"
+                }
+                else {
+                    "- [notice] $stamp - the shift session died and the watchman revived it (details in shift-log.md)."
+                }
+                [IO.File]::AppendAllText((Join-Path $ns 'parking-lot.md'), $notice + [Environment]::NewLine, $utf8)
+                if (-not [string]::IsNullOrEmpty($sessionId) -and $HostName -eq 'claude') {
+                    Write-NSLogLine "watchman: revival returned - the night is one thread: claude --resume $sessionId"
+                }
+                else {
+                    Write-NSLogLine 'watchman: revival returned - the night continues'
+                }
             }
             elseif ([string]::IsNullOrEmpty($aborted)) {
                 Write-NSReason $ns 'exhausted-retry'
                 Write-NSLogLine "watchman: all $totalAttempts attempts failed - retrying next wake"
+                if (-not [string]::IsNullOrEmpty($notify) -and -not $downNotified) {
+                    $downNotified = $true
+                    $summary = 'nightshift: the shift session is down and revival failed - it needs you'
+                    if (-not [string]::IsNullOrEmpty($sessionId) -and $HostName -eq 'claude') {
+                        $summary = "$summary : claude --resume $sessionId"
+                    }
+                    $oldSummary = $env:NIGHTSHIFT_SUMMARY
+                    try {
+                        $env:NIGHTSHIFT_SUMMARY = $summary
+                        $null = Invoke-Expression $notify 2>$null
+                    }
+                    catch {
+                    }
+                    finally {
+                        $env:NIGHTSHIFT_SUMMARY = $oldSummary
+                    }
+                }
             }
         }
 

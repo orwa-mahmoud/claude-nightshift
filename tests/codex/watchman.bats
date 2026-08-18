@@ -218,6 +218,18 @@ reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
   [ "$(reason)" = "revived" ]
 }
 
+@test "watchRetrySeconds sets the number of Codex revival attempts" {
+  cat >"$BIN/fail.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+exit 1
+STUB
+  chmod +x "$BIN/fail.sh"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0 0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  [ "$(calls)" -eq 5 ]
+}
+
 @test "Codex failed revival records exhausted-retry" {
   cat >"$BIN/fail.sh" <<'STUB'
 #!/usr/bin/env bash

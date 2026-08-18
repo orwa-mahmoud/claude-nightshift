@@ -192,15 +192,23 @@ function Convert-NSErePattern {
     $result = $result.Replace('[[:alpha:]]', '[A-Za-z]')
     $result = $result.Replace('[[:lower:]]', '[a-z]')
     $result = $result.Replace('[[:upper:]]', '[A-Z]')
-    return $result.Replace('[[:xdigit:]]', '[A-Fa-f0-9]')
+    $result = $result.Replace('[[:xdigit:]]', '[A-Fa-f0-9]')
+    if ($result -match '\[:[a-z]+:\]') {
+        throw 'unmapped POSIX character class'
+    }
+    return $result
 }
 
 function New-NSRegex {
-    param([Parameter(Mandatory = $true)][string]$Pattern)
-    return [Text.RegularExpressions.Regex]::new(
-        (Convert-NSErePattern $Pattern),
-        [Text.RegularExpressions.RegexOptions]::Multiline
+    param(
+        [Parameter(Mandatory = $true)][string]$Pattern,
+        [switch]$IgnoreCase
     )
+    $options = [Text.RegularExpressions.RegexOptions]::Multiline
+    if ($IgnoreCase) {
+        $options = $options -bor [Text.RegularExpressions.RegexOptions]::IgnoreCase
+    }
+    return [Text.RegularExpressions.Regex]::new((Convert-NSErePattern $Pattern), $options)
 }
 
 function Test-NSGitVerb {
@@ -266,7 +274,7 @@ function Get-NSCommandDenyReason {
             $forbiddenRegex = New-NSRegex $ForbiddenCommands
         }
         if (-not [string]::IsNullOrEmpty($NeverCommitPatterns)) {
-            $neverRegex = New-NSRegex $NeverCommitPatterns
+            $neverRegex = New-NSRegex $NeverCommitPatterns -IgnoreCase
         }
     }
     catch {
@@ -311,15 +319,18 @@ function Get-NSCommandDenyReason {
             }
         }
         if ($null -ne $neverRegex) {
+            $diffArgs = @('diff', '--cached', '--no-ext-diff', '--')
+            $scope = 'the staged diff'
             if ($Scrubbed -match '(?i)(^|\s)--all(\s|$)|(^|\s)-[A-Za-z]*a[A-Za-z]*(\s|$)|(^|\s)--(\s|$)') {
-                return 'BLOCKED: this commit stages work implicitly, so the forbidden-content guard cannot inspect the exact commit. Stage explicitly, then commit.'
+                $diffArgs = @('diff', 'HEAD', '--no-ext-diff', '--')
+                $scope = 'the diff this commit would write'
             }
-            $diff = (& git -C $repository diff --cached --no-ext-diff -- 2>$null | Out-String)
+            $diff = (& git -C $repository @diffArgs 2>$null | Out-String)
             if ($LASTEXITCODE -ne 0) {
-                return 'BLOCKED: the staged diff could not be read, so the forbidden-content guard cannot approve this commit.'
+                return 'BLOCKED: the commit diff could not be read, so the forbidden-content guard cannot approve this commit.'
             }
             if ($neverRegex.IsMatch($diff)) {
-                return 'BLOCKED: staged content matches neverCommitPatterns. Remove the protected content before committing.'
+                return "BLOCKED: $scope matches neverCommitPatterns. Remove the protected content before committing."
             }
         }
     }
@@ -406,13 +417,10 @@ foreach ($target in $targets) {
     }
 }
 
-$session = Read-NSSession $ns
-$lease = Read-NSLease $ns
-if ($null -eq $session -and $null -ne $lease -and -not [string]::IsNullOrEmpty($lease.Token)) {
-    if (-not $revival -or -not (Test-NSLeaseToken $ns $HostName $token $generation)) {
-        Write-Deny 'BLOCKED: this shift is being recovered before its new conversation is bound. Reopen the recorded conversation and retry after recovery.'
-    }
-}
+$unbound = Resolve-NSShiftUnbound -NightshiftDir $ns -HostName $HostName `
+    -Token $token -Generation $generation -Revival $revival -Mode hardhat
+if ($unbound.Status -eq 'Pass') { exit 0 }
+if ($unbound.Status -eq 'Fail') { Write-Deny $unbound.Message }
 
 $hostProcess = Get-NSHostProcess $HostName
 $processId = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.Id }
@@ -423,35 +431,18 @@ $bindingProbe = ($tool -in @('Bash', 'PowerShell')) -and (
 )
 $bindingTools = @('Bash', 'PowerShell', 'AskUserQuestion', 'request_user_input', 'apply_patch', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
 
+$session = Read-NSSession $ns
 if ($null -eq $session -and -not [string]::IsNullOrEmpty($sessionId) -and $tool -in $bindingTools) {
     $null = Claim-NSSession $ns $sessionId $transcript $processId $processStart $HostName
-    $session = Read-NSSession $ns
 }
 
-if ($revival) {
-    if (-not (Test-NSLeaseToken $ns $HostName $token $generation)) {
-        Write-Deny 'BLOCKED: this recovered worker no longer owns the shift. Reopen the recorded conversation instead of continuing an older process.'
-    }
-    if (-not [string]::IsNullOrEmpty($sessionId)) {
-        $lease = Read-NSLease $ns
-        if ($null -ne $lease -and [string]::IsNullOrEmpty($lease.SessionId) `
-            -and -not (Bind-NSLeaseSession $ns $sessionId $HostName $token $generation)) {
-            Write-Deny 'BLOCKED: the shift process lease could not bind the recovered conversation. Issue STOP from another session, then run Start again.'
-        }
-        if ($null -eq $session -or $session.SessionId -ne $sessionId -or $session.ProcessId -ne $processId) {
-            $oldTranscript = if ([string]::IsNullOrEmpty($transcript) -and $null -ne $session) { $session.Transcript } else { $transcript }
-            if (-not (Write-NSSession $ns $sessionId $oldTranscript $processId $processStart $HostName)) {
-                Write-Deny 'BLOCKED: the recovered conversation could not update .shift-session. Issue STOP from another session, then run Start again.'
-            }
-        }
-        $lease = Read-NSLease $ns
-        if ($null -ne $lease -and -not [string]::IsNullOrEmpty($processId) -and $lease.ProcessId -ne $processId `
-            -and -not (Attach-NSLeaseProcess $ns $HostName $token $generation $processId $processStart)) {
-            Write-Deny 'BLOCKED: the recovered process could not refresh its shift lease. Reopen the recorded conversation.'
-        }
-        $session = Read-NSSession $ns
-    }
-}
+$rebind = Resolve-NSShiftRebind -NightshiftDir $ns -HostName $HostName `
+    -SessionId $sessionId -Transcript $transcript -ProcessId $processId `
+    -ProcessStart $processStart -Token $token -Generation $generation `
+    -Revival $revival -Mode hardhat
+if ($rebind.Status -eq 'Pass') { exit 0 }
+if ($rebind.Status -eq 'Fail') { Write-Deny $rebind.Message }
+$session = $rebind.Session
 
 if ($bindingProbe) {
     if ([string]::IsNullOrEmpty($sessionId) -or $null -eq $session) {
@@ -462,31 +453,13 @@ if ($bindingProbe) {
     }
 }
 
-$leaseScope = if ($null -eq $lease) { '' } else { $lease.SessionId }
-if ($null -ne $session -and -not [string]::IsNullOrEmpty($sessionId) `
-    -and $sessionId -ne $session.SessionId -and $sessionId -ne $leaseScope -and -not $revival) {
-    exit 0
-}
-
-if ($null -ne $session) {
-    $leasePath = Join-Path $ns '.shift-lease'
-    if (-not (Test-NSPathEntry $leasePath) `
-        -and -not (Claim-NSInitialLease $ns $session.SessionId $HostName $processId $processStart)) {
-        Write-Deny 'BLOCKED: the shift process lease could not be created. Issue STOP from another session, then run Start again.'
-    }
-    $checkSession = if ([string]::IsNullOrEmpty($sessionId)) { $session.SessionId } else { $sessionId }
-    $allow = Test-NSLeaseAllows $ns $checkSession $HostName $processId $processStart $token $generation
-    if ($allow -ne 'Allow') {
-        Write-Deny 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
-    }
-    $lease = Read-NSLease $ns
-    if (-not $revival -and -not [string]::IsNullOrEmpty($processId) -and $null -ne $lease `
-        -and $lease.ProcessId -eq $processId -and $session.ProcessId -ne $processId) {
-        if (-not (Write-NSSession $ns $session.SessionId $session.Transcript $processId $processStart $HostName)) {
-            Write-Deny 'BLOCKED: the reclaimed interactive process could not refresh .shift-session. Issue STOP from another session, then run Start again.'
-        }
-    }
-}
+$owned = Resolve-NSShiftAuthorize -NightshiftDir $ns -HostName $HostName `
+    -SessionId $sessionId -ProcessId $processId -ProcessStart $processStart `
+    -Token $token -Generation $generation -Revival $revival -Mode hardhat `
+    -Session $session
+if ($owned.Status -eq 'Pass') { exit 0 }
+if ($owned.Status -eq 'Fail') { Write-Deny $owned.Message }
+$session = $owned.Session
 
 try {
     $toolRules = Get-NSToolRules $workspace ([string]$env:NIGHTSHIFT_TOOL_RULES)

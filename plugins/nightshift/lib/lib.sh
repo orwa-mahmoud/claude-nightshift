@@ -214,39 +214,52 @@ rule() {
 
 # toolDeny requires exact JSON key matching. Normalize it with jq or Python; never approximate
 # owner policy with grep. The sentinel makes malformed input and parserless hosts fail closed.
-ns_tool_rules() { # $1 = project dir, $2 = session override
-  local f="$1/.nightshift/rules.json" out
-  if [ -n "$2" ]; then
-    if command -v jq >/dev/null 2>&1; then
-      out="$(printf '%s' "$2" | jq -ce 'if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' 2>/dev/null)" \
-        || { printf '%s' '__nightshift_invalid_tool_rules__'; return; }
-    elif command -v python3 >/dev/null 2>&1; then
-      out="$(printf '%s' "$2" | python3 -c 'import json,sys
+ns_tool_map_ok() { # stdin = a JSON object of string values
+  if command -v jq >/dev/null 2>&1; then
+    jq -ce 'if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' 2>/dev/null
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys
 d=json.load(sys.stdin)
 assert isinstance(d,dict) and all(isinstance(v,str) for v in d.values())
-print(json.dumps(d,separators=(",",":")))' 2>/dev/null)" \
-        || { printf '%s' '__nightshift_invalid_tool_rules__'; return; }
+print(json.dumps(d,separators=(",",":")))' 2>/dev/null
+  else
+    return 2
+  fi
+}
+
+ns_tool_rules() { # $1 = project dir, $2 = session override
+  local f="$1/.nightshift/rules.json" raw out rc
+  if [ -n "$2" ]; then
+    raw="$2"
+  else
+    [ -f "$f" ] || return 0
+    if command -v jq >/dev/null 2>&1; then
+      raw="$(jq -ce '.toolDeny // {}' "$f" 2>/dev/null)" || {
+        printf '%s' '__nightshift_invalid_tool_rules__'
+        return
+      }
+    elif command -v python3 >/dev/null 2>&1; then
+      raw="$(python3 -c 'import json,sys
+print(json.dumps(json.load(open(sys.argv[1])).get("toolDeny",{}),separators=(",",":")))' "$f" 2>/dev/null)" || {
+        printf '%s' '__nightshift_invalid_tool_rules__'
+        return
+      }
     else
       printf '%s' '__nightshift_tool_rules_parser_missing__'
       return
     fi
-    printf '%s' "$out"
+  fi
+  out="$(printf '%s' "$raw" | ns_tool_map_ok)"
+  rc=$?
+  if [ "$rc" -eq 2 ]; then
+    printf '%s' '__nightshift_tool_rules_parser_missing__'
     return
   fi
-  [ -f "$f" ] || return 0
-  if command -v jq >/dev/null 2>&1; then
-    jq -ce '(.toolDeny // {}) | if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' "$f" 2>/dev/null \
-      || printf '%s' '__nightshift_invalid_tool_rules__'
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys
-d=json.load(open(sys.argv[1]))
-rules=d.get("toolDeny",{})
-assert isinstance(rules,dict) and all(isinstance(v,str) for v in rules.values())
-print(json.dumps(rules,separators=(",",":")))' "$f" 2>/dev/null \
-      || printf '%s' '__nightshift_invalid_tool_rules__'
-  else
-    printf '%s' '__nightshift_tool_rules_parser_missing__'
+  if [ "$rc" -ne 0 ]; then
+    printf '%s' '__nightshift_invalid_tool_rules__'
+    return
   fi
+  printf '%s' "$out"
 }
 
 # Cross-session mutex over one .nightshift/ — mkdir is the one atomic primitive every platform
@@ -304,23 +317,65 @@ ns_lease_safe_line() {
   return 0
 }
 
-ns_session_claim() { # <ns> <sid> <transcript> <pid> <start> <host>; complete file appears atomically
-  local ns="$1" sid="$2" transcript="$3" pid="$4" start="$5" host="$6" tmp rc
-  [ -n "$sid" ] || return 1
+ns_session_write() { # <ns> <sid> <transcript> <pid> <start> <host> <tmp>; validates and writes tmp
+  local ns="$1" sid="$2" transcript="$3" pid="$4" start="$5" host="$6" tmp="$7"
+  [ -d "$ns" ] && [ -n "$sid" ] || return 1
   ns_lease_safe_line "$sid" && ns_lease_safe_line "$transcript" \
     && ns_lease_safe_line "$pid" && ns_lease_safe_line "$start" || return 1
   case "$pid" in *[!0-9]*) return 1 ;; esac
   case "$host" in claude | codex) ;; *) return 1 ;; esac
-  tmp="$ns/.shift-session.tmp.$$.$RANDOM"
   (umask 077; printf '%s\n%s\n%s\n%s\n%s\n' \
     "$sid" "$transcript" "$pid" "$start" "$host" >"$tmp") || {
     rm -f "$tmp"
     return 1
   }
+}
+
+ns_session_claim() { # <ns> <sid> <transcript> <pid> <start> <host>; complete file appears atomically
+  local ns="$1" tmp rc
+  tmp="$ns/.shift-session.tmp.$$.$RANDOM"
+  ns_session_write "$ns" "$2" "$3" "$4" "$5" "$6" "$tmp" || return 1
   ln "$tmp" "$ns/.shift-session" 2>/dev/null
   rc=$?
   rm -f "$tmp"
   return "$rc"
+}
+
+# Replace an existing conversation record. Claim creates; this updates the bound session
+# after a revival or interactive reclaim without losing the race to a second first-writer.
+ns_session_replace() { # <ns> <sid> <transcript> <pid> <start> <host>
+  local ns="$1" tmp
+  tmp="$ns/.shift-session.tmp.$$.$RANDOM"
+  ns_session_write "$ns" "$2" "$3" "$4" "$5" "$6" "$tmp" || return 1
+  mv -f "$tmp" "$ns/.shift-session"
+}
+
+# Prefer the recorded host pid when it is still the same process; otherwise walk ancestry.
+# Sets NS_CURRENT_PID and NS_CURRENT_START for the caller.
+# shellcheck disable=SC2034
+ns_host_process() { # <host> <ns> <fallback-pid>
+  local rec_pid rec_start live
+  NS_CURRENT_PID=""
+  NS_CURRENT_START=""
+  if [ -f "$2/.shift-session" ]; then
+    rec_pid="$(sed -n 3p "$2/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+    rec_start="$(sed -n 4p "$2/.shift-session" 2>/dev/null)"
+    case "$rec_pid" in
+      '' | *[!0-9]*) ;;
+      *)
+        if [ "$rec_pid" -gt 1 ] && kill -0 "$rec_pid" 2>/dev/null; then
+          live="$(ns_process_start "$rec_pid" 2>/dev/null || true)"
+          if [ -n "$live" ] && [ "$live" = "$rec_start" ]; then
+            NS_CURRENT_PID="$rec_pid"
+            NS_CURRENT_START="$rec_start"
+            return 0
+          fi
+        fi
+        ;;
+    esac
+  fi
+  NS_CURRENT_PID="$(ns_ancestor_pid "$1" "$3" 2>/dev/null || true)"
+  [ -z "$NS_CURRENT_PID" ] || NS_CURRENT_START="$(ns_process_start "$NS_CURRENT_PID" 2>/dev/null || true)"
 }
 
 ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent snapshot
@@ -524,6 +579,222 @@ ns_lease_release() { # $1 = the .nightshift dir
   rc=$?
   ns_lease_unlock "$ns"
   return "$rc"
+}
+
+ns_lease_release_retry() { # $1 = the .nightshift dir
+  ns_lease_release "$1" && return 0
+  sleep 0.2
+  ns_lease_release "$1"
+}
+
+# One ownership protocol for every host hook. Wrappers claim the first session and emit
+# the host-specific deny/pass. Unbound runs before that claim; rebind runs after it;
+# authorize runs after Start's binding probe so a losing Start cannot pass as a helper.
+# Uses NS, SID, TPATH, LEASE_TOKEN, LEASE_GENERATION, NIGHTSHIFT_REVIVAL.
+# Sets NS_SHIFT_REC and NS_SHIFT_FAIL.
+# Returns 0 = continue as owner, 1 = pass through, 2 = fail closed.
+# shellcheck disable=SC2034
+ns_shift_unbound() { # <host> <mode:hardhat|gate>
+  local host="$1" mode="$2" bound
+  : "${LEASE_TOKEN:=}" "${LEASE_GENERATION:=}"
+  NS_SHIFT_FAIL=""
+  bound="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+  if [ -z "$bound" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_TOKEN" ]; then
+    if [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] \
+      || ! ns_lease_token_matches "$NS" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      if [ "$mode" = hardhat ]; then
+        NS_SHIFT_FAIL="BLOCKED: this shift is being recovered before its new conversation is bound. Reopen the recorded conversation and retry after recovery."
+        return 2
+      fi
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# shellcheck disable=SC2034
+ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
+  local host="$1" pid="$2" start="$3" mode="$4"
+  local rec session_pid transcript
+  : "${LEASE_TOKEN:=}" "${LEASE_GENERATION:=}"
+  NS_SHIFT_REC=""
+  NS_SHIFT_FAIL=""
+
+  rec="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+  if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
+    if ! ns_lease_token_matches "$NS" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      if [ "$mode" = hardhat ]; then
+        NS_SHIFT_FAIL="BLOCKED: this recovered worker no longer owns the shift. Reopen the recorded conversation instead of continuing an older process."
+        return 2
+      fi
+      return 1
+    fi
+    if [ -n "${SID:-}" ]; then
+      if [ -z "$NS_LEASE_SID" ]; then
+        if ! ns_lease_rebind_session "$NS" "$SID" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+          if [ "$mode" = hardhat ]; then
+            NS_SHIFT_FAIL="BLOCKED: the shift process lease could not bind the recovered conversation. Issue STOP from another session, then run Start again."
+            return 2
+          fi
+          return 1
+        fi
+      fi
+      session_pid="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+      if [ "$rec" != "$SID" ] || { [ -n "$pid" ] && [ "$session_pid" != "$pid" ]; }; then
+        transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
+        if ! ns_session_replace "$NS" "$SID" "$transcript" "$pid" "$start" "$host"; then
+          if [ "$mode" = hardhat ]; then
+            NS_SHIFT_FAIL="BLOCKED: the recovered conversation could not update .shift-session. Issue STOP from another session, then run Start again."
+            return 2
+          fi
+          return 1
+        fi
+      fi
+      if [ -n "$pid" ]; then
+        if ! ns_lease_load "$NS"; then
+          if [ "$mode" = hardhat ]; then
+            NS_SHIFT_FAIL="BLOCKED: the recovered process lease became unreadable. Issue STOP from another session, then run Start again."
+            return 2
+          fi
+          return 1
+        fi
+        if [ "$NS_LEASE_PID" != "$pid" ]; then
+          if ! ns_lease_attach_process "$NS" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION" "$pid" "$start"; then
+            if [ "$mode" = hardhat ]; then
+              NS_SHIFT_FAIL="BLOCKED: the recovered process could not refresh its shift lease. Reopen the recorded conversation."
+              return 2
+            fi
+            return 1
+          fi
+        fi
+      fi
+      rec="$SID"
+    fi
+  fi
+
+  NS_SHIFT_REC="$rec"
+  return 0
+}
+
+# shellcheck disable=SC2034
+ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
+  local host="$1" pid="$2" start="$3" mode="$4"
+  local rec session_pid lease_scope check_sid lease_rc transcript
+  : "${LEASE_TOKEN:=}" "${LEASE_GENERATION:=}"
+  NS_SHIFT_FAIL=""
+  rec="${NS_SHIFT_REC:-$(sed -n 1p "$NS/.shift-session" 2>/dev/null)}"
+
+  lease_scope=""
+  if ns_lease_valid "$NS"; then lease_scope="$NS_LEASE_SID"; fi
+  if [ -n "$rec" ] && [ -n "${SID:-}" ] && [ "$SID" != "$rec" ] \
+    && [ "$SID" != "$lease_scope" ] && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
+    return 1
+  fi
+
+  if [ -z "$rec" ]; then
+    return 0
+  fi
+
+  check_sid="${SID:-$rec}"
+  if [ ! -e "$NS/.shift-lease" ] && [ ! -L "$NS/.shift-lease" ]; then
+    if ! ns_lease_claim_initial "$NS" "$rec" "$host" "$pid" "$start"; then
+      if [ "$mode" = hardhat ]; then
+        NS_SHIFT_FAIL="BLOCKED: the shift process lease could not be created. Issue STOP from another session, then run Start again."
+      else
+        NS_SHIFT_FAIL="DO NOT STOP — the shift process lease is unreadable. Issue STOP from another session, then run Start again."
+      fi
+      return 2
+    fi
+  fi
+
+  ns_lease_allows "$NS" "$check_sid" "$host" "$pid" "$start" \
+    "$LEASE_TOKEN" "$LEASE_GENERATION"
+  lease_rc=$?
+  if [ "$lease_rc" -eq 1 ]; then
+    if [ "$mode" = hardhat ]; then
+      NS_SHIFT_FAIL="BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here."
+      return 2
+    fi
+    return 1
+  fi
+  if [ "$lease_rc" -ne 0 ]; then
+    if [ "$mode" = hardhat ]; then
+      NS_SHIFT_FAIL="BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here."
+    else
+      NS_SHIFT_FAIL="DO NOT STOP — the shift process lease is unreadable. Issue STOP from another session, then run Start again."
+    fi
+    return 2
+  fi
+
+  if [ -n "${SID:-}" ] && [ -n "$pid" ] && [ -z "$LEASE_TOKEN" ]; then
+    if ! ns_lease_load "$NS"; then
+      if [ "$mode" = hardhat ]; then
+        NS_SHIFT_FAIL="BLOCKED: the shift process lease became unreadable. Issue STOP from another session, then run Start again."
+      else
+        NS_SHIFT_FAIL="DO NOT STOP — the shift process lease became unreadable. Issue STOP from another session, then run Start again."
+      fi
+      return 2
+    fi
+    session_pid="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+    if [ "$NS_LEASE_PID" = "$pid" ] && [ "$session_pid" != "$pid" ]; then
+      transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
+      if ! ns_session_replace "$NS" "$SID" "$transcript" "$pid" "$start" "$host"; then
+        if [ "$mode" = hardhat ]; then
+          NS_SHIFT_FAIL="BLOCKED: the reclaimed interactive process could not refresh .shift-session. Issue STOP from another session, then run Start again."
+        else
+          NS_SHIFT_FAIL="DO NOT STOP — the reclaimed process could not refresh .shift-session. Issue STOP from another session, then run Start again."
+        fi
+        return 2
+      fi
+    fi
+  fi
+
+  NS_SHIFT_REC="$rec"
+  return 0
+}
+
+# Gate wrappers have no Start probe between rebind and authorize.
+ns_shift_ownership() { # <host> <pid> <start> <mode:hardhat|gate>
+  ns_shift_rebind "$1" "$2" "$3" "$4" || return "$?"
+  ns_shift_authorize "$1" "$2" "$3" "$4"
+}
+
+# Fence a recovery child: take the lease, export the capability, attach the pid, wait.
+# Remaining arguments are the command line. Returns 3 when takeover fails.
+ns_watchman_run_child() { # <ns> <host> <sid> <work_target> <project_env> <project> <cmd...>
+  local ns="$1" host="$2" sid="$3" work="$4" env_name="$5" project="$6"
+  local lease generation token child start rc
+  shift 6
+  lease="$(ns_lease_takeover "$ns" "$sid" "$host")" || return 3
+  generation="${lease%% *}"
+  token="${lease#* }"
+  (
+    cd "$work" || exit 1
+    env "${env_name}=${project}" \
+      NIGHTSHIFT_REVIVAL=1 \
+      NIGHTSHIFT_LEASE_GENERATION="$generation" \
+      NIGHTSHIFT_LEASE_TOKEN="$token" \
+      "$@" >/dev/null 2>&1
+  ) &
+  child=$!
+  start="$(ns_process_start "$child" 2>/dev/null || true)"
+  ns_lease_attach_process "$ns" "$host" "$token" "$generation" "$child" "$start" || true
+  wait "$child"
+  rc=$?
+  return "$rc"
+}
+
+# After a clock-out spawn: 0 = the shift ended, 1 = still open (sentinel refreshed),
+# 2 = still open and the wake cap is reached (caller exits 7 after logging).
+ns_watchman_clockout_pending() { # <ns> <sentinel> <max_wakes> <wake>
+  if [ -f "$1/.ended" ]; then
+    return 0
+  fi
+  : >"$2" 2>/dev/null || true
+  if [ "$3" -gt 0 ] && [ "$4" -ge "$3" ]; then
+    return 2
+  fi
+  return 1
 }
 
 ns_lease_reset_stale() { # $1 = .nightshift; caller has proved no process or watchman owns it

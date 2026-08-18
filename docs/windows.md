@@ -6,8 +6,10 @@ a second agent runtime.
 
 ## Choose the runtime deliberately
 
-- **Native Windows is supported** with Claude Code or Codex running in PowerShell, Git installed
-  natively, PowerShell 5.1 or later, and the workspace on a local NTFS volume.
+- **Native Windows has a bundled PowerShell path** for setup, hooks, process ownership, recovery,
+  and Task Scheduler generation when Claude Code or Codex run in PowerShell, Git is installed
+  natively, PowerShell 5.1 or later is present, and the workspace is on a local NTFS volume. CI
+  verifies that path with local host fixtures; it does not load an authenticated host session.
 - **WSL is supported as Linux.** Install and run the host, plugin, repository, and watchman inside
   the same WSL distribution, then use the POSIX commands documented elsewhere.
 - **A split Windows/WSL run is unsupported.** Do not keep the host process on one side and the
@@ -17,8 +19,9 @@ a second agent runtime.
 
 Installing Git for Windows is optional for Claude Code itself, but Nightshift's work-target,
 commit, and receipt behavior requires native Git. If Git Bash is installed, Claude Code may choose
-it as the hook shell. Nightshift's bundled launcher detects Windows and immediately transfers the
-hook to PowerShell; the guard logic still runs natively.
+it as the hook shell. The bundled launcher is written to detect Windows and transfer the hook to
+PowerShell. That Git Bash transfer is not yet a CI-verified claim; prefer a native PowerShell host
+session until it is.
 
 ## What has parity
 
@@ -103,10 +106,11 @@ thread to inspect or interact with it; the process lease already fences stale ob
 ## Rule and filesystem details
 
 PowerShell parses `rules.json` exactly with `ConvertFrom-Json`. `forbiddenCommands` and
-`neverCommitPatterns` run through .NET regular expressions; Nightshift translates the common POSIX
-classes used by existing rules (`[[:space:]]`, `[[:digit:]]`, `[[:alnum:]]`, and related classes).
-Owners using an uncommon grep-only expression should test the rule attended on each operating
-system.
+`neverCommitPatterns` run through .NET regular expressions. Nightshift translates the common POSIX
+classes used by existing rules (`[[:space:]]`, `[[:digit:]]`, `[[:alnum:]]`, and related classes)
+and fails closed on any class it cannot map. `neverCommitPatterns` is case-insensitive, matching
+the POSIX `grep -qiE` guard. Implicitly staging commits (`-a`, `--all`, or a pathspec after `--`)
+inspect `git diff HEAD`, the same content those commits would write.
 
 Session and lease files are written in one directory, claimed atomically, and protected with a
 non-inherited ACL for the current user and Local System before capability content is written.

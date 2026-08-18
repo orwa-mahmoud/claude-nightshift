@@ -7,6 +7,7 @@ ENVIRONMENTS="$BATS_TEST_DIRNAME/environments"
   contents="$(cat "$DOC")"
   printf '%s' "$contents" | grep -qF 'must all see the'
   printf '%s' "$contents" | grep -qF 'same operating-system process table and filesystem namespace'
+  printf '%s' "$contents" | grep -qF 'Native Windows | Runtime fixture verified (x86_64)'
   printf '%s' "$contents" | grep -qF 'Remote SSH to Linux | Runtime fixture verified (x86_64)'
   printf '%s' "$contents" | grep -qF 'Linux devcontainer | Runtime fixture verified (x86_64)'
   printf '%s' "$contents" | grep -qF 'Host outside, tools or files inside a container | Unsupported'
@@ -36,8 +37,9 @@ ENVIRONMENTS="$BATS_TEST_DIRNAME/environments"
 
 @test "CI crosses SSH and starts the checked-in devcontainer" {
   grep -qF 'run-remote-ssh.sh' "$CI"
-  grep -qF '@devcontainers/cli@0.88.0 up' "$CI"
-  grep -qF '@devcontainers/cli@0.88.0 exec' "$CI"
+  grep -qF '@devcontainers/cli@0.88.0' "$CI"
+  grep -qF 'devcontainer up' "$CI"
+  grep -qF 'devcontainer exec' "$CI"
   grep -qF 'disconnect-watchman.sh verify' "$CI"
   grep -qF 'cmp tests/environments/receipts/remote-ssh-linux.json' "$CI"
   grep -qF 'cmp tests/environments/receipts/devcontainer-linux.json' "$CI"

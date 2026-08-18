@@ -6,8 +6,17 @@ ns_hardhat_active() {
     && [ "$(ns_open_boxes "$PUNCH")" -gt 0 ]
 }
 
+ns_hardhat_is_command_tool() {
+  case "$1" in Bash | PowerShell) return 0 ;; esac
+  return 1
+}
+
 ns_hardhat_binding_probe() { # $1 = canonical tool name, $2 = command
-  [ "$1" = "Bash" ] && [ "$2" = ": nightshift-binding-probe" ]
+  case "$1" in
+    Bash) [ "$2" = ": nightshift-binding-probe" ] ;;
+    PowerShell) [ "$2" = "\$null = 'nightshift-binding-probe'" ] ;;
+    *) return 1 ;;
+  esac
 }
 
 ns_hardhat_rules_targeted() {
@@ -65,7 +74,10 @@ ns_hardhat_payload_targets() { # $1 = tool, $2 = raw payload, $3 = command/patch
         | grep -E '^\*\*\* (Add|Update|Delete) File:|^\*\*\* Move to:' 2>/dev/null || true)"
       ;;
     *)
-      if command -v jq >/dev/null 2>&1; then
+      if [ "${NS_HARDHAT_TARGETS_FOR:-}" = "$2" ]; then
+        targets="${NS_HARDHAT_TARGETS:-}"
+        decoder="${NS_HARDHAT_TARGETS_DECODER:-}"
+      elif command -v jq >/dev/null 2>&1; then
         targets="$(printf '%s' "$2" | jq -r '
           def string_values: .. | strings;
           .tool_input
@@ -141,6 +153,9 @@ walk(d)' 2>/dev/null)" || return 2
       else
         return 2
       fi
+      NS_HARDHAT_TARGETS_FOR="$2"
+      NS_HARDHAT_TARGETS="$targets"
+      NS_HARDHAT_TARGETS_DECODER="$decoder"
       ;;
   esac
   while IFS= read -r target; do
@@ -197,28 +212,33 @@ ns_hardhat_payload_targets_lease() {
 }
 
 ns_hardhat_scrub() {
-  local input="$1" output="" length i=0 j k option_length quote char previous next dynamic closed
+  local input="$1" output="" length i=0 j k option_length quote char previous next dynamic closed start
   length="${#input}"
   while [ "$i" -lt "$length" ]; do
-    char="${input:$i:1}"
-    if [ "$i" -eq 0 ]; then previous=""; else previous="${input:$((i - 1)):1}"; fi
+    start=$i
     option_length=0
-    case "$previous" in
-      '' | ' ' | $'\t' | $'\n')
-        if [ "${input:$i:9}" = "--message" ]; then
-          next="${input:$((i + 9)):1}"
-          case "$next" in '' | '=' | ' ' | $'\t' | $'\n' | "'" | '"') option_length=9 ;; esac
-        elif [ "${input:$i:2}" = "-m" ]; then
-          next="${input:$((i + 2)):1}"
-          case "$next" in '' | '=' | ' ' | $'\t' | $'\n' | "'" | '"') option_length=2 ;; esac
-        fi
-        ;;
-    esac
-    if [ "$option_length" -eq 0 ]; then
-      output="${output}${char}"
+    while [ "$i" -lt "$length" ]; do
+      if [ "$i" -eq 0 ]; then previous=""; else previous="${input:$((i - 1)):1}"; fi
+      option_length=0
+      case "$previous" in
+        '' | ' ' | $'\t' | $'\n')
+          if [ "${input:$i:9}" = "--message" ]; then
+            next="${input:$((i + 9)):1}"
+            case "$next" in '' | '=' | ' ' | $'\t' | $'\n' | "'" | '"') option_length=9 ;; esac
+          elif [ "${input:$i:2}" = "-m" ]; then
+            next="${input:$((i + 2)):1}"
+            case "$next" in '' | '=' | ' ' | $'\t' | $'\n' | "'" | '"') option_length=2 ;; esac
+          fi
+          ;;
+      esac
+      [ "$option_length" -gt 0 ] && break
       i=$((i + 1))
-      continue
+    done
+    if [ "$i" -gt "$start" ]; then
+      output="${output}${input:$start:$((i - start))}"
     fi
+    [ "$i" -ge "$length" ] && break
+    [ "$option_length" -gt 0 ] || continue
 
     j=$((i + option_length))
     [ "${input:$j:1}" = "=" ] && j=$((j + 1))

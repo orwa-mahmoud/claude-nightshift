@@ -150,21 +150,6 @@ function Get-NSProjectHead {
     return 'nohead'
 }
 
-function Update-NSSessionForRevival {
-    param(
-        [Parameter(Mandatory = $true)][string]$SessionId,
-        [AllowEmptyString()][string]$Transcript,
-        [AllowEmptyString()][string]$ProcessId,
-        [AllowEmptyString()][string]$ProcessStart
-    )
-    $current = Read-NSSession $ns
-    $savedTranscript = $Transcript
-    if ([string]::IsNullOrEmpty($savedTranscript) -and $null -ne $current) {
-        $savedTranscript = $current.Transcript
-    }
-    return Write-NSSession $ns $SessionId $savedTranscript $ProcessId $ProcessStart $HostName
-}
-
 $raw = [Console]::In.ReadToEnd()
 $payload = $null
 if (-not [string]::IsNullOrWhiteSpace($raw)) {
@@ -258,74 +243,31 @@ if ($null -eq $payload) {
 $token = [string]$env:NIGHTSHIFT_LEASE_TOKEN
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION
 $revival = $env:NIGHTSHIFT_REVIVAL -eq '1'
-$session = Read-NSSession $ns
-$lease = Read-NSLease $ns
 
-if ($null -eq $session -and $null -ne $lease -and -not [string]::IsNullOrEmpty($lease.Token) `
-    -and (-not $revival -or -not (Test-NSLeaseToken $ns $HostName $token $generation))) {
-    Write-Release
-}
+$unbound = Resolve-NSShiftUnbound -NightshiftDir $ns -HostName $HostName `
+    -Token $token -Generation $generation -Revival $revival -Mode gate
+if ($unbound.Status -eq 'Pass') { Write-Release }
+if ($unbound.Status -eq 'Fail') { Write-Block $unbound.Message }
 
 $hostProcess = Get-NSHostProcess $HostName
 $processId = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.Id }
 $processStart = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.Start }
 
+$session = Read-NSSession $ns
 if ($null -eq $session -and -not [string]::IsNullOrEmpty($sessionId)) {
     $null = Claim-NSSession $ns $sessionId $transcript $processId $processStart $HostName
-    $session = Read-NSSession $ns
 }
 
-if ($revival) {
-    if (-not (Test-NSLeaseToken $ns $HostName $token $generation)) {
-        Write-Release
-    }
-    if (-not [string]::IsNullOrEmpty($sessionId)) {
-        $lease = Read-NSLease $ns
-        if ($null -ne $lease -and [string]::IsNullOrEmpty($lease.SessionId) `
-            -and -not (Bind-NSLeaseSession $ns $sessionId $HostName $token $generation)) {
-            Write-Release
-        }
-        if ($null -eq $session -or $session.SessionId -ne $sessionId -or $session.ProcessId -ne $processId) {
-            if (-not (Update-NSSessionForRevival $sessionId $transcript $processId $processStart)) {
-                Write-Release
-            }
-        }
-        $lease = Read-NSLease $ns
-        if ($null -ne $lease -and -not [string]::IsNullOrEmpty($processId) -and $lease.ProcessId -ne $processId `
-            -and -not (Attach-NSLeaseProcess $ns $HostName $token $generation $processId $processStart)) {
-            Write-Release
-        }
-        $session = Read-NSSession $ns
-    }
-}
-
-$lease = Read-NSLease $ns
-$leaseScope = if ($null -eq $lease) { '' } else { $lease.SessionId }
-if ($null -ne $session -and -not [string]::IsNullOrEmpty($sessionId) `
-    -and $sessionId -ne $session.SessionId -and $sessionId -ne $leaseScope -and -not $revival) {
-    Write-Release
-}
-
-if ($null -ne $session) {
-    $leasePath = Join-Path $ns '.shift-lease'
-    if (-not (Test-NSPathEntry $leasePath) `
-        -and -not (Claim-NSInitialLease $ns $session.SessionId $HostName $processId $processStart)) {
-        Write-Block 'DO NOT STOP - the shift process lease is unreadable. Issue STOP from another session, then run Start again.'
-    }
-    $checkSession = if ([string]::IsNullOrEmpty($sessionId)) { $session.SessionId } else { $sessionId }
-    $allow = Test-NSLeaseAllows $ns $checkSession $HostName $processId $processStart $token $generation
-    if ($allow -eq 'Deny') {
-        Write-Release
-    }
-    if ($allow -ne 'Allow') {
-        Write-Block 'DO NOT STOP - the shift process lease is unreadable. Issue STOP from another session, then run Start again.'
-    }
-}
+$owned = Resolve-NSShiftOwnership -NightshiftDir $ns -HostName $HostName `
+    -SessionId $sessionId -Transcript $transcript -ProcessId $processId `
+    -ProcessStart $processStart -Token $token -Generation $generation `
+    -Revival $revival -Mode gate
+if ($owned.Status -eq 'Pass') { Write-Release }
+if ($owned.Status -eq 'Fail') { Write-Block $owned.Message }
+$session = $owned.Session
 
 $mutex = Enter-NSMutex $ns '.lock.d'
-if ($null -eq $mutex) {
-    Write-Block 'DO NOT STOP - another clock-out check still owns the gate. Retry this stop after it finishes.'
-}
+# An unlockable site is decided unlocked: the gate must answer, never queue.
 try {
     if (Test-Path -LiteralPath $stop -PathType Leaf) {
         $reason = ''

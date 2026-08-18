@@ -113,9 +113,8 @@ receipts_commit() {
 }
 
 release_lease() {
-  ns_lease_release "$NS" && return 0
-  sleep 0.2
-  ns_lease_release "$NS" || log_line "process lease release deferred: lease mutex remained busy"
+  ns_lease_release_retry "$NS" \
+    || log_line "process lease release deferred: lease mutex remained busy"
 }
 
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
@@ -150,20 +149,9 @@ honor_stop() {
 # Record conversation continuity and claim the original process lease if hardhat did not already
 # do it. A watchman child must present its exact token + generation before this Stop event may
 # touch shared shift state.
-CURRENT_PID="$(ns_ancestor_pid claude "$$" 2>/dev/null || true)"
-CURRENT_START=""
-[ -z "$CURRENT_PID" ] || CURRENT_START="$(ns_process_start "$CURRENT_PID" 2>/dev/null || true)"
-record_shift_session() {
-  ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" claude || true
-}
-replace_shift_session() {
-  local transcript tmp
-  transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
-  tmp="$NS/.shift-session.tmp.$$.$RANDOM"
-  (umask 077; printf '%s\n%s\n%s\n%s\nclaude\n' \
-    "$SID" "$transcript" "$CURRENT_PID" "$CURRENT_START" >"$tmp") \
-    && mv -f "$tmp" "$NS/.shift-session"
-}
+ns_host_process claude "$NS" "$$"
+CURRENT_PID="$NS_CURRENT_PID"
+CURRENT_START="$NS_CURRENT_START"
 # A shift exists because the owner started one, never because a list exists. Nightshift Start
 # writes .shift-armed; without it the punch list is a to-do file and every session stops freely —
 # including the one that just wrote the list while planning.
@@ -179,74 +167,22 @@ fi
 
 LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
-BOUND_BEFORE="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-if [ -z "$BOUND_BEFORE" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_TOKEN" ]; then
-  [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ] \
-    && ns_lease_token_matches "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION" || exit 0
-fi
-
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  record_shift_session
-fi
-
-# The shift binds ONE session — the recorded one. Any other conversation in this project stops
-# freely. A watchman revival may rebind the conversation only with the capability atomically
-# written before that process was spawned.
-REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-  ns_lease_token_matches "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION" || exit 0
-  if [ -n "${SID:-}" ]; then
-    if [ -z "$NS_LEASE_SID" ]; then
-      ns_lease_rebind_session "$NS" "$SID" claude "$LEASE_TOKEN" "$LEASE_GENERATION" || exit 0
-    fi
-    SESSION_PID="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
-    if [ "$REC" != "$SID" ] || { [ -n "$CURRENT_PID" ] && [ "$SESSION_PID" != "$CURRENT_PID" ]; }; then
-      replace_shift_session || exit 0
-    fi
-    ns_lease_load "$NS" || exit 0
-    LEASE_PID="$NS_LEASE_PID"
-    if [ -n "$CURRENT_PID" ] && [ "$LEASE_PID" != "$CURRENT_PID" ]; then
-      ns_lease_attach_process "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION" "$CURRENT_PID" "$CURRENT_START" || exit 0
-    fi
-    REC="$SID"
-  fi
-fi
-
-LEASE_SCOPE=""
-if ns_lease_valid "$NS"; then LEASE_SCOPE="$NS_LEASE_SID"; fi
-if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ] \
-  && [ "$SID" != "$LEASE_SCOPE" ] && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
+ns_shift_unbound claude gate
+own_rc=$?
+[ "$own_rc" -eq 1 ] && exit 0
+if [ "$own_rc" -eq 2 ]; then
+  printf '{"decision":"block","reason":"%s"}\n' "$(printf '%s' "$NS_SHIFT_FAIL" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
   exit 0
 fi
-if [ -n "$REC" ]; then
-  CHECK_SID="${SID:-$REC}"
-  if [ ! -e "$NS/.shift-lease" ] && [ ! -L "$NS/.shift-lease" ]; then
-    if ! ns_lease_claim_initial "$NS" "$REC" claude "$CURRENT_PID" "$CURRENT_START"; then
-      printf '%s\n' '{"decision":"block","reason":"DO NOT STOP — the shift process lease is unreadable. Issue STOP from another session, then run Start again."}'
-      exit 0
-    fi
-  fi
-  ns_lease_allows "$NS" "$CHECK_SID" claude "$CURRENT_PID" "$CURRENT_START" \
-    "$LEASE_TOKEN" "$LEASE_GENERATION"
-  lease_rc=$?
-  if [ "$lease_rc" -eq 1 ]; then exit 0; fi
-  if [ "$lease_rc" -ne 0 ]; then
-    printf '%s\n' '{"decision":"block","reason":"DO NOT STOP — the shift process lease is unreadable. Issue STOP from another session, then run Start again."}'
-    exit 0
-  fi
-  if [ -n "$SID" ] && [ -n "$CURRENT_PID" ] && [ -z "$LEASE_TOKEN" ]; then
-    ns_lease_load "$NS" || {
-      printf '%s\n' '{"decision":"block","reason":"DO NOT STOP — the shift process lease became unreadable. Issue STOP from another session, then run Start again."}'
-      exit 0
-    }
-    SESSION_PID="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
-    if [ "$NS_LEASE_PID" = "$CURRENT_PID" ] && [ "$SESSION_PID" != "$CURRENT_PID" ]; then
-      replace_shift_session || {
-        printf '%s\n' '{"decision":"block","reason":"DO NOT STOP — the reclaimed process could not refresh .shift-session. Issue STOP from another session, then run Start again."}'
-        exit 0
-      }
-    fi
-  fi
+if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+  ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" claude || true
+fi
+ns_shift_ownership claude "$CURRENT_PID" "$CURRENT_START" gate
+own_rc=$?
+[ "$own_rc" -eq 1 ] && exit 0
+if [ "$own_rc" -eq 2 ]; then
+  printf '{"decision":"block","reason":"%s"}\n' "$(printf '%s' "$NS_SHIFT_FAIL" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  exit 0
 fi
 
 # One writer per site from here down: the stall fingerprint, the stop/ended markers, and the
