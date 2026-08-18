@@ -3,6 +3,36 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.14.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.13.1...v0.14.0) (2026-08-18)
+
+
+### Features
+
+* **compatibility:** verify remote development environments ([4051f7c](https://github.com/orwa-mahmoud/nightshift/commit/4051f7cd579f0ab25a1e645b8ab4432b6ed9b7f6))
+* **recovery:** fence concurrent shift processes ([3efbac8](https://github.com/orwa-mahmoud/nightshift/commit/3efbac87f0f25a3d66e8339f405fb39f9b0eab65))
+* **windows:** add native runtime support ([7d80a66](https://github.com/orwa-mahmoud/nightshift/commit/7d80a664ece3592910699b28b233968d9c1f829e))
+
+
+### Bug Fixes
+
+* accept piped hook JSON on Windows PowerShell 5.1 ([bd7f0a6](https://github.com/orwa-mahmoud/nightshift/commit/bd7f0a698fa95d8e34b917e41b08020b93a93890))
+* allow empty lines in Windows atomic writes ([cedb246](https://github.com/orwa-mahmoud/nightshift/commit/cedb24636f10aae161941b6e1affb773f47af4be))
+* claim the first Windows session with a same-directory move ([a7b8baa](https://github.com/orwa-mahmoud/nightshift/commit/a7b8baa0cc3fd05750d200c96b8795cbd66345b5))
+* claim Windows session files with exclusive create ([8f9baa4](https://github.com/orwa-mahmoud/nightshift/commit/8f9baa46da148413a62d1b9b8c67e5fba6e43b48))
+* delete Windows lease files without prompting ([5778321](https://github.com/orwa-mahmoud/nightshift/commit/577832155f888224649fd2ccf13b551c1b45cad0))
+* do not let a Windows test child's exit fail CI ([1497b4c](https://github.com/orwa-mahmoud/nightshift/commit/1497b4c51bc16dc3619a73e315ceb5c0fcdf054b))
+* feed Windows hook tests through the PowerShell pipeline ([568cf08](https://github.com/orwa-mahmoud/nightshift/commit/568cf08d19a7203ee9828a3321d24ccecaac9fac))
+* initialize the Windows rules cache under StrictMode ([a8f95cd](https://github.com/orwa-mahmoud/nightshift/commit/a8f95cd716ed07acde36f8cd929b4e73c93ef912))
+* keep Windows atomic writes off the success stream ([65a5885](https://github.com/orwa-mahmoud/nightshift/commit/65a58855ea9e2c32da9bcb04f37ca3571e7059d4))
+* keep Windows setup JSON and remote fixtures lint-clean ([e0d5f32](https://github.com/orwa-mahmoud/nightshift/commit/e0d5f32b16b32bddd5860e64e09b71f9eff0ccc8))
+* race Windows session claims in-process ([b345f90](https://github.com/orwa-mahmoud/nightshift/commit/b345f90d4f4ee10e95fc673d2511c62d0fcea5a4))
+* read Windows hook JSON from the redirected pipe ([d1e39e8](https://github.com/orwa-mahmoud/nightshift/commit/d1e39e8e753c15f3cd3251a36ce72e13020f4c78))
+* replace Windows files without a null backup path ([85c0ac9](https://github.com/orwa-mahmoud/nightshift/commit/85c0ac9bdf4a2382df5c5b486307a8f4cf523693))
+* share shift ownership and close review gaps ([e3643e9](https://github.com/orwa-mahmoud/nightshift/commit/e3643e9730013dd4dfc026cd53adf1c1885c0290))
+* **skills:** align host roots and shift lifecycle ([46287d1](https://github.com/orwa-mahmoud/nightshift/commit/46287d1ccc3b1ebfb337440c362d82ce5ab3978c))
+* stop Windows PowerShell from aborting on git stderr ([e6f810d](https://github.com/orwa-mahmoud/nightshift/commit/e6f810d4470cf02859bf61ed5e19490bc6b9542e))
+* write Windows claims with a local UTF-8 encoder ([e9c66cb](https://github.com/orwa-mahmoud/nightshift/commit/e9c66cbdc87bd227051be40d6b78dc19f0be575a))
+
 ## [0.13.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.13.0...v0.13.1) (2026-08-15)
 
 
