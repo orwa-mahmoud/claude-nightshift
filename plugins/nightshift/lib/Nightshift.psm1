@@ -138,7 +138,7 @@ function Write-NSWorkTarget {
     }
     $ns = Join-Path $Workspace '.nightshift'
     $null = New-Item -ItemType Directory -Path $ns -Force
-    Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @((Resolve-NSCanonicalPath $top))
+    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @((Resolve-NSCanonicalPath $top))
 }
 
 function Get-NSStateKind {
@@ -1275,7 +1275,7 @@ function Write-NSReason {
         $Code = 'stand-down'
     }
     $Detail = ($Detail -replace '[\x00-\x1f]', '').TrimEnd()
-    Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.watch-reason') -Lines @($Code, $Detail)
+    $null = Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.watch-reason') -Lines @($Code, $Detail)
 }
 
 function Get-NSUnixTime {

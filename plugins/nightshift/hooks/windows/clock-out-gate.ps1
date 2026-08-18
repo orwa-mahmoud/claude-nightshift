@@ -325,7 +325,7 @@ try {
             Write-NSLogLine "stall warning - $attempts attempts no progress, $($counts.Ticked)/$($counts.Total) done; keeping shift open"
             $attempts = 0
         }
-        Write-NSAtomicLines -Path $stall -Lines @($fingerprint, [string]$attempts)
+        $null = Write-NSAtomicLines -Path $stall -Lines @($fingerprint, [string]$attempts)
     }
     else {
         Write-NSLogLine 'stall guard down - stallMax/stallWarnEvery unreadable; run Setup again'

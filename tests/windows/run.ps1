@@ -169,7 +169,12 @@ function Initialize-TestWorkspace {
     }
     $result = Invoke-TestScript $setup @('-Project', $Path, '-WorkTarget', $repo)
     Assert-Equal 0 $result.ExitCode "setup succeeds: $($result.Stderr)"
-    $summary = $result.Stdout | ConvertFrom-Json
+    try {
+        $summary = $result.Stdout | ConvertFrom-Json
+    }
+    catch {
+        throw "setup stdout was not JSON: $($result.Stdout)"
+    }
     Assert-Equal (Resolve-Path $Path).ProviderPath $summary.workspace 'setup reports the workspace'
     Assert-Equal (Resolve-Path $repo).ProviderPath $summary.workTarget 'setup persists the work target'
     return $repo

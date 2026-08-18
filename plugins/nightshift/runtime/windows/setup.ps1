@@ -61,12 +61,12 @@ foreach ($entry in $templates.GetEnumerator()) {
 
 $shiftLog = Join-Path $ns 'shift-log.md'
 if (-not (Test-NSPathEntry $shiftLog)) {
-    Write-NSAtomicLines -Path $shiftLog -Lines @('# Nightshift log')
+    $null = Write-NSAtomicLines -Path $shiftLog -Lines @('# Nightshift log')
     $created.Add('shift-log.md')
 }
 
 if ($newSite -or $MigrateLegacy) {
-    Write-NSAtomicLines -Path (Join-Path $ns 'state-version') -Lines @('1')
+    $null = Write-NSAtomicLines -Path (Join-Path $ns 'state-version') -Lines @('1')
 }
 
 try {
@@ -82,7 +82,7 @@ catch {
 $resolvedTarget = ''
 if (-not [string]::IsNullOrEmpty($WorkTarget)) {
     $resolvedTarget = Resolve-NSCanonicalPath $WorkTarget
-    Write-NSWorkTarget $workspace $resolvedTarget
+    $null = Write-NSWorkTarget $workspace $resolvedTarget
 }
 elseif (Test-Path -LiteralPath (Join-Path $ns 'work-target') -PathType Leaf) {
     $resolvedTarget = Resolve-NSWorkTarget $workspace
@@ -90,7 +90,7 @@ elseif (Test-Path -LiteralPath (Join-Path $ns 'work-target') -PathType Leaf) {
 else {
     try {
         $resolvedTarget = Resolve-NSWorkTarget $workspace
-        Write-NSWorkTarget $workspace $resolvedTarget
+        $null = Write-NSWorkTarget $workspace $resolvedTarget
     }
     catch {
         if ($_.Exception.Message -match 'several child repositories') {
@@ -111,7 +111,7 @@ if (-not [string]::IsNullOrWhiteSpace($workspaceTop) `
     }
     if (-not $lines.Contains('.nightshift/')) {
         $lines.Add('.nightshift/')
-        Write-NSAtomicLines -Path $gitignore -Lines $lines.ToArray()
+        $null = Write-NSAtomicLines -Path $gitignore -Lines $lines.ToArray()
     }
 }
 

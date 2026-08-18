@@ -19,7 +19,7 @@ $link = Join-Path $hostPath '.nightshift-link'
 if (Test-NSReparsePoint $link) {
     throw 'refusing to replace a reparse-point .nightshift-link'
 }
-Write-NSAtomicLines -Path $link -Lines @($workspacePath)
+$null = Write-NSAtomicLines -Path $link -Lines @($workspacePath)
 
 $gitDirectory = Invoke-NSGit $hostPath @('rev-parse', '--git-dir')
 if (-not [string]::IsNullOrWhiteSpace($gitDirectory)) {
@@ -36,7 +36,7 @@ if (-not [string]::IsNullOrWhiteSpace($gitDirectory)) {
         @()
     }
     if ($lines -notcontains '.nightshift-link') {
-        Write-NSAtomicLines -Path $exclude -Lines @($lines + '.nightshift-link')
+        $null = Write-NSAtomicLines -Path $exclude -Lines @($lines + '.nightshift-link')
     }
 }
 
