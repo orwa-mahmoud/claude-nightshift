@@ -355,50 +355,37 @@ function Write-NSAtomicLines {
     else {
         '.{0}.tmp.{1}.{2}' -f $leaf, $PID, [guid]::NewGuid().ToString('N')
     }
-    $temp = Join-Path $directory $tempLeaf
+    $temp = $null
+    if (-not $CreateOnly) {
+        $temp = Join-Path $directory $tempLeaf
+    }
+    $writePath = if ($CreateOnly) { $Path } else { $temp }
+    if ($CreateOnly -and (Test-NSPathEntry $Path)) {
+        return $false
+    }
     try {
         $stream = $null
         $writer = $null
         try {
-            if ($Private -and (Test-NSWindows)) {
-                $acl = New-NSPrivateFileSecurity
-                if ($PSVersionTable.PSEdition -eq 'Desktop') {
-                    $stream = [IO.FileStream]::new(
-                        $temp,
-                        [IO.FileMode]::CreateNew,
-                        [Security.AccessControl.FileSystemRights]::FullControl,
-                        [IO.FileShare]::None,
-                        4096,
-                        [IO.FileOptions]::None,
-                        $acl
-                    )
-                }
-                else {
-                    $file = [IO.FileInfo]::new($temp)
-                    $stream = [IO.FileSystemAclExtensions]::Create(
-                        $file,
-                        [IO.FileMode]::CreateNew,
-                        [Security.AccessControl.FileSystemRights]::FullControl,
-                        [IO.FileShare]::None,
-                        4096,
-                        [IO.FileOptions]::None,
-                        $acl
-                    )
-                }
-            }
-            else {
-                $stream = [IO.FileStream]::new(
-                    $temp,
-                    [IO.FileMode]::CreateNew,
-                    [IO.FileAccess]::Write,
-                    [IO.FileShare]::None
-                )
-            }
+            # Open CreateNew without an ACL constructor: those constructors fail closed in
+            # Start-Job runspaces on the CI images, so every concurrent claim lost.
+            $stream = [IO.FileStream]::new(
+                $writePath,
+                [IO.FileMode]::CreateNew,
+                [IO.FileAccess]::Write,
+                [IO.FileShare]::None
+            )
             $writer = [IO.StreamWriter]::new($stream, $script:NSUtf8NoBom)
             foreach ($line in $Lines) {
                 $writer.WriteLine($line)
             }
             $writer.Flush()
+        }
+        catch {
+            if ($CreateOnly -and (Test-NSPathEntry $Path)) {
+                return $false
+            }
+            throw
         }
         finally {
             if ($null -ne $writer) {
@@ -408,20 +395,17 @@ function Write-NSAtomicLines {
                 $stream.Dispose()
             }
         }
-        if ($CreateOnly) {
-            if (Test-NSPathEntry $Path) {
-                return $false
-            }
+        if ($Private) {
             try {
-                [IO.File]::Move($temp, $Path)
-                $temp = $null
+                Protect-NSPrivateFile $writePath
             }
             catch {
-                if (Test-NSPathEntry $Path) {
-                    return $false
+                if (-not $CreateOnly) {
+                    throw
                 }
-                throw
             }
+        }
+        if ($CreateOnly) {
             return $true
         }
         if (Test-NSPathEntry $Path) {
