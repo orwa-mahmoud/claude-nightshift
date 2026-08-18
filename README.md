@@ -48,6 +48,14 @@ Two commands inside Claude Code — no npm, no Homebrew, no separate CLI, no API
 /plugin install nightshift
 ```
 
+### Platforms
+
+macOS and Linux use the bundled shell runtime. Native Windows uses bundled PowerShell hooks,
+process checks, recovery, and Task Scheduler generation; Git Bash and WSL are not dependencies.
+WSL remains a Linux runtime and must keep the host, plugin, repository, and watchman inside the
+same distribution. See [Native Windows](docs/windows.md) for the exact parity and conservative
+limits, and [Remote environments](docs/remote-environments.md) for co-location requirements.
+
 ## Run a first shift
 
 You do not need to learn the whole system first. Start with one small, real task in a project you
@@ -281,6 +289,9 @@ independent of that history. The precise boundaries are in
 - [**Why Nightshift exists**](docs/why-nightshift.md) — the failure modes behind the contract.
 - [**How Nightshift works**](docs/how-it-works.md) — files, gates, recovery, host differences,
   workspace layouts, guarantees, and limits.
+- [**Native Windows**](docs/windows.md) — PowerShell lifecycle parity, Task Scheduler, and limits.
+- [**Remote environments**](docs/remote-environments.md) — local, Remote SSH, devcontainer, and
+  split-runtime evidence.
 - [**First-night safety checklist**](docs/first-night-checklist.md) — what to verify before leaving.
 - [**Command reference**](docs/commands.md) — every command, natural-language Codex equivalents,
   and offline paths that need no session.
@@ -304,7 +315,8 @@ independent of that history. The precise boundaries are in
   ended. Bound it with a deadline, `NIGHTSHIFT_STALL_MAX`, or both when cost matters more.
 - The stall guard treats ticks and commits as progress, so failed-attempt commits can look alive;
   the item gate and deadline remain the backstop.
-- Stop the shift at any time with the host command or `touch .nightshift/STOP`.
+- Stop the shift at any time with the host command, `touch .nightshift/STOP` on POSIX, or
+  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell.
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 

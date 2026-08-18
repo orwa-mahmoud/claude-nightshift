@@ -358,6 +358,10 @@ The link does not choose the code repository—that remains the linked workspace
 
 This repository is maintained with a parent state workspace and a nested public work target.
 
+Remote SSH and devcontainers use these same layouts only when the host process, plugin, repository,
+state workspace, hooks, and watchman all run inside the remote environment. The reproducible matrix
+and the refused split-runtime boundary are in [Remote environments](remote-environments.md).
+
 ## Guarantees and limits
 
 - **Mechanical:** hooks govern when either host may stop and which configured commands or paths are

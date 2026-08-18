@@ -1,0 +1,9 @@
+{
+  "name": "nightshift-compatibility-fixture",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nightshift,type=bind",
+  "workspaceFolder": "/workspaces/nightshift",
+  "remoteUser": "vscode"
+}

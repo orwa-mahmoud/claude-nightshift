@@ -29,7 +29,7 @@ jobs:
             exit 0
           fi
           echo "$files"
-          # shellcheck honors the directive in each file; -x follows sourced paths
+          # The linter honors each file's directive; -x follows sourced paths.
           echo "$files" | xargs shellcheck -x
 
   bats:
@@ -79,6 +79,92 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run native Windows lifecycle suite
         run: ./tests/windows/run.ps1
+
+  remote-ssh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure an ephemeral OpenSSH target
+        run: |
+          set -eu
+          sudo apt-get update
+          sudo apt-get install -y git jq openssh-server procps
+          install -d -m 700 "$HOME/.ssh"
+          ssh-keygen -q -t ed25519 -N '' -f "$HOME/.ssh/id_ed25519"
+          cp "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/authorized_keys"
+          chmod 600 "$HOME/.ssh/authorized_keys"
+          sudo service ssh restart
+          ssh-keyscan -H 127.0.0.1 >>"$HOME/.ssh/known_hosts" 2>/dev/null
+      - name: Cross SSH, disconnect, and verify the remote watchman
+        run: |
+          set -eu
+          mkdir -p artifacts
+          bash tests/environments/run-remote-ssh.sh \
+            "$USER@127.0.0.1" "$GITHUB_WORKSPACE" \
+            >artifacts/remote-ssh-linux.json
+          cmp tests/environments/receipts/remote-ssh-linux.json \
+            artifacts/remote-ssh-linux.json
+      - name: Upload the sanitized receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: environment-remote-ssh
+          path: artifacts/remote-ssh-linux.json
+          if-no-files-found: ignore
+
+  devcontainer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20
+      - name: Start the checked-in devcontainer
+        run: |
+          npx --yes @devcontainers/cli@0.88.0 up \
+            --workspace-folder . \
+            --config tests/environments/devcontainer/devcontainer.json
+      - name: Verify the co-located container runtime
+        run: |
+          set -eu
+          mkdir -p artifacts
+          dc_exec() {
+            npx --yes @devcontainers/cli@0.88.0 exec \
+              --workspace-folder . \
+              --config tests/environments/devcontainer/devcontainer.json \
+              "$@"
+          }
+          fixture="$(dc_exec mktemp -d /tmp/nightshift-environment.XXXXXX)"
+          cleanup() {
+            dc_exec bash tests/environments/disconnect-watchman.sh cleanup \
+              /workspaces/nightshift "$fixture"
+          }
+          cleanup_best_effort() { cleanup >/dev/null 2>&1 || true; }
+          trap cleanup_best_effort EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          dc_exec bash tests/environments/probe.sh devcontainer /workspaces/nightshift \
+            >artifacts/devcontainer-base.json
+          dc_exec bash tests/environments/disconnect-watchman.sh start \
+            /workspaces/nightshift "$fixture"
+          dc_exec bash tests/environments/disconnect-watchman.sh verify \
+            /workspaces/nightshift "$fixture"
+          cleanup
+          trap - EXIT INT TERM
+          jq '.checks.transportDisconnect = "pass"' \
+            artifacts/devcontainer-base.json >artifacts/devcontainer-linux.json
+          rm -f artifacts/devcontainer-base.json
+          cmp tests/environments/receipts/devcontainer-linux.json \
+            artifacts/devcontainer-linux.json
+      - name: Upload the sanitized receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: environment-devcontainer
+          path: artifacts/devcontainer-linux.json
+          if-no-files-found: ignore
 
   validate:
     runs-on: ubuntu-latest

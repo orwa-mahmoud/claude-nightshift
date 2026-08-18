@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "environment": "remote-ssh",
+  "platform": "linux",
+  "architecture": "x86_64",
+  "result": "pass",
+  "checks": {
+    "boundary": "pass",
+    "filesystem": "pass",
+    "hookExecution": "pass",
+    "processIdentity": "pass",
+    "watchmanPlacement": "pass",
+    "workspaceResolution": "pass",
+    "transportDisconnect": "pass"
+  }
+}

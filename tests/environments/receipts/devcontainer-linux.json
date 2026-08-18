@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "environment": "devcontainer",
+  "platform": "linux",
+  "architecture": "x86_64",
+  "result": "pass",
+  "checks": {
+    "boundary": "pass",
+    "filesystem": "pass",
+    "hookExecution": "pass",
+    "processIdentity": "pass",
+    "watchmanPlacement": "pass",
+    "workspaceResolution": "pass",
+    "transportDisconnect": "pass"
+  }
+}
