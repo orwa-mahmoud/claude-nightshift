@@ -13,9 +13,10 @@ body:
         (watchman stand-down, revival attempt, gate block) — strip paths that are not
         `.nightshift/` markers, command arguments, and file contents.
 
-        **Gate bypass, forged receipts, or a way to clock out with open boxes** belongs in a
-        [private security advisory](https://github.com/orwa-mahmoud/nightshift/security/advisories/new),
-        not here. See [SECURITY.md](https://github.com/orwa-mahmoud/nightshift/blob/main/SECURITY.md).
+        Local guard and gate reports are public issues. A
+        [private advisory](https://github.com/orwa-mahmoud/nightshift/security/advisories/new)
+        is optional — only if secrets could leave this machine or other users could be affected.
+        See [SECURITY.md](https://github.com/orwa-mahmoud/nightshift/blob/main/SECURITY.md).
   - type: dropdown
     id: harness
     attributes:
@@ -106,6 +107,4 @@ body:
       label: Redaction
       options:
         - label: I have removed prompts, credentials, repository content, and full transcripts from this report.
-          required: true
-        - label: This is not a stop-gate bypass or security report (those go to a private advisory).
           required: true

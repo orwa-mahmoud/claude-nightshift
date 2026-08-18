@@ -6,6 +6,6 @@ contact_links:
   - name: 🧭 Choose a contribution
     url: https://github.com/orwa-mahmoud/nightshift/blob/main/docs/contribution-map.md
     about: Pick an area, current work, likely files, and focused checks.
-  - name: 🔒 Security — gate-bypass reports
+  - name: 🔒 Security — optional private report
     url: https://github.com/orwa-mahmoud/nightshift/security/advisories/new
-    about: Ways to make the stop-gate lie go here, privately — not in a public issue.
+    about: Only if secrets could leave this machine or other users could be affected. Local guard bugs are public issues.

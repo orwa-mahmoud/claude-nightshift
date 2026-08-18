@@ -280,4 +280,4 @@ worker.
 - [Command reference](commands.md) — setup, start, status, doctor, stop, schedule
 - [Owner knobs](knobs.md) — `rules.json` and env overrides
 - [First-night safety checklist](first-night-checklist.md)
-- [Security policy](../SECURITY.md) — gate-bypass reports stay private
+- [Security policy](../SECURITY.md) — public issues by default; private advisory is optional
