@@ -413,7 +413,8 @@ function Write-NSAtomicLines {
                 return $false
             }
             try {
-                $null = New-Item -ItemType HardLink -Path $Path -Target $temp -ErrorAction Stop
+                [IO.File]::Move($temp, $Path)
+                $temp = $null
             }
             catch {
                 if (Test-NSPathEntry $Path) {

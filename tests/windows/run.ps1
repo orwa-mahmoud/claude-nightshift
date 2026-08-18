@@ -327,7 +327,8 @@ try {
     }
     $claimResults = @($claimJobs | Receive-Job)
     $claimJobs | Remove-Job
-    Assert-Equal 1 @($claimResults | Where-Object { $_ -eq $true }).Count 'exactly one concurrent session claim wins'
+    $claimWins = @($claimResults | Where-Object { $_ -eq $true })
+    Assert-Equal 1 $claimWins.Count "exactly one concurrent session claim wins (results: $($claimResults -join ','))"
     $claimedSession = Read-NSSession $claimNightshift
     Assert-True ($claimedSession.SessionId -match '^claim-[1-8]$') 'the winning claim is intact'
     $sessionAcl = Get-Acl -LiteralPath (Join-Path $claimNightshift '.shift-session')
