@@ -6,6 +6,9 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
@@ -325,8 +328,15 @@ function Get-NSCommandDenyReason {
                 $diffArgs = @('diff', 'HEAD', '--no-ext-diff', '--')
                 $scope = 'the diff this commit would write'
             }
-            $diff = (& git -C $repository @diffArgs 2>$null | Out-String)
-            if ($LASTEXITCODE -ne 0) {
+            $diff = Get-NSGitDiffText $repository $diffArgs
+            if ($null -eq $diff -and $diffArgs.Count -ge 2 -and $diffArgs[1] -eq 'HEAD') {
+                $cached = Get-NSGitDiffText $repository @('diff', '--cached', '--no-ext-diff', '--')
+                $worktree = Get-NSGitDiffText $repository @('diff', '--no-ext-diff', '--')
+                if ($null -ne $cached -or $null -ne $worktree) {
+                    $diff = "$(if ($null -eq $cached) { '' } else { $cached })`n$(if ($null -eq $worktree) { '' } else { $worktree })"
+                }
+            }
+            if ($null -eq $diff) {
                 return 'BLOCKED: the commit diff could not be read, so the forbidden-content guard cannot approve this commit.'
             }
             if ($neverRegex.IsMatch($diff)) {

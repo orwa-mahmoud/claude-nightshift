@@ -78,21 +78,81 @@ function Resolve-NSWorkspaceRoot {
     return $workspace
 }
 
+# Windows PowerShell 5.1 turns redirected native stderr into ErrorRecords. With
+# $ErrorActionPreference=Stop, `git ... 2>$null` then aborts — including CRLF
+# warnings and "unknown revision 'HEAD'" on an unborn branch.
+function Invoke-NSGitCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$Directory,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Arguments
+    )
+    $previous = $ErrorActionPreference
+    $hadNative = Test-Path Variable:PSNativeCommandUseErrorActionPreference
+    $previousNative = $false
+    if ($hadNative) {
+        $previousNative = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
+    }
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & git -C $Directory @Arguments 2>&1
+        $code = $LASTEXITCODE
+        if ($null -eq $code) {
+            $code = 1
+        }
+        $lines = [Collections.Generic.List[string]]::new()
+        foreach ($item in @($output)) {
+            if ($null -eq $item) {
+                continue
+            }
+            $text = [string]$item
+            if (-not [string]::IsNullOrEmpty($text)) {
+                $lines.Add($text)
+            }
+        }
+        return [pscustomobject]@{
+            ExitCode = [int]$code
+            Text     = ($lines -join "`n")
+            Lines    = $lines.ToArray()
+        }
+    }
+    catch {
+        return [pscustomobject]@{
+            ExitCode = 127
+            Text     = [string]$_.Exception.Message
+            Lines    = @()
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previous
+        if ($hadNative) {
+            $PSNativeCommandUseErrorActionPreference = $previousNative
+        }
+    }
+}
+
 function Invoke-NSGit {
     param(
         [Parameter(Mandatory = $true)][string]$Directory,
         [Parameter(Mandatory = $true)][string[]]$Arguments
     )
-    try {
-        $output = & git -C $Directory @Arguments 2>$null
-        if ($LASTEXITCODE -ne 0) {
-            return $null
-        }
-        return (($output | Select-Object -First 1) -as [string]).Trim()
-    }
-    catch {
+    $result = Invoke-NSGitCommand $Directory $Arguments
+    if ($result.ExitCode -ne 0) {
         return $null
     }
+    return (($result.Lines | Select-Object -First 1) -as [string]).Trim()
+}
+
+function Get-NSGitDiffText {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+    $result = Invoke-NSGitCommand $Repository $Arguments
+    if ($result.ExitCode -eq 0) {
+        return [string]$result.Text
+    }
+    return $null
 }
 
 function Resolve-NSWorkTarget {
@@ -557,9 +617,11 @@ function Protect-NSMutexScopeReceipt {
         if ($changed) {
             $null = Write-NSAtomicLines -Path $exclude -Lines $lines.ToArray()
         }
-        & git -C $NightshiftDir rm -r --cached --quiet --force --ignore-unmatch -- `
-            '.mutex-scope' '.mutex-scope.tmp.*' 2>$null
-        return $LASTEXITCODE -eq 0
+        $removed = Invoke-NSGitCommand $NightshiftDir @(
+            'rm', '-r', '--cached', '--quiet', '--force', '--ignore-unmatch', '--',
+            '.mutex-scope', '.mutex-scope.tmp.*'
+        )
+        return $removed.ExitCode -eq 0
     }
     catch {
         return $false
@@ -644,7 +706,7 @@ function Enter-NSMutex {
     try {
         $created = $false
         $mutexSecurity = New-NSMutexSecurity
-        if ($PSVersionTable.PSEdition -eq 'Desktop') {
+        if ($PSVersionTable.PSVersion.Major -lt 6) {
             $mutex = [Threading.Mutex]::new(
                 $false,
                 "Global\Nightshift-$suffix",

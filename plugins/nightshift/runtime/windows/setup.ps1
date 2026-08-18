@@ -7,6 +7,9 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
@@ -119,8 +122,8 @@ $receiptsCreated = $false
 $receiptRepo = Join-Path $ns '.git'
 if ($Receipts -or (Test-Path -LiteralPath $receiptRepo -PathType Container)) {
     if (-not (Test-Path -LiteralPath $receiptRepo -PathType Container)) {
-        & git -C $ns init --quiet
-        if ($LASTEXITCODE -ne 0) {
+        $initialized = Invoke-NSGitCommand $ns @('init', '--quiet')
+        if ($initialized.ExitCode -ne 0) {
             throw 'the local receipts repository could not be initialized'
         }
         $receiptsCreated = $true
@@ -158,10 +161,14 @@ if ($Receipts -or (Test-Path -LiteralPath $receiptRepo -PathType Container)) {
         $null = Write-NSAtomicLines -Path $receiptIgnorePath -Lines $receiptIgnoreLines.ToArray()
     }
     if ($receiptsCreated) {
-        & git -C $ns add -A
-        & git -C $ns -c user.name=nightshift -c user.email=nightshift@localhost `
-            -c commit.gpgsign=false commit --quiet -m 'Initialize Nightshift receipts'
-        if ($LASTEXITCODE -ne 0) {
+        $null = Invoke-NSGitCommand $ns @('add', '-A')
+        $committed = Invoke-NSGitCommand $ns @(
+            '-c', 'user.name=nightshift',
+            '-c', 'user.email=nightshift@localhost',
+            '-c', 'commit.gpgsign=false',
+            'commit', '--quiet', '-m', 'Initialize Nightshift receipts'
+        )
+        if ($committed.ExitCode -ne 0) {
             throw 'the initial local receipt could not be committed'
         }
     }

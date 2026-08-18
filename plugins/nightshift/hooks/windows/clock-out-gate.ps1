@@ -6,6 +6,9 @@ param(
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 $utf8 = New-Object Text.UTF8Encoding($false)
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
@@ -64,11 +67,15 @@ function Save-NSReceipt {
         return
     }
     try {
-        & git -C $ns add -A *> $null
-        $errorText = (& git -C $ns -c user.name=nightshift -c user.email=nightshift@localhost `
-            -c commit.gpgsign=false commit -q -m $Summary 2>&1 | Out-String)
-        if ($LASTEXITCODE -ne 0 -and $errorText -notmatch 'nothing to commit|nothing added') {
-            Write-NSLogLine ('receipts commit failed: ' + (($errorText -split "`r?`n")[0]))
+        $null = Invoke-NSGitCommand $ns @('add', '-A')
+        $committed = Invoke-NSGitCommand $ns @(
+            '-c', 'user.name=nightshift',
+            '-c', 'user.email=nightshift@localhost',
+            '-c', 'commit.gpgsign=false',
+            'commit', '-q', '-m', $Summary
+        )
+        if ($committed.ExitCode -ne 0 -and $committed.Text -notmatch 'nothing to commit|nothing added') {
+            Write-NSLogLine ('receipts commit failed: ' + (($committed.Text -split "`r?`n")[0]))
         }
     }
     catch {

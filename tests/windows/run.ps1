@@ -1,5 +1,8 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $plugin = Join-Path $repository 'plugins/nightshift'
@@ -39,6 +42,14 @@ function Assert-Equal {
     if ([string]$Expected -ne [string]$Actual) {
         throw "assertion failed: $Message (expected '$Expected', got '$Actual')"
     }
+}
+
+function Format-HookResult {
+    param($Result)
+    $stdout = if ($null -eq $Result) { '' } else { [string]$Result.Stdout }
+    $stderr = if ($null -eq $Result) { '' } else { [string]$Result.Stderr }
+    $code = if ($null -eq $Result) { '?' } else { $Result.ExitCode }
+    return "exit=$code stdout='$stdout' stderr='$stderr'"
 }
 
 function Quote-TestArgument {
@@ -198,6 +209,15 @@ function Initialize-TestWorkspace {
     & git -C $repo init --quiet
     if ($LASTEXITCODE -ne 0) {
         throw 'git init failed'
+    }
+    $null = Invoke-NSGitCommand $repo @('config', 'core.autocrlf', 'false')
+    $null = Invoke-NSGitCommand $repo @('config', 'user.email', 'dev@example.com')
+    $null = Invoke-NSGitCommand $repo @('config', 'user.name', 'Nightshift Test')
+    [IO.File]::WriteAllText((Join-Path $repo 'secret.txt'), "placeholder`n")
+    $null = Invoke-NSGitCommand $repo @('add', '--', 'secret.txt')
+    $seed = Invoke-NSGitCommand $repo @('commit', '--quiet', '-m', 'init')
+    if ($seed.ExitCode -ne 0) {
+        throw "initial work-target commit failed: $($seed.Text)"
     }
     $result = Invoke-TestScript $setup @('-Project', $Path, '-WorkTarget', $repo)
     Assert-Equal 0 $result.ExitCode "setup succeeds: $($result.Stderr)"
@@ -425,8 +445,8 @@ try {
     $sessionId = '11111111-1111-1111-1111-111111111111'
     # Codex reports shell calls to hooks with the canonical Bash tool name even on Windows.
     $probe = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = "`$null = 'nightshift-binding-probe'" }
-    Assert-Equal 0 $probe.ExitCode "binding probe exits cleanly: $($probe.Stderr)"
-    Assert-True ([string]::IsNullOrWhiteSpace($probe.Stdout)) 'winning binding probe is allowed'
+    Assert-Equal 0 $probe.ExitCode "binding probe exits cleanly: $(Format-HookResult $probe)"
+    Assert-True ([string]::IsNullOrWhiteSpace($probe.Stdout)) "winning binding probe is allowed ($(Format-HookResult $probe))"
     $session = Read-NSSession (Join-Path $workspace '.nightshift')
     $lease = Read-NSLease (Join-Path $workspace '.nightshift')
     Assert-Equal $sessionId $session.SessionId 'binding probe records the session'
@@ -466,8 +486,8 @@ try {
     $amSecret = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
     }
-    Assert-True ($amSecret.Stdout -notmatch 'implicitly') 'implicit staging inspects the real diff'
-    Assert-True ($amSecret.Stdout -match 'neverCommitPatterns') 'git commit -am still sees working-tree secrets'
+    Assert-True ($amSecret.Stdout -notmatch 'implicitly') "implicit staging inspects the real diff ($(Format-HookResult $amSecret))"
+    Assert-True ($amSecret.Stdout -match 'neverCommitPatterns') "git commit -am still sees working-tree secrets ($(Format-HookResult $amSecret))"
     Remove-Item -LiteralPath $secretFile -Force
     $amClean = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
