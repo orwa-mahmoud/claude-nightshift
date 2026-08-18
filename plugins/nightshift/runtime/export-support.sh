@@ -92,6 +92,25 @@ REASON="$(ns_reason_code "$NS")"
 REASON_LABEL=""
 [ -z "$REASON" ] || REASON_LABEL="$(ns_reason_label "$REASON")"
 
+LEASE_STATE="absent"
+LEASE_HOST=""
+LEASE_GENERATION=""
+LEASE_MODE=""
+if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
+  if ns_lease_valid "$NS"; then
+    LEASE_STATE="valid"
+    LEASE_HOST="$NS_LEASE_HOST"
+    LEASE_GENERATION="$NS_LEASE_GENERATION"
+    if [ -n "$NS_LEASE_TOKEN" ]; then
+      LEASE_MODE="recovered"
+    else
+      LEASE_MODE="interactive"
+    fi
+  else
+    LEASE_STATE="malformed"
+  fi
+fi
+
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 outdir="$NS/support"
 mkdir -p "$outdir" || {
@@ -139,6 +158,10 @@ dest="$outdir/${stamp}.txt"
   printf 'stop: %s\n' "$( [ -f "$NS/STOP" ] && printf yes || printf no )"
   printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
   printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
+  printf 'process_lease: %s\n' "$LEASE_STATE"
+  [ -z "$LEASE_HOST" ] || printf 'lease_host: %s\n' "$LEASE_HOST"
+  [ -z "$LEASE_GENERATION" ] || printf 'lease_generation: %s\n' "$LEASE_GENERATION"
+  [ -z "$LEASE_MODE" ] || printf 'lease_mode: %s\n' "$LEASE_MODE"
   printf 'watchman_pidfile: %s\n' "$( [ -f "$NS/.watchman" ] && printf present || printf absent )"
   printf '\n== rules ==\n'
   printf 'validity: %s\n' "$RULES_STATE"
@@ -191,7 +214,7 @@ mv "$tmp" "$dest" || {
 }
 
 printf 'Support bundle: %s\n' "$dest"
-printf 'Included: plugin metadata, host, state version, tokenized identities, marker presence, rules validity and key names, reason codes, sanitized runtime-log tail\n'
-printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities\n'
+printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, reason codes, sanitized runtime-log tail\n'
+printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities\n'
 printf 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
 exit 0

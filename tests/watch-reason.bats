@@ -21,6 +21,14 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
   grep -qF '.watch-reason' "$DOCTOR_SKILL" || grep -qF 'watchman reason' "$DOCTOR"
 }
 
+@test "Windows reason allow-list matches the shared codes" {
+  psm1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
+  grep -qF 'function Write-NSReason' "$psm1"
+  for c in $CODES; do
+    grep -qF "'$c'" "$psm1" || { echo "missing in Write-NSReason: $c"; return 1; }
+  done
+}
+
 @test "recording a reason strips controls and rejects unknown codes" {
   ns="$BATS_TEST_TMPDIR/ns"
   mkdir -p "$ns"

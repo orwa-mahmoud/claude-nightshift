@@ -11,8 +11,8 @@ tests/shifts/<your-shift>.bats                        what your entry promises
 ```
 
 Nothing shared changes — not the index, not a test file someone else is also editing — so two
-contributors can add a shift the same week and never meet in a diff. `/nightshift:hunt` lists the
-directory, so a new file is offered the moment it lands.
+contributors can add a shift the same week and never meet in a diff. Hunt lists the directory, so a
+new file is offered the moment it lands.
 
 The structural rules in `tests/catalog.bats` glob the directory and already cover your entry:
 its title must declare the ending, and it must carry a pasteable item, a Verify line, and a stated
@@ -34,8 +34,8 @@ An entry that leaves any of these unanswered cannot be reviewed and will not be 
 
 **1. Ending — finite or open-ended.** Finite work is a known list and stops when the list is clear;
 hours are an optional cap. Open-ended work has no natural end but the clock and must not start
-without a deadline. This single word decides whether `/nightshift:hunt` asks for hours. An
-open-ended entry must also carry `Ending: open-ended` as a sub-bullet inside its pasteable item, so
+without a deadline. This single word decides whether Hunt asks for hours. An open-ended entry must
+also carry `Ending: open-ended` as a sub-bullet inside its pasteable item, so
 Start can enforce the deadline after Hunt moves the item away from its catalog heading.
 
 **2. Discovery — how the work is found.** Name the mechanism: the project's own gate commands, a

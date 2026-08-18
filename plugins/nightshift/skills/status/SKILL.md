@@ -3,17 +3,22 @@ name: status
 description: Read-only shift status — open vs ticked items, parked decisions, snag-log summary, deadline remaining, and any STOP/stall state. Starts no work.
 ---
 
-Report the shift status for `$CLAUDE_PROJECT_DIR` **without starting or changing anything** — this is
-read-only.
+Report the shift status for the host-opened project **without starting or changing anything** —
+this is read-only.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
 only through Hunt. Report these as different categories; do not merge or move them.
 
-Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; read
-every `.nightshift/` path from the validated absolute target, otherwise the task root. Never search
-or guess. The shell's working directory persists between Bash calls, so never use a bare path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
+present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Read every `.nightshift/` path there. Never search or guess.
+The shell's working directory persists between Bash calls, so never use a bare path.
+Resolve the installed plugin root as Doctor does: `${CLAUDE_PLUGIN_ROOT}` on Claude Code;
+`$PLUGIN_ROOT` on Codex when available, otherwise derive it from this skill's absolute path.
 
 Read `.nightshift/` and print:
 
@@ -21,7 +26,8 @@ Read `.nightshift/` and print:
   newer or malformed marker and stop there; never rewrite it and never run migration from status.
 - **Shift** — whether one is running: `.nightshift/.shift-armed` exists. Without it the punch list
   is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
-  `/nightshift:start` as what begins the shift.
+  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on
+  Codex).
 - **Items** — ticked vs open counts from `.nightshift/punch-list.md`, counted **below the `## Items`
   heading only** (open = lines matching a dash + bracketed space; ticked = bracketed x), and the
   title of the current open item. A checkbox above that heading is contract prose, not work, and
@@ -40,7 +46,13 @@ Read `.nightshift/` and print:
   UNIX epoch; compare with `date +%s`). Otherwise "no deadline (finite list)".
 - **State** — whether `.nightshift/STOP` is present (and its reason), and the current
   `.nightshift/.stall` attempt count if any. If a shift is running, the bound session from
-  `.nightshift/.shift-session` and whether its process is still alive.
+  `.nightshift/.shift-session` and whether its process is still alive. Also report
+  `.nightshift/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
+  show its host, generation, and whether its recorded process is alive. Obtain those lease facts
+  by running `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/doctor.sh" --project "$NIGHTSHIFT_WORKSPACE"` and
+  reading its Process lease lines; do not read the runtime-owned lease file directly. The
+  inspector validates it with the shared library and never prints its session scope or ownership
+  capability.
 - **Watchman** — if `.nightshift/.watch-reason` exists, print line 1 (the stable code) and the
   same human label Doctor prints (`ns_reason_label` in the shared library). Do not print
   transcript paths, session ids, prompts, or any other payload. Line 2 is optional non-sensitive

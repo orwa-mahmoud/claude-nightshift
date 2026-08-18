@@ -49,6 +49,22 @@ bundle_mode() {
   ! grep -q 'DO NOT STOP' "$bundle"
 }
 
+@test "support reports lease state but omits the ownership capability" {
+  p="$(new_project)"
+  printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
+  claim="$(bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" shift-session claude' \
+    nightshift "$LIB" "$p")"
+  token="${claim#* }"
+
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -q 'process_lease: valid' "$bundle"
+  grep -q 'lease_host: claude' "$bundle"
+  grep -q 'lease_mode: recovered' "$bundle"
+  ! grep -qF "$token" "$bundle"
+}
+
 @test "hostile secrets, URLs, user paths, and transcripts do not survive" {
   p="$(new_project)"
   sid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'

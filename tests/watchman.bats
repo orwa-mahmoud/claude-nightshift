@@ -18,6 +18,12 @@ setup() {
   cat >"$BIN/tick.sh" <<'STUB'
 #!/usr/bin/env bash
 echo called >>.nightshift/agent-calls
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md \
+  || { [ -f .nightshift/deadline ] && [ "$(date +%s)" -ge "$(tr -d '[:space:]' <.nightshift/deadline)" ]; }; then
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
 mv .nightshift/pl.tmp .nightshift/punch-list.md
 STUB
@@ -82,6 +88,21 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   grep -q 'never clocked out — spawning the clock-out' "$P/.nightshift/shift-log.md"
 }
 
+@test "a Claude revival receives the exact lease generation written before spawn" {
+  cat >"$BIN/lease-env.sh" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n%s\n' "$NIGHTSHIFT_LEASE_GENERATION" "$NIGHTSHIFT_LEASE_TOKEN" >.nightshift/lease-env
+STUB
+  chmod +x "$BIN/lease-env.sh"
+
+  run watch --agent "bash $BIN/lease-env.sh" --max-wakes 1
+  [ "$status" -eq 7 ]
+  [ -n "$(sed -n 1p "$P/.nightshift/lease-env")" ]
+  [ "$(sed -n 1p "$P/.nightshift/lease-env")" = "$(sed -n 3p "$P/.nightshift/.shift-lease")" ]
+  [ "$(sed -n 2p "$P/.nightshift/lease-env")" = "$(sed -n 4p "$P/.nightshift/.shift-lease")" ]
+  sed -n 5p "$P/.nightshift/.shift-lease" | grep -qE '^[0-9]+$'
+}
+
 @test "project-file churn alone is not life — a dead site is revived through it" {
   RDY="$BATS_TEST_TMPDIR/.churn-ready"
   ( touch "$P/beat"; : >"$RDY"; while :; do sleep 0.15; touch "$P/beat"; done ) &
@@ -106,6 +127,16 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   run watch --agent "bash $BIN/tick.sh" --max-wakes 3
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 1 ]
+}
+
+@test "a failed terminal clock-out keeps the watchman retrying with the lease fenced" {
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 2
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 2 ]
+  [ -f "$P/.nightshift/.shift-lease" ]
+  [ ! -f "$P/.nightshift/.ended" ]
+  grep -q 'clock-out returned without releasing' "$P/.nightshift/shift-log.md"
 }
 
 @test "quitting time with a dead site spawns the clock-out and stands down" {
@@ -161,6 +192,14 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   cat >"$BIN/claude" <<'STUB'
 #!/usr/bin/env bash
 if printf '%s' "$*" | grep -q '^agents'; then echo "[]"; exit 0; fi
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md; then
+  if printf '%s' "$*" | grep -q -- '--continue'; then echo continue >>.nightshift/agent-calls
+  else echo fresh >>.nightshift/agent-calls
+  fi
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 if printf '%s' "$*" | grep -q -- '--continue'; then
   echo continue >>.nightshift/agent-calls
   exit 1
@@ -239,6 +278,16 @@ STUB
   printf 'abc-123\n\n' >"$P/.nightshift/.shift-session"
   cat >"$BIN/claude" <<'STUB'
 #!/usr/bin/env bash
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md && [[ "$*" != agents* ]]; then
+  case "$*" in
+    *--resume*) echo "resume:$1 $2" >>.nightshift/agent-calls ;;
+    *--continue*) echo continue >>.nightshift/agent-calls ;;
+    *) echo fresh >>.nightshift/agent-calls ;;
+  esac
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 case "$*" in
   agents*) echo "[]" ;;
   *--resume*) echo "resume:$1 $2" >>.nightshift/agent-calls; exit 1 ;;
@@ -467,7 +516,7 @@ STUB
   grep -q 'a claude session is live in this project — standing by' "$P/.nightshift/shift-log.md"
 }
 
-# ---- v0.5.2: pre-spawn re-checks and the honest retry baseline ----
+# ---- v0.5.2: pre-spawn re-checks and the recorded retry baseline ----
 
 @test "session activity during the retry sleep cancels the remaining attempts" {
   T="$BATS_TEST_TMPDIR/transcripts"
@@ -522,6 +571,16 @@ STUB
   printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
   cat >"$BIN/claude" <<'STUB'
 #!/usr/bin/env bash
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md && [[ "$*" != agents* ]]; then
+  case "$*" in
+    *--resume*) echo resume >>.nightshift/agent-calls ;;
+    *--continue*) echo continue >>.nightshift/agent-calls ;;
+    *) echo fresh >>.nightshift/agent-calls ;;
+  esac
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 case "$*" in
   agents*) echo "[]" ;;
   *--resume*) echo resume >>.nightshift/agent-calls; exit 1 ;;
@@ -548,6 +607,16 @@ STUB
   printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
   cat >"$BIN/claude" <<'STUB'
 #!/usr/bin/env bash
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md && [[ "$*" != agents* ]]; then
+  case "$*" in
+    *--resume*) echo resume >>.nightshift/agent-calls ;;
+    *--continue*) echo continue >>.nightshift/agent-calls ;;
+    *) echo fresh >>.nightshift/agent-calls ;;
+  esac
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 case "$*" in
   agents*) echo "[]" ;;
   *--resume*) echo resume >>.nightshift/agent-calls
@@ -678,6 +747,11 @@ STUB
 #!/usr/bin/env bash
 echo called >>.nightshift/agent-calls
 printf '%s\n' "$1" >.nightshift/heard
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md; then
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
 mv .nightshift/pl.tmp .nightshift/punch-list.md
 STUB
@@ -723,6 +797,11 @@ STUB
 #!/usr/bin/env bash
 echo called >>.nightshift/agent-calls
 printf '%s\n' "$1" >.nightshift/heard
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md; then
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
 mv .nightshift/pl.tmp .nightshift/punch-list.md
 STUB
@@ -739,7 +818,8 @@ STUB
   run env NIGHTSHIFT_WATCH_SLEEP=0 \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
   [ "$status" -eq 1 ]
-  printf '%s' "$output" | grep -q "re-run /nightshift:setup"
+  printf '%s' "$output" | grep -qF '/nightshift:setup'
+  printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
   grep -q 'cannot arm' "$P/.nightshift/shift-log.md"
 }
 

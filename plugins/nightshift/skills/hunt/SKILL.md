@@ -3,22 +3,30 @@ name: hunt
 description: Compose a guided or automatic shift from the ready catalog, then review it first or run it directly under one time budget. Use when the owner wants to choose jobs or let Nightshift find the highest-value applicable work.
 ---
 
-Compose a shift for `$CLAUDE_PROJECT_DIR`. If `.nightshift/` does not exist, stop and point to
-`/nightshift:setup` first.
+Compose a shift for the host-opened project. If `.nightshift/` does not exist, stop and point to
+Setup first (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex).
 
-Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; write
-every `.nightshift/` path to the validated absolute target, otherwise the task root. Never search
-or guess. The shell's working directory persists between Bash calls, so never use a bare path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
+present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+between Bash calls, so never use a bare path.
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/execution-modes.md` before composing work.
-It is the shared contract for who selects work, when the clock starts, direct-mode authority, and
-how multiple entries become one shift.
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/hunt/SKILL.md`). Substitute that absolute
+path below; never search for the plugin.
+
+Read `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/execution-modes.md` before composing
+work. It is the shared contract for who selects work, when the clock starts, direct-mode authority,
+and how multiple entries become one shift.
 
 ## 1. Ask who selects
 
-Entries live one per file in `${CLAUDE_PLUGIN_ROOT}/skills/nightshift/references/shifts/`. **List
-that directory and read every file in it**. `shift-catalog.md` beside it explains the two endings;
-it does not list the entries.
+Entries live one per file in `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/shifts/`.
+**List that directory and read every file in it**. `shift-catalog.md` beside it explains the two
+endings; it does not list the entries.
 
 Offer two first-class modes:
 
@@ -35,10 +43,12 @@ Read the directory rather than reciting from memory: entries are added over time
 exists in the folder but not in the offer is a job the owner never gets.
 
 The GitHub issue-hunt entry is offered with the rest of the catalog. It consumes only
-drafting-table entries created by `/nightshift:import-issues` (canonical Source URL and
-`Status: proposed`). List them with `runtime/import-issues.sh --list-proposed` and move a
-selection with `--promote` — a cut, never a copy. It does not replace defect hunt or product
-evolution, and it never searches GitHub or writes back to it.
+drafting-table entries created by the Import issues skill (canonical Source URL and
+`Status: proposed`). List them with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --list-proposed`
+and move a selection with the same qualified helper plus `--promote` — a cut, never a copy. It
+does not replace defect hunt or product evolution, and it never searches GitHub or writes back to
+it.
 
 ## 2. Ask when execution starts
 
@@ -78,7 +88,7 @@ Never edit the entry's own contract to fit it; the owner's words become their ow
   - **Owner instructions:** <verbatim, as written>
 ```
 
-The entry's rules stay above it untouched. They are what keeps a shift honest — assert behaviour
+The entry's rules stay above it untouched. They enforce the shift contract — assert behaviour
 rather than counts, gate green at every commit, never silence instead of fixing — and owner text
 adds constraints rather than replacing them.
 
@@ -112,7 +122,7 @@ After review-first approval, ask **start now, or park it for later?** Run-direct
 and always starts now; choosing it was already explicit authorization.
 
 On **now** — start the shift yourself, here, without making the owner type another command. Follow
-`/nightshift:start` exactly: clear the stale markers, **move** the item out of `work-orders.md` and
+the Start skill exactly: clear the stale markers, **move** the item out of `work-orders.md` and
 under `## Items` in the punch list (a cut, never a copy — it must not exist in two places), write
 `.nightshift/deadline` from the recorded hours, **arm the gate** with
 `touch "$NIGHTSHIFT_WORKSPACE/.nightshift/.shift-armed"`, log the start, arm the watchman. The
@@ -121,4 +131,5 @@ that second the gate holds this session until the list is done, a stop-work orde
 whistle blows.
 
 On **later** — the order stays parked in `work-orders.md` with its hours, costing nothing. It arms
-nothing and the gate stays inert. `/nightshift:start` will offer it when the owner is ready.
+nothing and the gate stays inert. Start (`/nightshift:start` on Claude Code, or ask Nightshift to
+start on Codex) will offer it when the owner is ready.

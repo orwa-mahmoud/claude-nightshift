@@ -76,7 +76,7 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 }
 
 # Owner scope is what turns a generic preset into a shift worth running — but it must never be
-# able to rewrite the contract that keeps the shift honest.
+# able to rewrite the contract that governs the shift.
 @test "hunt takes owner instructions without overwriting the contract" {
   grep -qi 'scope or approach' "$HUNT"
   grep -qF 'Owner instructions:' "$HUNT"

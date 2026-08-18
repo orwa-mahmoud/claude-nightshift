@@ -18,7 +18,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'unrelated major dependency upgrade' "$E"
 }
 
-@test "CI warning cleanup ends with an honest external-warning receipt" {
+@test "CI warning cleanup ends with an explicit external-warning receipt" {
   grep -qi 'Ends when a full recapture' "$E"
   grep -qi 'parked external' "$E"
   grep -qi 'item gate is green at every commit' "$E"

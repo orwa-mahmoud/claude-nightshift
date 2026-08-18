@@ -94,7 +94,7 @@ codex_hardhat_ask() {
   printf '%s' "$output" | grep -q "park" # the template's toolDeny entry, read from the file
 }
 
-@test "request_user_input is parked with the shared template message" {
+@test "request_user_input is parked with its native template entry" {
   p="$(new_project)"
   punch_open "$p"
   run codex_hardhat_ask "$p" request_user_input
@@ -132,21 +132,41 @@ codex_hardhat_ask() {
   is_allow
 }
 
-@test "the toolDeny map words the park denial per tool" {
+@test "the AskUserQuestion compatibility alias reads its exact key" {
   p="$(new_project)"
   punch_open "$p"
-  run codex_hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"park it and keep welding"}'
+  run codex_hardhat_ask "$p" \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"alias park","request_user_input":"native park"}'
   is_deny "$output"
-  printf '%s' "$output" | grep -q "park it and keep welding"
+  printf '%s' "$output" | grep -q "alias park"
 }
 
-@test "request_user_input uses the owner's shared AskUserQuestion message" {
+@test "request_user_input uses its own host-native message" {
   p="$(new_project)"
   punch_open "$p"
   run codex_hardhat_ask "$p" request_user_input \
-    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"park it and keep welding"}'
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"alias park","request_user_input":"native park"}'
   is_deny "$output"
-  printf '%s' "$output" | grep -q "park it and keep welding"
+  printf '%s' "$output" | grep -q "native park"
+}
+
+@test "an empty request_user_input message allows Codex to ask" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_ask "$p" request_user_input \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"alias park","request_user_input":""}'
+  is_allow
+}
+
+@test "a missing Codex question key is a configuration error, not an alias fallback" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_ask "$p" request_user_input \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"must not leak across hosts"}'
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "missing the required 'request_user_input' entry"
+  printf '%s' "$output" | grep -qF '/nightshift:setup'
+  printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
 }
 
 # Hosted tools never reach the Codex hook path; the arbitrary names an owner can list are MCP
@@ -158,9 +178,29 @@ codex_hardhat_ask() {
     env NIGHTSHIFT_TOOL_RULES='{"mcp__web__search":"no browsing tonight"}' CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
   is_deny "$out"
   printf '%s' "$out" | grep -q "no browsing tonight"
-  out="$(jq -nc '{tool_name:"mcp__web__fetch",tool_input:{}}' |
-    env NIGHTSHIFT_TOOL_RULES='{"mcp__web__search":"no browsing tonight"}' CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
+  out="$(jq -nc '{tool_name:"mcp__web__fetch",tool_input:{query:"how to git push"}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"mcp__web__search":"no browsing tonight"}' \
+      NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
   [ -z "$out" ]
+}
+
+@test "a nested question-tool name cannot bypass the canonical caller rule" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc '{tool_name:"mcp__router__invoke",tool_input:{tool_name:"request_user_input"}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"","request_user_input":"","mcp__router__invoke":"router blocked"}' \
+      CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "router blocked"
+}
+
+@test "toolDeny can block canonical Codex Bash calls" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_bash "$p" "git status" \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"","request_user_input":"","Bash":"no shell tonight"}'
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "no shell tonight"
 }
 
 # Codex delivers file edits as apply_patch with the patch text in tool_input.command; the
@@ -173,10 +213,18 @@ codex_hardhat_ask() {
   is_deny "$out"
 }
 
+@test "an MCP writer aimed at the rules file is denied" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc --arg p "$p" '{tool_name:"mcp__filesystem__write_file",cwd:$p,tool_input:{path:($p + "/.nightshift/rules.json"),content:"{}"}}' |
+    bash "$CODEX_HOOKS/hardhat.sh")"
+  is_deny "$out"
+}
+
 @test "a patch is not a command: forbidden text inside an edit trips no command guard" {
   p="$(new_project)"
   punch_open "$p"
-  out="$(jq -nc --arg p "$p" '{tool_name:"apply_patch",cwd:$p,tool_input:{command:"*** Begin Patch\n*** Update File: docs/deploy.md\n+run git push only after review\n*** End Patch"}}' |
+  out="$(jq -nc --arg p "$p" '{tool_name:"apply_patch",cwd:$p,tool_input:{command:"*** Begin Patch\n*** Update File: docs/deploy.md\n+document .nightshift/rules.json and run git push only after review\n*** End Patch"}}' |
     env NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' bash "$CODEX_HOOKS/hardhat.sh")"
   [ -z "$out" ]
 }
@@ -196,12 +244,23 @@ codex_hardhat_ask() {
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
 }
 
-@test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
+@test "a passive catch-all tool cannot claim the Codex shift session" {
+  p="$(new_project)"
+  punch_open "$p"
+  jq -nc '{tool_name:"mcp__filesystem__read_file",session_id:"helper-tab",tool_input:{path:"README.md"}}' |
+    CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh"
+  [ ! -f "$p/.nightshift/.shift-session" ]
+  jq -nc '{tool_name:"Bash",session_id:"shift-tab",tool_input:{command:"pwd"}}' |
+    CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "shift-tab" ]
+}
+
+@test "the no-push recipe holds when jq is absent and Python parses tool rules" {
   p="$(new_project)"
   punch_open "$p"
   bindir="$BATS_TEST_TMPDIR/nojq"
   mkdir -p "$bindir"
-  for b in bash grep sed printf cat head tr git env; do
+  for b in bash grep sed printf cat head tr git env python3; do
     src="$(command -v "$b")" && ln -sf "$src" "$bindir/$b"
   done
   input="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}')"

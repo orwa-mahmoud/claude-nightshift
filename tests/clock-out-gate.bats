@@ -233,6 +233,7 @@ load helpers
   is_release
   [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
   git -C "$p/.nightshift" log -1 --format=%s | grep -q 'shift done: 2/2'
+  ! git -C "$p/.nightshift" ls-tree -r --name-only HEAD | grep -qxF '.shift-lease'
 }
 
 @test "a stop-work release snapshots the receipts repo" {
@@ -287,13 +288,17 @@ load helpers
   is_block "$output"
 }
 
-# The fresh-session fallback gives a revival a NEW id; the mark keeps it bound, and it
-# re-claims the record so the watchman follows the living thread.
-@test "a marked revival inherits the binding under a new id and re-claims the record" {
+# The fresh-session fallback gives a revival a NEW id. The watchman's generation capability,
+# not a forgeable boolean mark, authorizes the rebind.
+@test "a leased revival inherits the binding under a new id and re-claims the record" {
   p="$(new_project)"
   punch_open "$p"
   printf 'dead-old-id\n\n\n\n' >"$p/.nightshift/.shift-session"
-  run gate "$p" NIGHTSHIFT_REVIVAL=1
+  lib="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+  claim="$(bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" dead-old-id claude' \
+    nightshift "$lib" "$p")"
+  run gate "$p" NIGHTSHIFT_REVIVAL=1 \
+    NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_TOKEN="${claim#* }"
   is_block "$output"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
 }
@@ -324,7 +329,7 @@ load helpers
 }
 
 # The torn read this lock exists for: both racers read the same counter, both warn, both write
-# zero. Serialized, exactly one warns and the counter lands where a sequence of two honest stop
+# zero. Serialized, exactly one warns and the counter lands where a sequence of two valid stop
 # attempts leaves it.
 @test "two racing stop attempts warn the stall exactly once" {
   p="$(new_project)"
@@ -379,6 +384,7 @@ load helpers
   rm "$p/.nightshift/rules.json"
   run gate "$p"
   is_block "$output"
-  printf '%s' "$output" | grep -q "re-run /nightshift:setup"
+  printf '%s' "$output" | grep -qF '/nightshift:setup'
+  printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
   grep -q 'stall guard down' "$p/.nightshift/shift-log.md"
 }

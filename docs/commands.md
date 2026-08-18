@@ -2,7 +2,7 @@
 
 ```text
 /nightshift:setup      # scaffold .nightshift/ + propose quality gates (ask, never impose)
-/nightshift:quality    # read-only survey: what the project's own tooling reports. Writes nothing
+/nightshift:quality    # survey quality debt; choose review first or run directly
 /nightshift:hunt       # compose tonight: pick ready shifts, set hours, add your scope
 /nightshift:import-issues  # stage explicitly named GitHub issues onto the drafting table
 # or write your items in the punch list by hand — one checkbox per task
@@ -11,14 +11,22 @@
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
                        # optional follow-up: export a redacted local support bundle (never uploaded)
-/nightshift:stop       # end the shift now; open boxes stay open, honestly
+/nightshift:stop       # end the shift now; open boxes stay open
 /nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags
 # you review the local commits and push — or forbid pushing outright (one env line below)
 ```
 
-Those are Claude Code's slash spellings. In Codex or ChatGPT, mention Nightshift and ask naturally:
-“set up Nightshift,” “show me the ready-made shifts,” “run product evolution for four hours,”
-“start the shift,” or “show shift status.” The same skills and `.nightshift/` files are used.
+Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes
+as Hunt. A review-first survey is read-only until the owner chooses what happens next: **fix now**
+composes and starts the selected work, **draft for later** writes only to the drafting table, and
+**ignore** writes nothing. Run directly composes, arms, and starts the selected work without a
+second approval pause.
+
+Those are Claude Code's slash spellings. In Codex or repository-connected ChatGPT, mention
+Nightshift and ask naturally: “set up Nightshift,” “show me the ready-made shifts,” “run product
+evolution for four hours,” “start the shift,” or “show shift status.” A normal ChatGPT scratch
+conversation cannot affect the repository, so Setup redirects it to Codex before writing. The same
+skills and `.nightshift/` files are used in real project workspaces.
 
 For a custom timed objective, use Hunt in **Guided** mode and choose **Owner walkthrough**. Its
 scope answer is required and becomes the objective verbatim; then set the hours and choose review
@@ -32,15 +40,26 @@ showing both absolute paths and receiving confirmation. The offline equivalent i
 plugins/nightshift/runtime/link-workspace.sh --host-root /absolute/task/root --workspace /absolute/workspace
 ```
 
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\link-workspace.ps1 `
+  -HostRoot C:\absolute\task\root -Workspace C:\absolute\workspace
+```
+
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected; Nightshift never searches for a workspace automatically.
 
-Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. In an interactive session
-Escape is the immediate halt; STOP is what reaches a headless run, and it ends
-the shift at the agent's next stop attempt.
+Stop-work order, any time, from a POSIX terminal: `touch .nightshift/STOP`. Native Windows
+PowerShell uses `New-Item -ItemType File -Force .nightshift\STOP`. On Claude Code, Escape
+pauses the interactive session and its watchman reads that interrupt before reviving. Codex exposes
+no equivalent owner-interrupt signal, so closing an interactive Codex session with open Items hands
+the shift to its watchman. STOP reaches either host, including a headless run, and ends the shift
+at the agent's next stop attempt.
 
 When a shift is not where you think it is — wrong folder, broken `.nightshift-link`, leftover
-`STOP`, watchman stood down — run `/nightshift:doctor` (or ask Nightshift to diagnose) and walk
+`STOP`, watchman stood down, or a stale process rejected by the process lease — run
+`/nightshift:doctor` on Claude Code or ask Nightshift to diagnose on Codex, then walk
 [Troubleshooting](troubleshooting.md) before changing files. Doctor reports; it never repairs.
 
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
@@ -51,16 +70,21 @@ alternative is pre-allowing the punch list's own tools. nightshift's guards are 
 armed in every permission mode, bypass included. Decline both and a mid-shift prompt costs the
 night; that trade is the owner's.
 
+On Codex, a committing unattended run uses `codex -a never -s danger-full-access`;
+`workspace-write` protects `.git` and cannot create the per-item commits. The owner-defined
+Nightshift guards remain active in either sandbox mode.
+
 ### Start it at a fixed time
 
 ```text
-/nightshift:schedule
+Claude Code: /nightshift:schedule
+Codex: ask Nightshift to schedule the shift
 ```
 
 It checks the things that would otherwise surprise you at 4am — that work is actually queued in the
 punch list, that permissions won't stall a headless run, that nothing is registered twice — then
-prints the launchd plist (macOS) or crontab line for this project and the one command that installs
-it. **It registers nothing itself.**
+prints the launchd plist (macOS), crontab or systemd entry (Linux), or Task Scheduler XML (native
+Windows) for this project and the one command that installs it. **It registers nothing itself.**
 
 Two things it will tell you, worth knowing in advance: **the items must be in the punch list before
 the scheduled time**, because a start works the list it finds and promotes nothing; and **a sleeping
@@ -88,6 +112,21 @@ Run it from a terminal, or copy the single file anywhere. It refuses a second en
 that already has one, and identifies projects by path rather than folder name, so two checkouts
 called `api` never collide. It cannot queue your work for you, though — that part has to be in the
 punch list already.
+
+Native Windows uses the token-free PowerShell generator:
+
+```powershell
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -Preflight
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -At 04:05
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -At 04:05 `
+  -Agent 'codex exec -s danger-full-access'
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -List
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -Remove
+```
+
+It emits a current-user Task Scheduler definition with overlap prevention and `StartWhenAvailable`.
+It does not wake the machine or run after logout as a stored-credential account; see
+[Native Windows](windows.md).
 
 One more appears in Claude Code's slash menu: `/nightshift:nightshift` is the method itself — how to
 work an item, park a decision, keep a snag log, and run product evolution. The agent loads it on its

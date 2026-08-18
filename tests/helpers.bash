@@ -44,7 +44,7 @@ add_repo() {
 
 # Give <project>/.nightshift its own local receipts repo, as /nightshift:setup does.
 receipts_init() {
-  printf 'STOP\n.stall\n.notified\ndeadline\n' >"$1/.nightshift/.gitignore"
+  printf 'STOP\n.stall\n.notified\ndeadline\n.shift-session.tmp.*\n.shift-lease\n.shift-lease.tmp.*\n.lease-lock.d/\n' >"$1/.nightshift/.gitignore"
   git -C "$1/.nightshift" init -q
   git -C "$1/.nightshift" add -A
   git -C "$1/.nightshift" -c user.name=t -c user.email=t@example.com commit -q -m init

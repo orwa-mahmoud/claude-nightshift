@@ -63,21 +63,6 @@ codex_project_dir() {
   printf '%s' "${CODEX_PROJECT_DIR:-${CODEX_CWD:-$PWD}}"
 }
 
-# codex_is_file_edit — file edits arrive as tool_name "apply_patch" whichever matcher alias
-# fired; Edit/Write exist only on the matcher side, accepted here as a belt in case a surface
-# ever reports the alias it matched.
-codex_is_file_edit() {
-  case "${CODEX_TOOL_NAME:-}" in apply_patch | Edit | Write) return 0 ;; esac
-  return 1
-}
-
-# codex_edit_touches <ere> — does this edit aim at a path matching the pattern? The patch text
-# rides in tool_input.command (its "*** Update File:" lines name the targets), so the match
-# runs there, plus the file_path belt for MCP-style editors.
-codex_edit_touches() {
-  printf '%s\n%s' "${CODEX_TOOL_CMD:-}" "${CODEX_TOOL_FILEPATH:-}" | grep -qE "$1"
-}
-
 # The emitters interpolate owner config and git output; escaping lives here so a stray quote
 # or backslash can never break the JSON and void the decision.
 _codex_json_escape() {

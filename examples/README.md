@@ -41,4 +41,5 @@ incorrectly completed run. Good and bad nights are both useful when facts, inter
 evidence remain separate.
 
 Share a public receipt on
-[#22](https://github.com/orwa-mahmoud/nightshift/issues/22).
+[#22](https://github.com/orwa-mahmoud/nightshift/issues/22). The
+[contribution map](../docs/contribution-map.md) lists the disclosure checks for run receipts.

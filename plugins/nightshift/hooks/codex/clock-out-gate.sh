@@ -98,6 +98,11 @@ receipts_commit() {
   esac
 }
 
+release_lease() {
+  ns_lease_release_retry "$NS" \
+    || log_line "process lease release deferred: lease mutex remained busy"
+}
+
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
@@ -106,6 +111,7 @@ end_shift() {
   # The shift is over, so the site stops being on shift: without this the guards would still apply
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
+  release_lease
   receipts_commit "$1"
   whistle "$1"
 }
@@ -113,36 +119,58 @@ end_shift() {
 if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
 TOTAL=$((OPEN + TICKED))
 
-# Record the shift's own session, once, claimed with an exclusive create so two racing first
-# sessions cannot interleave. Codex offers no process ancestry this hook can vouch for, so the
-# pid and start-time lines stay honestly empty rather than invented. Line 5 names the host:
-# a watchman only ever revives its own kind, and acting on another's record would spawn the
-# wrong agent against a live session.
-record_shift_session() {
-  (set -C; printf '%s\n%s\n\n\ncodex\n' "$SID" "${TPATH:-}" >"$NS/.shift-session") 2>/dev/null || true
+honor_stop() {
+  local reason summary
+  if [ -f "$PUNCH" ]; then
+    reason="$(head -n1 "$STOP" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
+    end_shift "$summary"
+  else
+    # A stop-work order ends the shift even if the list did not survive to be summarized.
+    rm -f "$NS/.shift-armed"
+    release_lease
+  fi
 }
-# A shift exists because the owner started one, never because a list exists. `/nightshift:start`
+
+# Codex cannot vouch for interactive process ancestry, so those record lines remain empty.
+# A shift exists because the owner started one, never because a list exists. Nightshift Start
 # writes .shift-armed; without it the punch list is a to-do file and every session stops freely —
 # including the one that just wrote the list while planning.
 if [ ! -f "$NS/.shift-armed" ]; then codex_emit_release; exit 0; fi
 
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  record_shift_session
+# STOP is an owner capability, not a worker capability. Any Stop event may carry an existing
+# owner-issued order through clock-out; process ownership must never make emergency stop unusable.
+if [ -f "$STOP" ]; then
+  if [ -d "$NS" ] && ns_lock "$NS"; then trap 'ns_unlock "$NS"' EXIT; fi
+  honor_stop
+  codex_emit_release
+  exit 0
 fi
 
-# The shift binds ONE session — the recorded one. Any other conversation in this project stops
-# freely: the night is not its business unless the owner brings it. A watchman revival carries
-# NIGHTSHIFT_REVIVAL=1 and inherits the binding even when the fresh-session fallback gave it a
-# new id. No parseable id keeps the conservative reading: held.
-REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ]; then
-  if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-    rm -f "$NS/.shift-session"
-    record_shift_session
-  else
-    codex_emit_release
-    exit 0
-  fi
+LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
+ns_shift_unbound codex gate
+own_rc=$?
+if [ "$own_rc" -eq 1 ]; then
+  codex_emit_release
+  exit 0
+fi
+if [ "$own_rc" -eq 2 ]; then
+  codex_emit_block "$NS_SHIFT_FAIL"
+  exit 0
+fi
+if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+  ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
+fi
+ns_shift_ownership codex "" "" gate
+own_rc=$?
+if [ "$own_rc" -eq 1 ]; then
+  codex_emit_release
+  exit 0
+fi
+if [ "$own_rc" -eq 2 ]; then
+  codex_emit_block "$NS_SHIFT_FAIL"
+  exit 0
 fi
 
 # One writer per site from here down: the stall fingerprint, the stop/ended markers, and the
@@ -152,22 +180,20 @@ if [ -d "$NS" ] && ns_lock "$NS"; then
   trap 'ns_unlock "$NS"' EXIT
 fi
 
-# 1. Stop-work order — honor at once; open boxes are left open on purpose (an honest snapshot).
+# 1. Stop-work order — honor at once; open boxes are left open on purpose.
 if [ -f "$STOP" ]; then
-  if [ -f "$PUNCH" ]; then
-    reason="$(head -n1 "$STOP" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-    summary="shift ended${reason:+ ($reason)}: $TICKED/$TOTAL done"
-    end_shift "$summary"
-  fi
-  # A stop-work order ends the shift whether or not a list survived to summarise, so the site is
-  # disarmed either way — otherwise the guards would outlive the night that armed them.
-  rm -f "$NS/.shift-armed"
+  honor_stop
   codex_emit_release
   exit 0
 fi
 
 # 2. Done — no punch list at all, or every box ticked.
-if [ ! -f "$PUNCH" ]; then codex_emit_release; exit 0; fi
+if [ ! -f "$PUNCH" ]; then
+  rm -f "$NS/.shift-armed"
+  release_lease
+  codex_emit_release
+  exit 0
+fi
 if [ "$OPEN" -eq 0 ]; then
   end_shift "shift done: $TICKED/$TOTAL"
   codex_emit_release
@@ -215,7 +241,7 @@ if [ "$STALL_OK" -eq 1 ]; then
   fi
   printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 else
-  log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); re-run /nightshift:setup"
+  log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
 fi
 
 # 4. Block, and re-inject the contract so the next turn resumes the shift. The reinjection
@@ -226,5 +252,5 @@ if [ -n "$GATE_MESSAGE" ]; then
   codex_emit_block "$GATE_MESSAGE"
   exit 0
 fi
-codex_emit_block "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick honestly; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here; re-run /nightshift:setup.)"
+codex_emit_block "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)"
 exit 0

@@ -4,8 +4,8 @@
 # The night watchman (runtime/claude/watchman.sh) revives a session that dies mid-shift — but a session
 # the owner ended on purpose (/exit, a clean quit) must stay ended. Crashes, kills and API deaths
 # never reach this hook, which is exactly the tell: a marker present means a hand closed the
-# session, no marker means it died. The watchman stands down on the marker; /nightshift:start and
-# the hunt cut clear it, which is what re-arms the night.
+# session, no marker means it died. The watchman stands down on the marker; Start and the Hunt cut
+# clear it, which is what re-arms the night.
 #
 # Inert outside an active shift: no punch list, no open box, or an already-ended shift writes
 # nothing, so ordinary sessions leave no residue.
@@ -46,6 +46,17 @@ fi
 if [ -f "$NS/.shift-session" ]; then
   REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
   [ -n "$REC" ] && [ "$SID" != "$REC" ] && exit 0
+fi
+
+# After recovery, the stale IDE process still carries the same conversation id. Closing that
+# stale panel must not masquerade as the recovered owner's clean exit and stand the watchman down.
+# Only the current process lease may write the marker; a missing lease keeps legacy behavior.
+if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
+  CURRENT_PID="$(ns_ancestor_pid claude "$$" 2>/dev/null || true)"
+  CURRENT_START=""
+  [ -z "$CURRENT_PID" ] || CURRENT_START="$(ns_process_start "$CURRENT_PID" 2>/dev/null || true)"
+  ns_lease_allows "$NS" "$SID" claude "$CURRENT_PID" "$CURRENT_START" \
+    "${NIGHTSHIFT_LEASE_TOKEN:-}" "${NIGHTSHIFT_LEASE_GENERATION:-}" || exit 0
 fi
 
 if command -v jq >/dev/null 2>&1; then

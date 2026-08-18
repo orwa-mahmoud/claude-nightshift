@@ -51,7 +51,7 @@ licensing decisions remain outside the coding-work authorization.
   - Open-ended: quitting time is the normal ending. At the whistle, finish the coherent unit in
     hand, leave the branch green, update the continuation record, and write a morning handoff with
     delivered commits, decisions, remaining work, exact Next, and Verify remaining. The owner's
-    stop-work order remains available and leaves open work honestly open.
+    stop-work order remains available and leaves unfinished work open.
   - Verify: the item gate is green at every commit; each delivered unit advances the verbatim
     owner objective; opportunity-map.md and the morning handoff identify the exact current state.
 ```

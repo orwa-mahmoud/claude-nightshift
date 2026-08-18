@@ -2,10 +2,10 @@
 # hardhat.sh — Codex PreToolUse guard. Same rules as Claude's hardhat; only the wire format
 # differs, and that lives entirely in lib-io.sh.
 #
-# One zero-config rule: the host's ask-user tool is denied during an active shift — park,
-# don't ask. Codex calls it request_user_input; AskUserQuestion remains a compatibility
-# alias. Every other rule is shift-scoped and opt-in, read from the owner's rules file
-# (.nightshift/rules.json) — each empty by default, so an unset one is skipped silently:
+# Every rule is shift-scoped and read from the owner's .nightshift/rules.json. toolDeny
+# uses exact Codex tool names: a non-empty message denies, an empty message allows, and
+# an unlisted optional tool is allowed. request_user_input and its AskUserQuestion
+# compatibility alias are explicit entries so neither gets a hidden fallback:
 #   protectedDirs        space/pipe-separated dir names never to git add/commit/tag/remote
 #   expectedEmail        commits must be authored by this identity
 #   neverCommitPatterns  staged diff (git diff --cached) must not match this grep -E pattern
@@ -41,12 +41,6 @@ NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 ENDED="$NS/.ended"
 
-# One copy: the rules file is the config; an env var of the matching name is a session-start
-# override (the test suite's lever), never a second copy.
-PROTECTED_DIRS="$(rule "$PROJECT_DIR" protectedDirs "${NIGHTSHIFT_PROTECTED_DIRS:-}")"
-EXPECTED_EMAIL="$(rule "$PROJECT_DIR" expectedEmail "${NIGHTSHIFT_EXPECTED_EMAIL:-}")"
-NEVER_COMMIT_PATTERNS="$(rule "$PROJECT_DIR" neverCommitPatterns "${NIGHTSHIFT_NEVER_COMMIT_PATTERNS:-}")"
-FORBIDDEN_COMMANDS="$(rule "$PROJECT_DIR" forbiddenCommands "${NIGHTSHIFT_FORBIDDEN_COMMANDS:-}")"
 
 # The emission (and its escaping) is the seam's; the guard only decides.
 deny() {
@@ -66,74 +60,102 @@ esac
 # before matching. Only that argument: scrubbing every quoted span would also hide a genuinely
 # forbidden command that happens to be quoted, such as sh -c "git push".
 SCRUBBED="$(ns_hardhat_scrub "$CMD")"
+LEASE_COMMAND="$CMD"
+case "$TOOL" in Bash | PowerShell) LEASE_COMMAND="$SCRUBBED" ;; esac
+LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 
 # Every remaining rule is shift-scoped: inert unless a shift is truly active. A stop-work order
 # is a request, not the ending — the agent keeps working until its next stop attempt, which is
 # exactly when the site rules still matter. The gate writes ENDED when it actually releases, and
 # that is what stands these rules down.
 if ! ns_hardhat_active; then
-  exit 0
-fi
-
-# The shift records its own identity: the first session to work under an active shift writes its
-# session id and transcript path, claimed with an exclusive create so two racing first sessions
-# cannot interleave — one claim lands whole, and losing the race is the design. Codex offers no
-# process ancestry this hook can vouch for, so the pid and start-time lines stay honestly empty.
-# Line 5 names the host: a watchman only ever revives its own kind, and a record without it
-# reads as Claude's — another agent's watchman would adopt this shift.
-record_shift_session() {
-  (set -C; printf '%s\n%s\n\n\ncodex\n' "$SID" "${TPATH:-}" >"$NS/.shift-session") 2>/dev/null || true
-}
-# The guards are the shift's, so they arrive with the shift. `/nightshift:start` writes
-# .shift-armed; before it exists this is an ordinary session in an ordinary project and nothing
-# here applies to it.
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  record_shift_session
-fi
-
-# The site rules govern the shift's own session; another conversation in the same project works
-# untouched — its questions, commits, and commands are the owner's business, not the night's. A
-# marked revival stays bound whatever id the fallback chain gave it.
-REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ] \
-  && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
-  exit 0
-fi
-
-# Tool rules — the rules file's toolDeny map: tool name -> denial message. A key's message
-# is the denial the model reads; an empty message lifts the rule; an absent key means the
-# default — ask-user tools parked so a 2:40am question cannot kill the run, every other
-# tool allowed. Both Codex names use the shared AskUserQuestion rule, so the owner has one
-# policy to configure across hosts. (sed backs up jq; the park rule holds without jq.)
-TOOL_RULES="$(rule "$PROJECT_DIR" toolDeny "${NIGHTSHIFT_TOOL_RULES:-}")"
-if ns_hardhat_tool_deny_broken; then
-  deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or re-run /nightshift:setup."
-fi
-if [ "$TOOL" = "AskUserQuestion" ] || [ "$TOOL" = "request_user_input" ] \
-  || codex_input_mentions_tool "AskUserQuestion" \
-  || codex_input_mentions_tool "request_user_input"; then
-  if m="$(ns_hardhat_park_reason)"; then deny "$m"; fi
-  exit 0 # a permitted question is not a command; the command guards have no business with it
-fi
-if m="$(ns_hardhat_named_tool_reason "$TOOL")"; then deny "$m"; fi
-
-# The rules file is the owner's leash on the night, and the night never rewrites it: during a
-# shift, deny any file edit aimed at the rules file and any command that names it. An owner's
-# mid-shift edit is the owner's hand — it reads from the very next tool call. Recognizing an
-# edit and its targets is the seam's job: Codex delivers file edits as apply_patch with the
-# patch text where a command would ride.
-if codex_is_file_edit; then
-  if codex_edit_touches '\.nightshift/rules\.json|nightshift-rules\.json'; then
-    deny "BLOCKED: the rules file is the owner's — the night never rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working; the owner's edit applies from the next tool call."
+  if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
+    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
+      || ! ns_lease_token_matches "$NS" codex "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
+    fi
   fi
-  exit 0 # a file edit is not a command; the command guards have no business with it
+  exit 0
 fi
-if ns_hardhat_rules_targeted "$SCRUBBED"; then
+
+# Process ownership is runtime state for the whole site, not agent-editable state. This narrow
+# protection applies even to helper conversations; all of their ordinary project work stays free.
+if ns_hardhat_payload_targets_lease "$TOOL" "$CODEX_RAW" "$LEASE_COMMAND"; then
+  deny "BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset."
+fi
+
+# Codex offers no interactive process ancestry this hook can vouch for, so the initial pid and
+# start-time lines stay empty. Watchman children carry a unique lease token and generation.
+ns_shift_unbound codex hardhat
+own_rc=$?
+[ "$own_rc" -eq 1 ] && exit 0
+[ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
+if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+  case "$TOOL" in
+    Bash | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
+      ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
+      ;;
+  esac
+fi
+ns_shift_rebind codex "" "" hardhat
+own_rc=$?
+[ "$own_rc" -eq 1 ] && exit 0
+[ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
+REC="$NS_SHIFT_REC"
+
+# Start's distinctive probe is also its compare-and-set result. A losing concurrent Start is
+# denied here instead of silently becoming an unrestricted helper after another session won.
+if ns_hardhat_binding_probe "$TOOL" "$CMD"; then
+  if [ -z "${SID:-}" ] || [ -z "$REC" ]; then
+    deny "BLOCKED: Start could not bind this session atomically. Issue STOP, inspect with Doctor, and retry Start."
+  fi
+  if [ "$SID" != "$REC" ]; then
+    deny "BLOCKED: another session already owns this shift. Reopen that conversation or issue STOP before running Start again."
+  fi
+fi
+
+ns_shift_authorize codex "" "" hardhat
+own_rc=$?
+[ "$own_rc" -eq 1 ] && exit 0
+[ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
+
+# Tool rules use the canonical tool_name from this host. The catch-all manifest sends every
+# observable PreToolUse call here; hosted tools that Codex does not expose remain outside it.
+TOOL_RULES="$(ns_tool_rules "$PROJECT_DIR" "${NIGHTSHIFT_TOOL_RULES:-}")"
+if ns_hardhat_tool_deny_broken; then
+  if [ "$TOOL_RULES" = "__nightshift_tool_rules_parser_missing__" ]; then
+    deny "BLOCKED: toolDeny cannot be read exactly because neither jq nor python3 is available. Install one parser before running an armed shift."
+  fi
+  deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)."
+fi
+
+# The active agent never inspects or changes the owner's rules through any observable tool.
+# Inspect target-bearing arguments and patch headers, not unrelated prose in a payload.
+if ns_hardhat_payload_targets_rules "$TOOL" "$CODEX_RAW" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
-if reason="$(ns_hardhat_command_reason)"; then
-  deny "$reason"
+if [ "$TOOL" = "request_user_input" ] \
+  || { [ -z "$TOOL" ] && codex_input_mentions_tool "request_user_input"; }; then
+  if m="$(ns_hardhat_required_tool_deny_reason request_user_input)"; then deny "$m"; fi
+  exit 0 # a permitted question is not a command; the command guards have no business with it
+fi
+if [ "$TOOL" = "AskUserQuestion" ] \
+  || { [ -z "$TOOL" ] && codex_input_mentions_tool "AskUserQuestion"; }; then
+  if m="$(ns_hardhat_required_tool_deny_reason AskUserQuestion)"; then deny "$m"; fi
+  exit 0 # a permitted question is not a command; the command guards have no business with it
+fi
+if m="$(ns_hardhat_tool_deny_reason "$TOOL")"; then deny "$m"; fi
+
+if ns_hardhat_is_command_tool "$TOOL"; then
+  PROTECTED_DIRS="$(rule "$PROJECT_DIR" protectedDirs "${NIGHTSHIFT_PROTECTED_DIRS:-}")"
+  EXPECTED_EMAIL="$(rule "$PROJECT_DIR" expectedEmail "${NIGHTSHIFT_EXPECTED_EMAIL:-}")"
+  NEVER_COMMIT_PATTERNS="$(rule "$PROJECT_DIR" neverCommitPatterns "${NIGHTSHIFT_NEVER_COMMIT_PATTERNS:-}")"
+  FORBIDDEN_COMMANDS="$(rule "$PROJECT_DIR" forbiddenCommands "${NIGHTSHIFT_FORBIDDEN_COMMANDS:-}")"
+  if reason="$(ns_hardhat_command_reason)"; then
+    deny "$reason"
+  fi
 fi
 
 exit 0

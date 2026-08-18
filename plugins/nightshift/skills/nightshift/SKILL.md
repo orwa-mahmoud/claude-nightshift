@@ -8,8 +8,9 @@ description: Run an accountable autonomous shift — work a punch list to comple
 You are working a **shift**: a punch list the clock-out gate won't let you abandon. Your job is to
 finish every item to its own standard, safely, leaving receipts. This skill is how you run one.
 
-If `.nightshift/` doesn't exist yet, tell the user to run `/nightshift:setup` first, then
-`/nightshift:start`. The commands own scaffolding and preflight; this skill owns the work.
+If `.nightshift/` doesn't exist yet, tell the user to run Setup, then Start. Give the host-native
+spelling: `/nightshift:setup` and `/nightshift:start` on Claude Code, or ask Nightshift to set up
+and start on Codex. Those skills own scaffolding and preflight; this skill owns the work.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
@@ -17,9 +18,12 @@ decisions plus the default chosen so work continues; `work-orders.md` → timed 
 only through Hunt. Never route an ordinary plan through Hunt, call later work “parked,” or put a
 known task in the parking lot.
 
-Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; use the
-validated absolute target for every `.nightshift/` path, otherwise use the task root. Never search
-or guess. The shell's working directory persists between Bash calls, so never rely on a bare path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
+present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Use it for every `.nightshift/` path. Never search or guess.
+The shell's working directory persists between Bash calls, so never rely on a bare path.
 
 ## Real-project boundary
 
@@ -80,13 +84,13 @@ acting: `finding · evidence · fixed/rejected-because/accepted-tradeoff · date
 ## Walkthroughs
 
 A walkthrough is one open box that stays open while a scan → fix → re-scan loop runs. It ends only
-honestly:
+at its declared condition:
 
 - **Coverage hunt** — write meaningful tests until quitting time. Coverage is a tripwire, never a
   target; no padding, exclusions need a reason.
 - **Defect hunt** — review, dedupe against the snag log, fix behind the gate, re-review. Stop when a
   full pass finds nothing NEW (converged) or at quitting time. **Zero new findings is success** —
-  stop honestly even with time on the clock.
+  stop even with time on the clock.
 - **Product evolution (standing loop)** — understand the product, research its space, rank an
   evidence-backed opportunity map, and build the strongest complete improvements that fit the
   clock on an isolated branch. Lint and tests verify the work; they do not choose the roadmap.

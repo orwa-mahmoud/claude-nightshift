@@ -9,6 +9,8 @@
 # that conversation is itself unusable does it fall back, and the punch list on disk is what
 # carries a fresh session when it must. A persisted .nightshift/work-target tells that session
 # which child repository contains the code when run state lives in a parent workspace.
+# Before every spawn, the watchman advances a process lease and passes its generation/token to
+# the child. An older terminal or IDE process on that conversation then loses observed tools.
 #
 #   watchman.sh [--project DIR] [--interval MIN] [--agent CMD] [--max-wakes N]
 #
@@ -24,7 +26,7 @@
 #               list on disk is enough for a fresh session to carry on.
 #   --max-wakes bound the number of wakes (0 = unbounded; tests use this)
 #
-# Stand-down order, checked at every wake — the watchman never overrides an honest ending:
+# Stand-down order, checked at every wake — the watchman never overrides a declared ending:
 #   1. stop-work order (.nightshift/STOP)            -> down (STOP is the pause while armed)
 #   2. shift ended (.nightshift/.ended, or no punch) -> down
 #   3. every box ticked                              -> one clock-out spawn if .ended is missing
@@ -34,9 +36,9 @@
 #   5. clean session end (.nightshift/.session-end)  -> down; the owner closed it on purpose
 #
 # Liveness is a ladder, session-first — revival needs strong positive evidence of death,
-# because the one truly harmful failure is spawning a second agent beside a living one (a
-# resumed id APPENDS to the same session; two writers interleave). Only the session's own
-# signals testify; project files never vote — a detached loop, a build, or a sync writing
+# because spawning beside a living process is still harmful: the process lease fences its next
+# observed tool, but cannot cancel work already in flight or refresh a stale UI. Only the
+# session's own signals testify; project files never vote — a detached loop, a build, or a sync writing
 # files can neither mute the owner's Esc nor mask a dead session as alive:
 #   1. interrupt marker in the transcript tail       -> owner pressed Esc; stand by
 #   2. the shift's transcript moved since last wake  -> alive (a session streams every turn)
@@ -68,10 +70,10 @@
 # apology, a lost night costs the night. $NIGHTSHIFT_WATCH_TRANSCRIPTS overrides the transcript
 # directory (tests use it).
 #
-# API outages: per wake, up to 3 spawn attempts spaced by the rules file's watchRetrySeconds
+# API outages: per wake, spawn attempts = watchRetrySeconds values + 1
 # (shipped "30 120"; $NIGHTSHIFT_WATCH_RETRY overrides). A wake that fails entirely just waits
 # for the next one — the watchman knocks every interval, all night, until the API answers.
-# Exit: 0 stood down honestly · 1 usage/lock · 7 wake cap (tests).
+# Exit: 0 stood down · 1 usage/lock · 7 wake cap (tests).
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -128,7 +130,7 @@ esac
 case "$INTERVAL_MIN" in
   '' | *[!0-9]*)
     note unreadable-rules watchMinutes
-    printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2
+    printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)\n' >&2
     exit 1
     ;;
 esac
@@ -201,8 +203,8 @@ PROMPT_FRESH="$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}
 for _req in "watchRetrySeconds:$RETRY_SPACING" "revivalPrompt:$PROMPT_RESUME" "freshRevivalPrompt:$PROMPT_FRESH"; do
   if [ -z "${_req#*:}" ]; then
     note unreadable-rules "${_req%%:*}"
-    printf 'watchman: %s missing — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' "${_req%%:*}" >&2
-    log_line "watchman: rules.json is missing ${_req%%:*} — cannot arm; re-run /nightshift:setup"
+    printf 'watchman: %s missing — .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)\n' "${_req%%:*}" >&2
+    log_line "watchman: rules.json is missing ${_req%%:*} — cannot arm; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
     exit 1
   fi
 done
@@ -212,15 +214,26 @@ rung_prompt() { # $1 attempt, $2 total attempts this wake
   if [ "$1" -ge "$2" ] && [ "$2" -gt 1 ]; then printf '%s' "$PROMPT_FRESH"; else printf '%s' "$PROMPT_RESUME"; fi
 }
 
-# One spawn attempt; the resumed session may legitimately run for hours. shellcheck disable:
-# $AGENT is an owner-provided command line; word-splitting is intended.
+# One spawn attempt. Ownership transfers before the child starts: the new generation/token is
+# inherited by every hook in that process, while an older process on the same conversation loses
+# tool access immediately. The child shell's pid + start time make the holder inspectable; the
+# Claude hook replaces them with the exact Claude ancestor when its first tool arrives.
+# The owner-provided $AGENT command line is intentionally word-split below.
 spawn() { # $1 optionally overrides the agent for this one attempt; $2 the order for its rung
-  local a="${1:-$AGENT}" p="${2:-$PROMPT_RESUME}"
+  local a="${1:-$AGENT}" p="${2:-$PROMPT_RESUME}" rc
   # NIGHTSHIFT_REVIVAL marks the child for the hooks: a revival session ending is never the
   # owner's hand on the door — without the mark, the worker's own exit would write .session-end
   # under the recorded id and stand the watchman down mid-outage.
+  # The owner-provided $a command line is intentionally word-split below.
   # shellcheck disable=SC2086
-  ( cd "$WORK_TARGET" && CLAUDE_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 $a "$p" >/dev/null 2>&1 )
+  ns_watchman_run_child "$NS" claude "$(shift_session_id)" "$WORK_TARGET" \
+    CLAUDE_PROJECT_DIR "$PROJECT" $a "$p"
+  rc=$?
+  if [ "$rc" -eq 3 ]; then
+    log_line "watchman: process lease transfer failed — not spawning beside an unfenced session"
+    return 1
+  fi
+  return "$rc"
 }
 
 # The transcript the tells read: the shift's own, recorded by the hooks; the newest in the
@@ -357,7 +370,7 @@ site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead | unavaila
   printf 'dead'
 }
 
-# Re-evaluated before every retry attempt: an honest ending arriving, the session coming back
+# Re-evaluated before every retry attempt: a declared ending arriving, the session coming back
 # to life, or the owner acting mid-wake cancels the remaining attempts. Empty means revival is
 # still warranted.
 hold_reason() {
@@ -402,14 +415,28 @@ while :; do
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    note completed
-    exit 0
+    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    clock_rc=$?
+    if [ "$clock_rc" -eq 0 ]; then
+      note completed
+      exit 0
+    fi
+    log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
+    [ "$clock_rc" -eq 2 ] && exit 7
+    continue
   fi
   if deadline_passed; then
     log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    note deadline
-    exit 0
+    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    clock_rc=$?
+    if [ "$clock_rc" -eq 0 ]; then
+      note deadline
+      exit 0
+    fi
+    log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
+    [ "$clock_rc" -eq 2 ] && exit 7
+    continue
   fi
   if [ -f "$NS/.session-end" ]; then
     note clean-session-end

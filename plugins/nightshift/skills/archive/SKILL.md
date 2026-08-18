@@ -3,17 +3,25 @@ name: archive
 description: File the finished part of the run state into a dated archive — shipped items, research, opportunities, the rotated journal, and handled snags. The live files stay lean; the facts stay on disk.
 ---
 
-Archive the finished paperwork. Work in `$CLAUDE_PROJECT_DIR`. This files records — it never
-does shift work, never ticks a box, never touches the contract.
+Archive the finished paperwork for the host-opened project. This files records — it never does
+shift work, never ticks a box, never touches the contract.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
 only through Hunt. Archive each by its own lifecycle; never reclassify one as another.
 
-Resolve `${CLAUDE_PROJECT_DIR:-$PWD}` through its explicit `.nightshift-link` when present; write
-every `.nightshift/` path to the validated absolute target, otherwise the task root. Never search
-or guess. The shell's working directory persists between Bash calls, so never use a bare path.
+Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
+Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
+otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
+present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+between Bash calls, so never use a bare path.
+
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/archive/SKILL.md`). Substitute that
+absolute path below; never search for the plugin.
 
 Read `.nightshift/state-version` first. Legacy (missing) and current (`1`) may be archived.
 A newer or malformed marker fails closed — file nothing, rewrite nothing, and never migrate.
@@ -62,7 +70,7 @@ archiving so the move itself has history.
 After filing, preview generated history that the owner has opted in to prune. Run:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT}/runtime/retain-history.sh" --project "$NIGHTSHIFT_WORKSPACE"
+"$NIGHTSHIFT_PLUGIN_ROOT/runtime/retain-history.sh" --project "$NIGHTSHIFT_WORKSPACE"
 ```
 
 Print that preview verbatim — every eligible path, its age, and the governing rule

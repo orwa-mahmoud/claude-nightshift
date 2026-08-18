@@ -1,7 +1,7 @@
 # Shift catalog
 
-The ready shifts `/nightshift:hunt` offers. Each entry is a punch-list item, complete with its own
-contract and Verify line — paste one into `## Items` by hand, or let hunt assemble it for you.
+The ready shifts Hunt offers. Each entry is a punch-list item, complete with its own contract and
+Verify line — paste one into `## Items` by hand, or let Hunt assemble it for you.
 
 **Entries live one per file in [`shifts/`](shifts/).** Read that directory; this page never lists
 them. A catalog that enumerated its own contents would put every contributor in the same diff, and
@@ -10,8 +10,8 @@ the point of a file per shift is that two people can add one the same week witho
 Two endings exist, and every entry declares which it has in its title line:
 
 - **Open-ended** — no natural end but the clock. It stays a single open box while its loop runs and
-  closes at the whistle (or at convergence, where the entry says so). `/nightshift:hunt` requires
-  hours for these; a walkthrough may not start without a deadline.
+  closes at the whistle (or at convergence, where the entry says so). Hunt requires hours for
+  these; a walkthrough may not start without a deadline.
 - **Finite** — the work is a known list. It ends when the list is clear. Hours are optional: a cap,
   not a requirement.
 

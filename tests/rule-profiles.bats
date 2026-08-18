@@ -47,9 +47,31 @@ with open(p,"w") as f: json.dump(d,f)
   run bash "$APPLY" --project "$p" --profile no-push --mode fill --apply
   [ "$status" -eq 0 ]
   jq -e '.forbiddenCommands == "rm -rf"' "$p/.nightshift/rules.json" >/dev/null
+  jq '.["$schema"] = 42' "$p/.nightshift/rules.json" >"$p/rules.tmp"
+  mv "$p/rules.tmp" "$p/.nightshift/rules.json"
   run bash "$APPLY" --project "$p" --profile no-push --mode replace --apply
   [ "$status" -eq 0 ]
   jq -e '.forbiddenCommands == "git .*push"' "$p/.nightshift/rules.json" >/dev/null
+  jq -e '
+    (.["$schema"] | type) == "string"
+    and (.["$schema"] | length) > 0
+    and (.toolDeny.AskUserQuestion | type) == "string"
+    and (.toolDeny.request_user_input | type) == "string"
+    and (.watchMinutes | type) == "number"
+    and (.clockOutMessage | length) > 0
+  ' "$p/.nightshift/rules.json" >/dev/null
+}
+
+@test "fill refuses an old file with no explicit Codex question policy" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  jq 'del(.toolDeny.request_user_input)' "$p/.nightshift/rules.json" >"$p/rules.tmp"
+  mv "$p/rules.tmp" "$p/.nightshift/rules.json"
+  before="$(cksum "$p/.nightshift/rules.json")"
+  run bash "$APPLY" --project "$p" --profile no-push --mode fill --apply
+  [ "$status" -eq 2 ]
+  printf '%s' "$output" | grep -q 'explicit native question policy'
+  [ "$(cksum "$p/.nightshift/rules.json")" = "$before" ]
 }
 
 @test "unknown keys, malformed profiles, and armed writes are refused" {

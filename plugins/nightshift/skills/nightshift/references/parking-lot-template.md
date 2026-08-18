@@ -7,7 +7,7 @@
 
 **Each entry:** a sentence or two of context · the production-grade default chosen so work could
 continue · why it was chosen. The owner reviews over coffee and deletes entries once decided.
-`/nightshift:start` surfaces any still-unanswered entries at the top of the next shift.
+Nightshift Start surfaces any still-unanswered entries at the top of the next shift.
 
 ---
 

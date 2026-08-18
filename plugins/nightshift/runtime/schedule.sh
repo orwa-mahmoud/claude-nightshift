@@ -71,7 +71,7 @@ else
   PROJECT="$HOST"
 fi
 [ -d "$PROJECT/.nightshift" ] || {
-  printf 'schedule: no .nightshift at %s — run /nightshift:setup first\n' "$PROJECT" >&2
+  printf 'schedule: no .nightshift at %s — run Setup first (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)\n' "$PROJECT" >&2
   exit 1
 }
 STATE_KIND="$(ns_state_kind "$PROJECT")"

@@ -14,6 +14,8 @@ replay() { # <host-dir> <adapter> <fixture>
   esac
 }
 
+clear_ownership() { rm -f "$1/.nightshift/.shift-session" "$1/.nightshift/.shift-lease"; }
+
 assert_expect() { # expect  (reads $status/$output)
   case "$1" in
     block) is_block "$output" ;;
@@ -65,6 +67,7 @@ assert_expect() { # expect  (reads $status/$output)
   run replay "$p" claude-stop "$FIX/claude/stop-valid.json"
   claude_out="$output"
   is_block "$claude_out"
+  clear_ownership "$p"
   run replay "$p" codex-stop "$FIX/codex/stop-valid.json"
   is_block "$output"
 }
@@ -85,6 +88,7 @@ assert_expect() { # expect  (reads $status/$output)
   assert_expect deny
   run replay "$p" claude-hardhat "$FIX/claude/bash-reordered.json"
   assert_expect claude-allow
+  clear_ownership "$p"
   run replay "$p" codex-hardhat "$FIX/codex/bash-forbidden.json"
   assert_expect deny
 }
@@ -99,10 +103,13 @@ assert_expect() { # expect  (reads $status/$output)
 
   run replay "$host" claude-stop "$FIX/claude/stop-valid.json"
   assert_expect block
+  clear_ownership "$workspace"
   run replay "$host" codex-stop "$FIX/codex/stop-valid.json"
   assert_expect block
+  clear_ownership "$workspace"
   run replay "$host" claude-hardhat "$FIX/claude/bash-forbidden.json"
   assert_expect deny
+  clear_ownership "$workspace"
   run replay "$host" codex-hardhat "$FIX/codex/bash-forbidden.json"
   assert_expect deny
 }

@@ -3,29 +3,12 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/codex/hardhat.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "AskUserQuestion|request_user_input",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/codex/hardhat.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "apply_patch|Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/codex/hardhat.sh\""
+            "command": "\"${PLUGIN_ROOT}/hooks/codex/hardhat.sh\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%PLUGIN_ROOT%\\hooks\\windows\\hardhat.ps1\" -HostName codex"
           }
         ]
       }
@@ -35,7 +18,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/codex/clock-out-gate.sh\""
+            "command": "\"${PLUGIN_ROOT}/hooks/codex/clock-out-gate.sh\"",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%PLUGIN_ROOT%\\hooks\\windows\\clock-out-gate.ps1\" -HostName codex"
           }
         ]
       }

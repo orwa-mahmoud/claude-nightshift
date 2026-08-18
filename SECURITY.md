@@ -19,7 +19,8 @@ Please **do not open a public issue** for security vulnerabilities.
 
 The interesting risks here are of one kind: **a way to make the stop-gate
 lie** — clocking out with unticked items, forging receipts, or escaping the
-contract via hook manipulation.
+contract via hook manipulation. A stale recovery process bypassing the active
+process lease to execute a local tool belongs in the same private channel.
 
 Instead, report privately via GitHub's
 [**Report a vulnerability**](https://github.com/orwa-mahmoud/nightshift/security/advisories/new)

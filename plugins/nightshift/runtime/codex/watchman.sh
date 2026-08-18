@@ -14,6 +14,8 @@
 # was writing when it died (verified live: a
 # SIGKILLed session's rollout ends mid-event with no terminal marker, and the resume continues
 # that very file). The fallback is a fresh headless run; the punch list on disk is its handover.
+# Before either spawn, the watchman advances a process lease and passes its generation/token to
+# the child. An older Desktop or terminal process on that conversation then loses observed tools.
 #
 # The sandbox grant is danger-full-access because the workspace-write sandbox protects .git —
 # a revived session could edit but never commit (verified live: "Git cannot create
@@ -41,7 +43,7 @@
 # the rollout's last word) has not been observed on Codex and is deliberately not guessed at;
 # a live-but-erroring session reads as alive and is left alone.
 #
-# Stand-down order, checked at every wake — never override an honest ending:
+# Stand-down order, checked at every wake — never override a declared ending:
 #   1. stop-work order (.nightshift/STOP)             -> down
 #   2. shift ended (.nightshift/.ended, or no punch)  -> down
 #   3. another host's shift (.shift-session line 5)   -> down (its own watchman minds it)
@@ -95,7 +97,7 @@ esac
 case "$INTERVAL_MIN" in
   '' | *[!0-9]*)
     note unreadable-rules watchMinutes
-    printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' >&2
+    printf 'watchman: watchMinutes missing or not whole minutes — .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)\n' >&2
     exit 1
     ;;
 esac
@@ -107,7 +109,7 @@ PROMPT_FRESH="$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}
 for _req in "watchRetrySeconds:$RETRY_SPACING" "revivalPrompt:$PROMPT_RESUME" "freshRevivalPrompt:$PROMPT_FRESH"; do
   if [ -z "${_req#*:}" ]; then
     note unreadable-rules "${_req%%:*}"
-    printf 'watchman: %s unreadable — .nightshift/rules.json absent or incomplete; re-run /nightshift:setup\n' "${_req%%:*}" >&2
+    printf 'watchman: %s unreadable — .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)\n' "${_req%%:*}" >&2
     exit 1
   fi
 done
@@ -171,26 +173,41 @@ rollout_grew() {
   [ -n "$ROLLOUT_SEEN" ] && [ "$now" != "$ROLLOUT_SEEN" ]
 }
 
-# Spawn one revival attempt. Rung 1 resumes the recorded conversation; rung 2 is a fresh
-# headless run with the punch list as its handover. NIGHTSHIFT_REVIVAL marks the child for the
-# hooks, so it inherits the shift's binding whatever id the fallback gave it.
+# Spawn one revival attempt. Ownership transfers atomically before the child starts; every hook
+# in that child inherits the new generation/token, and an older Desktop or terminal process on
+# the same conversation is fenced. Rung 1 resumes the recorded conversation; rung 2 is a fresh
+# headless run with the punch list as its handover.
 # A non-resumable recorded id is never passed to `codex exec resume` and never treated as a
 # successful resume of that thread.
 spawn() { # $1 = rung (1|2)
-  local prompt kind
+  local prompt kind rc
   if [ -n "$AGENT" ]; then
     if [ "$1" -eq 1 ]; then prompt="$PROMPT_RESUME"; else prompt="$PROMPT_FRESH"; fi
-    ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 $AGENT "$prompt" >/dev/null 2>&1 )
-    return $?
-  fi
-  if [ "$1" -eq 1 ]; then
+    # shellcheck disable=SC2086 # owner-provided command line; splitting is intentional
+    ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+      CODEX_PROJECT_DIR "$PROJECT" $AGENT "$prompt"
+  elif [ "$1" -eq 1 ]; then
     kind="$(ns_codex_identity_kind "$(sid)")"
     if [ "$kind" = "resumable" ]; then
-      ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME" >/dev/null 2>&1 )
-      return $?
+      ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+        CODEX_PROJECT_DIR "$PROJECT" \
+        codex exec resume -c 'sandbox_mode="danger-full-access"' "$(sid)" "$PROMPT_RESUME"
+    else
+      ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+        CODEX_PROJECT_DIR "$PROJECT" \
+        codex exec -s danger-full-access "$PROMPT_FRESH"
     fi
+  else
+    ns_watchman_run_child "$NS" codex "$(sid)" "$WORK_TARGET" \
+      CODEX_PROJECT_DIR "$PROJECT" \
+      codex exec -s danger-full-access "$PROMPT_FRESH"
   fi
-  ( cd "$WORK_TARGET" && CODEX_PROJECT_DIR="$PROJECT" NIGHTSHIFT_REVIVAL=1 codex exec -s danger-full-access "$PROMPT_FRESH" >/dev/null 2>&1 )
+  rc=$?
+  if [ "$rc" -eq 3 ]; then
+    log_line "watchman: process lease transfer failed — not spawning beside an unfenced session"
+    return 1
+  fi
+  return "$rc"
 }
 
 rung_name() { if [ "$1" -eq 1 ] && [ -n "$(sid)" ]; then printf 'resuming the recorded conversation'; else printf 'fresh session'; fi; }
@@ -221,16 +238,30 @@ while :; do
   if [ "$(open_boxes)" -eq 0 ]; then
     log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
     spawn 1 || true
-    note completed
-    exit 0
+    ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+    clock_rc=$?
+    if [ "$clock_rc" -eq 0 ]; then
+      note completed
+      exit 0
+    fi
+    log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
+    [ "$clock_rc" -eq 2 ] && exit 7
+    continue
   fi
   if [ -f "$NS/deadline" ]; then
     dl="$(tr -d '[:space:]' <"$NS/deadline" 2>/dev/null)"
     if printf '%s' "$dl" | grep -qE '^[0-9]+$' && [ "$(date +%s)" -ge "$dl" ]; then
       log_line "watchman: past the deadline with the session gone — spawning the clock-out"
       spawn 1 || true
-      note deadline
-      exit 0
+      ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+      clock_rc=$?
+      if [ "$clock_rc" -eq 0 ]; then
+        note deadline
+        exit 0
+      fi
+      log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
+      [ "$clock_rc" -eq 2 ] && exit 7
+      continue
     fi
   fi
 
@@ -276,10 +307,13 @@ while :; do
     fi
   fi
 
-  # Dead quiet, mid-shift: revive. Up to 3 attempts this wake, re-checking life between them —
-  # a site that comes back mid-wake cancels the rest.
+  # Dead quiet, mid-shift: revive. Attempts = watchRetrySeconds values + 1, re-checking
+  # life between them — a site that comes back mid-wake cancels the rest.
   attempt=0
   revived=1
+  # shellcheck disable=SC2086  # RETRY_SPACING is a space-separated list; splitting is the point
+  set -- $RETRY_SPACING
+  total=$(( $# + 1 ))
   for gap in 0 $RETRY_SPACING; do
     [ "$gap" -gt 0 ] && sleep "$gap"
     if recorded_process_alive || codex_in_project || rollout_grew; then
@@ -288,7 +322,7 @@ while :; do
       break
     fi
     attempt=$((attempt + 1))
-    [ "$attempt" -le 3 ] || break
+    [ "$attempt" -le "$total" ] || break
     log_line "watchman: site dead quiet mid-shift — resume attempt $attempt ($(rung_name $attempt))"
     if spawn "$attempt"; then
       revived=0

@@ -1,16 +1,19 @@
 # Troubleshooting
 
 Read-only checks first. Do not delete markers, rewrite `rules.json`, or kill processes until the
-matching **Repair** says so. `/nightshift:doctor` prints what Nightshift resolved and classifies
-offers; invoking it changes nothing. For a failed night you want to report, use the
+matching **Repair** says so. Doctor (`/nightshift:doctor` on Claude Code, or ask Nightshift to
+diagnose on Codex) prints what Nightshift resolved and classifies offers; invoking it changes
+nothing. For a failed night you want to report, use the
 [Failed shift](https://github.com/orwa-mahmoud/nightshift/issues/new?template=failed_shift.yml)
 form — not a paste of the transcript.
 
-Host differences that matter here: Claude Code's Stop hook refuses an early clock-out and its
-watchman can revive a live session sitting on a host API-error event. Codex keeps the same files
-and guards; a Codex session that is **alive but errored is stood by**, not revived, until that
-signature is captured. Closing an interactive Codex session with open boxes hands the night to
-the watchman — `touch .nightshift/STOP` is the stop-work order on every host.
+Host differences that matter here: both Stop hooks refuse an early clock-out. Claude Code's
+watchman can revive a live session sitting on a host API-error event. A Codex session that is
+**alive but errored is stood by**, not revived, until that signature is captured. Codex also has
+no Escape or clean-session-end signal, so closing an interactive session with open Items hands the
+night to its watchman. `touch .nightshift/STOP` is the POSIX stop-work order;
+`New-Item -ItemType File -Force .nightshift\STOP` is its native Windows PowerShell equivalent.
+The full Windows boundary is in [Native Windows](windows.md).
 
 ## 0. Where is the site?
 
@@ -20,6 +23,9 @@ the watchman — `touch .nightshift/STOP` is the stop-work order on every host.
 pwd
 ls -ld .nightshift .nightshift-link 2>/dev/null
 ```
+
+Native Windows PowerShell: `Get-Location` and
+`Get-Item -Force .nightshift,.nightshift-link -ErrorAction SilentlyContinue`.
 
 | You see | Meaning |
 |---|---|
@@ -39,6 +45,8 @@ plugins/nightshift/runtime/link-workspace.sh \
   --host-root /absolute/task/root \
   --workspace /absolute/nightshift/workspace
 ```
+
+Native Windows uses `runtime\windows\link-workspace.ps1 -HostRoot <path> -Workspace <path>`.
 
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected.
@@ -113,7 +121,16 @@ python3 -m json.tool .nightshift/rules.json >/dev/null
 Watchman refuses to arm when `watchMinutes` is missing or not a whole number, or when
 `watchRetrySeconds`, `revivalPrompt`, or `freshRevivalPrompt` are empty. The clock-out stall
 guard stands down if `stallMax` / `stallWarnEvery` cannot be read. Editors can validate the file
-against the [rules schema](knobs.md) without changing behaviour.
+against the [rules schema](knobs.md#editor-schema) without changing behaviour.
+
+`toolDeny` must contain both native question keys: `AskUserQuestion` for Claude Code and
+`request_user_input` for Codex. Missing one does not activate a hidden default; that question call
+is denied with a configuration repair. A non-empty value denies with that message and an empty
+value explicitly allows the tool.
+
+Exact tool-name matching requires `jq` or `python3` on POSIX. Start refuses to arm there without
+either parser; if one disappears during a shift, the hardhat fails closed and names the missing
+prerequisite. Native Windows uses PowerShell's built-in `ConvertFrom-Json`.
 
 **Repair.** Re-run setup and accept missing keys it offers. Do not paste a half-file over an
 owner-edited `rules.json`. During an active shift the session working the night is denied
@@ -125,7 +142,8 @@ editing this file — change it yourself between sessions.
 
 ```sh
 ls -l .nightshift/STOP .nightshift/.shift-armed .nightshift/.ended \
-  .nightshift/.session-end .nightshift/.stall .nightshift/.watchman 2>/dev/null
+  .nightshift/.session-end .nightshift/.shift-lease .nightshift/.stall \
+  .nightshift/.watchman 2>/dev/null
 sed -n '1,5p' .nightshift/STOP 2>/dev/null
 ```
 
@@ -135,11 +153,13 @@ sed -n '1,5p' .nightshift/STOP 2>/dev/null
 | `.shift-armed` | A shift was started. Without it, `punch-list.md` is only a to-do file. |
 | `.ended` | The gate already clocked the shift out. |
 | `.session-end` | Claude Code recorded a clean session end. Watchman stands down; start re-arms. |
+| `.shift-lease` | Transient process ownership for the bound shift. A watchman advances it before each recovery attempt; do not print or edit its capability line. |
+| `.mutex-scope` | Private Windows mutex identity. It persists across shifts so alternate paths and Windows logon sessions share the same lock; do not print, edit, or delete it. |
 | `.stall` | Stuck stop-attempt count. Not an ending. |
 
-A leftover `STOP`, `.ended`, `.session-end`, or `.shift-session` from last night will surprise
-tonight. `/nightshift:start` clears stale run-control markers before it arms. Do not delete them
-by hand while a session is still working the list.
+A leftover `STOP`, `.ended`, `.session-end`, `.shift-session`, or `.shift-lease` from last night
+will surprise tonight. Start clears stale run-control markers before it arms. Do not delete them by
+hand while a session is still working the list.
 
 **Repair (you want the shift ended now).** From any terminal at the workspace that owns
 `.nightshift/`:
@@ -148,19 +168,36 @@ by hand while a session is still working the list.
 touch .nightshift/STOP
 ```
 
+Native Windows: `New-Item -ItemType File -Force .nightshift\STOP`.
+
 **Repair (you want a new shift and no session is alive).** Run start. It is what clears last
 night's leftovers. Killing `.watchman`'s pid is start's job when that pid is still live.
 
+If Doctor calls the lease malformed, Start fails closed instead. Issue STOP and confirm no worker
+or watchman is alive. On POSIX, load `lib/lib.sh` and call `ns_lease_reset_stale` as printed by
+Start; on native Windows, import `lib\Nightshift.psm1` and call
+`Reset-NSStaleLease .nightshift`. Never print, hand-edit, or selectively delete the lease.
+
 ## 6. Missing session identity
 
-**Check.** `.nightshift/.shift-session` is written on first work. Typical layout: session id,
-transcript or rollout path, pid, process start time, host (`claude` or `codex`).
+**Check.** Immediately after arming, Start makes a harmless Bash binding probe on POSIX or a
+PowerShell binding probe on native Windows. It writes
+`.nightshift/.shift-session` before item work. Typical layout: session id, transcript or rollout
+path, pid, process start time, host (`claude` or `codex`). Claude fills the process fields when it
+can verify them. Codex leaves lines 3–4 empty on POSIX because its hook cannot vouch for a process
+identity; native Windows records them when process ancestry is available.
+
+The binding probe also creates `.shift-lease`. It records session scope, host, ownership
+generation, a capability field that stays empty until recovery, and the current process witness.
+That capability is intentionally not a diagnostic value: use Doctor to see lease validity, host,
+generation, mode, and holder liveness without printing it. A missing lease on an older armed
+workspace is bootstrapped by the bound session's next tool call.
 
 ```sh
 sed -n '1,5p' .nightshift/.shift-session 2>/dev/null
 ```
 
-A 500 can land **before** the first tool call, so the file may be missing while the punch list is
+A 500 can land **before** the binding probe, so the file may be missing while the punch list is
 open. On Claude Code the watchman then treats the newest conversation ending in the host's API-error
 event as the wedge and resumes with `--continue`. On Codex, with no recorded id, revival falls
 back to a fresh headless run; the punch list on disk is the handover.
@@ -178,7 +215,7 @@ tail -n 40 .nightshift/shift-log.md
 ls -l .nightshift/.watchman .nightshift/.watchman-tick 2>/dev/null
 ```
 
-Stand-down is success when the night already ended honestly. Matching log lines:
+Stand-down is success when the night already reached a declared ending. Matching log lines:
 
 | Log (substring) | Host | What it means |
 |---|---|---|
@@ -193,7 +230,7 @@ Stand-down is success when the night already ended honestly. Matching log lines:
 | `all N attempts failed` | Claude Code | API still down; knocks again next wake. |
 | `resumed session returned` / `revival returned` | both | Revival succeeded. |
 
-**Repair.** None, if the line is an honest ending. If rules cannot arm, fix `rules.json` and
+**Repair.** None, if the line is a declared ending. If rules cannot arm, fix `rules.json` and
 re-run start. If the wrong-host watchman stood down, leave it — the recorded host's watchman is
 the one that should be running. If you pressed Esc and wanted the night to continue, resume that
 session yourself; the watchman will not.
@@ -201,6 +238,42 @@ session yourself; the watchman will not.
 To report a revival that should have fired and did not, file a
 [Failed shift](https://github.com/orwa-mahmoud/nightshift/issues/new?template=failed_shift.yml)
 with sanitized markers only.
+
+## 8. The watchman revived, but the IDE still shows the error
+
+**Check.** An already-open Claude Code or Codex conversation panel may not reload turns appended by
+a headless resume. The unchanged error screen therefore does not prove recovery failed, and the
+owner does not need to watch the recovery. The headless worker continues against the punch list; if
+you want confirmation, inspect `shift-log.md` for the watchman's revival attempt rather than
+sending another prompt from that panel. If the stale process later reports that the shift continued
+in a recovered process, the process lease is working: its tool call was rejected before execution.
+
+**Repair.** Close and reopen the recorded conversation from the IDE's conversation history. When a
+Claude session ID was recorded, Nightshift writes its `claude --resume <session-id>` command and
+IDE deep links to `parking-lot.md` after the headless subprocess exits successfully. That may not
+happen until the revived run finishes. `shift-log.md` provides an optional live receipt through its
+`resume attempt` entry. Codex records its recovery in the shift log; reopen the durable thread from
+history only when you want to inspect or interact with it.
+
+Do not continue in the stale panel while the headless process may still be active. The lease fences
+observable shift tools there, but it cannot refresh the display. Other conversations in the same
+project remain ordinary and can work normally; only a second Start is refused while this shift is
+active.
+
+If Doctor says the lease is malformed, or work was already interleaved before the fence took
+effect, run Stop (`/nightshift:stop` on Claude Code, or ask Nightshift to stop on Codex) from a
+separate helper conversation, or create `STOP` from another terminal. Wait for the active process
+to stop, inspect the repository and shift log, then run Start; do not rewrite `.shift-lease` by
+hand. A bare `touch` leaves the watchman running until it checks the marker after the current
+subprocess returns or on its next wake.
+
+Automatic refresh is tracked in
+[anthropics/claude-code#82655](https://github.com/anthropics/claude-code/issues/82655),
+[openai/codex#28259](https://github.com/openai/codex/issues/28259), and
+[openai/codex#21743](https://github.com/openai/codex/issues/21743). Resolving those display-sync
+gaps would remove the manual reopen and make the handoff more consistent; it would not switch
+recovery on. The watchman already runs the recovery, and the process lease already fences the stale
+worker.
 
 ## See also
 

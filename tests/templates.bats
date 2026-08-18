@@ -3,7 +3,7 @@ load helpers
 REF="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references"
 OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 
-# /nightshift:setup copies punch-list-template.md verbatim into .nightshift/punch-list.md, and
+# Nightshift Setup copies punch-list-template.md verbatim into .nightshift/punch-list.md, and
 # the clock-out gate blocks on any open "- [ ]" it finds there. A single illustrative checkbox
 # in the template — even inside a comment, which the gate does not understand — would trap every
 # freshly scaffolded project in a shift it never started.
@@ -66,12 +66,15 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
     jq -e --arg k "$k" '.[$k] | length > 0' "$t" >/dev/null || { echo "template ships empty $k"; return 1; }
   done
   jq -e '.toolDeny.AskUserQuestion | length > 0' "$t" >/dev/null
+  jq -e '.toolDeny.request_user_input | length > 0' "$t" >/dev/null
 }
 
 # Updates offer their improvements; they never overwrite the owner's words.
 @test "setup's template evolution offers, never imposes" {
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   grep -qF 'offer, never impose' "$s"
+  grep -qF 'nested `toolDeny` keys' "$s"
+  grep -qF '`request_user_input`; add it?' "$s"
   grep -qF 'touch a value the owner already has' "$s"
   grep -qF "wording wins every conflict" "$s"
   grep -qF 'open boxes is never touched' "$s"
@@ -109,6 +112,23 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
     'API contract drift' 'documentation drift' 'CI warnings' dependencies 'vulnerability advisories'; do
     grep -qi "$area" "$q" || { echo "quality omits $area"; return 1; }
   done
+}
+
+@test "quality launch paths require the start preflight before arming" {
+  local q fix_now run_direct section
+  q="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  fix_now="$(awk '/^- \*\*fix now\*\*/ { capture=1 } /^- \*\*draft for later\*\*/ { exit } capture' "$q")"
+  run_direct="$(awk '/^## 5\. Run directly/ { capture=1 } capture' "$q")"
+
+  for section in "$fix_now" "$run_direct"; do
+    printf '%s\n' "$section" | grep -qi 'preflight'
+    printf '%s\n' "$section" | grep -qi 'arming'
+  done
+
+  printf '%s\n' "$run_direct" | grep -qi 'one-shift check'
+  printf '%s\n' "$run_direct" | grep -qi 'stale run-control markers'
+  printf '%s\n' "$run_direct" | grep -qi 'unattended permissions'
+  printf '%s\n' "$run_direct" | grep -qF '.nightshift/.shift-armed'
 }
 
 # The install copies plugins/nightshift/ alone, and MIT asks for the notice to travel with every copy — so the

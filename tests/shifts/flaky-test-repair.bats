@@ -6,7 +6,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'Never exceed the declared repetition budget' "$E"
 }
 
-@test "flaky-test repair records unreproduced suspects honestly" {
+@test "flaky-test repair records evidence for unreproduced suspects" {
   grep -qi 'do not claim a repair' "$E"
   grep -qi 'unreproduced' "$E"
   grep -qi 'snag-log.md' "$E"

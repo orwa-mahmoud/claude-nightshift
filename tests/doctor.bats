@@ -50,6 +50,21 @@ doctor() {
   printf '%s' "$output" | grep -q 'Actions (Doctor does not perform these)'
 }
 
+@test "Doctor reports lease ownership without printing its capability" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
+  claim="$(bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" shift-session claude' \
+    nightshift "$LIB" "$p")"
+  token="${claim#* }"
+
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'Lease:       valid (generation'
+  printf '%s' "$output" | grep -q 'watchman recovery (capability not printed)'
+  ! printf '%s' "$output" | grep -qF "$token"
+}
+
 @test "invoking Doctor alone changes no state" {
   p="$(new_project)"
   punch_open "$p"
@@ -113,6 +128,17 @@ doctor() {
   printf '%s' "$output" | grep -q 'unreadable or not a JSON object'
   printf '%s' "$output" | grep -q '\[confirm\].*rules.json'
   grep -q '{not json' "$p/.nightshift/rules.json"
+}
+
+@test "missing native question rules are reported without an invented fallback" {
+  p="$(new_project)"
+  jq 'del(.toolDeny.request_user_input)' "$p/.nightshift/rules.json" >"$p/rules.tmp"
+  mv "$p/rules.tmp" "$p/.nightshift/rules.json"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'toolDeny.request_user_input is missing'
+  printf '%s' "$output" | grep -q '\[confirm\].*request_user_input'
+  ! jq -e '.toolDeny | has("request_user_input")' "$p/.nightshift/rules.json" >/dev/null
 }
 
 @test "stale unarmed watchman pid is classified safe automatic" {

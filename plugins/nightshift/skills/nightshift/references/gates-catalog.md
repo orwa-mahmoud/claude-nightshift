@@ -1,7 +1,7 @@
 # Gates Catalog
 
-How `/nightshift:setup` proposes quality gates from a project's stack, and how `/nightshift:quality`
-surveys existing debt with the same table. **Detection only ever proposes — the user decides**:
+How Setup proposes quality gates from a project's stack, and how Quality surveys existing debt
+with the same table. **Detection only ever proposes — the user decides**:
 accept, edit (any shell command is a valid gate), or decline (no gates is a first-class answer;
 the shift runs without automated checks). Explicit user config always beats detection.
 
@@ -43,8 +43,8 @@ hourly-batch pattern). Coverage there is a tripwire (a gate on new code), never 
 
 - Zero-config holds: nothing detected → nothing proposed, and declining the proposal lands in the
   same place. Gates are opt-in, never a requirement.
-- `/nightshift:quality` runs the item-gate commands from this table in report-only mode to survey
-  existing debt, then proposes punch-list items the owner may accept, edit, or decline.
+- Quality runs the item-gate commands from this table in report-only mode to survey existing debt,
+  then proposes punch-list items the owner may accept, edit, or decline.
 - The `## Gates` block lives in `punch-list.md` and stays owner-editable between and during shifts;
   hooks and the skill re-read it, so an edit takes effect from the next item. Only the agent is
   barred from editing it.

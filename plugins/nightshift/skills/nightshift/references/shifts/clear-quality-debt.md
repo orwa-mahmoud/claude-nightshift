@@ -1,8 +1,9 @@
 # Clear quality debt — finite — the backlog your tools already know about
 
 The finite counterpart to the hunts: the work is a list your own tooling produces, so it ends when
-that list is clear. `/nightshift:quality` runs the same scan read-only and proposes items without
-starting anything; this entry works them.
+that list is clear. Quality uses this entry in either launch mode: Review first scans without writes
+and waits for an explicit disposition; Run directly composes, arms, and works the findings without
+a second pause.
 
 ```text
 - [ ] **Clear quality debt — fix what the project's own tooling reports.**

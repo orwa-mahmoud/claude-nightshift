@@ -15,6 +15,7 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 
 PROFILES="$_here/../skills/nightshift/references/profiles"
 SCHEMA="$_here/../skills/nightshift/references/nightshift-rules.schema.json"
+TEMPLATE="$_here/../skills/nightshift/references/nightshift-rules-template.json"
 PROJECT="${CLAUDE_PROJECT_DIR:-${CODEX_PROJECT_DIR:-$PWD}}"
 MODE=""
 PROFILE=""
@@ -112,7 +113,8 @@ if [ -f "$RULES" ] && jq -e 'type == "object"' "$RULES" >/dev/null 2>&1; then
   current="$(cat "$RULES")"
 fi
 
-proposed="$(PROFILE_MODE="$MODE" jq -n --argjson cur "$current" --slurpfile p "$SRC" '
+proposed="$(PROFILE_MODE="$MODE" jq -n --argjson cur "$current" \
+  --slurpfile p "$SRC" --slurpfile t "$TEMPLATE" '
   def fill:
     ($cur)
     + (
@@ -122,10 +124,27 @@ proposed="$(PROFILE_MODE="$MODE" jq -n --argjson cur "$current" --slurpfile p "$
         | from_entries
       );
   def replace:
-    (if $cur["$schema"] then {"$schema": $cur["$schema"]} else {} end)
-    + $p[0].rules;
+    $t[0]
+    + $p[0].rules
+    + (
+        if ($cur["$schema"] | type) == "string" and ($cur["$schema"] | length) > 0
+        then {"$schema": $cur["$schema"]}
+        else {}
+        end
+      );
   if env.PROFILE_MODE == "fill" then fill else replace end
 ')"
+
+if ! printf '%s' "$proposed" | jq -e '
+  (.toolDeny | type) == "object"
+  and (.toolDeny | has("AskUserQuestion"))
+  and (.toolDeny | has("request_user_input"))
+  and (.toolDeny.AskUserQuestion | type) == "string"
+  and (.toolDeny.request_user_input | type) == "string"
+' >/dev/null 2>&1; then
+  printf 'apply-profile: proposed rules lack an explicit native question policy — re-run setup first\n' >&2
+  exit 2
+fi
 
 printf 'Profile: %s\n' "$(jq -r '.name' "$SRC")"
 printf 'Risk:    %s\n' "$(jq -r '.risk' "$SRC")"
