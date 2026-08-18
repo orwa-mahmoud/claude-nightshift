@@ -11,31 +11,34 @@ function Test-NSWindows {
 # stdin. With -File the host often parks the pipe on $input instead. Read both.
 function Get-NSStdinText {
     param([AllowEmptyString()][string]$Piped = '')
-    if (-not [string]::IsNullOrWhiteSpace($Piped)) {
-        return $Piped
-    }
-    $utf8 = New-Object Text.UTF8Encoding $false
-    try {
-        [Console]::InputEncoding = $utf8
-    }
-    catch {
-    }
-    try {
-        $stream = [Console]::OpenStandardInput()
-        if ($null -eq $stream) {
-            return ''
-        }
-        $reader = New-Object IO.StreamReader($stream, $utf8, $true)
+    $text = $Piped
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        $utf8 = New-Object Text.UTF8Encoding $false
         try {
-            return $reader.ReadToEnd()
+            [Console]::InputEncoding = $utf8
         }
-        finally {
-            $reader.Dispose()
+        catch {
+        }
+        try {
+            $stream = [Console]::OpenStandardInput()
+            if ($null -ne $stream) {
+                $reader = New-Object IO.StreamReader($stream, $utf8, $true)
+                try {
+                    $text = $reader.ReadToEnd()
+                }
+                finally {
+                    $reader.Dispose()
+                }
+            }
+        }
+        catch {
+            $text = ''
         }
     }
-    catch {
-        return ''
+    if (-not [string]::IsNullOrEmpty($text) -and [int][char]$text[0] -eq 0xFEFF) {
+        $text = $text.Substring(1)
     }
+    return $text
 }
 
 function Test-NSPathEntry {

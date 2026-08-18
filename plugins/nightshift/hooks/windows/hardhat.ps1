@@ -1,7 +1,10 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('claude', 'codex')]
-    [string]$HostName
+    [string]$HostName,
+    [Parameter(ValueFromPipeline = $true)]
+    [AllowEmptyString()]
+    [string]$HookJson = ''
 )
 
 Set-StrictMode -Version 2.0
@@ -351,7 +354,10 @@ function Get-NSCommandDenyReason {
     return ''
 }
 
-$raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
+$raw = Get-NSStdinText -Piped $HookJson
+if ([string]::IsNullOrWhiteSpace($raw)) {
+    $raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
+}
 $payload = $null
 if (-not [string]::IsNullOrWhiteSpace($raw)) {
     try {

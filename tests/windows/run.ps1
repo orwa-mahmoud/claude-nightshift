@@ -114,7 +114,7 @@ function Invoke-TestScript {
     $process.StartInfo = $psi
     $null = $process.Start()
     if (-not [string]::IsNullOrEmpty($InputText)) {
-        $bytes = [Text.Encoding]::UTF8.GetBytes($InputText)
+        $bytes = (New-Object Text.UTF8Encoding $false).GetBytes($InputText)
         $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
         $process.StandardInput.BaseStream.Flush()
     }
