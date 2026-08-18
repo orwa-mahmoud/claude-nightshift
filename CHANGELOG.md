@@ -3,6 +3,15 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.14.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.14.0...v0.14.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **hardhat:** check Git paths for protectedDirs ([f1f3d26](https://github.com/orwa-mahmoud/nightshift/commit/f1f3d2675104aa896ac19693cdc40dfc6898c5df))
+* **hardhat:** inspect the commit Git would write ([a84c225](https://github.com/orwa-mahmoud/nightshift/commit/a84c2257afb5ae0b02f52564dbf5258ccfdb8636))
+* **hardhat:** protect armed-shift control files ([bc2e047](https://github.com/orwa-mahmoud/nightshift/commit/bc2e04712c536625d0dc17b20027f9e159a402e9))
+
 ## [0.14.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.13.1...v0.14.0) (2026-08-18)
 
 
