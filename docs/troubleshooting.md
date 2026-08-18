@@ -11,7 +11,9 @@ Host differences that matter here: both Stop hooks refuse an early clock-out. Cl
 watchman can revive a live session sitting on a host API-error event. A Codex session that is
 **alive but errored is stood by**, not revived, until that signature is captured. Codex also has
 no Escape or clean-session-end signal, so closing an interactive session with open Items hands the
-night to its watchman. `touch .nightshift/STOP` is the stop-work order on every host.
+night to its watchman. `touch .nightshift/STOP` is the POSIX stop-work order;
+`New-Item -ItemType File -Force .nightshift\STOP` is its native Windows PowerShell equivalent.
+The full Windows boundary is in [Native Windows](windows.md).
 
 ## 0. Where is the site?
 
@@ -21,6 +23,9 @@ night to its watchman. `touch .nightshift/STOP` is the stop-work order on every 
 pwd
 ls -ld .nightshift .nightshift-link 2>/dev/null
 ```
+
+Native Windows PowerShell: `Get-Location` and
+`Get-Item -Force .nightshift,.nightshift-link -ErrorAction SilentlyContinue`.
 
 | You see | Meaning |
 |---|---|
@@ -40,6 +45,8 @@ plugins/nightshift/runtime/link-workspace.sh \
   --host-root /absolute/task/root \
   --workspace /absolute/nightshift/workspace
 ```
+
+Native Windows uses `runtime\windows\link-workspace.ps1 -HostRoot <path> -Workspace <path>`.
 
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected.
@@ -121,8 +128,9 @@ against the [rules schema](knobs.md#editor-schema) without changing behaviour.
 is denied with a configuration repair. A non-empty value denies with that message and an empty
 value explicitly allows the tool.
 
-Exact tool-name matching requires `jq` or `python3`. Start refuses to arm without either parser;
-if one disappears during a shift, the hardhat fails closed and names the missing prerequisite.
+Exact tool-name matching requires `jq` or `python3` on POSIX. Start refuses to arm there without
+either parser; if one disappears during a shift, the hardhat fails closed and names the missing
+prerequisite. Native Windows uses PowerShell's built-in `ConvertFrom-Json`.
 
 **Repair.** Re-run setup and accept missing keys it offers. Do not paste a half-file over an
 owner-edited `rules.json`. During an active shift the session working the night is denied
@@ -146,6 +154,7 @@ sed -n '1,5p' .nightshift/STOP 2>/dev/null
 | `.ended` | The gate already clocked the shift out. |
 | `.session-end` | Claude Code recorded a clean session end. Watchman stands down; start re-arms. |
 | `.shift-lease` | Transient process ownership for the bound shift. A watchman advances it before each recovery attempt; do not print or edit its capability line. |
+| `.mutex-scope` | Private Windows mutex identity. It persists across shifts so alternate paths and Windows logon sessions share the same lock; do not print, edit, or delete it. |
 | `.stall` | Stuck stop-attempt count. Not an ending. |
 
 A leftover `STOP`, `.ended`, `.session-end`, `.shift-session`, or `.shift-lease` from last night
@@ -159,20 +168,24 @@ hand while a session is still working the list.
 touch .nightshift/STOP
 ```
 
+Native Windows: `New-Item -ItemType File -Force .nightshift\STOP`.
+
 **Repair (you want a new shift and no session is alive).** Run start. It is what clears last
 night's leftovers. Killing `.watchman`'s pid is start's job when that pid is still live.
 
-If Doctor calls the lease malformed, Start fails closed instead. Issue STOP, confirm no worker or
-watchman is alive, then remove `.shift-lease`, `.shift-lease.tmp.*`, and `.lease-lock.d/` yourself
-from a terminal without printing the lease; retry Start afterward.
+If Doctor calls the lease malformed, Start fails closed instead. Issue STOP and confirm no worker
+or watchman is alive. On POSIX, load `lib/lib.sh` and call `ns_lease_reset_stale` as printed by
+Start; on native Windows, import `lib\Nightshift.psm1` and call
+`Reset-NSStaleLease .nightshift`. Never print, hand-edit, or selectively delete the lease.
 
 ## 6. Missing session identity
 
-**Check.** Immediately after arming, Start makes a harmless Bash binding probe that writes
+**Check.** Immediately after arming, Start makes a harmless Bash binding probe on POSIX or a
+PowerShell binding probe on native Windows. It writes
 `.nightshift/.shift-session` before item work. Typical layout: session id, transcript or rollout
 path, pid, process start time, host (`claude` or `codex`). Claude fills the process fields when it
-can verify them; Codex deliberately leaves lines 3–4 empty because its hook cannot vouch for a
-process identity.
+can verify them. Codex leaves lines 3–4 empty on POSIX because its hook cannot vouch for a process
+identity; native Windows records them when process ancestry is available.
 
 The binding probe also creates `.shift-lease`. It records session scope, host, ownership
 generation, a capability field that stays empty until recovery, and the current process witness.

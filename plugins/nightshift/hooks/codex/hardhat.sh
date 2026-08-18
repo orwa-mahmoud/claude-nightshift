@@ -88,7 +88,7 @@ fi
 # Process ownership is runtime state for the whole site, not agent-editable state. This narrow
 # protection applies even to helper conversations; all of their ordinary project work stays free.
 if ns_hardhat_payload_targets_lease "$TOOL" "$CODEX_RAW" "$LEASE_COMMAND"; then
-  deny "BLOCKED: the process lease is runtime-owned. Do not read, delete, or rewrite .nightshift/.shift-lease; issue STOP from another session if ownership must be reset."
+  deny "BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset."
 fi
 
 # A recovery can be forced to start fresh before any session id exists. During that short unbound

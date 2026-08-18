@@ -102,6 +102,7 @@ PY
 @test "setup inits the receipts repo without relying on the working directory" {
   grep -qF 'git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init' "$SETUP"
   grep -qF '`.shift-lease`' "$SETUP"
+  grep -qF '`.mutex-scope`' "$SETUP"
   grep -qF '`.lease-lock.d/`' "$SETUP"
 }
 

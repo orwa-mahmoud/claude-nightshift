@@ -24,5 +24,6 @@ The shift ends at the next stop attempt: the clock-out gate sees the marker, rel
 lease, and leaves open boxes as they are. Resume later with Start (`/nightshift:start` on
 Claude Code, or ask Nightshift to start on Codex), which clears the marker.
 
-**Panic form (works even if the model is unresponsive):** from any terminal, `touch
-.nightshift/STOP`. The gate honors it the same way.
+**Panic form (works even if the model is unresponsive):** from any POSIX terminal, `touch
+.nightshift/STOP`. In native Windows PowerShell, run
+`New-Item -ItemType File -Force .nightshift\STOP`. The gate honors either marker the same way.

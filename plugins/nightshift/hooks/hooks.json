@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/hardhat.sh\""
+            "command": ". \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch/claude-hardhat.ps1\""
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh\""
+            "command": ". \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch/claude-session-end.ps1\""
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/clock-out-gate.sh\""
+            "command": ". \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch/claude-clock-out.ps1\""
           }
         ]
       }

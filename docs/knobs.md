@@ -95,10 +95,11 @@ search do not enter the hook path; see
 [Codex tool coverage](https://developers.openai.com/codex/hooks#tool-coverage).
 
 JSON does not support comments. The file's `$schema` supplies editor descriptions and examples;
-this section is the raw-file reference. Hooks normalize `toolDeny` with `jq` or Python so matching
-stays exact; an armed shift fails closed when neither parser is available. The bound shift session
-also cannot use any observable tool to inspect or change `rules.json`; edit it from the owner
-session and the next shift tool call reads the change.
+this section is the raw-file reference. POSIX hooks normalize `toolDeny` with `jq` or Python;
+native Windows hooks use PowerShell's built-in JSON parser. Matching stays exact, and a POSIX
+armed shift fails closed when neither parser is available. The bound shift session also cannot use
+any observable tool to inspect or change `rules.json`; edit it from the owner session and the next
+shift tool call reads the change.
 
 | Env var | Effect |
 |---|---|

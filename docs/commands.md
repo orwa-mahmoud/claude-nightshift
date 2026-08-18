@@ -40,10 +40,18 @@ showing both absolute paths and receiving confirmation. The offline equivalent i
 plugins/nightshift/runtime/link-workspace.sh --host-root /absolute/task/root --workspace /absolute/workspace
 ```
 
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\link-workspace.ps1 `
+  -HostRoot C:\absolute\task\root -Workspace C:\absolute\workspace
+```
+
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected; Nightshift never searches for a workspace automatically.
 
-Stop-work order, any time, from any terminal: `touch .nightshift/STOP`. On Claude Code, Escape
+Stop-work order, any time, from a POSIX terminal: `touch .nightshift/STOP`. Native Windows
+PowerShell uses `New-Item -ItemType File -Force .nightshift\STOP`. On Claude Code, Escape
 pauses the interactive session and its watchman reads that interrupt before reviving. Codex exposes
 no equivalent owner-interrupt signal, so closing an interactive Codex session with open Items hands
 the shift to its watchman. STOP reaches either host, including a headless run, and ends the shift
@@ -75,8 +83,8 @@ Codex: ask Nightshift to schedule the shift
 
 It checks the things that would otherwise surprise you at 4am — that work is actually queued in the
 punch list, that permissions won't stall a headless run, that nothing is registered twice — then
-prints the launchd plist (macOS) or crontab line for this project and the one command that installs
-it. **It registers nothing itself.**
+prints the launchd plist (macOS), crontab or systemd entry (Linux), or Task Scheduler XML (native
+Windows) for this project and the one command that installs it. **It registers nothing itself.**
 
 Two things it will tell you, worth knowing in advance: **the items must be in the punch list before
 the scheduled time**, because a start works the list it finds and promotes nothing; and **a sleeping
@@ -104,6 +112,21 @@ Run it from a terminal, or copy the single file anywhere. It refuses a second en
 that already has one, and identifies projects by path rather than folder name, so two checkouts
 called `api` never collide. It cannot queue your work for you, though — that part has to be in the
 punch list already.
+
+Native Windows uses the token-free PowerShell generator:
+
+```powershell
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -Preflight
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -At 04:05
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -At 04:05 `
+  -Agent 'codex exec -s danger-full-access'
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -List
+plugins\nightshift\runtime\windows\schedule.ps1 -Project . -Remove
+```
+
+It emits a current-user Task Scheduler definition with overlap prevention and `StartWhenAvailable`.
+It does not wake the machine or run after logout as a stored-credential account; see
+[Native Windows](windows.md).
 
 One more appears in Claude Code's slash menu: `/nightshift:nightshift` is the method itself — how to
 work an item, park a decision, keep a snag log, and run product evolution. The agent loads it on its

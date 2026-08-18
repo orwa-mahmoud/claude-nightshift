@@ -2,8 +2,8 @@
 
 Nightshift is a native plugin for Codex and Claude Code. It adds no proxy, hosted service, or
 second agent runtime. Skills define the working method, files preserve the contract, hooks enforce
-the host-specific boundaries that are available, and local shell processes handle scheduling and
-recovery when no live session can act.
+the host-specific boundaries that are available, and local shell or PowerShell processes handle
+scheduling and recovery when no live session can act.
 
 The workflow skills are shared, but their host boundaries are explicit. Each resolves the
 host-opened project through Claude Code's project path or, on Codex, a Nightshift recovery override
@@ -38,8 +38,9 @@ not activate hooks: Start, or a Hunt or Quality path that starts immediately, cr
 `.shift-armed` after preflight. The clock-out gate and owner rules are active only while that marker
 exists, open Items remain, and the shift has not ended.
 
-Immediately after arming, Start makes a harmless Bash probe that records `.shift-session` before
-item work and creates `.shift-lease` for that process. Passive reads, searches, and MCP calls cannot
+Immediately after arming, Start makes a harmless host-shell probe—Bash on POSIX, PowerShell on
+native Windows—that records `.shift-session` before item work and creates `.shift-lease` for that
+process. Passive reads, searches, and MCP calls cannot
 make that first claim. The complete session record appears atomically; if two Start probes race,
 one wins and the other is explicitly rejected. Gate and guard decisions then apply to the bound
 session and current lease owner; another conversation opened beside the shift can chat, ask, or
@@ -133,6 +134,13 @@ recorded. Until the recovered child's first observed call binds its new identity
 distinguish that child from a helper conversation, so only the child carrying the recovery token is
 admitted. Once bound, unrelated conversations are free again.
 
+Native Windows uses the same lease and marker contract through bundled PowerShell. Hooks identify
+the host ancestor through `Win32_Process`, verify a recorded PID with its UTC start time, and
+protect lease capabilities with a private Windows ACL. Task Scheduler generation is the Windows
+counterpart to launchd, cron, and systemd generation. The complete parity and the conservative
+limits around process evidence, login state, and filesystems are documented in
+[Native Windows](windows.md).
+
 Claude Code provides additional transcript and session signals. Its liveness ladder checks the
 shift transcript for the owner's Escape first, then checks current transcript activity, the
 recorded process, the host's `claude agents --json` roster, and other Claude processes in the
@@ -207,6 +215,9 @@ host, use the host command or create the portable stop-work order:
 touch .nightshift/STOP
 ```
 
+Native Windows PowerShell uses
+`New-Item -ItemType File -Force .nightshift\STOP`.
+
 The order is applied at the agent's next stop attempt so the guards are not stripped from work that
 is still running. It then releases the gate, records the ending, and snapshots receipts when the
 optional receipts repository is enabled. Open boxes remain open, preserving the exact stopping
@@ -235,9 +246,10 @@ interrupt, clean close, or verified API-wedge signature. Same-conversation Codex
 depends on a resumable identity recorded before the original process disappears.
 
 Claude's initial interactive lease can include the CLI ancestor's pid and process start time.
-Codex's hook payload cannot prove equivalent process ancestry, so its initial lease is scoped to
-the bound session; the watchman's private generation token supplies the process fence once Codex
-recovery begins.
+On POSIX, Codex's hook payload cannot prove equivalent process ancestry, so its initial lease is
+scoped to the bound session; the watchman's private generation token supplies the process fence
+once recovery begins. Native Windows hooks can walk the Codex process ancestry and record the
+same PID/start-time pair when the operating system exposes it.
 
 Nightshift does not claim to repair either host's conversation history. It keeps the important
 working state independent of that history. Claude Code's strongest host-specific behavior is the
@@ -331,6 +343,8 @@ plugins/nightshift/runtime/link-workspace.sh \
   --host-root /absolute/task/root \
   --workspace /absolute/nightshift/workspace
 ```
+
+Native Windows uses `runtime\windows\link-workspace.ps1` with `-HostRoot` and `-Workspace`.
 
 The task root receives a machine-local `.nightshift-link`, excluded through Git's local
 `info/exclude` when applicable. This file is a trust boundary: it must be a regular file—not a

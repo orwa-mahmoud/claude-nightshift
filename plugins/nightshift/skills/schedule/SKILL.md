@@ -18,6 +18,9 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/schedule/SKILL.md`). Substitute that
 absolute path in every command below; never search for the plugin.
 
+On native Windows, use the PowerShell tool, `$env:` host variables, and native paths. Do not invoke
+the POSIX generator through Git Bash or WSL; the Task Scheduler generator is bundled separately.
+
 ## 1. Is there a site at all?
 
 No `.nightshift/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
@@ -73,6 +76,16 @@ and show its output as it comes:
 # Linux user timers:    --target systemd
 ```
 
+Native Windows:
+
+```powershell
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+  -Project "$NIGHTSHIFT_WORKSPACE" -Preflight
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+  -Project "$NIGHTSHIFT_WORKSPACE" -At <HH:MM>
+# Codex projects add: -Agent 'codex exec -s danger-full-access'
+```
+
 `--preflight` checks the agent binary, permissions, resolved workspace, rules, queued work,
 generated paths, and scheduler syntax for Claude Code and Codex. It installs nothing, writes
 nothing under LaunchAgents, and does not enable, start, or register an entry. `--list` shows what
@@ -87,4 +100,6 @@ list is two agents on one shift.
 Say where the run's output will land (`.nightshift/scheduled.log`), and mention once that the same
 generator runs from a terminal with no session —
 `$NIGHTSHIFT_PLUGIN_ROOT/runtime/schedule.sh` is plain shell and spends no model tokens, which is
-what makes it reachable on a day this command is not. The README carries the full offline note.
+what makes it reachable on a day this command is not. On native Windows the equivalent is
+`runtime\windows\schedule.ps1`; it likewise spends no model tokens and registers nothing. The
+README carries the full offline note.

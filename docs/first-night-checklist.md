@@ -7,9 +7,10 @@ Use this once before leaving Nightshift alone with a real project.
 - **Choose permissions deliberately.** Pre-allow only what the work needs, or explicitly accept the
   unattended full-access option. Nightshift's owner-defined deny rules still matter; they are not a
   sandbox and do not replace reviewing the agent's permissions.
-- **Prove STOP before sleeping.** From another terminal run `touch .nightshift/STOP`, then confirm
-  the next stop attempt ends the shift while unfinished boxes remain open. Remove the test STOP
-  file and start a fresh shift afterward.
+- **Prove STOP before sleeping.** From another terminal run `touch .nightshift/STOP` on POSIX or
+  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell, then confirm the
+  next stop attempt ends the shift while unfinished boxes remain open. Remove the test STOP file
+  and start a fresh shift afterward.
 - **Decide how stalls should end.** The default holds and flags a stalled run. Set `stallMax` only
   if you prefer an automatic clock-out after a fixed number of stuck attempts; always use a
   deadline for open-ended work.
@@ -32,6 +33,8 @@ The emergency stop is always available from the workspace root:
 ```sh
 touch .nightshift/STOP
 ```
+
+Native Windows: `New-Item -ItemType File -Force .nightshift\STOP`.
 
 See [Owner knobs](knobs.md) for the exact rule and notification settings,
 [Command reference](commands.md) for setup, start, hunt, import-issues, status, doctor, stop, and archive, and

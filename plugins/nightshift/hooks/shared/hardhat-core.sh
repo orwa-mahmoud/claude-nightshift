@@ -24,7 +24,7 @@ ns_hardhat_lease_targeted() {
   local normalized nightshift_context=0
   normalized="$(printf '%s' "$1" | sed "s#\\\\/#/#g; s#[\"']##g")"
   if printf '%s' "$normalized" |
-      grep -qE '(^|/)\.shift-lease($|[^[:alnum:]_-])|(^|/)\.lease-lock\.d($|/)'; then
+      grep -qE '(^|/)(\.shift-lease|\.mutex-scope)($|[^[:alnum:]_-])|(^|/)\.lease-lock\.d($|/)'; then
     return 0
   fi
   case "$normalized" in *'.nightshift/'*) nightshift_context=1 ;; esac
@@ -36,8 +36,9 @@ ns_hardhat_lease_targeted() {
     case "$normalized" in
       *'.shift-*'* | *'.shift-?'* | *'.shift-['* | *'.shift-{'* | *'.shift-$'* | *'.shift-`'* \
         | *'.lease-*'* | *'.lease-?'* | *'.lease-['* | *'.lease-{'* | *'.lease-$'* | *'.lease-`'* \
+        | *'.mutex-*'* | *'.mutex-?'* | *'.mutex-['* | *'.mutex-{'* | *'.mutex-$'* | *'.mutex-`'* \
         | *'.nightshift/*'* | *'.nightshift/.*'* | *'.nightshift/.?'* \
-        | *'{'*'shift-lease'* | *'{'*'lease-lock'* ) return 0 ;;
+        | *'{'*'shift-lease'* | *'{'*'lease-lock'* | *'{'*'mutex-scope'* ) return 0 ;;
     esac
   fi
   if printf '%s' "$normalized" | grep -qE '(^|[;&|[:space:]])(rm|rmdir|unlink|mv)([[:space:]]|$)' \

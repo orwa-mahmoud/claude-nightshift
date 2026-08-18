@@ -23,6 +23,6 @@ Everything is named from a real construction site — learn one term, guess the 
 | **issue import** | Nightshift Import issues | copies selected GitHub issues onto the drafting table as quoted source; never searches, never writes back to GitHub |
 | **quitting time** | `.nightshift/deadline` | past the deadline, the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
-| **stop-work order** | `.nightshift/STOP` | Nightshift Stop — or `touch .nightshift/STOP` from any terminal — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
+| **stop-work order** | `.nightshift/STOP` | Nightshift Stop — or the platform-native terminal command that creates this file — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |
-| **night watchman** | `plugins/nightshift/runtime/claude/watchman.sh` | one per host (`runtime/claude/`, `runtime/codex/`) — after positive death evidence it advances the process lease and resumes its recorded session; host-specific pause and close signals determine when it stands down |
+| **night watchman** | `plugins/nightshift/runtime/` | one per host and operating-system runtime — after positive death evidence it advances the process lease and resumes its recorded session; host-specific pause and close signals determine when it stands down |

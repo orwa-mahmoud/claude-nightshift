@@ -24,9 +24,26 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/setup/SKILL.md`). Substitute that
 absolute path in every command below; never search for the plugin.
 
+On native Windows, use the PowerShell tool and native paths throughout: the host variables are
+`$env:CLAUDE_PROJECT_DIR`, `$env:CODEX_PROJECT_DIR`, and `$env:PLUGIN_ROOT`, with
+`[Environment]::CurrentDirectory` as the Codex cwd fallback. Do not route setup through WSL or Git
+Bash. Once the workspace and work target are resolved, the bundled mechanical scaffold is:
+
+```powershell
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\setup.ps1" `
+  -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET"
+```
+
+It copies only absent files, writes state version 1 for a new site, persists the work target, and
+keeps `.nightshift/` private. The skill still owns every owner choice below; the script asks
+nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
+
 If the user explicitly identifies a different existing workspace containing `.nightshift/`, show
 both absolute paths and ask for confirmation. On yes, run
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/link-workspace.sh" --host-root "$TASK_ROOT" --workspace "$PROPOSED_WORKSPACE"`.
+On native Windows, run
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\link-workspace.ps1" -HostRoot "$TASK_ROOT" -Workspace "$PROPOSED_WORKSPACE"`
+instead.
 The pointer is local-only and state remains in the authoritative workspace; never copy it.
 
 ## 0. Require a real project workspace
@@ -82,6 +99,9 @@ already existed and the marker is missing, that workspace is legacy version `0` 
 and run it only after an explicit yes; the script writes only the marker and refuses while
 armed. A marker newer than `1`, or a malformed file, fails closed: print the diagnostic, do
 not rewrite or downgrade it, and do not continue scaffolding as if the site were current.
+On native Windows, the approved migration is the same idempotent scaffold command with
+`-MigrateLegacy`; it refuses an armed site and changes only the missing marker plus any still-absent
+scaffold files.
 
 ## 2. Private by default
 
@@ -96,12 +116,15 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
   receipts repo? (never pushed, never touches your project's history)"* — and on anything but a
   clear yes, skip it: the receipts still exist as plain files. Present the question neutrally —
   never describe the repo as recommended; the default is no. On yes: if `.nightshift/.git` does
-  not exist, run `git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init` rather than `cd`-ing there, add a
-  `$NIGHTSHIFT_WORKSPACE/.nightshift/.gitignore` that ignores the
+  not exist, run `git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init` rather than `cd`-ing there.
+  Ensure `$NIGHTSHIFT_WORKSPACE/.nightshift/.gitignore` contains the
   transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
-  `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.watchman`, `.watchman-tick`,
-  `.lock.d/`, and `.lease-lock.d/`, and make one initial commit. **Never add a remote to it, never
-  push it.**
+  `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
+  `.mutex-scope.tmp.*`, `.watchman`, `.watchman-tick`, `.lock.d/`, and `.lease-lock.d/`; preserve
+  existing lines. Make one initial commit only when setup created the receipts repository.
+  **Never add a remote to it, never push it.**
+  On native Windows, after a clear yes, rerun the bundled scaffold with the same `-Project` and
+  `-WorkTarget` plus `-Receipts`; the idempotent pass creates only this local receipts repo.
 
 ## 3. Gates — ask, never impose
 
@@ -161,6 +184,9 @@ never half-apply it. The template's `$schema` field points at the raw repository
 `skills/nightshift/references/nightshift-rules.schema.json` so editors catch invalid names, types,
 and values; it is ignored at runtime. Editor discovery, including a `json.schemas` workspace
 setting for copies that lack `$schema`, is documented in `docs/knobs.md`.
+On native Windows, validate with
+`Get-Content -Raw -LiteralPath "$NIGHTSHIFT_WORKSPACE\.nightshift\rules.json" | ConvertFrom-Json`;
+PowerShell's JSON parser is built in, so native setup has no `jq` or Python prerequisite.
 
 The rules file is portable across hosts, so never generate a host-specific copy. Its `toolDeny`
 map carries both native question names: `AskUserQuestion` for Claude Code and

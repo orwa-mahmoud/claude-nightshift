@@ -438,6 +438,7 @@ STUB
   p="$(new_project)"
   punch_open "$p"
   claude_bind "$p" shift-session
+  printf '0123456789abcdef0123456789abcdef\n' >"$p/.nightshift/.mutex-scope"
 
   run claude_bash "$p" shift-session "rm -f .nightshift/.shift-lease"
   is_deny "$output"
@@ -448,8 +449,13 @@ STUB
   is_deny "$output"
   [ -f "$p/.nightshift/.shift-lease" ]
 
+  run claude_bash "$p" helper-session "rm -f .nightshift/.mutex-scope"
+  is_deny "$output"
+  [ -f "$p/.nightshift/.mutex-scope" ]
+
   for command in \
     "rm -f .nightshift/.shift-*" \
+    "rm -f .nightshift/.mutex-*" \
     "rm -f .nightshift/.shift-{lease,armed}" \
     "cd .nightshift && rm -f .shift-*" \
     "find .nightshift -name '.shift-*' -delete" \

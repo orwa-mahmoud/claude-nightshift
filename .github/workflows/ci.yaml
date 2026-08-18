@@ -65,6 +65,21 @@ jobs:
           bash --version
           "$bats_bin" -r tests/
 
+  windows-native:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shell: [powershell, pwsh]
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run native Windows lifecycle suite
+        run: ./tests/windows/run.ps1
+
   validate:
     runs-on: ubuntu-latest
     steps:

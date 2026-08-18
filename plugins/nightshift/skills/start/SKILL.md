@@ -18,11 +18,26 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/start/SKILL.md`). Substitute that
 absolute path in every command below; never search for the plugin.
 
+On native Windows, use the PowerShell tool and native paths throughout. Resolve the same values
+from `$env:CLAUDE_PROJECT_DIR`, `$env:CODEX_PROJECT_DIR`, and `$env:PLUGIN_ROOT`, with
+`[Environment]::CurrentDirectory` as the Codex cwd fallback. Import the bundled module when a
+preflight helper is needed:
+
+```powershell
+Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force
+```
+
+Do not route a native run through WSL or Git Bash. WSL is a separate Linux runtime and follows the
+POSIX commands in this skill.
+
 If the start request itself explicitly names a different existing Nightshift workspace, that
 owner-provided path is authorization to link it: print both absolute paths, run
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/link-workspace.sh" --host-root "$TASK_ROOT" --workspace "$PROPOSED_WORKSPACE"`,
 then continue from the resolved workspace. Without an explicit path or an existing valid link,
 refuse to arm outside the task root and direct the owner to Setup; never discover a target.
+On native Windows, use
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\link-workspace.ps1" -HostRoot "$TASK_ROOT" -Workspace "$PROPOSED_WORKSPACE"`
+for that same authorized link.
 
 Read `.nightshift/state-version` before preflight. A missing marker is legacy version `0` and
 is operable — do not migrate it. Integer `1` is current. A newer integer or a malformed marker
@@ -73,8 +88,13 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
   A live `.nightshift/.watchman` beside an armed list with open Items is also an active shift,
   including the gap between recovery attempts. Refuse the second Start and point the owner at
   Status or STOP; never kill that watchman as stale.
-  `touch .nightshift/STOP` is the lever if they want a live shift ended first. A record whose
-  process is provably dead is last night's leftover: fall through and clear it below.
+  The platform-native command that creates `.nightshift/STOP` is the lever if they want a live
+  shift ended first. A record whose process is provably dead is last night's leftover: fall
+  through and clear it below.
+  On native Windows, use `Get-Process -Id <pid>` plus the recorded UTC start time through
+  `Test-NSRecordedProcess`; an inaccessible process is unavailable evidence, not death. The
+  panic marker is
+  `New-Item -ItemType File -Force "$NIGHTSHIFT_WORKSPACE\.nightshift\STOP"`.
 - **Stand down a stale watchman before clearing its state.** Only after the checks above prove no
   shift is live, kill a still-running pid from `.nightshift/.watchman` and wait for it to exit. A
   watchman must not be able to advance the old lease while Start removes markers.
@@ -84,6 +104,9 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
   bash -c '. "$1/lib/lib.sh"; ns_lease_reset_stale "$2/.nightshift"' \
     nightshift "$NIGHTSHIFT_PLUGIN_ROOT" "$NIGHTSHIFT_WORKSPACE"
   ```
+  On native Windows, after the same liveness proof, run
+  `Reset-NSStaleLease "$NIGHTSHIFT_WORKSPACE\.nightshift"` from the imported module. A false result
+  is a refusal, not permission to delete the lease directly.
   Refuse to continue if it fails. For malformed state, substitute the resolved absolute paths and
   print this command for the owner to run directly after STOP; do not run it from the blocked
   session.
@@ -124,7 +147,8 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
   `parking-lot.md` are the owner's review material; Archive files those on the owner's order.
 - **Require an exact JSON parser for tool rules.** `jq` or `python3` must be available before
   arming; without either, refuse to arm and name the missing prerequisite. The hardhat never
-  approximates `toolDeny` with text matching.
+  approximates `toolDeny` with text matching. Native Windows uses PowerShell's built-in
+  `ConvertFrom-Json`, so neither external parser is required there.
 - **New knobs check:** if `.nightshift/rules.json` exists, compare the shipped template's
   top-level keys and nested `toolDeny` keys against the same objects in the file (`jq -r 'keys[]'`
   on each, or equivalent Python when jq is absent). Keys the template has that the file lacks mean
@@ -163,6 +187,12 @@ Every check has passed and the work is known, so the shift begins here. Create t
 touch "$NIGHTSHIFT_WORKSPACE/.nightshift/.shift-armed"
 ```
 
+Native Windows:
+
+```powershell
+New-Item -ItemType File -Force "$NIGHTSHIFT_WORKSPACE\.nightshift\.shift-armed" | Out-Null
+```
+
 **This, and nothing else, is what puts a session on shift.** Until it exists the punch list is an
 ordinary to-do file: the clock-out gate holds nobody and hardhat's guards apply to no one, so a
 session that writes items while planning still stops freely.
@@ -178,7 +208,13 @@ Immediately after writing `.shift-armed`, make this the next tool call on either
 : nightshift-binding-probe
 ```
 
-This harmless Bash probe makes the hardhat record this conversation in `.shift-session` and claim
+On native Windows, the immediate PowerShell probe is:
+
+```powershell
+$null = 'nightshift-binding-probe'
+```
+
+This harmless host-shell probe makes the hardhat record this conversation in `.shift-session` and claim
 generation 1 in `.shift-lease` before item work or the watchman begins. Its distinctive marker also
 makes a concurrent second Start fail explicitly if another session won the atomic session-file
 claim. Do not read files, search, call MCP, or yield between the marker and the probe. Catch-all
@@ -187,11 +223,17 @@ probe can. Never create or edit the lease directly. A watchman advances it atomi
 recovery, which fences the older process without restricting unrelated conversations in the
 project.
 
+The probe must execute cleanly with no hook denial or hook error. On native Windows this is also
+the live check that the filesystem can make an atomic private session claim and lease. If it fails,
+remove `.shift-armed`, issue STOP, and use the stale-lease reset procedure above; do not begin item
+work or arm a watchman on an assumed claim.
+
 ### Codex identity checkpoint — before the watchman
 
 Codex exposes the current task identity to Nightshift through hook payloads, not as a shell
 environment variable. After the binding probe, classify `.shift-session` line 1 with
 `ns_codex_identity_kind` from `lib/lib.sh` **before arming the watchman or beginning item work**.
+On native Windows, call `Get-NSCodexIdentityKind` from the imported PowerShell module instead.
 
 - `resumable` — continue.
 - `missing` — continue only with the already-documented fresh-session fallback; say plainly that
@@ -230,6 +272,14 @@ On Codex:
 nohup "$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
+On native Windows, start the same bundled PowerShell watchman for the active host:
+
+```powershell
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1" `
+  -Project "$NIGHTSHIFT_WORKSPACE" -HostName claude
+# Codex uses: -HostName codex
+```
+
 The Codex identity checkpoint above has already passed before this command is reached. One stance
 to state plainly on Codex: there is no owner-interrupt tell yet, so closing an
 interactive session with open boxes hands the night to the watchman — it will resume the
@@ -238,7 +288,7 @@ session id (a UUID or a long hex token). ChatGPT thread/conversation handles, ro
 other non-resumable identities are refused: the watchman stands down rather than guessing or
 starting an unrelated conversation. A missing id (a 500 before the first record) still falls
 back to a fresh session whose handover is the punch list. The stop-work order
-(`touch .nightshift/STOP`) is the off switch, on every host.
+(`.nightshift/STOP`) is the off switch, on every host.
 
 It revives a session that DIES mid-shift — an API outage, a crash, a killed terminal — by
 spawning a fresh session that resumes from the punch list. Both hosts stand down on done, a

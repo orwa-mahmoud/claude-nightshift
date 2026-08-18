@@ -11,7 +11,7 @@ load helpers
 @test "every hooks.json command quotes the plugin root (spaced-path safe)" {
   while IFS= read -r cmd; do
     case "$cmd" in
-      '"${CLAUDE_PLUGIN_ROOT}'*'"') : ;;
+      '. "${CLAUDE_PLUGIN_ROOT}'*'"') : ;;
       *) echo "unquoted command: $cmd"; return 1 ;;
     esac
   done < <(jq -r '.. | .command? // empty' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hooks.json")
@@ -19,8 +19,8 @@ load helpers
 
 @test "hook commands run from a directory whose path contains a space" {
   dir="$BATS_TEST_TMPDIR/plugin root with spaces"
-  mkdir -p "$dir/hooks"
-  cp "$BATS_TEST_DIRNAME"/../plugins/nightshift/hooks/*.sh "$dir/hooks/"
+  mkdir -p "$dir"
+  cp -R "$BATS_TEST_DIRNAME/../plugins/nightshift/." "$dir/"
   p="$(new_project)"
   cmd="$(jq -r '.hooks.Stop[0].hooks[0].command' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hooks.json")"
   CLAUDE_PLUGIN_ROOT="$dir" CLAUDE_PROJECT_DIR="$p" run sh -c "printf '{}' | $cmd"
@@ -34,8 +34,8 @@ load helpers
 @test "every hooks.json command points at a file that exists" {
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
   while IFS= read -r cmd; do
-    path="${cmd%\"}"
-    path="${path#\"}"
+    path="${cmd#*\"}"
+    path="${path%\"}"
     path="${path/\$\{CLAUDE_PLUGIN_ROOT\}/$root}"
     [ -f "$path" ] || { echo "hooks.json names a file that does not exist: $path"; return 1; }
   done < <(jq -r '.. | .command? // empty' "$root/hooks/hooks.json")
@@ -48,7 +48,7 @@ load helpers
   [ "$(jq -r '.hooks.SessionEnd | length' "$f")" -eq 1 ]
   jq -e '.hooks.SessionEnd[0].hooks[0].command | test("session-end")' "$f" >/dev/null
   jq -e '.hooks.PreToolUse[] | select(.matcher=="*") | .hooks[0].command | test("hardhat")' "$f" >/dev/null
-  jq -e '.hooks.Stop[0].hooks[0].command | test("clock-out-gate")' "$f" >/dev/null
+  jq -e '.hooks.Stop[0].hooks[0].command | test("clock-out")' "$f" >/dev/null
 }
 
 @test "the hooks wired in hooks.json actually decide when driven through their own config" {
@@ -74,8 +74,14 @@ load helpers
   f="$root/hooks/codex/hooks.json"
   [ "$(jq -r '[.hooks.PreToolUse[].matcher] | join(",")' "$f")" = "*" ]
   [ "$(jq -r '[.. | .command? // empty] | length' "$f")" -eq 2 ]
+  [ "$(jq -r '[.. | .commandWindows? // empty] | length' "$f")" -eq 2 ]
   jq -e '.hooks.PreToolUse[0].hooks[0].command | test("codex/hardhat")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].command | test("codex/clock-out-gate")' "$f" >/dev/null
+  jq -e '.hooks.PreToolUse[0].hooks[0].commandWindows | test("windows\\\\hardhat.ps1")' "$f" >/dev/null
+  jq -e '.hooks.Stop[0].hooks[0].commandWindows | test("windows\\\\clock-out-gate.ps1")' "$f" >/dev/null
+  jq -e '[.. | .commandWindows? // empty]
+    | all(contains("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File"))
+    and all(contains("%PLUGIN_ROOT%"))' "$f" >/dev/null
   while IFS= read -r cmd; do
     path="${cmd%\"}"
     path="${path#\"}"
