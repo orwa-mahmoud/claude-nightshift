@@ -340,7 +340,7 @@ function Protect-NSPrivateFile {
 function Write-NSAtomicLines {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Lines,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines,
         [switch]$Private,
         [switch]$CreateOnly
     )
