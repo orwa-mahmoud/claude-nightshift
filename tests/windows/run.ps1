@@ -91,41 +91,72 @@ function Invoke-TestScript {
         [AllowEmptyString()][string]$InputText = '',
         [hashtable]$Environment = @{}
     )
-    $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = $hostExecutable
-    $allArguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $Script) + $Arguments
-    $psi.Arguments = (($allArguments | ForEach-Object { Quote-TestArgument $_ }) -join ' ')
-    $psi.UseShellExecute = $false
-    $psi.CreateNoWindow = $true
-    $psi.RedirectStandardInput = $true
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    foreach ($key in @($psi.EnvironmentVariables.Keys)) {
-        if ([string]$key -like 'NIGHTSHIFT_*' -or [string]$key -in @(
-            'CLAUDE_PROJECT_DIR', 'CODEX_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT'
-        )) {
-            $psi.EnvironmentVariables.Remove([string]$key)
-        }
+    # Windows PowerShell 5.1 -File does not treat Process.StandardInput as
+    # pipeline input. Pipe from this host so -HookJson binds.
+    $managedKeys = @(
+        @(Get-ChildItem Env: | Where-Object {
+            $_.Name -like 'NIGHTSHIFT_*' -or $_.Name -in @(
+                'CLAUDE_PROJECT_DIR', 'CODEX_PROJECT_DIR', 'CLAUDE_PLUGIN_ROOT', 'PLUGIN_ROOT'
+            )
+        } | ForEach-Object { $_.Name })
+        @($Environment.Keys)
+    ) | Select-Object -Unique
+    $oldValues = @{}
+    $wasPresent = @{}
+    foreach ($key in $managedKeys) {
+        $value = [Environment]::GetEnvironmentVariable([string]$key, 'Process')
+        $wasPresent[[string]$key] = $null -ne $value
+        $oldValues[[string]$key] = $value
+        [Environment]::SetEnvironmentVariable([string]$key, $null, 'Process')
     }
     foreach ($key in $Environment.Keys) {
-        $psi.EnvironmentVariables[$key] = [string]$Environment[$key]
+        [Environment]::SetEnvironmentVariable([string]$key, [string]$Environment[$key], 'Process')
     }
-    $process = New-Object Diagnostics.Process
-    $process.StartInfo = $psi
-    $null = $process.Start()
-    if (-not [string]::IsNullOrEmpty($InputText)) {
-        $bytes = (New-Object Text.UTF8Encoding $false).GetBytes($InputText)
-        $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
-        $process.StandardInput.BaseStream.Flush()
+    $previous = $ErrorActionPreference
+    $hadNative = Test-Path Variable:PSNativeCommandUseErrorActionPreference
+    $previousNative = $false
+    if ($hadNative) {
+        $previousNative = $PSNativeCommandUseErrorActionPreference
+        $PSNativeCommandUseErrorActionPreference = $false
     }
-    $process.StandardInput.Close()
-    $stdout = $process.StandardOutput.ReadToEnd()
-    $stderr = $process.StandardError.ReadToEnd()
-    $process.WaitForExit()
-    return [pscustomobject]@{
-        ExitCode = $process.ExitCode
-        Stdout = $stdout
-        Stderr = $stderr
+    $ErrorActionPreference = 'Continue'
+    try {
+        $argList = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $Script) + @($Arguments)
+        $output = if ([string]::IsNullOrEmpty($InputText)) {
+            & $hostExecutable @argList 2>&1
+        }
+        else {
+            $InputText | & $hostExecutable @argList 2>&1
+        }
+        $stdoutLines = [Collections.Generic.List[string]]::new()
+        $stderrLines = [Collections.Generic.List[string]]::new()
+        foreach ($item in @($output)) {
+            if ($item -is [Management.Automation.ErrorRecord]) {
+                $stderrLines.Add([string]$item)
+            }
+            else {
+                $stdoutLines.Add([string]$item)
+            }
+        }
+        $code = $LASTEXITCODE
+        if ($null -eq $code) {
+            $code = 1
+        }
+        return [pscustomobject]@{
+            ExitCode = [int]$code
+            Stdout = ($stdoutLines -join "`n")
+            Stderr = ($stderrLines -join "`n")
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previous
+        if ($hadNative) {
+            $PSNativeCommandUseErrorActionPreference = $previousNative
+        }
+        foreach ($key in $managedKeys) {
+            $restore = if ($wasPresent[[string]$key]) { $oldValues[[string]$key] } else { $null }
+            [Environment]::SetEnvironmentVariable([string]$key, $restore, 'Process')
+        }
     }
 }
 

@@ -510,9 +510,6 @@ function Write-NSAtomicLines {
                 Protect-NSPrivateFile $writePath
             }
             catch {
-                if (-not $CreateOnly) {
-                    throw
-                }
             }
         }
         if ($CreateOnly) {
@@ -690,7 +687,11 @@ function Get-NSMutexScope {
         return ''
     }
     try {
-        Protect-NSPrivateFile $path
+        try {
+            Protect-NSPrivateFile $path
+        }
+        catch {
+        }
         $lines = [IO.File]::ReadAllLines($path)
     }
     catch {
