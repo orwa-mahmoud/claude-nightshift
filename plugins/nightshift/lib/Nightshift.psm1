@@ -7,6 +7,37 @@ function Test-NSWindows {
     return [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 }
 
+# Windows PowerShell 5.1's [Console]::In is the console host, not redirected
+# stdin. With -File the host often parks the pipe on $input instead. Read both.
+function Get-NSStdinText {
+    param([AllowEmptyString()][string]$Piped = '')
+    if (-not [string]::IsNullOrWhiteSpace($Piped)) {
+        return $Piped
+    }
+    $utf8 = New-Object Text.UTF8Encoding $false
+    try {
+        [Console]::InputEncoding = $utf8
+    }
+    catch {
+    }
+    try {
+        $stream = [Console]::OpenStandardInput()
+        if ($null -eq $stream) {
+            return ''
+        }
+        $reader = New-Object IO.StreamReader($stream, $utf8, $true)
+        try {
+            return $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    catch {
+        return ''
+    }
+}
+
 function Test-NSPathEntry {
     param([Parameter(Mandatory = $true)][string]$Path)
     try {

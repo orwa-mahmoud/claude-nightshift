@@ -8,7 +8,7 @@ if ($env:NIGHTSHIFT_REVIVAL -eq '1') {
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
-$raw = [Console]::In.ReadToEnd()
+$raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
 try {
     $payload = $raw | ConvertFrom-Json -ErrorAction Stop
 }

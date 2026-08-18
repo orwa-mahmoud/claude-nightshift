@@ -157,7 +157,7 @@ function Get-NSProjectHead {
     return 'nohead'
 }
 
-$raw = [Console]::In.ReadToEnd()
+$raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
 $payload = $null
 if (-not [string]::IsNullOrWhiteSpace($raw)) {
     try {

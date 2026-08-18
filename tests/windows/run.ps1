@@ -114,7 +114,9 @@ function Invoke-TestScript {
     $process.StartInfo = $psi
     $null = $process.Start()
     if (-not [string]::IsNullOrEmpty($InputText)) {
-        $process.StandardInput.Write($InputText)
+        $bytes = [Text.Encoding]::UTF8.GetBytes($InputText)
+        $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        $process.StandardInput.BaseStream.Flush()
     }
     $process.StandardInput.Close()
     $stdout = $process.StandardOutput.ReadToEnd()
@@ -184,11 +186,14 @@ function Invoke-TestCommandFile {
     foreach ($key in $Environment.Keys) {
         [Environment]::SetEnvironmentVariable([string]$key, [string]$Environment[$key], 'Process')
     }
+    $previousOutput = $OutputEncoding
     try {
+        $OutputEncoding = New-Object Text.UTF8Encoding $false
         $output = ($InputText | & $env:ComSpec /D /C "`"$Path`"" 2>&1 | Out-String)
         $exitCode = $LASTEXITCODE
     }
     finally {
+        $OutputEncoding = $previousOutput
         foreach ($key in $managedKeys) {
             $restore = if ($wasPresent[[string]$key]) { $oldValues[[string]$key] } else { $null }
             [Environment]::SetEnvironmentVariable([string]$key, $restore, 'Process')
@@ -596,7 +601,7 @@ try {
         $codexCommandProbePayload $codexCommandEnvironment
     Assert-Equal 0 $codexCommandProbe.ExitCode "Codex hardhat commandWindows exits cleanly: $($codexCommandProbe.Stdout)"
     Assert-True ([string]::IsNullOrWhiteSpace($codexCommandProbe.Stdout)) `
-        'Codex hardhat commandWindows allows the winning probe'
+        "Codex hardhat commandWindows allows the winning probe ($(Format-HookResult $codexCommandProbe))"
     Assert-Equal 'codex' (Read-NSSession (Join-Path $codexCommandWorkspace '.nightshift')).HostName `
         'Codex commandWindows reaches the native hardhat'
 
