@@ -187,6 +187,179 @@ commit_stages_implicitly() {
   return 1
 }
 
+# ns_git_verb_tail <command> <add|commit>
+# Print the words after that git verb. Return 1 when the verb is absent.
+ns_git_verb_tail() {
+  local cmd="$1" verb="$2" seen=0 word
+  # shellcheck disable=SC2086
+  set -- $cmd
+  for word in "$@"; do
+    if [ "$seen" -eq 1 ]; then
+      printf '%s\n' "$word"
+      continue
+    fi
+    [ "$word" = "$verb" ] && seen=1
+  done
+  [ "$seen" -eq 1 ]
+}
+
+# ns_path_under_protected <path> <protectedDirs>
+ns_path_under_protected() {
+  local path="${1#./}" d
+  path="${path#./}"
+  IFS=' |' read -ra _ns_pd_dirs <<<"$2"
+  for d in "${_ns_pd_dirs[@]}"; do
+    [ -n "$d" ] || continue
+    d="${d#./}"
+    case "$path" in
+      "$d" | "$d"/* | */"$d" | */"$d"/*) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# Replay add/commit against a copied index so guards can ask Git what would be written
+# without mutating the real index. 0 = prepared ($NS_GIT_PROSP_DIR, GIT_INDEX_FILE),
+# 1 = no-op / empty, 2 = cannot model this command (fail closed).
+ns_git_prospective_prepare() { # <repo> <command> <add|commit>
+  local repo="$1" cmd="$2" verb="$3" tmp src word rest=0 skip=0 form=index
+  local -a paths=()
+  NS_GIT_PROSP_DIR=""
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/ns-git.XXXXXX")" || return 2
+  src="$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null)" || { rm -rf "$tmp"; return 2; }
+  src="$src/index"
+  if [ -f "$src" ]; then
+    cp "$src" "$tmp/index" || { rm -rf "$tmp"; return 2; }
+  fi
+  export GIT_INDEX_FILE="$tmp/index"
+  NS_GIT_PROSP_DIR="$tmp"
+  git -C "$repo" ls-files --stage -z >"$tmp/before" 2>/dev/null || :
+
+  while IFS= read -r word; do
+    [ -n "$word" ] || continue
+    if [ "$skip" -eq 1 ]; then
+      skip=0
+      continue
+    fi
+    if [ "$rest" -eq 1 ]; then
+      [ "$word" = MSG ] || paths+=("$word")
+      continue
+    fi
+    case "$word" in
+      --) rest=1 ;;
+      --all | -A)
+        if [ "$verb" = add ]; then form=all
+        else form=tracked
+        fi
+        ;;
+      --update | -u) form=tracked ;;
+      --include | -i) [ "$verb" = commit ] && form=include ;;
+      --only | -o) [ "$verb" = commit ] && form=only ;;
+      -m | --message | --file | --author | --date | --cleanup)
+        skip=1
+        ;;
+      --message=* | --file=* | --author=* | --date=* | MSG) ;;
+      --allow-empty | --allow-empty-message | --no-verify | --no-edit | --quiet | --signoff | -q | -s | -n | --no-gpg-sign | --porcelain | --verbose | -v | --force | -f | --ignore-missing | --refresh)
+        ;;
+      --amend | --patch | -p | --interactive | --chmod=* | --edit | -e | --fixup | --squash | --reuse-message | --reedit-message)
+        ns_git_prospective_cleanup
+        return 2
+        ;;
+      -*)
+        if [ "$verb" = commit ] && printf '%s' "$word" | grep -qE '^-[[:alpha:]]*a[[:alpha:]]*$'; then
+          form=tracked
+        elif [ "$verb" = commit ] && printf '%s' "$word" | grep -qE '^-[[:alpha:]]*i[[:alpha:]]*$'; then
+          form=include
+        elif [ "$verb" = commit ] && printf '%s' "$word" | grep -qE '^-[[:alpha:]]*o[[:alpha:]]*$'; then
+          form=only
+        elif [ "$verb" = add ] && printf '%s' "$word" | grep -qE '^-[[:alpha:]]*A[[:alpha:]]*$'; then
+          form=all
+        elif [ "$verb" = add ] && printf '%s' "$word" | grep -qE '^-[[:alpha:]]*u[[:alpha:]]*$'; then
+          form=tracked
+        else
+          ns_git_prospective_cleanup
+          return 2
+        fi
+        ;;
+      *) [ "$word" = MSG ] || paths+=("$word") ;;
+    esac
+  done < <(ns_git_verb_tail "$cmd" "$verb")
+
+  if [ "$verb" = commit ] && [ "${#paths[@]}" -gt 0 ] && [ "$form" = index ]; then
+    form=only
+  fi
+
+  case "$verb-$form" in
+    add-index)
+      if [ "${#paths[@]}" -eq 0 ]; then
+        :
+      else
+        git -C "$repo" add -- "${paths[@]}" >/dev/null 2>&1 || { ns_git_prospective_cleanup; return 2; }
+      fi
+      ;;
+    add-all) git -C "$repo" add -A >/dev/null 2>&1 || { ns_git_prospective_cleanup; return 2; } ;;
+    add-tracked) git -C "$repo" add -u >/dev/null 2>&1 || { ns_git_prospective_cleanup; return 2; } ;;
+    commit-index) ;;
+    commit-tracked) git -C "$repo" add -u >/dev/null 2>&1 || { ns_git_prospective_cleanup; return 2; } ;;
+    commit-include)
+      if [ "${#paths[@]}" -gt 0 ]; then
+        git -C "$repo" add -- "${paths[@]}" >/dev/null 2>&1 || { ns_git_prospective_cleanup; return 2; }
+      fi
+      ;;
+    commit-only)
+      git -C "$repo" read-tree HEAD >/dev/null 2>&1 || git -C "$repo" read-tree --empty >/dev/null 2>&1 || {
+        ns_git_prospective_cleanup
+        return 2
+      }
+      if [ "${#paths[@]}" -gt 0 ]; then
+        git -C "$repo" add -- "${paths[@]}" >/dev/null 2>&1 || { ns_git_prospective_cleanup; return 2; }
+      fi
+      ;;
+    *) ns_git_prospective_cleanup; return 2 ;;
+  esac
+  return 0
+}
+
+ns_git_prospective_cleanup() {
+  [ -n "${NS_GIT_PROSP_DIR:-}" ] && rm -rf "$NS_GIT_PROSP_DIR"
+  unset GIT_INDEX_FILE NS_GIT_PROSP_DIR
+}
+
+# Print NUL-delimited paths this add/commit would write. 2 = cannot model.
+ns_git_prospective_paths() { # <repo> <command> <add|commit>
+  local repo="$1" cmd="$2" verb="$3" rc line
+  ns_git_prospective_prepare "$repo" "$cmd" "$verb"
+  rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  if [ "$verb" = add ]; then
+    tr '\0' '\n' <"$NS_GIT_PROSP_DIR/before" >"$NS_GIT_PROSP_DIR/before.nl" 2>/dev/null || :
+    git -C "$repo" ls-files --stage -z 2>/dev/null | tr '\0' '\n' | while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      grep -F -x -- "$line" "$NS_GIT_PROSP_DIR/before.nl" >/dev/null 2>&1 && continue
+      printf '%s\0' "${line#*	}"
+    done
+  else
+    git -C "$repo" diff --cached --name-only -z --no-ext-diff HEAD 2>/dev/null \
+      || git -C "$repo" diff --cached --name-only -z --no-ext-diff 2>/dev/null \
+      || true
+  fi
+  ns_git_prospective_cleanup
+  return 0
+}
+
+# Print the diff this commit would write. 2 = cannot model.
+ns_git_prospective_diff() { # <repo> <command>
+  local repo="$1" cmd="$2" rc
+  ns_git_prospective_prepare "$repo" "$cmd" commit
+  rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  git -C "$repo" diff --cached --no-ext-diff HEAD 2>/dev/null \
+    || git -C "$repo" diff --cached --no-ext-diff 2>/dev/null \
+    || true
+  ns_git_prospective_cleanup
+  return 0
+}
+
 # valid_ere <pattern> — true when grep -E accepts the pattern.
 # An invalid pattern makes grep exit 2, which reads exactly like "no match" to a plain `if`,
 # so a typo in an owner's guard pattern would silently disable the guard.

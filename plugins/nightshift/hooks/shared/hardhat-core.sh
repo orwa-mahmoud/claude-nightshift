@@ -398,7 +398,7 @@ ns_hardhat_is_commit() {
 # Uses globals: SCRUBBED CMD CWD PROJECT_DIR PROTECTED_DIRS EXPECTED_EMAIL
 # NEVER_COMMIT_PATTERNS FORBIDDEN_COMMANDS
 ns_hardhat_command_reason() {
-  local _p _name _pat d _tok _dirs _toks REPO email _scope _diff
+  local _p _name _pat d _tok _dirs _toks REPO email _scope _diff _verb _pathfile _pathrc _hit
   for _p in "FORBIDDEN_COMMANDS:$FORBIDDEN_COMMANDS" "NEVER_COMMIT_PATTERNS:$NEVER_COMMIT_PATTERNS"; do
     _name="${_p%%:*}"
     _pat="${_p#*:}"
@@ -410,19 +410,66 @@ ns_hardhat_command_reason() {
   done
 
   if [ -n "$PROTECTED_DIRS" ] && ns_hardhat_is_git_write "$SCRUBBED"; then
-    IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
-    read -ra _toks <<<"$SCRUBBED"
-    for d in "${_dirs[@]}"; do
-      [ -n "$d" ] || continue
-      for _tok in "${_toks[@]}"; do
-        case "$_tok" in
-          "$d" | "$d"/* | */"$d" | */"$d"/* | *="$d" | *="$d"/*)
-            printf '%s' "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
-            return 0
-            ;;
-        esac
+    _verb=""
+    ns_hardhat_git_verb "$SCRUBBED" add && _verb=add
+    ns_hardhat_git_verb "$SCRUBBED" commit && _verb=commit
+    if [ -n "$_verb" ]; then
+      if printf '%s' "$SCRUBBED" | grep -qE -- '--git-dir|--work-tree'; then
+        printf '%s' "BLOCKED: --git-dir/--work-tree point this $_verb somewhere the protected-directory guard cannot verify. Run it from inside the repository instead."
+        return 0
+      fi
+      REPO="$(target_repo "$CMD" "${CWD:-$PROJECT_DIR}")"
+      case "$?" in
+        1) printf '%s' "BLOCKED: this $_verb names a directory that is not a git repository, so the protected-directory guard cannot inspect it. Do not retry a rephrased form."
+           return 0 ;;
+        2) REPO="$(repo_root "$PROJECT_DIR" "$CWD")" || REPO="$(ns_work_target "$PROJECT_DIR")" || {
+             printf '%s' "BLOCKED: cannot tell which git repository this $_verb targets, so the protected-directory guard cannot run. Run it from inside the repository."
+             return 0
+           } ;;
+      esac
+      _pathfile="$(mktemp "${TMPDIR:-/tmp}/ns-pd.XXXXXX")" || {
+        printf '%s' "BLOCKED: cannot tell which paths this $_verb would write, so the protected-directory guard cannot run."
+        return 0
+      }
+      ns_git_prospective_paths "$REPO" "$SCRUBBED" "$_verb" >"$_pathfile"
+      _pathrc=$?
+      if [ "$_pathrc" -eq 2 ]; then
+        rm -f "$_pathfile"
+        printf '%s' "BLOCKED: this $_verb uses a form the protected-directory guard cannot verify. Do not retry a rephrased form."
+        return 0
+      fi
+      _hit=""
+      while IFS= read -r -d '' _p; do
+        [ -n "$_p" ] || continue
+        if ns_path_under_protected "$_p" "$PROTECTED_DIRS"; then
+          _hit="$_p"
+          break
+        fi
+      done <"$_pathfile"
+      rm -f "$_pathfile"
+      if [ -n "$_hit" ]; then
+        IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
+        for d in "${_dirs[@]}"; do
+          ns_path_under_protected "$_hit" "$d" && break
+        done
+        printf '%s' "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
+        return 0
+      fi
+    else
+      IFS=' |' read -ra _dirs <<<"$PROTECTED_DIRS"
+      read -ra _toks <<<"$SCRUBBED"
+      for d in "${_dirs[@]}"; do
+        [ -n "$d" ] || continue
+        for _tok in "${_toks[@]}"; do
+          case "$_tok" in
+            "$d" | "$d"/* | */"$d" | */"$d"/* | *="$d" | *="$d"/*)
+              printf '%s' "BLOCKED: never git add/commit/tag/remote inside '$d' (a protected directory). Do not retry a rephrased form."
+              return 0
+              ;;
+          esac
+        done
       done
-    done
+    fi
   fi
 
   if ns_hardhat_is_commit "$SCRUBBED" && { [ -n "$EXPECTED_EMAIL" ] || [ -n "$NEVER_COMMIT_PATTERNS" ]; }; then

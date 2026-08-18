@@ -288,6 +288,88 @@ function Resolve-NSCommandRepository {
     }
 }
 
+function Get-NSProspectiveGitPaths {
+    param(
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [Parameter(Mandatory = $true)][string]$Command,
+        [Parameter(Mandatory = $true)][string]$Verb
+    )
+    $gitDir = Invoke-NSGit $Repository @('rev-parse', '--absolute-git-dir')
+    if ([string]::IsNullOrWhiteSpace($gitDir)) {
+        return $null
+    }
+    $temp = Join-Path ([IO.Path]::GetTempPath()) ("ns-git-" + [guid]::NewGuid().ToString('N'))
+    $null = New-Item -ItemType Directory -Path $temp -Force
+    $index = Join-Path $gitDir 'index'
+    $copy = Join-Path $temp 'index'
+    if (Test-Path -LiteralPath $index -PathType Leaf) {
+        Copy-Item -LiteralPath $index -Destination $copy -Force
+    }
+    $env:GIT_INDEX_FILE = $copy
+    try {
+        $words = @($Command -split '\s+' | Where-Object { $_ -ne '' })
+        $start = [array]::IndexOf($words, $Verb)
+        if ($start -lt 0) { return $null }
+        $form = 'index'
+        $paths = New-Object System.Collections.Generic.List[string]
+        $rest = $false
+        $skip = $false
+        foreach ($word in $words[($start + 1)..($words.Length - 1)]) {
+            if ($skip) { $skip = $false; continue }
+            if ($rest) {
+                if ($word -ne 'MSG') { $paths.Add($word) }
+                continue
+            }
+            switch -Regex ($word) {
+                '^--$' { $rest = $true }
+                '^(--all|-A)$' { $form = $(if ($Verb -eq 'add') { 'all' } else { 'tracked' }) }
+                '^(--update|-u)$' { $form = 'tracked' }
+                '^(--include|-i)$' { if ($Verb -eq 'commit') { $form = 'include' } }
+                '^(--only|-o)$' { if ($Verb -eq 'commit') { $form = 'only' } }
+                '^(-m|--message|--file|--author|--date|--cleanup)$' { $skip = $true }
+                '^(--message=|--file=|--author=|--date=|MSG)' { }
+                '^(--allow-empty|--allow-empty-message|--no-verify|--no-edit|--quiet|--signoff|-q|-s|-n|--no-gpg-sign|--verbose|-v|--force|-f|--ignore-missing|--refresh)$' { }
+                '^-[[:alpha:]]*a[[:alpha:]]*$' { if ($Verb -eq 'commit') { $form = 'tracked' } }
+                '^-' { return $null }
+                default { if ($word -ne 'MSG') { $paths.Add($word) } }
+            }
+        }
+        if ($Verb -eq 'commit' -and $paths.Count -gt 0 -and $form -eq 'index') { $form = 'only' }
+        switch ("$Verb-$form") {
+            'add-all' { $null = Invoke-NSGit $Repository @('add', '-A') }
+            'add-tracked' { $null = Invoke-NSGit $Repository @('add', '-u') }
+            'add-index' { if ($paths.Count -gt 0) { $null = Invoke-NSGit $Repository (@('add', '--') + $paths) } }
+            'commit-index' { }
+            'commit-tracked' { $null = Invoke-NSGit $Repository @('add', '-u') }
+            'commit-include' { if ($paths.Count -gt 0) { $null = Invoke-NSGit $Repository (@('add', '--') + $paths) } }
+            'commit-only' {
+                $null = Invoke-NSGit $Repository @('read-tree', 'HEAD')
+                if ($paths.Count -gt 0) { $null = Invoke-NSGit $Repository (@('add', '--') + $paths) }
+            }
+            default { return $null }
+        }
+        if ($Verb -eq 'add') {
+            $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff', 'HEAD')
+            if ([string]::IsNullOrEmpty($listed)) {
+                $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff')
+            }
+        }
+        else {
+            $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff', 'HEAD')
+            if ([string]::IsNullOrEmpty($listed)) {
+                $listed = Invoke-NSGit $Repository @('diff', '--cached', '--name-only', '-z', '--no-ext-diff')
+            }
+        }
+        if ([string]::IsNullOrEmpty($listed)) { return @() }
+        return @($listed -split "`0" | Where-Object { -not [string]::IsNullOrEmpty($_) })
+    }
+    finally {
+        Remove-Item -LiteralPath $env:GIT_INDEX_FILE -ErrorAction SilentlyContinue
+        Remove-Item Env:GIT_INDEX_FILE -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Get-NSCommandDenyReason {
     param(
         [Parameter(Mandatory = $true)][string]$Command,
@@ -316,16 +398,39 @@ function Get-NSCommandDenyReason {
     $isGitWrite = (Test-NSGitVerb $Scrubbed 'add') -or (Test-NSGitVerb $Scrubbed 'commit') `
         -or (Test-NSGitVerb $Scrubbed 'tag') -or (Test-NSGitVerb $Scrubbed 'remote')
     if ($isGitWrite -and -not [string]::IsNullOrEmpty($ProtectedDirectories)) {
-        $tokens = $Scrubbed -split '\s+'
-        foreach ($directory in ($ProtectedDirectories -split '[\s|]+')) {
-            if ([string]::IsNullOrEmpty($directory)) {
-                continue
+        $verb = $null
+        if (Test-NSGitVerb $Scrubbed 'add') { $verb = 'add' }
+        if (Test-NSGitVerb $Scrubbed 'commit') { $verb = 'commit' }
+        if ($null -ne $verb) {
+            $repository = Resolve-NSCommandRepository $Command $CurrentDirectory $Workspace
+            if ([string]::IsNullOrEmpty($repository)) {
+                return "BLOCKED: cannot tell which Git repository this $verb targets, so the protected-directory guard cannot run. Run it from inside the repository."
             }
-            foreach ($token in $tokens) {
-                $clean = $token.Trim("'`"")
-                $parts = $clean.Replace('\', '/').Split('/')
-                if ($parts -contains $directory -or $clean -like "*=$directory" -or $clean -like "*=$directory/*") {
-                    return "BLOCKED: never git add/commit/tag/remote inside '$directory' (a protected directory). Do not retry a rephrased form."
+            $paths = Get-NSProspectiveGitPaths $repository $Scrubbed $verb
+            if ($null -eq $paths) {
+                return "BLOCKED: this $verb uses a form the protected-directory guard cannot verify. Do not retry a rephrased form."
+            }
+            foreach ($path in $paths) {
+                foreach ($directory in ($ProtectedDirectories -split '[\s|]+')) {
+                    if ([string]::IsNullOrEmpty($directory)) { continue }
+                    $normalized = $path.Replace('\', '/').TrimStart('./')
+                    if ($normalized -eq $directory -or $normalized.StartsWith("$directory/") `
+                        -or $normalized.EndsWith("/$directory") -or $normalized -match "/$([regex]::Escape($directory))/") {
+                        return "BLOCKED: never git add/commit/tag/remote inside '$directory' (a protected directory). Do not retry a rephrased form."
+                    }
+                }
+            }
+        }
+        else {
+            $tokens = $Scrubbed -split '\s+'
+            foreach ($directory in ($ProtectedDirectories -split '[\s|]+')) {
+                if ([string]::IsNullOrEmpty($directory)) { continue }
+                foreach ($token in $tokens) {
+                    $clean = $token.Trim("'`"")
+                    $parts = $clean.Replace('\', '/').Split('/')
+                    if ($parts -contains $directory -or $clean -like "*=$directory" -or $clean -like "*=$directory/*") {
+                        return "BLOCKED: never git add/commit/tag/remote inside '$directory' (a protected directory). Do not retry a rephrased form."
+                    }
                 }
             }
         }

@@ -514,6 +514,14 @@ try {
     }
     Assert-True ([string]::IsNullOrEmpty($punchTick.Stdout)) 'punch-list ticks stay allowed'
 
+    $protectedDir = Join-Path $workTarget 'ai_docs'
+    $null = New-Item -ItemType Directory -Path $protectedDir -Force
+    [IO.File]::WriteAllText((Join-Path $protectedDir 'secret.txt'), "secret`n")
+    $addAll = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git add -A' } @{
+        NIGHTSHIFT_PROTECTED_DIRS = 'ai_docs'
+    }
+    Assert-True ($addAll.Stdout -match 'protected directory') 'git add -A is checked from Git paths'
+
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
     Assert-True ($forbidden.Stdout -match 'forbiddenCommands') 'PowerShell commands honor forbiddenCommands'

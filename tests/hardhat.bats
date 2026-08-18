@@ -37,7 +37,40 @@ load helpers
 @test "protected-dir git write is denied when configured" {
   p="$(new_project)"
   punch_open "$p"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret"
   run hardhat_bash "$p" "git add ai_docs/secret" NIGHTSHIFT_PROTECTED_DIRS="ai_docs notes"
+  is_deny "$output"
+}
+
+@test "protectedDirs inspects the paths Git would add or commit" {
+  p="$(new_project)"
+  punch_open "$p"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  run hardhat_bash "$p" "git add -A" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  run hardhat_bash "$p" "git add ." NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" add ai_docs/secret.txt
+  run hardhat_bash "$p" "git commit -m protected-bypass" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" reset -q
+  printf 'also\n' >"$p/tracked.txt"
+  git -C "$p" add tracked.txt
+  git -C "$p" commit -q -m seed
+  printf 'dirty\n' >"$p/tracked.txt"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  git -C "$p" add ai_docs/secret.txt
+  run hardhat_bash "$p" "git commit -am all" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" reset -q
+  printf 'safe\n' >"$p/ok.txt"
+  git -C "$p" add ok.txt
+  run hardhat_bash "$p" "git commit -m ok" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_allow
+  run hardhat_bash "$p" "git tag ai_docs" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
   is_deny "$output"
 }
 

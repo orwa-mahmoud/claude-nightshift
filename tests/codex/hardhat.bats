@@ -205,6 +205,18 @@ codex_hardhat_ask() {
 
 # Codex delivers file edits as apply_patch with the patch text in tool_input.command; the
 # payload's cwd is the documented way a hook finds the project — no env override here.
+@test "protectedDirs inspects Git paths on Codex too" {
+  p="$(new_project)"
+  punch_open "$p"
+  mkdir -p "$p/ai_docs"
+  printf 'secret\n' >"$p/ai_docs/secret.txt"
+  run codex_hardhat_bash "$p" "git add -A" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  git -C "$p" add ai_docs/secret.txt
+  run codex_hardhat_bash "$p" "git commit -m protected-bypass" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+}
+
 @test "the bound worker cannot unlink the armed marker or delete the punch list" {
   p="$(new_project)"
   punch_open "$p"
