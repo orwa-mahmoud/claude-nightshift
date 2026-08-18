@@ -427,7 +427,10 @@ function Write-NSAtomicLines {
             if (Test-NSReparsePoint $Path) {
                 throw 'refusing to replace a reparse point'
             }
-            [IO.File]::Replace($temp, $Path, $null)
+            # .NET Core File.Replace rejects a null backup path; delete the spare after the swap.
+            $backup = Join-Path $directory ('{0}.bak.{1}' -f $tempLeaf, [guid]::NewGuid().ToString('N'))
+            [IO.File]::Replace($temp, $Path, $backup)
+            Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
         }
         else {
             [IO.File]::Move($temp, $Path)
