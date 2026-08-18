@@ -21,6 +21,12 @@ setup() {
   cat >"$BIN/tick.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+if ! grep -qE '^- \[ \]' .nightshift/punch-list.md \
+  || { [ -f .nightshift/deadline ] && [ "$(date +%s)" -ge "$(tr -d '[:space:]' <.nightshift/deadline)" ]; }; then
+  : >.nightshift/.ended
+  rm -f .nightshift/.shift-armed .nightshift/.shift-lease
+  exit 0
+fi
 awk 'BEGIN{d=0} !d && /^- \[ \]/{sub(/\[ \]/,"[x]");d=1} {print}' .nightshift/punch-list.md >.nightshift/pl.tmp
 mv .nightshift/pl.tmp .nightshift/punch-list.md
 STUB
@@ -44,6 +50,8 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   rm "$P/.nightshift/rules.json"
   run "$WATCHMAN" --project "$P"
   [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -qF '/nightshift:setup'
+  printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
 }
 
 @test "refuses to double-arm while another watchman is alive" {
@@ -85,6 +93,21 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   grep -q 'resume attempt 1' "$P/.nightshift/shift-log.md"
 }
 
+@test "a Codex revival receives the exact lease generation written before spawn" {
+  cat >"$BIN/tick.sh" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n%s\n' "$NIGHTSHIFT_LEASE_GENERATION" "$NIGHTSHIFT_LEASE_TOKEN" >.nightshift/lease-env
+STUB
+  chmod +x "$BIN/tick.sh"
+
+  run watch --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ -n "$(sed -n 1p "$P/.nightshift/lease-env")" ]
+  [ "$(sed -n 1p "$P/.nightshift/lease-env")" = "$(sed -n 3p "$P/.nightshift/.shift-lease")" ]
+  [ "$(sed -n 2p "$P/.nightshift/lease-env")" = "$(sed -n 4p "$P/.nightshift/.shift-lease")" ]
+  sed -n 5p "$P/.nightshift/.shift-lease" | grep -qE '^[0-9]+$'
+}
+
 @test "the recorded pid alive with a matching start time stands it by" {
   start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
   printf 'sid\n%s\n%s\n%s\ncodex\n' "$ROLLOUT" "$$" "$start" >"$P/.nightshift/.shift-session"
@@ -116,6 +139,23 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 1 ]
   grep -q 'never clocked out' "$P/.nightshift/shift-log.md"
+}
+
+@test "a failed Codex terminal clock-out retries instead of abandoning its lease" {
+  cat >"$BIN/fail.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+exit 1
+STUB
+  chmod +x "$BIN/fail.sh"
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 2
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 2 ]
+  [ -f "$P/.nightshift/.shift-lease" ]
+  [ ! -f "$P/.nightshift/.ended" ]
+  grep -q 'clock-out returned without releasing' "$P/.nightshift/shift-log.md"
 }
 
 @test "a spent deadline with a dead session gets the clock-out spawn" {

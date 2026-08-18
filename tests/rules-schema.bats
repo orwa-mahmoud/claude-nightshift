@@ -21,6 +21,9 @@ validate() {
       || { echo "schema missing $k"; return 1; }
   done
   jq -e '.properties["$schema"]' "$SCHEMA" >/dev/null
+  jq -e '.required | index("toolDeny")' "$SCHEMA" >/dev/null
+  jq -e '.properties.toolDeny.required | index("AskUserQuestion")' "$SCHEMA" >/dev/null
+  jq -e '.properties.toolDeny.required | index("request_user_input")' "$SCHEMA" >/dev/null
 }
 
 @test "the shipped rules template validates against the schema" {
@@ -42,8 +45,18 @@ validate() {
 
 @test "a partial owner file with only valid keys still validates" {
   f="$BATS_TEST_TMPDIR/partial.json"
-  printf '%s\n' '{"stallMax": 4, "watchMinutes": 0}' >"$f"
+  printf '%s\n' '{"toolDeny":{"AskUserQuestion":"","request_user_input":""},"stallMax":4,"watchMinutes":0}' >"$f"
   validate "$f"
+}
+
+@test "both native question-tool keys are required explicitly" {
+  f="$BATS_TEST_TMPDIR/missing-native-tool.json"
+  printf '%s\n' '{"toolDeny":{"AskUserQuestion":"park"}}' >"$f"
+  run validate "$f"
+  [ "$status" -ne 0 ]
+  printf '%s\n' '{"stallMax":4}' >"$f"
+  run validate "$f"
+  [ "$status" -ne 0 ]
 }
 
 @test "knobs and setup document editor discovery of the schema" {

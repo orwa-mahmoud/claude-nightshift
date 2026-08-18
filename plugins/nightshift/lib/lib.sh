@@ -212,6 +212,43 @@ rule() {
   fi
 }
 
+# toolDeny requires exact JSON key matching. Normalize it with jq or Python; never approximate
+# owner policy with grep. The sentinel makes malformed input and parserless hosts fail closed.
+ns_tool_rules() { # $1 = project dir, $2 = session override
+  local f="$1/.nightshift/rules.json" out
+  if [ -n "$2" ]; then
+    if command -v jq >/dev/null 2>&1; then
+      out="$(printf '%s' "$2" | jq -ce 'if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' 2>/dev/null)" \
+        || { printf '%s' '__nightshift_invalid_tool_rules__'; return; }
+    elif command -v python3 >/dev/null 2>&1; then
+      out="$(printf '%s' "$2" | python3 -c 'import json,sys
+d=json.load(sys.stdin)
+assert isinstance(d,dict) and all(isinstance(v,str) for v in d.values())
+print(json.dumps(d,separators=(",",":")))' 2>/dev/null)" \
+        || { printf '%s' '__nightshift_invalid_tool_rules__'; return; }
+    else
+      printf '%s' '__nightshift_tool_rules_parser_missing__'
+      return
+    fi
+    printf '%s' "$out"
+    return
+  fi
+  [ -f "$f" ] || return 0
+  if command -v jq >/dev/null 2>&1; then
+    jq -ce '(.toolDeny // {}) | if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' "$f" 2>/dev/null \
+      || printf '%s' '__nightshift_invalid_tool_rules__'
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+rules=d.get("toolDeny",{})
+assert isinstance(rules,dict) and all(isinstance(v,str) for v in rules.values())
+print(json.dumps(rules,separators=(",",":")))' "$f" 2>/dev/null \
+      || printf '%s' '__nightshift_invalid_tool_rules__'
+  else
+    printf '%s' '__nightshift_tool_rules_parser_missing__'
+  fi
+}
+
 # Cross-session mutex over one .nightshift/ — mkdir is the one atomic primitive every platform
 # here ships (macOS has no flock). The holder writes its pid inside; a lock whose holder is
 # provably dead is broken on sight, a mid-claim lock (no pid yet) is waited on, never stolen.
@@ -235,6 +272,269 @@ ns_lock() { # $1 = the .nightshift dir; bounded ~2s wait
   return 1
 }
 ns_unlock() { rm -rf "$1/.lock.d" 2>/dev/null; }
+
+# One active shift may keep one conversation identity across several host processes. The
+# conversation record preserves continuity; this lease fences the process that currently owns
+# that conversation after a watchman revival. Its six lines are:
+#   original session scope · host · generation · revival token · process pid · process start time
+# The token is empty for the original interactive process. A watchman writes a new token and
+# generation before every spawn, so an older process carrying the same session id is fenced.
+ns_lease_lock() { # $1 = the .nightshift dir; bounded ~2s wait
+  local dir="$1/.lease-lock.d" holder _
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    if mkdir "$dir" 2>/dev/null; then
+      printf '%s' "$$" >"$dir/pid" 2>/dev/null || true
+      return 0
+    fi
+    holder="$(cat "$dir/pid" 2>/dev/null)"
+    case "$holder" in
+      '' | *[!0-9]*) ;;
+      *) kill -0 "$holder" 2>/dev/null || { rm -rf "$dir" 2>/dev/null; continue; } ;;
+    esac
+    sleep 0.2
+  done
+  return 1
+}
+ns_lease_unlock() { rm -rf "$1/.lease-lock.d" 2>/dev/null; }
+
+ns_lease_safe_line() {
+  case "$1" in
+    *$'\n'* | *$'\r'*) return 1 ;;
+  esac
+  return 0
+}
+
+ns_session_claim() { # <ns> <sid> <transcript> <pid> <start> <host>; complete file appears atomically
+  local ns="$1" sid="$2" transcript="$3" pid="$4" start="$5" host="$6" tmp rc
+  [ -n "$sid" ] || return 1
+  ns_lease_safe_line "$sid" && ns_lease_safe_line "$transcript" \
+    && ns_lease_safe_line "$pid" && ns_lease_safe_line "$start" || return 1
+  case "$pid" in *[!0-9]*) return 1 ;; esac
+  case "$host" in claude | codex) ;; *) return 1 ;; esac
+  tmp="$ns/.shift-session.tmp.$$.$RANDOM"
+  (umask 077; printf '%s\n%s\n%s\n%s\n%s\n' \
+    "$sid" "$transcript" "$pid" "$start" "$host" >"$tmp") || {
+    rm -f "$tmp"
+    return 1
+  }
+  ln "$tmp" "$ns/.shift-session" 2>/dev/null
+  rc=$?
+  rm -f "$tmp"
+  return "$rc"
+}
+
+ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent snapshot
+  local f="$1/.shift-lease" _
+  NS_LEASE_SID=""
+  NS_LEASE_HOST=""
+  NS_LEASE_GENERATION=""
+  NS_LEASE_TOKEN=""
+  NS_LEASE_PID=""
+  NS_LEASE_START=""
+  [ -f "$f" ] && [ ! -L "$f" ] || return 1
+  {
+    IFS= read -r NS_LEASE_SID &&
+      IFS= read -r NS_LEASE_HOST &&
+      IFS= read -r NS_LEASE_GENERATION &&
+      IFS= read -r NS_LEASE_TOKEN &&
+      IFS= read -r NS_LEASE_PID &&
+      IFS= read -r NS_LEASE_START || return 1
+    if IFS= read -r _; then return 1; fi
+  } <"$f"
+  ns_lease_safe_line "$NS_LEASE_SID" && ns_lease_safe_line "$NS_LEASE_HOST" \
+    && ns_lease_safe_line "$NS_LEASE_GENERATION" && ns_lease_safe_line "$NS_LEASE_TOKEN" \
+    && ns_lease_safe_line "$NS_LEASE_PID" && ns_lease_safe_line "$NS_LEASE_START" || return 1
+  case "$NS_LEASE_HOST" in claude | codex) ;; *) return 1 ;; esac
+  case "$NS_LEASE_GENERATION" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$NS_LEASE_GENERATION" -gt 0 ] 2>/dev/null || return 1
+  case "$NS_LEASE_TOKEN" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$NS_LEASE_PID" in *[!0-9]*) return 1 ;; esac
+  [ -n "$NS_LEASE_PID" ] || [ -z "$NS_LEASE_START" ] || return 1
+  [ -n "$NS_LEASE_SID" ] || [ -n "$NS_LEASE_TOKEN" ] || return 1
+  return 0
+}
+ns_lease_valid() { ns_lease_load "$1"; }
+
+ns_lease_write_unlocked() { # <ns> <sid> <host> <generation> <token> <pid> <start>
+  local ns="$1" sid="$2" host="$3" generation="$4" token="$5" pid="$6" start="$7" tmp
+  ns_lease_safe_line "$sid" && ns_lease_safe_line "$start" || return 1
+  case "$host" in claude | codex) ;; *) return 1 ;; esac
+  case "$generation" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$generation" -gt 0 ] 2>/dev/null || return 1
+  case "$token" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$pid" in *[!0-9]*) return 1 ;; esac
+  [ -n "$sid" ] || [ -n "$token" ] || return 1
+  [ -n "$pid" ] || [ -z "$start" ] || return 1
+  tmp="$ns/.shift-lease.tmp.$$.$RANDOM"
+  (umask 077; printf '%s\n%s\n%s\n%s\n%s\n%s\n' \
+    "$sid" "$host" "$generation" "$token" "$pid" "$start" >"$tmp") || {
+    rm -f "$tmp"
+    return 1
+  }
+  mv -f "$tmp" "$ns/.shift-lease" || {
+    rm -f "$tmp"
+    return 1
+  }
+}
+
+ns_lease_claim_initial() { # <ns> <sid> <host> <pid> <start>
+  local ns="$1" sid="$2" host="$3" pid="$4" start="$5" rc
+  [ -n "$sid" ] || return 1
+  ns_lease_lock "$ns" || return 2
+  if [ -e "$ns/.shift-lease" ] || [ -L "$ns/.shift-lease" ]; then
+    ns_lease_valid "$ns"
+    rc=$?
+    ns_lease_unlock "$ns"
+    return "$rc"
+  fi
+  ns_lease_write_unlocked "$ns" "$sid" "$host" 1 "" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
+}
+
+ns_lease_takeover() { # <ns> <possibly-empty-sid> <host>; prints: generation token
+  local ns="$1" sid="$2" host="$3" generation=0 token rc existing_sid
+  ns_lease_lock "$ns" || return 2
+  if [ -e "$ns/.shift-lease" ] || [ -L "$ns/.shift-lease" ]; then
+    if ! ns_lease_valid "$ns"; then
+      ns_lease_unlock "$ns"
+      return 1
+    fi
+    existing_sid="$NS_LEASE_SID"
+    [ -z "$existing_sid" ] || sid="$existing_sid"
+    generation="$NS_LEASE_GENERATION"
+  fi
+  generation=$((generation + 1))
+  token="$host.$generation.$$.$RANDOM.$RANDOM"
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "$token" "" ""
+  rc=$?
+  ns_lease_unlock "$ns"
+  [ "$rc" -eq 0 ] || return "$rc"
+  printf '%s %s' "$generation" "$token"
+}
+
+ns_lease_token_matches() { # <ns> <host> <token> <generation>; ignores sid for fresh fallback
+  local ns="$1" host="$2" token="$3" generation="$4"
+  [ -n "$token" ] && [ -n "$generation" ] || return 1
+  ns_lease_load "$ns" || return 1
+  [ "$NS_LEASE_HOST" = "$host" ] || return 1
+  [ "$NS_LEASE_GENERATION" = "$generation" ] || return 1
+  [ "$NS_LEASE_TOKEN" = "$token" ]
+}
+
+ns_lease_rebind_session() { # <ns> <sid> <host> <token> <generation>; fills an empty scope
+  local ns="$1" sid="$2" host="$3" token="$4" generation="$5" scope pid start rc
+  [ -n "$sid" ] || return 1
+  ns_lease_lock "$ns" || return 2
+  if ! ns_lease_token_matches "$ns" "$host" "$token" "$generation"; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  scope="$NS_LEASE_SID"
+  [ -n "$scope" ] || scope="$sid"
+  pid="$NS_LEASE_PID"
+  start="$NS_LEASE_START"
+  ns_lease_write_unlocked "$ns" "$scope" "$host" "$generation" "$token" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
+}
+
+ns_lease_attach_process() { # <ns> <host> <token> <generation> <pid> <start>
+  local ns="$1" host="$2" token="$3" generation="$4" pid="$5" start="$6" sid rc
+  ns_lease_lock "$ns" || return 2
+  if ! ns_lease_token_matches "$ns" "$host" "$token" "$generation"; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  sid="$NS_LEASE_SID"
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "$token" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
+}
+
+ns_lease_reclaim_interactive() { # <ns> <sid> <host> <old-generation> <pid> <start>
+  local ns="$1" sid="$2" host="$3" old_generation="$4" pid="$5" start="$6"
+  local lease_sid lease_host generation token old_pid old_start rc
+  [ -n "$pid" ] || return 1
+  ns_lease_lock "$ns" || return 2
+  if ! ns_lease_valid "$ns"; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  lease_sid="$NS_LEASE_SID"
+  lease_host="$NS_LEASE_HOST"
+  generation="$NS_LEASE_GENERATION"
+  token="$NS_LEASE_TOKEN"
+  old_pid="$NS_LEASE_PID"
+  old_start="$NS_LEASE_START"
+  if [ "$lease_sid" != "$sid" ] || [ "$lease_host" != "$host" ] \
+    || [ "$generation" != "$old_generation" ] || [ -n "$token" ]; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  ns_recorded_process "$old_pid" "$old_start"
+  rc=$?
+  if [ "$rc" -ne 1 ]; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  generation=$((generation + 1))
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
+}
+
+ns_lease_allows() { # <ns> <sid> <host> <pid> <start> <token> <generation>
+  local ns="$1" sid="$2" host="$3" pid="$4" start="$5" token="$6" generation="$7"
+  local lease_sid lease_host lease_generation lease_token lease_pid lease_start rc
+  ns_lease_load "$ns" || return 2
+  lease_sid="$NS_LEASE_SID"
+  lease_host="$NS_LEASE_HOST"
+  lease_generation="$NS_LEASE_GENERATION"
+  lease_token="$NS_LEASE_TOKEN"
+  lease_pid="$NS_LEASE_PID"
+  lease_start="$NS_LEASE_START"
+  [ "$lease_host" = "$host" ] || return 1
+  if [ -n "$lease_token" ]; then
+    [ "$token" = "$lease_token" ] && [ "$generation" = "$lease_generation" ]
+    return
+  fi
+  [ "$lease_sid" = "$sid" ] || return 1
+  [ -z "$token" ] && [ -z "$generation" ] || return 1
+  [ -n "$lease_pid" ] || return 0 # Codex cannot vouch for an interactive process pid.
+  if [ -n "$pid" ] && [ "$pid" = "$lease_pid" ]; then
+    ns_recorded_process "$lease_pid" "$lease_start"
+    return
+  fi
+  [ -n "$pid" ] || return 1
+  ns_recorded_process "$lease_pid" "$lease_start"
+  rc=$?
+  [ "$rc" -eq 1 ] || return 1
+  ns_lease_reclaim_interactive "$ns" "$sid" "$host" "$lease_generation" "$pid" "$start"
+}
+
+ns_lease_release() { # $1 = the .nightshift dir
+  local ns="$1" rc
+  ns_lease_lock "$ns" || return 1
+  rm -f "$ns/.shift-lease"
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
+}
+
+ns_lease_reset_stale() { # $1 = .nightshift; caller has proved no process or watchman owns it
+  local ns="$1" rc
+  rm -rf "$ns/.lease-lock.d" 2>/dev/null
+  ns_lease_lock "$ns" || return 1
+  rm -f "$ns/.shift-lease" "$ns"/.shift-lease.tmp.*
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
+}
 
 # The punch list's `## Items` heading is the boundary between the owner's contract and the work.
 # A checkbox above it is prose — an example, a note — and holds nobody. Both the gate and the
@@ -645,6 +945,28 @@ EOF
 # Process evidence. kill -0 is the POSIX primary. ps, pgrep, and lsof are
 # optional enhancers: missing tools never mean the session is dead.
 ns_have_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+ns_ancestor_pid() { # <executable-name> [starting-pid]
+  local wanted="$1" p="${2:-$$}" _ comm
+  ns_have_cmd ps || return 1
+  for _ in 1 2 3 4 5 6; do
+    case "$p" in '' | *[!0-9]*) return 1 ;; esac
+    [ "$p" -gt 1 ] || return 1
+    comm="$(ps -o comm= -p "$p" 2>/dev/null)" || return 1
+    case "${comm##*/}" in "$wanted") printf '%s' "$p"; return 0 ;; esac
+    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d '[:space:]')"
+  done
+  return 1
+}
+
+ns_process_start() { # <pid>
+  local start
+  case "$1" in '' | *[!0-9]*) return 1 ;; esac
+  ns_have_cmd ps || return 1
+  start="$(ps -o lstart= -p "$1" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [ -n "$start" ] || return 1
+  printf '%s' "$start"
+}
 
 # ns_pid_alive <pid>
 # 0 alive · 1 dead · 2 malformed · 3 evidence unavailable (EPERM or unknown)

@@ -16,14 +16,15 @@ CODEX_HOOKS="$HOOKS/codex"
   grep -qF 'ns_hardhat_active' "$HOOKS/codex/hardhat.sh"
 }
 
-@test "command, park, and scrub decisions live in the shared core" {
-  for fn in ns_hardhat_command_reason ns_hardhat_park_reason ns_hardhat_scrub ns_hardhat_rules_has; do
+@test "command, tool-deny, and scrub decisions live in the shared core" {
+  for fn in ns_hardhat_command_reason ns_hardhat_tool_deny_reason \
+    ns_hardhat_required_tool_deny_reason ns_hardhat_scrub ns_hardhat_rules_has; do
     grep -qF "$fn" "$HOOKS/shared/hardhat-core.sh" || { echo "missing $fn"; return 1; }
   done
   grep -qF 'ns_hardhat_command_reason' "$HOOKS/hardhat.sh"
   grep -qF 'ns_hardhat_command_reason' "$HOOKS/codex/hardhat.sh"
-  grep -qF 'ns_hardhat_park_reason' "$HOOKS/hardhat.sh"
-  grep -qF 'ns_hardhat_park_reason' "$HOOKS/codex/hardhat.sh"
+  grep -qF 'ns_hardhat_required_tool_deny_reason' "$HOOKS/hardhat.sh"
+  grep -qF 'ns_hardhat_required_tool_deny_reason' "$HOOKS/codex/hardhat.sh"
 }
 
 @test "host protocols remain in their wrappers" {
@@ -66,15 +67,17 @@ parity_row() {
   parity_row 'echo hi' allow ''
 }
 
-@test "park-don't-ask is the same decision on both ask tools" {
+@test "each host question tool reads its own native rule" {
   p="$(new_project)"
   punch_open "$p"
-  run hardhat_ask "$p"
+  rules='{"AskUserQuestion":"claude park","request_user_input":"codex park"}'
+  run hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES="$rules"
   is_deny "$output"
-  printf '%s' "$output" | grep -q 'park, don'
+  printf '%s' "$output" | grep -q 'claude park'
   claude_reason="$(printf '%s' "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')"
-  run bash -c 'jq -nc '\''{tool_name:"request_user_input",tool_input:{}}'\'' | env CODEX_PROJECT_DIR="$1" bash "$2/hardhat.sh"' _ "$p" "$CODEX_HOOKS"
+  run bash -c 'jq -nc '\''{tool_name:"request_user_input",tool_input:{}}'\'' | env CODEX_PROJECT_DIR="$1" NIGHTSHIFT_TOOL_RULES="$3" bash "$2/hardhat.sh"' _ "$p" "$CODEX_HOOKS" "$rules"
   is_deny "$output"
+  printf '%s' "$output" | grep -q 'codex park'
   codex_reason="$(printf '%s' "$output" | jq -r '.hookSpecificOutput.permissionDecisionReason')"
-  [ "$claude_reason" = "$codex_reason" ]
+  [ "$claude_reason" != "$codex_reason" ]
 }

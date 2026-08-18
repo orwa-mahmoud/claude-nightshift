@@ -116,12 +116,12 @@ load helpers
   is_allow
 }
 
-@test "the no-push recipe holds even when jq is absent (raw sed fallback)" {
+@test "the no-push recipe holds when jq is absent and Python parses tool rules" {
   p="$(new_project)"
   punch_open "$p"
   bindir="$BATS_TEST_TMPDIR/nojq"
   mkdir -p "$bindir"
-  for b in bash grep sed printf cat head git env; do
+  for b in bash grep sed printf cat head git env python3; do
     src="$(command -v "$b")" && ln -sf "$src" "$bindir/$b"
   done
   input="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}')"
@@ -449,6 +449,19 @@ STUB
   is_deny "$output"
 }
 
+@test "a passive catch-all tool cannot claim the shift session" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc '{tool_name:"Read",tool_input:{file_path:"README.md"},session_id:"helper-tab"}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+  [ ! -f "$p/.nightshift/.shift-session" ]
+  out="$(jq -nc '{tool_name:"Bash",tool_input:{command:"pwd"},session_id:"shift-tab"}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "shift-tab" ]
+}
+
 # ---- the tool rules map: one knob, per-tool messages, owner-only (env, fixed at start) ----
 
 @test "the map words the park denial per tool" {
@@ -462,8 +475,17 @@ STUB
 @test "an empty message in the map lifts the question rule" {
   p="$(new_project)"
   punch_open "$p"
-  run hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":""}'
+  run hardhat_ask "$p" \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"","request_user_input":"codex only"}'
   is_allow
+}
+
+@test "a missing Claude question key is a configuration error, not a hidden policy" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_ask "$p" NIGHTSHIFT_TOOL_RULES='{"request_user_input":"codex only"}'
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "missing the required 'AskUserQuestion' entry"
 }
 
 @test "a listed tool is denied with its own message; an unlisted one passes" {
@@ -473,9 +495,29 @@ STUB
     env NIGHTSHIFT_TOOL_RULES='{"WebSearch":"no browsing tonight"}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
   printf '%s' "$out" | grep -q "no browsing tonight"
-  out="$(jq -nc '{tool_name:"WebFetch",tool_input:{}}' |
-    env NIGHTSHIFT_TOOL_RULES='{"WebSearch":"no browsing tonight"}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  out="$(jq -nc '{tool_name:"WebFetch",tool_input:{query:"how to git push"}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"WebSearch":"no browsing tonight"}' \
+      NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   [ -z "$out" ]
+}
+
+@test "a nested question-tool name cannot bypass the caller's own rule" {
+  p="$(new_project)"
+  punch_open "$p"
+  out="$(jq -nc '{tool_name:"mcp__router__invoke",tool_input:{tool_name:"AskUserQuestion"}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"","request_user_input":"","mcp__router__invoke":"router blocked"}' \
+      CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "router blocked"
+}
+
+@test "toolDeny can block Bash itself before command-pattern rules" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git status" \
+    NIGHTSHIFT_TOOL_RULES='{"AskUserQuestion":"","request_user_input":"","Bash":"no shell tonight"}'
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "no shell tonight"
 }
 
 @test "a map that is not a JSON object denies loudly instead of waving through" {
@@ -485,14 +527,17 @@ STUB
     env NIGHTSHIFT_TOOL_RULES='not json' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
   printf '%s' "$out" | grep -q "toolDeny"
+  out="$(jq -nc '{tool_name:"WebSearch",tool_input:{}}' |
+    env NIGHTSHIFT_TOOL_RULES='{"WebSearch":1}' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
 }
 
-@test "the map's default Ask rule holds even without jq" {
+@test "an explicit Ask rule holds even without jq" {
   p="$(new_project)"
   punch_open "$p"
   nojq="$BATS_TEST_TMPDIR/nojq-rules"
   mkdir -p "$nojq"
-  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git; do
+  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git python3; do
     command -v "$t" >/dev/null && ln -sf "$(command -v "$t")" "$nojq/$t"
   done
   out="$(jq -nc '{tool_name:"AskUserQuestion",tool_input:{}}' |
@@ -501,12 +546,40 @@ STUB
   printf '%s' "$out" | grep -q "welded shut"
 }
 
+@test "the rules-file tool map still works without jq" {
+  p="$(new_project)"
+  punch_open "$p"
+  nojq="$BATS_TEST_TMPDIR/nojq-file-rules"
+  mkdir -p "$nojq"
+  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git python3; do
+    command -v "$t" >/dev/null && ln -sf "$(command -v "$t")" "$nojq/$t"
+  done
+  out="$(jq -nc '{tool_name:"AskUserQuestion",tool_input:{}}' |
+    env PATH="$nojq" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "park"
+}
+
+@test "tool rules fail closed when neither JSON parser exists" {
+  p="$(new_project)"
+  punch_open "$p"
+  noparser="$BATS_TEST_TMPDIR/no-rules-parser"
+  mkdir -p "$noparser"
+  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git; do
+    command -v "$t" >/dev/null && ln -sf "$(command -v "$t")" "$noparser/$t"
+  done
+  out="$(jq -nc '{tool_name:"WebFetch",tool_input:{url:"https://example.com"}}' |
+    env PATH="$noparser" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "neither jq nor python3"
+}
+
 # ---- one copy: the rules file IS the config; env is only a session-start override ----
 
 @test "the guards read the rules file directly — no env needed" {
   p="$(new_project)"
   punch_open "$p"
-  printf '{"forbiddenCommands":"git .*push","toolDeny":{"AskUserQuestion":"file-map says park"}}\n' >"$p/.nightshift/rules.json"
+  printf '{"forbiddenCommands":"git .*push","toolDeny":{"AskUserQuestion":"file-map says park","request_user_input":"codex park"}}\n' >"$p/.nightshift/rules.json"
   run hardhat_bash "$p" "git push origin main"
   is_deny "$output"
   run hardhat_ask "$p"
@@ -528,29 +601,39 @@ STUB
   out="$(jq -nc --arg fp "$p/.nightshift/rules.json" '{tool_name:"Write",tool_input:{file_path:$fp,content:"{}"}}' |
     env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
-  printf '%s' "$out" | grep -q "never rewrites its own rules"
+  printf '%s' "$out" | grep -q "rules file is the owner"
   run hardhat_bash "$p" "echo '{}' > .nightshift/rules.json"
   is_deny "$output"
+  out="$(jq -nc --arg fp "$p/.nightshift/rules.json" '{tool_name:"mcp__filesystem__write_file",tool_input:{path:$fp,content:"{}"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  out="$(jq -nc '{tool_name:"mcp__filesystem__write_file",tool_input:{directory:".nightshift",name:"rules.json",content:"{}"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  is_deny "$out"
+  out="$(jq -nc '{tool_name:"mcp__filesystem__copy",tool_input:{source:".nightshift/template.json",destination:"docs/rules.json"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] # two independent paths must not be combined into a third
 }
 
 @test "file tools are free of the command guards — and free entirely outside a shift" {
   p="$(new_project)"
   punch_open "$p"
-  out="$(jq -nc '{tool_name:"Write",tool_input:{file_path:"/tmp/notes.md",content:"how to git push"}}' |
+  out="$(jq -nc '{tool_name:"Write",tool_input:{file_path:"/tmp/notes.md",content:"document .nightshift/rules.json and how to git push"}}' |
     env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
-  [ -z "$out" ] # a file's content is not a command
+  [ -z "$out" ] # file content is neither a command nor the target path
   q="$(new_project other)"
   out="$(jq -nc --arg fp "$q/.nightshift/rules.json" '{tool_name:"Write",tool_input:{file_path:$fp,content:"{}"}}' |
     env CLAUDE_PROJECT_DIR="$q" bash "$HOOKS/hardhat.sh")"
   [ -z "$out" ] # no shift, no rules — the owner edits freely
 }
 
-# No readable rules is a fault, never an opening: the question still parks, loudly.
-@test "a missing rules file still parks questions and names the repair" {
+# No readable rules is a fault, never permission to invent an ask policy.
+@test "a missing rules file denies the question and names the repair" {
   p="$(new_project)"
   punch_open "$p"
   rm "$p/.nightshift/rules.json"
   run hardhat_ask "$p"
   is_deny "$output"
-  printf '%s' "$output" | grep -q "re-run /nightshift:setup"
+  printf '%s' "$output" | grep -qF '/nightshift:setup'
+  printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
 }

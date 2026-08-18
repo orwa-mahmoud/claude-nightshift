@@ -2,9 +2,12 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/nightshift-rules.schema.json",
   "title": "Nightshift rules",
-  "description": "Owner knobs for an unattended shift. Extra top-level keys are rejected; missing keys keep runtime defaults. An empty string lifts a string rule. Schema validation never changes hook behaviour.",
+  "description": "Owner knobs for an unattended shift. Extra top-level keys are rejected; missing optional keys keep runtime defaults. toolDeny and both host-native ask-tool entries are required so question behavior is never hidden. An empty string lifts a string rule. Schema validation never changes hook behaviour.",
   "type": "object",
   "additionalProperties": false,
+  "required": [
+    "toolDeny"
+  ],
   "properties": {
     "$schema": {
       "type": "string",
@@ -13,10 +16,32 @@
     },
     "toolDeny": {
       "type": "object",
-      "description": "Tool name to denial message. A key denies that tool; an empty message lifts the rule.",
+      "description": "Exact host tool_name to denial message. A non-empty value denies that tool with this message; an empty value lifts this map entry; an unlisted optional tool is allowed by this map. Other hardhat guards still apply independently. AskUserQuestion is Claude Code's native question tool and request_user_input is Codex's. Codex file edits report apply_patch (Edit and Write are matcher aliases only). Other built-in and MCP names may be added when that host exposes them to PreToolUse. Examples and host coverage: https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md#tool-rules",
+      "required": [
+        "AskUserQuestion",
+        "request_user_input"
+      ],
+      "properties": {
+        "AskUserQuestion": {
+          "type": "string",
+          "description": "Claude Code question policy. Non-empty parks with this denial; empty allows Claude Code to ask and wait."
+        },
+        "request_user_input": {
+          "type": "string",
+          "description": "Codex question policy. Non-empty parks with this denial; empty allows Codex to ask and wait."
+        }
+      },
       "additionalProperties": {
         "type": "string"
-      }
+      },
+      "examples": [
+        {
+          "AskUserQuestion": "",
+          "request_user_input": "Park the question with a default and continue.",
+          "Bash": "Shell commands are disabled for this shift.",
+          "mcp__github__delete_file": "Repository deletion is disabled for this shift."
+        }
+      ]
     },
     "forbiddenCommands": {
       "type": "string",
@@ -73,7 +98,7 @@
     "retention": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Optional history retention. 0 keeps forever. Only /nightshift:archive may prune, and only after a printed preview and explicit confirmation.",
+      "description": "Optional history retention. 0 keeps forever. Only Nightshift Archive may prune, and only after a printed preview and explicit confirmation.",
       "properties": {
         "runtimeLogDays": {
           "type": "integer",

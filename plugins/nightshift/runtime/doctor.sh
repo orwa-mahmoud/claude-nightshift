@@ -170,10 +170,30 @@ json_is_object() {
   fi
 }
 
+json_tool_rule_state() { # $1 = rules file, $2 = exact tool name
+  if command -v jq >/dev/null 2>&1; then
+    jq -r --arg tool "$2" '
+      if (.toolDeny | type) != "object" then "invalid"
+      elif (.toolDeny | has($tool) | not) then "missing"
+      elif (.toolDeny[$tool] | type) != "string" then "invalid"
+      elif .toolDeny[$tool] == "" then "allow"
+      else "deny"
+      end
+    ' "$1" 2>/dev/null
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import json,sys
+d=json.load(open(sys.argv[1])); rules=d.get("toolDeny"); tool=sys.argv[2]
+print("invalid" if not isinstance(rules,dict) else "missing" if tool not in rules else "invalid" if not isinstance(rules[tool],str) else "allow" if rules[tool]=="" else "deny")' "$1" "$2" 2>/dev/null
+  fi
+}
+
 RULES="$NS/rules.json"
 if [ ! -f "$RULES" ]; then
   warn "rules.json is missing — watchman will refuse to arm"
   act confirm "re-run setup and accept the shipped rules template"
+elif ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+  warn "rules.json cannot be validated — neither jq nor python3 is available"
+  act blocked "install jq or python3 before arming; toolDeny never falls back to text matching"
 elif json_is_object "$RULES"; then
   fact "rules.json is a JSON object"
   wm="$(rule "$WORKSPACE" watchMinutes "")"
@@ -181,6 +201,17 @@ elif json_is_object "$RULES"; then
     '' | *[!0-9]*) warn "watchMinutes missing or not a whole number"; act confirm "restore watchMinutes from the shipped template (10, or 0 to disarm)" ;;
     *) fact "watchMinutes $wm" ;;
   esac
+  for tool in AskUserQuestion request_user_input; do
+    tool_state="$(json_tool_rule_state "$RULES" "$tool")"
+    case "$tool_state" in
+      allow) fact "toolDeny.$tool explicitly allows the question tool" ;;
+      deny) fact "toolDeny.$tool explicitly denies the question tool" ;;
+      missing | invalid)
+        warn "toolDeny.$tool is $tool_state — question behavior has no explicit policy"
+        act confirm "re-run setup and review the shipped $tool entry (non-empty denies; empty allows)"
+        ;;
+    esac
+  done
 else
   warn "rules.json is unreadable or not a JSON object"
   act confirm "fix .nightshift/rules.json or re-run setup — never half-apply a broken file"
@@ -221,6 +252,41 @@ else
   fi
 fi
 
+LEASE_STATE="absent"
+LEASE_GENERATION=""
+if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
+  if ns_lease_valid "$NS"; then
+    LEASE_STATE="valid"
+    LEASE_HOST="$NS_LEASE_HOST"
+    LEASE_GENERATION="$NS_LEASE_GENERATION"
+    LEASE_TOKEN="$NS_LEASE_TOKEN"
+    LEASE_PID="$NS_LEASE_PID"
+    fact "process lease host $LEASE_HOST generation $LEASE_GENERATION"
+    if [ -n "$LEASE_TOKEN" ]; then
+      fact "process lease belongs to a watchman recovery (capability not printed)"
+    else
+      fact "process lease belongs to the interactive shift process"
+    fi
+    if [ "$HOST_REC" != "none" ] && [ "$LEASE_HOST" != "$HOST_REC" ]; then
+      warn "process lease host $LEASE_HOST disagrees with recorded session host $HOST_REC"
+      act blocked "issue STOP from a separate session, then run Start again; do not rewrite the lease by hand"
+    fi
+    if [ -n "$LEASE_PID" ]; then
+      if ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
+        fact "lease holder pid $LEASE_PID is alive"
+      else
+        fact "lease holder pid $LEASE_PID is not confirmed alive"
+      fi
+    fi
+  else
+    LEASE_STATE="malformed"
+    warn "process lease is malformed — ownership cannot be proven"
+    act blocked "issue STOP from a separate session, then run Start again; never guess or edit .shift-lease"
+  fi
+elif [ "$ARMED" -eq 1 ] && [ -n "$SID" ]; then
+  warn "armed shift has no process lease — the bound session's next tool call must bootstrap it"
+fi
+
 WPID=""
 [ -f "$NS/.watchman" ] && WPID="$(sed -n 1p "$NS/.watchman" 2>/dev/null | tr -d '[:space:]')"
 if [ -n "$WPID" ] && printf '%s' "$WPID" | grep -qE '^[0-9]+$'; then
@@ -259,6 +325,7 @@ emit "Workspace:   $WORKSPACE"
 emit "Link:        $LINK_STATE"
 emit "Work target: $TARGET"
 emit "Recorded:    ${HOST_REC:-none}"
+emit "Lease:       $LEASE_STATE${LEASE_GENERATION:+ (generation $LEASE_GENERATION)}"
 emit "State:       ${STATE_VER:--} ($STATE_KIND)"
 emit "Armed:       $ARMED  Open: $OPEN  Ticked: $TICKED  STOP: $STOP  Ended: $ENDED"
 emit ""

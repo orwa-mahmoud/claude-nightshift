@@ -3,25 +3,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/codex/hardhat.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "AskUserQuestion|request_user_input",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"${PLUGIN_ROOT}/hooks/codex/hardhat.sh\""
-          }
-        ]
-      },
-      {
-        "matcher": "apply_patch|Edit|Write",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",

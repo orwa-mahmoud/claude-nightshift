@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# hardhat.sh — PreToolUse guard. Mechanical safety, zero-config core.
+# hardhat.sh — PreToolUse guard. Mechanical safety from explicit owner policy.
 #
-# One zero-config rule: AskUserQuestion is denied during an active shift — park, don't
-# ask. Every other rule is shift-scoped and opt-in, read from the owner's rules file
-# (.nightshift/rules.json) — each empty by default, so an unset one is skipped silently:
+# Every rule is shift-scoped and read from the owner's .nightshift/rules.json. toolDeny
+# uses exact Claude tool names: a non-empty message denies, an empty message allows, and
+# an unlisted optional tool is allowed. AskUserQuestion is required so its policy is never
+# supplied by a hidden fallback:
 #   protectedDirs        space/pipe-separated dir names never to git add/commit/tag/remote
 #   expectedEmail        commits must be authored by this identity
 #   neverCommitPatterns  staged diff (git diff --cached) must not match this grep -E pattern
@@ -73,91 +74,171 @@ else
   TPATH="$(printf '%s' "$INPUT" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
+LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 
 # A commit message must not read as the command it mentions, so blank the message argument
 # before matching. Only that argument: scrubbing every quoted span would also hide a genuinely
 # forbidden command that happens to be quoted, such as sh -c "git push".
 SCRUBBED="$(ns_hardhat_scrub "$CMD")"
+LEASE_COMMAND="$CMD"
+case "$TOOL" in Bash | PowerShell) LEASE_COMMAND="$SCRUBBED" ;; esac
 
 # Every remaining rule is shift-scoped: inert unless a shift is truly active. A stop-work order
 # is a request, not the ending — the agent keeps working until its next stop attempt, which is
 # exactly when the site rules still matter. The gate writes ENDED when it actually releases, and
 # that is what stands these rules down.
 if ! ns_hardhat_active; then
+  if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
+    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
+      || ! ns_lease_token_matches "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
+    fi
+  fi
   exit 0
 fi
 
-# The shift records its own identity: the first session to work under an active shift writes its
-# session id, transcript path, and best-effort process identity — the claude ancestor's pid and
-# start time, a pair no pid reuse can counterfeit. The watchman reads THIS session's transcript
-# for the Esc tell, checks THIS process for life, and revives THIS conversation by id — never a
-# guess at "the newest". The exclusive create makes first-writer-wins mechanical: two racing
-# first sessions cannot interleave, one claim lands whole. Losing that race is the design.
+# Process ownership is runtime state for the whole site, not agent-editable state. This narrow
+# protection applies even to helper conversations; all of their ordinary project work stays free.
+if ns_hardhat_payload_targets_lease "$TOOL" "$INPUT" "$LEASE_COMMAND"; then
+  deny "BLOCKED: the process lease is runtime-owned. Do not read, delete, or rewrite .nightshift/.shift-lease; issue STOP from another session if ownership must be reset."
+fi
+
+# A recovery can be forced to start fresh before any session id exists. During that short unbound
+# window, only the child carrying the watchman's capability may make the first observed call.
+BOUND_BEFORE="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+if [ -z "$BOUND_BEFORE" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_TOKEN" ]; then
+  if [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] \
+    || ! ns_lease_token_matches "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+    deny "BLOCKED: this shift is being recovered before its new conversation is bound. Reopen the recorded conversation and retry after recovery."
+  fi
+fi
+
+# The conversation record preserves continuity; the lease names the process generation allowed
+# to act on it. Initial work uses the Claude ancestor's pid + start time. Every watchman spawn
+# instead carries a unique token and generation, so an old IDE process with the same session id
+# is fenced before its next observable tool call.
+CURRENT_PID="$(ns_ancestor_pid claude "$$" 2>/dev/null || true)"
+CURRENT_START=""
+[ -z "$CURRENT_PID" ] || CURRENT_START="$(ns_process_start "$CURRENT_PID" 2>/dev/null || true)"
 record_shift_session() {
-  local p="$$" _ comm pid="" start=""
-  for _ in 1 2 3 4 5 6; do
-    case "$p" in '' | *[!0-9]*) break ;; esac
-    [ "$p" -gt 1 ] || break
-    comm="$(ps -o comm= -p "$p" 2>/dev/null)" || break
-    case "${comm##*/}" in claude) pid="$p"; break ;; esac
-    p="$(ps -o ppid= -p "$p" 2>/dev/null | tr -d '[:space:]')"
-  done
-  [ -z "$pid" ] || start="$(ps -o lstart= -p "$pid" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-  (set -C; printf '%s\n%s\n%s\n%s\nclaude\n' "$SID" "${TPATH:-}" "$pid" "$start" >"$NS/.shift-session") 2>/dev/null || true
+  ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" claude || true
 }
-# The guards are the shift's, so they arrive with the shift. `/nightshift:start` writes
+replace_shift_session() {
+  local transcript tmp
+  transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
+  tmp="$NS/.shift-session.tmp.$$.$RANDOM"
+  (umask 077; printf '%s\n%s\n%s\n%s\nclaude\n' \
+    "$SID" "$transcript" "$CURRENT_PID" "$CURRENT_START" >"$tmp") \
+    && mv -f "$tmp" "$NS/.shift-session"
+}
+# The guards are the shift's, so they arrive with the shift. Nightshift Start writes
 # .shift-armed; before it exists this is an ordinary session in an ordinary project and nothing
-# here applies to it.
+# here applies to it. Only the original binding-tool set may make the first claim; the catch-all
+# matcher must not let a passive helper Read, search, or MCP call steal the shift.
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  record_shift_session
+  case "$TOOL" in
+    Bash | AskUserQuestion | Edit | Write | MultiEdit | NotebookEdit) record_shift_session ;;
+  esac
 fi
 
 # The site rules govern the shift's own session; another conversation in the same project works
-# untouched — its questions, commits, and commands are the owner's business, not the night's. A
-# marked revival stays bound whatever id the fallback chain gave it.
+# untouched — its questions, commits, and commands are the owner's business, not the night's.
+# A marked revival must present the exact lease capability written by the watchman. Rebind the
+# durable conversation record only after that check; a caller setting NIGHTSHIFT_REVIVAL alone
+# cannot impersonate the recovered worker.
 REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
+  if ! ns_lease_token_matches "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+    deny "BLOCKED: this recovered worker no longer owns the shift. Reopen the recorded conversation instead of continuing an older process."
+  fi
+  if [ -n "${SID:-}" ]; then
+    if [ -z "$NS_LEASE_SID" ]; then
+      ns_lease_rebind_session "$NS" "$SID" claude "$LEASE_TOKEN" "$LEASE_GENERATION" \
+        || deny "BLOCKED: the shift process lease could not bind the recovered conversation. Issue STOP from another session, then run Start again."
+    fi
+    SESSION_PID="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+    if [ "$REC" != "$SID" ] || { [ -n "$CURRENT_PID" ] && [ "$SESSION_PID" != "$CURRENT_PID" ]; }; then
+      replace_shift_session \
+        || deny "BLOCKED: the recovered conversation could not update .shift-session. Issue STOP from another session, then run Start again."
+    fi
+    ns_lease_load "$NS" || deny "BLOCKED: the recovered process lease became unreadable. Issue STOP from another session, then run Start again."
+    LEASE_PID="$NS_LEASE_PID"
+    if [ -n "$CURRENT_PID" ] && [ "$LEASE_PID" != "$CURRENT_PID" ]; then
+      ns_lease_attach_process "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION" "$CURRENT_PID" "$CURRENT_START" \
+        || deny "BLOCKED: the recovered process could not refresh its shift lease. Reopen the recorded conversation."
+    fi
+    REC="$SID"
+  fi
+fi
+
+# Start's distinctive probe is also its compare-and-set result. A losing concurrent Start is
+# denied here instead of silently becoming an unrestricted helper after another session won.
+if ns_hardhat_binding_probe "$TOOL" "$CMD"; then
+  if [ -z "${SID:-}" ] || [ -z "$REC" ]; then
+    deny "BLOCKED: Start could not bind this session atomically. Issue STOP, inspect with Doctor, and retry Start."
+  fi
+  if [ "$SID" != "$REC" ]; then
+    deny "BLOCKED: another session already owns this shift. Reopen that conversation or issue STOP before running Start again."
+  fi
+fi
+
+LEASE_SCOPE=""
+if ns_lease_valid "$NS"; then LEASE_SCOPE="$NS_LEASE_SID"; fi
 if [ -n "$REC" ] && [ -n "${SID:-}" ] && [ "$SID" != "$REC" ] \
-  && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
+  && [ "$SID" != "$LEASE_SCOPE" ] && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
   exit 0
 fi
 
-# Tool rules — the rules file's toolDeny map: tool name -> denial message. A key's message
-# is the denial Claude reads; an empty message lifts the rule; an absent key means the
-# default — AskUserQuestion parked so a 2:40am question cannot kill the run, every other
-# tool allowed. (sed backs up the jq path; the park rule holds even without jq.)
-TOOL_RULES="$(rule "$PROJECT_DIR" toolDeny "${NIGHTSHIFT_TOOL_RULES:-}")"
-if ns_hardhat_tool_deny_broken; then
-  deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or re-run /nightshift:setup."
+# Bootstrap existing armed shifts and claim new ones immediately after Start's binding probe.
+# A malformed lease fails closed; silently replacing ownership would recreate the two-writer bug.
+if [ -n "$REC" ]; then
+  CHECK_SID="${SID:-$REC}"
+  if [ ! -e "$NS/.shift-lease" ] && [ ! -L "$NS/.shift-lease" ]; then
+    ns_lease_claim_initial "$NS" "$REC" claude "$CURRENT_PID" "$CURRENT_START" \
+      || deny "BLOCKED: the shift process lease could not be created. Issue STOP from another session, then run Start again."
+  fi
+  if ! ns_lease_allows "$NS" "$CHECK_SID" claude "$CURRENT_PID" "$CURRENT_START" \
+      "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+    deny "BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here."
+  fi
+  if [ -n "$SID" ] && [ -n "$CURRENT_PID" ] && [ -z "$LEASE_TOKEN" ]; then
+    ns_lease_load "$NS" || deny "BLOCKED: the shift process lease became unreadable. Issue STOP from another session, then run Start again."
+    SESSION_PID="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+    if [ "$NS_LEASE_PID" = "$CURRENT_PID" ] && [ "$SESSION_PID" != "$CURRENT_PID" ]; then
+      replace_shift_session \
+        || deny "BLOCKED: the reclaimed interactive process could not refresh .shift-session. Issue STOP from another session, then run Start again."
+    fi
+  fi
 fi
-if [ "$TOOL" = "AskUserQuestion" ] || printf '%s' "$INPUT" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; then
-  if m="$(ns_hardhat_park_reason)"; then deny "$m"; fi
-  exit 0 # a permitted question is not a command; the command guards have no business with it
-fi
-if m="$(ns_hardhat_named_tool_reason "$TOOL")"; then deny "$m"; fi
 
-# The rules file is the owner's leash on the night, and the night never rewrites it: during a
-# shift, deny any file tool aimed at the rules file and any Bash command that names it. An
-# owner's mid-shift edit is the owner's hand — it reads from the very next tool call.
-# Pattern-match honesty, like every guard here.
-if command -v jq >/dev/null 2>&1; then
-  FILEPATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)"
-else
-  FILEPATH="$(printf '%s' "$INPUT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+# Tool rules use the canonical tool_name from this host. The catch-all manifest sends every
+# observable PreToolUse call here; tools the host does not expose to hooks remain outside it.
+TOOL_RULES="$(ns_tool_rules "$PROJECT_DIR" "${NIGHTSHIFT_TOOL_RULES:-}")"
+if ns_hardhat_tool_deny_broken; then
+  if [ "$TOOL_RULES" = "__nightshift_tool_rules_parser_missing__" ]; then
+    deny "BLOCKED: toolDeny cannot be read exactly because neither jq nor python3 is available. Install one parser before running an armed shift."
+  fi
+  deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)."
 fi
-case "$TOOL" in
-  Edit | Write | MultiEdit | NotebookEdit)
-    case "$FILEPATH" in
-      */.nightshift/rules.json | *nightshift-rules.json) deny "BLOCKED: the rules file is the owner's — the night never rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working; the owner's edit applies from the next tool call." ;;
-    esac
-    exit 0 # a file tool is not a command; the command guards have no business with it
-    ;;
-esac
-if ns_hardhat_rules_targeted "$SCRUBBED"; then
+
+# The active agent never inspects or changes the owner's rules through any observable tool.
+# Inspect target-bearing arguments and patch headers, not unrelated prose in a payload.
+if ns_hardhat_payload_targets_rules "$TOOL" "$INPUT" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
-if reason="$(ns_hardhat_command_reason)"; then
-  deny "$reason"
+if [ "$TOOL" = "AskUserQuestion" ] \
+  || { [ -z "$TOOL" ] && printf '%s' "$INPUT" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"AskUserQuestion"'; }; then
+  if m="$(ns_hardhat_required_tool_deny_reason AskUserQuestion)"; then deny "$m"; fi
+  exit 0 # a permitted question is not a command; the command guards have no business with it
+fi
+if m="$(ns_hardhat_tool_deny_reason "$TOOL")"; then deny "$m"; fi
+
+if [ "$TOOL" = "Bash" ]; then
+  if reason="$(ns_hardhat_command_reason)"; then
+    deny "$reason"
+  fi
 fi
 
 exit 0

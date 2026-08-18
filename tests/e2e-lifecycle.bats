@@ -54,7 +54,7 @@ scaffold() { # <workspace> — the files setup copies, via the shipped templates
   is_deny "$output"
 }
 
-@test "STOP releases both hosts and leaves open boxes honestly open" {
+@test "STOP releases both hosts and leaves unfinished boxes open" {
   p="$(new_project)"
   scaffold "$p"
   printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
@@ -94,7 +94,7 @@ scaffold() { # <workspace> — the files setup copies, via the shipped templates
   mkdir -p "$host2"
   bash "$LINK" --host-root "$host2" --workspace "$ws" >/dev/null
   # A second task root, same workspace, no session recorded yet — Codex must still hold the list.
-  rm -f "$ws/.nightshift/.shift-session"
+  rm -f "$ws/.nightshift/.shift-session" "$ws/.nightshift/.shift-lease"
   : >"$ws/.nightshift/.shift-armed"
   run codex_gate "$host2"
   is_block "$output"
