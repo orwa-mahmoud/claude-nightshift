@@ -839,6 +839,10 @@ exit 0
     Assert-True ($brokenLaunch.ExitCode -ne 0) 'watchman launcher reports a child that fails before publishing ownership'
 
     Write-Host "Windows-native verification passed ($script:Assertions assertions)."
+    # GitHub Actions' PowerShell shells fail the step on a leftover native
+    # $LASTEXITCODE. The last child here is the broken-rules launcher, which
+    # must exit non-zero.
+    exit 0
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
