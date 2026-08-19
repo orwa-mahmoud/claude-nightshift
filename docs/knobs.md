@@ -120,11 +120,13 @@ shift tool call reads the change.
 thread is currently only how the owner refreshes a stale panel before inspecting or interacting;
 the linked upstream refresh work would make that handoff smoother, not enable recovery itself.
 
-**Local profiles.** `runtime/apply-profile.sh` can preview or copy `balanced`, `no-push`, or
+**Local profiles.** `runtime/apply-profile.sh` (native Windows: `runtime/windows/apply-profile.ps1`)
+can preview or copy `balanced`, `no-push`, or
 `strict-secrets` from `plugins/nightshift/skills/nightshift/references/profiles/`. That is a
 one-time local write, not a policy subscription. Fill keeps every owner value and refuses a file
 missing either native question policy. Replace starts from the complete shipped template, applies
-the profile, and shows the full next file first. Apply only while unarmed.
+the profile, and shows the full next file first. Apply only while unarmed. Native Windows uses
+PowerShell's JSON parser; it does not require `jq`.
 
 **Retention** lives in the same rules file under `retention`, and is not shift-scoped: it is
 read only by Nightshift Archive. Both `runtimeLogDays` and `archiveDays` default to `0`

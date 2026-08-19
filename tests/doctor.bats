@@ -101,6 +101,8 @@ doctor() {
   printf '%s' "$output" | grep -q 'Link:        invalid'
   printf '%s' "$output" | grep -q 'invalid .nightshift-link'
   printf '%s' "$output" | grep -q '\[confirm\].*link-workspace.sh'
+  printf '%s' "$output" | grep -q '/runtime/link-workspace.sh'
+  ! printf '%s' "$output" | grep -q 'using runtime/link-workspace.sh'
   after="$(fingerprint "$host")"
   [ "$before" = "$after" ]
 }

@@ -36,7 +36,11 @@ The native path uses the same on-disk contract and marker names as macOS and Lin
 - the watchman advances the lease before every child, passes the generation and token in that
   child's environment, and runs recovery in the persisted work target;
 - the scheduler emits a daily Task Scheduler definition with `IgnoreNew`, so Task Scheduler and
-  the process lease both refuse overlapping starts.
+  the process lease both refuse overlapping starts;
+- Doctor, status's lease inspector, import-issues, archive retention, migrate-state,
+  apply-profile, and export-support use bundled PowerShell helpers beside the POSIX scripts.
+  Native Windows does not call `.sh` for those, and does not require `jq`, Python, Node, or a
+  package manager. If `gh` is already on PATH, import-issues uses it; Nightshift never installs it.
 
 Claude Code has no Windows-only command field in a plugin hook manifest. Nightshift therefore
 dot-sources a small shell/PowerShell launcher from the shared manifest. POSIX hosts continue into
@@ -88,6 +92,18 @@ user is next logged in, but it does not wake or power on the machine and does no
 as a credentialed background account. Configure a credentialed task yourself only if that broader
 Windows trust boundary is intentional.
 
+## Doctor and other helpers
+
+The same plugin-root PowerShell helpers cover Doctor, archive retention, import-issues, rule
+profiles, and a local support bundle:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\retain-history.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project C:\path\to\workspace -List
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\export-support.ps1" -Project C:\path\to\workspace
+```
+
 ## Process evidence and recovery
 
 Windows hooks walk native process ancestry through `Win32_Process`; a recorded holder is identified
@@ -129,6 +145,7 @@ PowerShell 7. It uses local host fixtures—no account or model subscription—t
 
 - setup and paths containing spaces;
 - workspace links and persisted work targets;
+- Doctor, migrate-state, retain-history, apply-profile, and export-support helpers;
 - PID/start-time evidence;
 - atomic session and lease ownership;
 - command, rules-file, and lease-file denials;

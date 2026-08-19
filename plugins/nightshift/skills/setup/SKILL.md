@@ -15,7 +15,14 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. If `$TASK_ROOT/.nightshift-link` exists,
 validate the one absolute workspace path inside it and call that `$NIGHTSHIFT_WORKSPACE`; otherwise
-set `NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Use it for every `.nightshift/` read or write. Never search
+set `NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search
 surrounding folders or guess. On Claude Code, `.claude/` settings stay at `$TASK_ROOT`. The shell's
 working directory persists between Bash calls, so never rely on a bare relative path.
 
@@ -31,11 +38,11 @@ Bash. Once the workspace and work target are resolved, the bundled mechanical sc
 
 ```powershell
 & "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\setup.ps1" `
-  -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET"
+ -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET"
 ```
 
 It copies only absent files, writes state version 1 for a new site, persists the work target, and
-keeps `.nightshift/` private. The skill still owns every owner choice below; the script asks
+keeps `$NS/` private. The skill still owns every owner choice below; the script asks
 nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
 
 If the user explicitly identifies a different existing workspace containing `.nightshift/`, show
@@ -50,7 +57,7 @@ The pointer is local-only and state remains in the authoritative workspace; neve
 
 Before creating or changing any file, resolve the project root to an absolute path. If it is under
 `/workspace/scratch/`, this is a disposable ChatGPT scratch workspace rather than the user's real
-repository. **Stop immediately: create no `.nightshift/` directory, rules, settings, receipts repo,
+repository. **Stop immediately: create no `$NS/` directory, rules, settings, receipts repo,
 or other files.** Tell the user directly:
 
 > Nightshift needs a real software project workspace. This ChatGPT conversation is using a
@@ -68,63 +75,69 @@ Resolve the code repository before stack detection:
 
 - If the workspace itself is a Git repository, it is the work target.
 - Otherwise inspect its immediate, non-hidden child directories. If exactly one is a Git
-  repository, that repository is the work target while `.nightshift/` stays in the opened parent.
-- If several child repositories exist and `.nightshift/work-target` does not already select one,
-  show the choices and require an explicit target; never guess.
+ repository, that repository is the work target while `$NS/` stays in the opened parent.
+- If several child repositories exist and `$NS/work-target` does not already select one,
+ show the choices and require an explicit target; never guess.
 - Persist the chosen repository's absolute Git top-level path, followed by one newline, in
-  `$NIGHTSHIFT_WORKSPACE/.nightshift/work-target`. On later setup runs, validate and retain that
-  target unless the owner explicitly changes it. Stack detection, Git checks, gates, commits, and
-  verification operate in this work target—not necessarily in the workspace holding run state.
+ `$NS/work-target`. On later setup runs, validate and retain that
+ target unless the owner explicitly changes it. Stack detection, Git checks, gates, commits, and
+ verification operate in this work target—not necessarily in the workspace holding run state.
 
-## 1. Scaffold `.nightshift/` (never clobber an existing shift)
+## 1. Scaffold `$NS/` (never clobber an existing shift)
 
 For each target below, copy the template only if the target does not already exist:
 
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/punch-list-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/punch-list.md`
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/drafting-table-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/drafting-table.md`
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/parking-lot-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/parking-lot.md`
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/snag-log-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/snag-log.md`
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/product-research-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/product-research.md`
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/opportunity-map-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/opportunity-map.md`
-- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/work-orders-template.md` → `$NIGHTSHIFT_WORKSPACE/.nightshift/work-orders.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/punch-list-template.md` → `$NS/punch-list.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/drafting-table-template.md` → `$NS/drafting-table.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/parking-lot-template.md` → `$NS/parking-lot.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/snag-log-template.md` → `$NS/snag-log.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/product-research-template.md` → `$NS/product-research.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/opportunity-map-template.md` → `$NS/opportunity-map.md`
+- `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/work-orders-template.md` → `$NS/work-orders.md`
 
-Create `$NIGHTSHIFT_WORKSPACE/.nightshift/shift-log.md` with a one-line header if absent.
+When copying, substitute the resolved absolute workspace path for `$NIGHTSHIFT_WORKSPACE` and the
+bound Nightshift directory for `$NS` in the destination file so the owner's copy contains real
+paths. A human copy-pasting STOP from their punch list does not have those skill variables. Leave
+the shipped template unchanged. Never write those tokens into `rules.json` — revival and clock-out
+text stay owner-editable, and the gate qualifies bare `.nightshift/` mentions at injection time.
 
-**State version.** `.nightshift/state-version` is the schema marker. This plugin supports
-integer `1`. If this run created `.nightshift/` (the directory did not exist when setup
+Create `$NS/shift-log.md` with a one-line header if absent.
+
+**State version.** `$NS/state-version` is the schema marker. This plugin supports
+integer `1`. If this run created `$NS/` (the directory did not exist when setup
 started), write exactly `1` followed by a newline to
-`$NIGHTSHIFT_WORKSPACE/.nightshift/state-version` after the templates. If `.nightshift/`
+`$NS/state-version` after the templates. If `$NS/`
 already existed and the marker is missing, that workspace is legacy version `0` — offer
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh" --project "$NIGHTSHIFT_WORKSPACE"`
 and run it only after an explicit yes; the script writes only the marker and refuses while
-armed. A marker newer than `1`, or a malformed file, fails closed: print the diagnostic, do
+armed. On native Windows, offer
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
+for that same confirmed repair (or the scaffold's `-MigrateLegacy` switch, which is the same
+idempotent marker write). A marker newer than `1`, or a malformed file, fails closed: print the diagnostic, do
 not rewrite or downgrade it, and do not continue scaffolding as if the site were current.
-On native Windows, the approved migration is the same idempotent scaffold command with
-`-MigrateLegacy`; it refuses an armed site and changes only the missing marker plus any still-absent
-scaffold files.
 
 ## 2. Private by default
 
 - Keep run state out of git. If `$NIGHTSHIFT_WORKSPACE` is itself a git repo, append a line
-  `.nightshift/` to its `.gitignore` (create the file if needed; do not duplicate the line). If it
-  is not one — the recommended layout, where the code repo sits a level below — `.nightshift/` is
-  already outside every repo, so write no `.gitignore` there. Run history is the owner's; it never
-  enters the project repo.
+ `.nightshift/` to `$NIGHTSHIFT_WORKSPACE/.gitignore` (create the file if needed; do not
+ duplicate the line). If it is not one — the recommended layout, where the code repo sits a
+ level below — `.nightshift/` is already outside every repo, so write no `.gitignore` there.
+ Run history is the owner's; it never enters the project repo.
 - **Receipts repo — ask, default no.** The run state can be versioned in its own local-only git
-  repo inside `.nightshift/`, so every punch-list change and log line has history. Most people
-  don't want a git repo living inside their project, so ask — *"version the run state in a local
-  receipts repo? (never pushed, never touches your project's history)"* — and on anything but a
-  clear yes, skip it: the receipts still exist as plain files. Present the question neutrally —
-  never describe the repo as recommended; the default is no. On yes: if `.nightshift/.git` does
-  not exist, run `git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init` rather than `cd`-ing there.
-  Ensure `$NIGHTSHIFT_WORKSPACE/.nightshift/.gitignore` contains the
-  transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
-  `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
-  `.mutex-scope.tmp.*`, `.watchman`, `.watchman-tick`, `.lock.d/`, and `.lease-lock.d/`; preserve
-  existing lines. Make one initial commit only when setup created the receipts repository.
-  **Never add a remote to it, never push it.**
-  On native Windows, after a clear yes, rerun the bundled scaffold with the same `-Project` and
-  `-WorkTarget` plus `-Receipts`; the idempotent pass creates only this local receipts repo.
+ repo inside `$NS/`, so every punch-list change and log line has history. Most people
+ don't want a git repo living inside their project, so ask — *"version the run state in a local
+ receipts repo? (never pushed, never touches your project's history)"* — and on anything but a
+ clear yes, skip it: the receipts still exist as plain files. Present the question neutrally —
+ never describe the repo as recommended; the default is no. On yes: if `$NS/.git` does
+ not exist, run `git -C "$NS" init` rather than `cd`-ing there.
+ Ensure `$NS/.gitignore` contains the
+ transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
+ `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
+ `.mutex-scope.tmp.*`, `.watchman`, `.watchman-tick`, `.lock.d/`, and `.lease-lock.d/`; preserve
+ existing lines. Make one initial commit only when setup created the receipts repository.
+ **Never add a remote to it, never push it.**
+ On native Windows, after a clear yes, rerun the bundled scaffold with the same `-Project` and
+ `-WorkTarget` plus `-Receipts`; the idempotent pass creates only this local receipts repo.
 
 ## 3. Gates — ask, never impose
 
@@ -139,7 +152,7 @@ user, showing the detected proposal, with three first-class answers:
 
 If gates were accepted or edited, also ask the **site-inspection interval** (every N items or every
 H hours). Write the result into the `## Gates` block of
-`$NIGHTSHIFT_WORKSPACE/.nightshift/punch-list.md`, replacing the placeholder. If the answer was none,
+`$NS/punch-list.md`, replacing the placeholder. If the answer was none,
 leave the placeholder as-is.
 
 The `## Gates` block is plain markdown the owner may edit anytime — run Setup again
@@ -156,43 +169,45 @@ denied means denied. Ask one question:
 > mode)
 
 - **Yes, on Claude Code** → merge `{"permissions": {"defaultMode": "bypassPermissions"}}` into
-  `$TASK_ROOT/.claude/settings.local.json` (create the file if absent; never clobber keys
-  the owner already has). Write the full path: a copy that lands in a nested code repo grants the
-  project nothing, and the first prompt of the night proves it. Settings on disk are what revivals
-  inherit — a mode picked at launch dies with the process.
+ `$TASK_ROOT/.claude/settings.local.json` (create the file if absent; never clobber keys
+ the owner already has). Write the full path: a copy that lands in a nested code repo grants the
+ project nothing, and the first prompt of the night proves it. Settings on disk are what revivals
+ inherit — a mode picked at launch dies with the process.
 - **Yes, on Codex** → there is no settings file to write: approvals are per launch. Tell the owner
-  the unattended spelling — `codex -a never -s danger-full-access` — and say the trade plainly:
-  the workspace-write sandbox protects `.git`, so a session under it can edit but never commit,
-  and the default contract commits once per item. The fence around that access is nightshift's
-  own guards, which hold in every mode — the same trade `bypassPermissions` makes on Claude Code.
-  An owner whose contract does not commit (the commit rule is theirs to strip from the punch
-  list and `clockOutMessage`) runs unattended under plain `workspace-write` — ticks alone finish
-  a night, in the gate and the stall guard alike.
+ the unattended spelling — `codex -a never -s danger-full-access` — and say the trade plainly:
+ the workspace-write sandbox protects `.git`, so a session under it can edit but never commit,
+ and the default contract commits once per item. The fence around that access is nightshift's
+ own guards, which hold in every mode — the same trade `bypassPermissions` makes on Claude Code.
+ An owner whose contract does not commit (the commit rule is theirs to strip from the punch
+ list and `clockOutMessage`) runs unattended under plain `workspace-write` — ticks alone finish
+ a night, in the gate and the stall guard alike.
 - **No** → respect it and say the cost plainly: *"a permission prompt mid-shift freezes the night
-  until morning — if the shift stalls on one, that was tonight's trade."* Suggest the narrower
-  alternative: pre-allow just the punch list's tools (test runner, linter, git) in the same file.
+ until morning — if the shift stalls on one, that was tonight's trade."* Suggest the narrower
+ alternative: pre-allow just the punch list's tools (test runner, linter, git) in the same file.
 
 ## 5. The rules file — every knob in one place
 
 Copy `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/nightshift-rules-template.json` to
-`$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json` as-is, if it does not already exist — the owner's one config file,
+`$NS/rules.json` as-is, if it does not already exist — the owner's one config file,
 defaults inline. It lives in nightshift's own folder on purpose: everything nightshift is in
 one place, kept out of repo history by the same `.nightshift/` gitignore, versioned by the
-receipts repo when one exists — and deleting `.nightshift/` removes all of nightshift, rules
+receipts repo when one exists — and deleting `$NS/` removes all of nightshift, rules
 included. Validate the file with `jq -e 'type == "object"'` and report a broken one plainly —
-never half-apply it. The template's `$schema` field points at the raw repository copy of
-`skills/nightshift/references/nightshift-rules.schema.json` so editors catch invalid names, types,
-and values; it is ignored at runtime. Editor discovery, including a `json.schemas` workspace
-setting for copies that lack `$schema`, is documented in `docs/knobs.md`.
+never half-apply it. The template's `$schema` field points at
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/nightshift-rules.schema.json` so editors
+catch invalid names, types, and values; it is ignored at runtime. Editor discovery, including a
+`json.schemas` workspace setting for copies that lack `$schema`, is documented in
+https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md.
 On native Windows, validate with
-`Get-Content -Raw -LiteralPath "$NIGHTSHIFT_WORKSPACE\.nightshift\rules.json" | ConvertFrom-Json`;
+`Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json`;
 PowerShell's JSON parser is built in, so native setup has no `jq` or Python prerequisite.
 
 The rules file is portable across hosts, so never generate a host-specific copy. Its `toolDeny`
 map carries both native question names: `AskUserQuestion` for Claude Code and
 `request_user_input` for Codex. A non-empty value denies that exact tool with the owner's message;
 an empty value allows it. Both entries stay present so deleting a key can never activate an
-invisible default. JSON has no comments; the schema descriptions and `docs/knobs.md#tool-rules`
+invisible default. JSON has no comments; the schema descriptions and
+https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md#tool-rules
 are the inline help and examples.
 
 The hooks read this file directly on every tool call: an owner's edit applies from their very
@@ -203,10 +218,12 @@ Claude Code's `$TASK_ROOT/.claude/settings.local.json` still carries `NIGHTSHIFT
 earlier version synced from this file, offer to remove them: the file is the one copy.
 
 **Local rule profiles — offer, never impose.** Setup may list the shipped examples in
-`skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`) and preview
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`) and preview
 one with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
-Applying requires an explicit yes and `--apply`. Fill never overwrites an owner value. Replace
+On native Windows, preview with
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.
+Applying requires an explicit yes and `--apply` / `-Apply`. Fill never overwrites an owner value. Replace
 shows the complete next file first. Profiles are a one-time local copy — no network, no
 subscription. Refuse `--apply` while armed.
 
@@ -222,8 +239,8 @@ wording wins every conflict, and a punch list with open boxes is never touched a
 ## 6. Summarize
 
 Print the workspace-state path and resolved work target, what was scaffolded, whether a receipts
-repo was created, and the gates that were written (or that none were). Tell the user to draft items in `.nightshift/drafting-table.md`, promote them into
+repo was created, and the gates that were written (or that none were). Tell the user to draft items in `$NS/drafting-table.md`, promote them into
 the punch list, then start the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start
 on Codex). Mention that the open-ended product-evolution shift keeps its evidence and ranked work in
-`.nightshift/product-research.md` and `.nightshift/opportunity-map.md`, while the quality skill can
+`$NS/product-research.md` and `$NS/opportunity-map.md`, while the quality skill can
 turn existing lint/type debt into proposed items whenever they want it.

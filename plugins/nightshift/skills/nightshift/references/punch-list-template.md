@@ -19,11 +19,12 @@
 ## How the shift ends (and only these ways)
 
 - **Done** — every box in the Items list is `- [x]`. The ticks are the truth; no magic phrase ends it.
-- **Stop-work order** — `.nightshift/STOP` exists (the Nightshift Stop skill, or
-  `touch .nightshift/STOP` on POSIX, or
-  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell). Open boxes stay
+- **Stop-work order** — `STOP` exists (the Nightshift Stop skill, or
+  `touch "$NS/STOP"` on POSIX, or
+  `New-Item -ItemType File -Force "$NS\STOP"` in native Windows
+  PowerShell). Open boxes stay
   open as the record of where work stopped.
-- **Quitting time** — past `.nightshift/deadline`, the gate clocks the shift out. Belongs to
+- **Quitting time** — past `deadline`, the gate clocks the shift out. Belongs to
   open-ended work: start NOTHING new past the whistle, finish the unit in hand, then clock out.
 - **Orderly clock-out** — if a shift must end with work in hand, commit it as a `wip:` commit plus
   one handover line in `shift-log.md`, then stop.

@@ -73,6 +73,12 @@ and only after an explicit yes:
 plugins/nightshift/runtime/migrate-state.sh --project /absolute/workspace
 ```
 
+On native Windows:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project C:\path\to\workspace
+```
+
 That command writes only `.nightshift/state-version`. Doctor offers it as a confirmation
 repair; invoking Doctor does not run it.
 

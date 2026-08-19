@@ -1395,4 +1395,370 @@ function Get-NSUnixTime {
     return [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 }
 
+function Get-NSStateVersion {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $kind = Get-NSStateKind $Workspace
+    switch ($kind) {
+        'absent' { return '' }
+        'legacy' { return '0' }
+        'current' { return [string]$script:NSStateVersion }
+        'future' {
+            try {
+                $raw = ([IO.File]::ReadAllLines((Join-Path $Workspace '.nightshift/state-version')) | Select-Object -First 1)
+                return ([string]$raw).Trim()
+            }
+            catch {
+                return ''
+            }
+        }
+        default { return '' }
+    }
+}
+
+function Invoke-NSMigrateState {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $kind = Get-NSStateKind $Workspace
+    if ($kind -eq 'current') {
+        return 0
+    }
+    if ($kind -ne 'legacy') {
+        return 2
+    }
+    if (Test-Path -LiteralPath (Join-Path $Workspace '.nightshift/.shift-armed') -PathType Leaf) {
+        return 1
+    }
+    try {
+        $null = Write-NSAtomicLines -Path (Join-Path $Workspace '.nightshift/state-version') `
+            -Lines @([string]$script:NSStateVersion)
+        return 0
+    }
+    catch {
+        return 3
+    }
+}
+
+function Get-NSReasonCode {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $path = Join-Path $NightshiftDir '.watch-reason'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return ''
+    }
+    try {
+        $line = ([IO.File]::ReadAllLines($path) | Select-Object -First 1)
+        return (([string]$line) -replace '\s', '')
+    }
+    catch {
+        return ''
+    }
+}
+
+function Get-NSReasonLabel {
+    param([AllowEmptyString()][string]$Code)
+    switch ($Code) {
+        'completed' { return 'shift completed' }
+        'owner-stop' { return 'owner stop-work order' }
+        'stale-pid' { return 'recorded process is stale' }
+        'invalid-session' { return 'session identity is missing or unreadable' }
+        'exhausted-retry' { return 'revival retries exhausted this wake' }
+        'unknown-wedge' { return 'session looks wedged without a verified error signature' }
+        'revived' { return 'session revived into its own conversation' }
+        'stand-down' { return 'watchman stood down' }
+        'wrong-host' { return 'watchman stood down — shift belongs to another host' }
+        'deadline' { return 'quitting time passed' }
+        'clean-session-end' { return 'owner closed the session' }
+        'esc-standby' { return 'standing by — owner interrupt in the transcript' }
+        'silent-standby' { return 'standing by — session alive and quiet' }
+        'non-resumable-session' { return 'recorded Codex identity cannot be resumed' }
+        'unreadable-rules' { return 'rules file missing or incomplete' }
+        'fresh-fallback' { return 'fresh session — punch list is the handover' }
+        'unsupported-state' { return 'workspace state-version is unsupported' }
+        'process-evidence-unavailable' { return 'process evidence is unavailable' }
+        default { return 'unknown watchman outcome' }
+    }
+}
+
+function Get-NSRetentionDays {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][ValidateSet('runtimeLogDays', 'archiveDays')][string]$Key
+    )
+    $envName = if ($Key -eq 'runtimeLogDays') {
+        'NIGHTSHIFT_RETENTION_RUNTIME_LOG_DAYS'
+    }
+    else {
+        'NIGHTSHIFT_RETENTION_ARCHIVE_DAYS'
+    }
+    $override = [Environment]::GetEnvironmentVariable($envName)
+    if ($override -match '^[0-9]+$') {
+        return [int]$override
+    }
+    $rules = Get-NSRulesObject $Workspace
+    if ($null -eq $rules) {
+        return 0
+    }
+    $retention = $rules.PSObject.Properties['retention']
+    if ($null -eq $retention -or $null -eq $retention.Value) {
+        return 0
+    }
+    $property = $retention.Value.PSObject.Properties[$Key]
+    if ($null -eq $property -or $null -eq $property.Value) {
+        return 0
+    }
+    $raw = [string]$property.Value
+    if ($raw -notmatch '^[0-9]+$') {
+        return 0
+    }
+    return [int]$raw
+}
+
+function Resolve-NSUnderNightshift {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Relative
+    )
+    if ([string]::IsNullOrEmpty($Relative) -or $Relative.Contains('..') `
+        -or [IO.Path]::IsPathRooted($Relative)) {
+        return $null
+    }
+    $ns = Join-Path $Workspace '.nightshift'
+    try {
+        $root = Resolve-NSCanonicalPath $ns
+    }
+    catch {
+        return $null
+    }
+    $candidate = Join-Path $ns ($Relative -replace '/', [string][IO.Path]::DirectorySeparatorChar)
+    if (-not (Test-NSPathEntry $candidate) -or (Test-NSReparsePoint $candidate)) {
+        return $null
+    }
+    try {
+        $canon = Resolve-NSCanonicalPath $candidate
+    }
+    catch {
+        return $null
+    }
+    $prefix = $root.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    if ($canon.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+        return $canon
+    }
+    return $null
+}
+
+function Test-NSArchiveHasOpenWork {
+    param([Parameter(Mandatory = $true)][string]$Directory)
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
+        return $false
+    }
+    $armed = Join-Path $Directory '.shift-armed'
+    if ((Test-NSPathEntry $armed)) {
+        return $true
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue)) {
+        if ($file.Name -in @('punch-list.md', 'shipped.md')) {
+            $counts = Get-NSBoxCounts $file.FullName
+            if ($counts.Open -gt 0) {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
+function Get-NSRetentionEligible {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $ns = Join-Path $Workspace '.nightshift'
+    $rows = [Collections.Generic.List[psobject]]::new()
+    if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
+        return @($rows)
+    }
+    $now = [DateTime]::UtcNow
+    $logDays = Get-NSRetentionDays $Workspace 'runtimeLogDays'
+    $archDays = Get-NSRetentionDays $Workspace 'archiveDays'
+
+    if ($logDays -gt 0) {
+        $logPath = Resolve-NSUnderNightshift $Workspace 'scheduled.log'
+        if (-not [string]::IsNullOrEmpty($logPath) -and (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+            $age = [int](($now - (Get-Item -LiteralPath $logPath).LastWriteTimeUtc).TotalDays)
+            if ($age -ge $logDays) {
+                $null = $rows.Add([pscustomobject]@{ Kind = 'runtime-log'; Rel = 'scheduled.log'; Age = $age; Days = $logDays })
+            }
+        }
+    }
+
+    if ($archDays -le 0) {
+        return @($rows)
+    }
+    $archiveRoot = Join-Path $ns 'archive'
+    if (-not (Test-Path -LiteralPath $archiveRoot -PathType Container) -or (Test-NSReparsePoint $archiveRoot)) {
+        return @($rows)
+    }
+    foreach ($dir in @(Get-ChildItem -LiteralPath $archiveRoot -Directory -ErrorAction SilentlyContinue)) {
+        if ($dir.Name -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') {
+            continue
+        }
+        $rel = 'archive/' + $dir.Name
+        $path = Resolve-NSUnderNightshift $Workspace $rel
+        if ([string]::IsNullOrEmpty($path)) {
+            continue
+        }
+        if (Test-NSArchiveHasOpenWork $path) {
+            continue
+        }
+        $age = [int](($now - (Get-Item -LiteralPath $path).LastWriteTimeUtc).TotalDays)
+        if ($age -ge $archDays) {
+            $null = $rows.Add([pscustomobject]@{ Kind = 'archive'; Rel = $rel; Age = $age; Days = $archDays })
+        }
+    }
+    return @($rows)
+}
+
+function Invoke-NSRetentionApply {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $ns = Join-Path $Workspace '.nightshift'
+    if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
+        return 2
+    }
+    if (Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf) {
+        return 1
+    }
+    foreach ($row in @(Get-NSRetentionEligible $Workspace)) {
+        $path = Resolve-NSUnderNightshift $Workspace $row.Rel
+        if ([string]::IsNullOrEmpty($path)) {
+            return 2
+        }
+        if ($row.Kind -eq 'runtime-log') {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Test-NSReparsePoint $path)) {
+                return 2
+            }
+            Remove-NSFile $path
+        }
+        elseif ($row.Kind -eq 'archive') {
+            if (-not (Test-Path -LiteralPath $path -PathType Container) -or (Test-NSReparsePoint $path)) {
+                return 2
+            }
+            if (Test-NSArchiveHasOpenWork $path) {
+                return 2
+            }
+            try {
+                Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+            }
+            catch {
+                return 2
+            }
+        }
+        else {
+            return 2
+        }
+    }
+    return 0
+}
+
+function Test-NSSecretLine {
+    param([AllowEmptyString()][string]$Text)
+    if ($Text -match '(?i)(password|passwd|secret|token|api[_-]?key|authorization|bearer|credential)\s*[=:]') {
+        return $true
+    }
+    if ($Text -match '://[^/@\s]+:[^/@\s]+@') {
+        return $true
+    }
+    if ($Text -match '(?i)[?&](token|key|secret|password|auth|access_token)=') {
+        return $true
+    }
+    return $false
+}
+
+function Convert-NSTokenizedText {
+    param(
+        [AllowEmptyString()][string]$Text,
+        [AllowEmptyString()][string]$HomeRoot = '',
+        [AllowEmptyString()][string]$Workspace = '',
+        [AllowEmptyString()][string]$Target = ''
+    )
+    $out = $Text
+    foreach ($pair in @(
+            @{ From = $Target; To = '$WORK_TARGET' },
+            @{ From = $Workspace; To = '$WORKSPACE' },
+            @{ From = $HomeRoot; To = '$HOME' }
+        )) {
+        if ([string]::IsNullOrEmpty($pair.From)) {
+            continue
+        }
+        $out = $out.Replace($pair.From, $pair.To)
+        $slash = $pair.From.Replace('\', '/')
+        if ($slash -ne $pair.From) {
+            $out = $out.Replace($slash, $pair.To)
+        }
+    }
+    if ($out -match '(^|[\s=])(/|file://|[A-Za-z]:[\\/])') {
+        return $null
+    }
+    return $out
+}
+
+function Convert-NSSanitizedLine {
+    param(
+        [AllowEmptyString()][string]$Text,
+        [AllowEmptyString()][string]$HomeRoot = '',
+        [AllowEmptyString()][string]$Workspace = '',
+        [AllowEmptyString()][string]$Target = ''
+    )
+    if (Test-NSSecretLine $Text) {
+        return $null
+    }
+    return Convert-NSTokenizedText $Text $HomeRoot $Workspace $Target
+}
+
+function Expand-NSInjectedPaths {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [AllowEmptyString()][string]$Text
+    )
+    if ([string]::IsNullOrEmpty($Text)) {
+        return $Text
+    }
+    $text = $Text.Replace('$NIGHTSHIFT_WORKSPACE', $Workspace)
+    $nsRoot = $Workspace.TrimEnd('\', '/') + '/.nightshift'
+    $text = $text.Replace('$NS', $nsRoot)
+    $root = $Workspace.TrimEnd('\', '/')
+    $builder = New-Object Text.StringBuilder
+    $i = 0
+    while ($i -lt $text.Length) {
+        $idx = $text.IndexOf('.nightshift', $i, [StringComparison]::Ordinal)
+        if ($idx -lt 0) {
+            $null = $builder.Append($text.Substring($i))
+            break
+        }
+        $after = if (($idx + 11) -lt $text.Length) { $text[$idx + 11] } else { [char]0 }
+        $sepOk = ($after -eq [char]'/' -or $after -eq [char]'\')
+        $prev = if ($idx -gt 0) { $text[$idx - 1] } else { [char]0 }
+        $already = ($prev -eq [char]'/' -or $prev -eq [char]'\')
+        $null = $builder.Append($text.Substring($i, $idx - $i))
+        if ($sepOk -and -not $already) {
+            $null = $builder.Append($root)
+            $null = $builder.Append('/')
+            $null = $builder.Append('.nightshift')
+            $null = $builder.Append($after)
+            $i = $idx + 12
+        }
+        else {
+            $null = $builder.Append('.nightshift')
+            $i = $idx + 11
+        }
+    }
+    return $builder.ToString()
+}
+
+function Copy-NSOwnerTemplate {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [Parameter(Mandatory = $true)][string]$Workspace
+    )
+    $text = [IO.File]::ReadAllText($Source)
+    $text = $text.Replace('$NIGHTSHIFT_WORKSPACE', $Workspace)
+    $ns = Join-Path $Workspace.TrimEnd('\', '/') '.nightshift'
+    $text = $text.Replace('$NS', $ns)
+    [IO.File]::WriteAllText($Destination, $text, $script:NSUtf8NoBom)
+}
+
 Export-ModuleMember -Function *

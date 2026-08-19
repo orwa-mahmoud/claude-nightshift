@@ -15,47 +15,61 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
 present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Read every `.nightshift/` path there. Never search or guess.
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search or guess.
 The shell's working directory persists between Bash calls, so never use a bare path.
 Resolve the installed plugin root as Doctor does: `${CLAUDE_PLUGIN_ROOT}` on Claude Code;
 `$PLUGIN_ROOT` on Codex when available, otherwise derive it from this skill's absolute path.
 
-Read `.nightshift/` and print:
+On native Windows, use the PowerShell tool and native paths throughout. Resolve the same values
+from `$env:CLAUDE_PROJECT_DIR`, `$env:CODEX_PROJECT_DIR`, and `$env:PLUGIN_ROOT`, with
+`[Environment]::CurrentDirectory` as the Codex cwd fallback. Do not route Status through WSL or Git
+Bash.
 
-- **Schema** — `.nightshift/state-version`: missing means legacy `0`, `1` is current. Report a
-  newer or malformed marker and stop there; never rewrite it and never run migration from status.
-- **Shift** — whether one is running: `.nightshift/.shift-armed` exists. Without it the punch list
-  is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
-  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on
-  Codex).
-- **Items** — ticked vs open counts from `.nightshift/punch-list.md`, counted **below the `## Items`
-  heading only** (open = lines matching a dash + bracketed space; ticked = bracketed x), and the
-  title of the current open item. A checkbox above that heading is contract prose, not work, and
-  the gate does not count it either.
-- **Parked** — the count and one-line titles of entries in `.nightshift/parking-lot.md`.
-- **Staged** — known later items in `.nightshift/drafting-table.md`, separately from pending timed
-  Hunt orders in `.nightshift/work-orders.md`.
-- **Snag log** — the last few dispositions from `.nightshift/snag-log.md`, if any.
-- **Product evolution** — when `.nightshift/product-research.md` or
-  `.nightshift/opportunity-map.md` contains more than its template headings, report the most recent
-  research entry and the counts of candidate, building, shipped, rejected, and parked
-  opportunities. If one opportunity is building, show its title, current phase, exact Next action,
-  and Verify remaining. Flag multiple building entries as inconsistent without changing them.
-  Do not turn the map into work or change a status.
-- **Deadline** — if `.nightshift/deadline` exists, the time remaining until quitting time (it holds a
-  UNIX epoch; compare with `date +%s`). Otherwise "no deadline (finite list)".
-- **State** — whether `.nightshift/STOP` is present (and its reason), and the current
-  `.nightshift/.stall` attempt count if any. If a shift is running, the bound session from
-  `.nightshift/.shift-session` and whether its process is still alive. Also report
-  `.nightshift/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
-  show its host, generation, and whether its recorded process is alive. Obtain those lease facts
-  by running `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/doctor.sh" --project "$NIGHTSHIFT_WORKSPACE"` and
-  reading its Process lease lines; do not read the runtime-owned lease file directly. The
-  inspector validates it with the shared library and never prints its session scope or ownership
-  capability.
-- **Watchman** — if `.nightshift/.watch-reason` exists, print line 1 (the stable code) and the
-  same human label Doctor prints (`ns_reason_label` in the shared library). Do not print
-  transcript paths, session ids, prompts, or any other payload. Line 2 is optional non-sensitive
-  detail only.
+Read `$NS/` and print:
+
+- **Schema** — `$NS/state-version`: missing means legacy `0`, `1` is current. Report a
+ newer or malformed marker and stop there; never rewrite it and never run migration from status.
+- **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list
+ is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
+ Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on
+ Codex).
+- **Items** — ticked vs open counts from `$NS/punch-list.md`, counted **below the `## Items`
+ heading only** (open = lines matching a dash + bracketed space; ticked = bracketed x), and the
+ title of the current open item. A checkbox above that heading is contract prose, not work, and
+ the gate does not count it either.
+- **Parked** — the count and one-line titles of entries in `$NS/parking-lot.md`.
+- **Staged** — known later items in `$NS/drafting-table.md`, separately from pending timed
+ Hunt orders in `$NS/work-orders.md`.
+- **Snag log** — the last few dispositions from `$NS/snag-log.md`, if any.
+- **Product evolution** — when `$NS/product-research.md` or
+ `$NS/opportunity-map.md` contains more than its template headings, report the most recent
+ research entry and the counts of candidate, building, shipped, rejected, and parked
+ opportunities. If one opportunity is building, show its title, current phase, exact Next action,
+ and Verify remaining. Flag multiple building entries as inconsistent without changing them.
+ Do not turn the map into work or change a status.
+- **Deadline** — if `$NS/deadline` exists, the time remaining until quitting time (it holds a
+ UNIX epoch; compare with `date +%s`). Otherwise "no deadline (finite list)".
+- **State** — whether `$NS/STOP` is present (and its reason), and the current
+ `$NS/.stall` attempt count if any. If a shift is running, the bound session from
+ `$NS/.shift-session` and whether its process is still alive. Also report
+ `$NS/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
+ show its host, generation, and whether its recorded process is alive. Obtain those lease facts
+ by running `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/doctor.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ (on native Windows, `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
+ and
+ reading its Process lease lines; do not read the runtime-owned lease file directly. The
+ inspector validates it with the shared library and never prints its session scope or ownership
+ capability.
+- **Watchman** — if `$NS/.watch-reason` exists, print line 1 (the stable code) and the
+ same human label Doctor prints (`ns_reason_label` in the shared library). Do not print
+ transcript paths, session ids, prompts, or any other payload. Line 2 is optional non-sensitive
+ detail only.
 
 Keep it a compact glanceable summary. Do not modify any file, do not begin work.

@@ -14,6 +14,12 @@ $schedule = Join-Path $plugin 'runtime/windows/schedule.ps1'
 $watchman = Join-Path $plugin 'runtime/windows/watchman.ps1'
 $startWatchman = Join-Path $plugin 'runtime/windows/start-watchman.ps1'
 $linkWorkspace = Join-Path $plugin 'runtime/windows/link-workspace.ps1'
+$doctor = Join-Path $plugin 'runtime/windows/doctor.ps1'
+$migrateState = Join-Path $plugin 'runtime/windows/migrate-state.ps1'
+$retainHistory = Join-Path $plugin 'runtime/windows/retain-history.ps1'
+$applyProfile = Join-Path $plugin 'runtime/windows/apply-profile.ps1'
+$exportSupport = Join-Path $plugin 'runtime/windows/export-support.ps1'
+$importIssues = Join-Path $plugin 'runtime/windows/import-issues.ps1'
 $claudeHardhatDispatch = Join-Path $plugin 'hooks/dispatch/claude-hardhat.ps1'
 $claudeGateDispatch = Join-Path $plugin 'hooks/dispatch/claude-clock-out.ps1'
 $claudeSessionEndDispatch = Join-Path $plugin 'hooks/dispatch/claude-session-end.ps1'
@@ -385,6 +391,40 @@ try {
         'Windows hooks share one shift-ownership protocol'
     Assert-True (([IO.File]::ReadAllText($setup)).Contains('-DisableNameChecking')) `
         'setup import stays quiet so its JSON summary is the only stdout'
+
+    $punchText = [IO.File]::ReadAllText((Join-Path $workspace '.nightshift/punch-list.md'))
+    Assert-True (-not $punchText.Contains('$NIGHTSHIFT_WORKSPACE')) `
+        'setup substitutes the workspace token out of the owner punch list'
+    Assert-True (-not $punchText.Contains('$NS')) `
+        'setup substitutes the Nightshift directory token out of the owner punch list'
+    Assert-True $punchText.Contains((Join-Path $workspace '.nightshift')) `
+        'setup writes the resolved workspace into the owner punch list'
+
+    Write-Host 'Checking Windows runtime helpers'
+    $doctorRun = Invoke-TestScript $doctor @('-Project', $workspace)
+    Assert-Equal 0 $doctorRun.ExitCode "doctor reports: $($doctorRun.Stderr)"
+    Assert-True $doctorRun.Stdout.Contains('Nightshift Doctor') 'doctor prints the inspector header'
+    Assert-True $doctorRun.Stdout.Contains('export-support.ps1') 'doctor names the Windows export helper'
+    $migrateRun = Invoke-TestScript $migrateState @('-Project', $workspace)
+    Assert-Equal 0 $migrateRun.ExitCode "migrate on current state: $($migrateRun.Stderr)"
+    Assert-True $migrateRun.Stdout.Contains('already 1') 'migrate is idempotent on current state'
+    $eligibleDirect = @(Get-NSRetentionEligible $workspace)
+    Assert-Equal 0 $eligibleDirect.Count 'a fresh workspace has no retention targets'
+    $retainRun = Invoke-TestScript $retainHistory @('-Project', $workspace)
+    Assert-Equal 0 $retainRun.ExitCode "retain preview: $($retainRun.Stderr)"
+    Assert-True $retainRun.Stdout.Contains('Eligible: none') 'zero retention keeps everything'
+    $applyRun = Invoke-TestScript $applyProfile @('-Project', $workspace, '-List')
+    Assert-Equal 0 $applyRun.ExitCode "apply-profile list: $($applyRun.Stderr)"
+    Assert-True $applyRun.Stdout.Contains('not a subscription') 'apply-profile lists local copies'
+    $exportRun = Invoke-TestScript $exportSupport @('-Project', $workspace)
+    Assert-Equal 0 $exportRun.ExitCode "export-support: $($exportRun.Stderr)"
+    Assert-True $exportRun.Stdout.Contains('Support bundle:') 'export-support prints the bundle path'
+    Assert-True (Test-Path -LiteralPath (Join-Path $workspace '.nightshift/support') -PathType Container) `
+        'export-support writes under .nightshift/support'
+    $expanded = Expand-NSInjectedPaths $workspace 'Read .nightshift/punch-list.md'
+    $expectedPunch = 'Read ' + ($workspace.TrimEnd('\', '/') + '/.nightshift/punch-list.md')
+    Assert-Equal $expectedPunch $expanded 'injection qualifies a bare .nightshift path'
+    Assert-True $importIssues.EndsWith('import-issues.ps1') 'import-issues helper is bundled'
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

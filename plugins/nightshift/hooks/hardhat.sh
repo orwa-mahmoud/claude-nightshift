@@ -35,7 +35,7 @@ ENDED="$NS/.ended"
 # Reasons interpolate owner config and git output; escape them so a stray quote or
 # backslash can never break the JSON and void the deny.
 deny() {
-  reason="$(printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  reason="$(ns_expand_injected_paths "$PROJECT_DIR" "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$reason"
   exit 0
 }

@@ -29,9 +29,9 @@ CODEX_HOOKS="$HOOKS/codex"
 }
 
 @test "both hardhats and gates share one ownership protocol" {
-  LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+  LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
   for fn in ns_shift_unbound ns_shift_rebind ns_shift_authorize ns_shift_ownership; do
-    grep -qF "$fn() {" "$LIB" || { echo "missing $fn"; return 1; }
+    grep -qF "$fn() {" "$LIB_DIR"/*.sh || { echo "missing $fn"; return 1; }
   done
   grep -qF 'ns_shift_unbound claude hardhat' "$HOOKS/hardhat.sh"
   grep -qF 'ns_shift_rebind claude' "$HOOKS/hardhat.sh"
@@ -49,11 +49,11 @@ CODEX_HOOKS="$HOOKS/codex"
 }
 
 @test "both watchmen spawn through one child runner" {
-  LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+  LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
   CLAUDE_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/claude/watchman.sh"
   CODEX_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
-  grep -qF 'ns_watchman_run_child() {' "$LIB"
-  grep -qF 'ns_watchman_clockout_pending() {' "$LIB"
+  grep -qF 'ns_watchman_run_child() {' "$LIB_DIR"/*.sh
+  grep -qF 'ns_watchman_clockout_pending() {' "$LIB_DIR"/*.sh
   grep -qF 'ns_watchman_run_child' "$CLAUDE_WM"
   grep -qF 'ns_watchman_run_child' "$CODEX_WM"
   grep -qF 'ns_watchman_clockout_pending' "$CLAUDE_WM"

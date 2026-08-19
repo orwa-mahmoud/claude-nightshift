@@ -70,7 +70,7 @@ STALL_OK=1
 case "$STALL_MAX" in '' | *[!0-9]*) STALL_OK=0 ;; esac
 case "$STALL_WARN" in '' | *[!0-9]* | 0) STALL_OK=0 ;; esac
 NOTIFY="$(rule "$PROJECT_DIR" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")"
-GATE_MESSAGE="$(rule "$PROJECT_DIR" clockOutMessage "${NIGHTSHIFT_GATE_MESSAGE:-}")"
+GATE_MESSAGE="$(ns_expand_injected_paths "$PROJECT_DIR" "$(rule "$PROJECT_DIR" clockOutMessage "${NIGHTSHIFT_GATE_MESSAGE:-}")")"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
@@ -258,7 +258,11 @@ if [ -n "$GATE_MESSAGE" ] && command -v jq >/dev/null 2>&1; then
   jq -nc --arg r "$GATE_MESSAGE" '{decision:"block",reason:$r}'
   exit 0
 fi
-cat <<'JSON'
-{"decision":"block","reason":"DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here, or jq is absent; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)"}
-JSON
+FALLBACK="$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here, or jq is absent; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
+if command -v jq >/dev/null 2>&1; then
+  jq -nc --arg r "$FALLBACK" '{decision:"block",reason:$r}'
+  exit 0
+fi
+escaped="$(printf '%s' "$FALLBACK" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+printf '{"decision":"block","reason":"%s"}\n' "$escaped"
 exit 0

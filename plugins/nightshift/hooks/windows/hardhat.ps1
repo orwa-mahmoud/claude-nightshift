@@ -20,6 +20,9 @@ $script:ns = ''
 
 function Write-Deny {
     param([Parameter(Mandatory = $true)][string]$Reason)
+    if ((Test-Path Variable:workspace) -and -not [string]::IsNullOrEmpty($workspace)) {
+        $Reason = Expand-NSInjectedPaths $workspace $Reason
+    }
     $output = @{
         hookSpecificOutput = @{
             hookEventName = 'PreToolUse'

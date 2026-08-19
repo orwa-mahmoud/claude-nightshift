@@ -128,9 +128,12 @@ age_file() {
     "$ROOT/runtime/migrate-state.sh" \
     "$START" "$STATUS"
   ! grep -n 'ns_retention_apply\|retain-history.sh --apply' "$DOCTOR"
+  ! grep -n 'retain-history' "$ROOT/runtime/windows/doctor.ps1"
   grep -qF 'retain-history.sh' "$ARCHIVE"
   grep -qF 'explicit confirmation' "$ARCHIVE" || grep -qF 'owner confirms' "$ARCHIVE"
-  grep -qF 'Never call `retain-history.sh` from start' "$ARCHIVE"
+  grep -qF 'Never call `retain-history.sh`' "$ARCHIVE"
+  grep -qF 'retain-history.ps1' "$ARCHIVE"
+  grep -qF 'from start, hooks, status, Doctor, or recovery' "$ARCHIVE"
 }
 
 @test "archive skill and schema describe the nested retention knobs" {

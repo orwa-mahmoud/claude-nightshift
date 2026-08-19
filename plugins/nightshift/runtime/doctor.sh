@@ -7,6 +7,7 @@
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+_here="$(cd -P "$_here" && pwd)" || exit 1
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
 
@@ -56,7 +57,7 @@ if [ -e "$LINK" ] || [ -L "$LINK" ]; then
     LINK_STATE="invalid"
     WORKSPACE="$HOST"
     warn "invalid .nightshift-link — Nightshift will not guess a workspace"
-    act confirm "replace .nightshift-link with an absolute path to a directory that already contains .nightshift/, using runtime/link-workspace.sh"
+    act confirm "replace .nightshift-link with an absolute path to a directory that already contains .nightshift/, using $_here/link-workspace.sh"
   fi
 else
   fact "task root is the workspace: $HOST"
@@ -128,9 +129,9 @@ case "$STATE_KIND" in
     fact "state version 0 (legacy — no state-version marker)"
     if [ "$ARMED" -eq 1 ]; then
       warn "legacy workspace cannot be migrated while a shift is armed"
-      act blocked "wait until the shift is unarmed, then write version 1 with runtime/migrate-state.sh"
+      act blocked "wait until the shift is unarmed, then write version 1 with $_here/migrate-state.sh"
     else
-      act confirm "write .nightshift/state-version as 1 with runtime/migrate-state.sh — only the marker is added"
+      act confirm "write $NS/state-version as 1 with $_here/migrate-state.sh — only the marker is added"
     fi
     ;;
   future)
@@ -139,7 +140,7 @@ case "$STATE_KIND" in
     ;;
   malformed)
     warn "state-version is malformed"
-    act confirm "inspect .nightshift/state-version and replace it with a single integer while unarmed — never guess"
+    act confirm "inspect $NS/state-version and replace it with a single integer while unarmed — never guess"
     ;;
 esac
 [ "$ENDED" -eq 1 ] && fact "gate has clocked the shift out (.ended)"
@@ -214,7 +215,7 @@ elif json_is_object "$RULES"; then
   done
 else
   warn "rules.json is unreadable or not a JSON object"
-  act confirm "fix .nightshift/rules.json or re-run setup — never half-apply a broken file"
+  act confirm "fix $NS/rules.json or re-run setup — never half-apply a broken file"
 fi
 
 HOST_REC="none"
@@ -316,7 +317,7 @@ fi
 
 [ -n "$TPATH" ] && [ ! -f "$TPATH" ] && warn "recorded transcript/rollout path is not a readable file"
 
-act confirm "export a redacted local support bundle with runtime/export-support.sh — written under .nightshift/support/, never uploaded"
+act confirm "export a redacted local support bundle with $_here/export-support.sh — written under $NS/support/, never uploaded"
 act blocked "Doctor never repairs, arms, stops, revives, or deletes"
 
 emit "Nightshift Doctor"

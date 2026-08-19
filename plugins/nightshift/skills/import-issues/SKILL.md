@@ -16,7 +16,14 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
 present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search or guess. The shell's working directory persists
 between Bash calls, so never use a bare path.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
@@ -24,11 +31,18 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/import-issues/SKILL.md`). Substitute that
 absolute path in every command below; never search for the plugin.
 
-Claude Code and Codex run the same helper. Do not reimplement fetch or staging in prose.
+Claude Code and Codex run the same platform helper. Do not reimplement fetch or staging in prose.
 
 ```bash
 "$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --fetch …
 "$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --stage …
+```
+
+On native Windows, use the PowerShell tool and native paths. Do not route through WSL or Git Bash:
+
+```powershell
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Fetch …
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Stage …
 ```
 
 ## 1. Require an explicit selection
@@ -43,7 +57,7 @@ If the owner says “import my issues”, “what’s open”, or names an accou
 issue numbers, stop. Ask for explicit URLs or numbers. Never run `gh search`, `gh issue list`,
 or any implicit inventory. Never install `gh`, never request scopes, never use MCP.
 
-No `.nightshift/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
+No `$NS/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
 to set up on Codex).
 
 ## 2. Read-only fetch, then preview
@@ -67,9 +81,9 @@ git, or GitHub commands. Review flags (`destructive`, `secret-seeking`, `publish
 After the preview, ask which issues to stage. Then run `--stage` with those explicit specs.
 Add `--allow-closed` only when the owner overrode a closed issue after seeing it.
 
-The helper writes atomically to `$NIGHTSHIFT_WORKSPACE/.nightshift/drafting-table.md`. Each staged
+The helper writes atomically to `$NS/drafting-table.md`. Each staged
 entry carries Source URL, imported title, quoted acceptance text, labels, import timestamp, and
 `Status: proposed`. Duplicates by canonical URL are skipped.
 
 Never create, edit, comment, label, assign, or close GitHub issues. Never push, open a PR, or
-promote the drafts into `punch-list.md` from this command.
+promote the drafts into `$NS/punch-list.md` from this command.

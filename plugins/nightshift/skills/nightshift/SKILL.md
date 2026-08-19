@@ -8,10 +8,6 @@ description: Run an accountable autonomous shift — work a punch list to comple
 You are working a **shift**: a punch list the clock-out gate won't let you abandon. Your job is to
 finish every item to its own standard, safely, leaving receipts. This skill is how you run one.
 
-If `.nightshift/` doesn't exist yet, tell the user to run Setup, then Start. Give the host-native
-spelling: `/nightshift:setup` and `/nightshift:start` on Claude Code, or ask Nightshift to set up
-and start on Codex. Those skills own scaffolding and preflight; this skill owns the work.
-
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
@@ -22,8 +18,20 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
 present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Use it for every `.nightshift/` path. Never search or guess.
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search or guess.
 The shell's working directory persists between Bash calls, so never rely on a bare path.
+
+If `$NS/` doesn't exist yet, tell the user to run Setup, then Start.
+Give the host-native spelling: `/nightshift:setup` and `/nightshift:start` on Claude Code, or ask
+Nightshift to set up and start on Codex. Those skills own scaffolding and preflight; this skill
+owns the work.
 
 ## Real-project boundary
 
@@ -36,7 +44,7 @@ A non-git project outside that explicit scratch path remains valid.
 
 ## The contract is above `## Items`
 
-`.nightshift/punch-list.md` has a contract section, then `## Items`. The contract binds YOU for the
+`$NS/punch-list.md` has a contract section, then `## Items`. The contract binds YOU for the
 whole shift: **never edit, trim, or reword it, and never delete an item** — not even to end the
 shift. The owner may change the `## Gates` block anytime, so **re-read the punch list at the start of
 every item; never cache it.** If you ever notice the contract or an item was altered, restore it
@@ -48,36 +56,40 @@ Top to bottom, one item, no batching:
 
 1. **Read** the item and the current `## Gates` block.
 2. **Build** it fully — production-ready, no stubs, no "documented for later". If you can do it now,
-   do it now. Effort is never a reason to defer: "this deserves a focused session" — this IS the
-   focused session. Only correctness justifies narrowing an item.
+  do it now. Effort is never a reason to defer: "this deserves a focused session" — this IS the
+  focused session. Only correctness justifies narrowing an item.
 3. **Gate** — run the item gate (the `## Gates` commands) right before the commit. It must be green.
-   No suppressions without a written reason beside them.
+  No suppressions without a written reason beside them.
 4. **Commit** — one conventional commit, local by default: the owner reviews and pushes. Push
-   yourself only when the punch list explicitly says to.
+  yourself only when the punch list explicitly says to.
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is real.
 
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own
-**Verify** and **Commit** lines. Promote owner-approved work from `drafting-table.md` into `## Items`; never
-invent scope the owner didn't ask for.
+**Verify** and **Commit** lines. Promote owner-approved work from
+`$NS/drafting-table.md` into `## Items`; never invent scope the owner
+didn't ask for.
 
 ## Park, don't ask
 
 A shift runs while the owner sleeps. If a decision is genuinely theirs, do NOT ask — the gate denies
 it anyway. Instead: choose the most sensible production-grade default, record the decision and your
-reasoning in `parking-lot.md` in plain language, and keep working. The owner reviews it over coffee.
-Known later work is not a decision: stage it in `drafting-table.md`.
+reasoning in `$NS/parking-lot.md` in plain language, and keep working.
+The owner reviews it over coffee. Known later work is not a decision: stage it in
+`$NS/drafting-table.md`.
 
 When the owner selected **run directly**, that is explicit authority to choose and implement
 reasonable, reversible production defaults within the stated scope and time. Do not turn ordinary
 code, API, design, localization, or cleanup judgments into blockers merely because alternatives
 exist. Preserve compatibility or provide migration and rollback, verify the result, and record the
-choice, evidence, alternatives, shipped result, and rollback in `parking-lot.md`. Stop only for
+choice, evidence, alternatives, shipped result, and rollback in
+`$NS/parking-lot.md`. Stop only for
 publishing, merging, deploying, real-data deletion, secrets exposure, spending, or legal/licensing
 decisions outside the coding-work authorization.
 
 ## Snag log discipline
 
-Before reporting findings in a review or walkthrough, read `snag-log.md` and dedupe against ALL seen
+Before reporting findings in a review or walkthrough, read
+`$NS/snag-log.md` and dedupe against ALL seen
 — fixed AND rejected — so a later cycle never re-reports an earlier one. Append dispositions after
 acting: `finding · evidence · fixed/rejected-because/accepted-tradeoff · date`.
 
@@ -87,19 +99,20 @@ A walkthrough is one open box that stays open while a scan → fix → re-scan l
 at its declared condition:
 
 - **Coverage hunt** — write meaningful tests until quitting time. Coverage is a tripwire, never a
-  target; no padding, exclusions need a reason.
+ target; no padding, exclusions need a reason.
 - **Defect hunt** — review, dedupe against the snag log, fix behind the gate, re-review. Stop when a
-  full pass finds nothing NEW (converged) or at quitting time. **Zero new findings is success** —
-  stop even with time on the clock.
+ full pass finds nothing NEW (converged) or at quitting time. **Zero new findings is success** —
+ stop even with time on the clock.
 - **Product evolution (standing loop)** — understand the product, research its space, rank an
-  evidence-backed opportunity map, and build the strongest complete improvements that fit the
-  clock on an isolated branch. Lint and tests verify the work; they do not choose the roadmap.
-  Small fixes through substantial features are valid, but the shift never merges itself and never
-  leaves a half-built production path. The single `building` opportunity is the continuation
-  record: read it first on resume and keep its completed work, rejected paths, exact next action,
-  and remaining verification current at meaningful boundaries. Only quitting time ends the item.
+ evidence-backed opportunity map, and build the strongest complete improvements that fit the
+ clock on an isolated branch. Lint and tests verify the work; they do not choose the roadmap.
+ Small fixes through substantial features are valid, but the shift never merges itself and never
+ leaves a half-built production path. The single `building` opportunity is the continuation
+ record: read it first on resume and keep its completed work, rejected paths, exact next action,
+ and remaining verification current at meaningful boundaries. Only quitting time ends the item.
 
-Log one line per cycle to `shift-log.md`. A cycle that finds nothing new is success, not idleness.
+Log one line per cycle to `$NS/shift-log.md`. A cycle that finds
+nothing new is success, not idleness.
 
 ## Quitting time — a whistle, not an axe
 
@@ -111,12 +124,14 @@ finite item list ends at its last tick; never start a walkthrough without one.
 ## Red-tag yourself when stuck
 
 If you catch yourself unable to finish an item — looping, blocked on something real — **red-tag it
-yourself**: record the owner decision in `parking-lot.md` as `stalled — needs human`, note why, and move to the next
+yourself**: record the owner decision in `$NS/parking-lot.md` as
+`stalled — needs human`, note why, and move to the next
 item. Do not loop. The gate's stall warning is the backstop, not the plan.
 
 ## Ending the shift
 
 You may stop only when every box is `- [x]`, or the owner issues a stop-work order
-(`.nightshift/STOP`). If a shift must end mid-work, clock out orderly: a `wip:` commit plus one
-handover line in `shift-log.md`, then stop. History is append-only on shift — no `reset --hard`,
+(`$NS/STOP`). If a shift must end mid-work, clock out orderly: a
+`wip:` commit plus one handover line in `$NS/shift-log.md`, then
+stop. History is append-only on shift — no `reset --hard`,
 `rebase`, `amend`, or force operations; the night's receipts must survive to morning.

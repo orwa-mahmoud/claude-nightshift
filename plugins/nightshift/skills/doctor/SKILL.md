@@ -16,7 +16,14 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
 present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Read every `.nightshift/` path there. Never search or guess.
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search or guess.
 The shell's working directory persists between Bash calls, so never use a bare path.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
@@ -24,15 +31,28 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/doctor/SKILL.md`). Substitute that
 absolute path in every command below; never search for the plugin.
 
-Report `.nightshift/state-version` as current (`1`), legacy (missing = `0`), malformed, or future.
-Offer `$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh` as `[confirm]` only for unarmed legacy
-workspaces; never run it because Doctor was invoked. Future versions are `[blocked]` — never
+On native Windows, use the PowerShell tool and native paths throughout. Resolve the same values
+from `$env:CLAUDE_PROJECT_DIR`, `$env:CODEX_PROJECT_DIR`, and `$env:PLUGIN_ROOT`, with
+`[Environment]::CurrentDirectory` as the Codex cwd fallback. Do not route Doctor through WSL or Git
+Bash.
+
+Report `$NS/state-version` as current (`1`), legacy (missing = `0`), malformed, or future.
+Offer `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh" --project "$NIGHTSHIFT_WORKSPACE"` as `[confirm]` only for unarmed legacy
+workspaces; never run it because Doctor was invoked. On native Windows, offer
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
+instead. Future versions are `[blocked]` — never
 downgrade.
 
 ## 1. Run the inspector
 
 ```bash
 "$NIGHTSHIFT_PLUGIN_ROOT/runtime/doctor.sh" --project "$NIGHTSHIFT_WORKSPACE"
+```
+
+On native Windows:
+
+```powershell
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project "$NIGHTSHIFT_WORKSPACE"
 ```
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. The script uses the
@@ -43,14 +63,14 @@ same workspace and work-target libraries as the hooks.
 The report tags every suggestion:
 
 - `[safe]` — mechanical leftover with no live session (for example a stale watchman pid file whose
-  process is already gone). Still do **not** apply it because Doctor was invoked; offer it.
+ process is already gone). Still do **not** apply it because Doctor was invoked; offer it.
 - `[confirm]` — owner decision (broken link, missing setup, leftover STOP while they still want
-  the night). During an **unattended active shift** (`.shift-armed` and open boxes), report that
-  the recommendation should be parked with the default "leave in place until morning", but do not
-  write the parking lot or ask—the Doctor invocation remains byte-identical.
+ the night). During an **unattended active shift** (`$NS/.shift-armed` and open boxes), report that
+ the recommendation should be parked with the default "leave in place until morning", but do not
+ write the parking lot or ask—the Doctor invocation remains byte-identical.
 - `[blocked]` — Nightshift cannot fix this here (non-resumable Codex id, malformed process lease,
-  missing host binary, unverified wedge). Say so. Never guess a session id or print/edit a lease
-  capability.
+ missing host binary, unverified wedge). Say so. Never guess a session id or print/edit a lease
+ capability.
 
 Invoking Doctor alone must leave the tree byte-identical. Never perform a repair merely because
 Doctor was invoked.
@@ -64,11 +84,16 @@ informational only: continue the active work without asking or writing state.
 
 Doctor may list local rule profiles and show a preview. Applying a profile is a separate
 owner action
-(`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE"`);
+(`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE"` on POSIX,
+or `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
+on native Windows);
 invoking Doctor never writes `rules.json`.
 
 If the owner then explicitly asks to **Export support bundle**, they are no longer in Doctor.
 Run
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/export-support.sh" --project "$NIGHTSHIFT_WORKSPACE"`.
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/export-support.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+on POSIX, or
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\export-support.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
+on native Windows.
 Print its path, included sections, and omitted categories. Do not upload, attach, transmit, or open
-the file. Invoking Doctor alone must not create `.nightshift/support/`.
+the file. Invoking Doctor alone must not create `$NS/support/`.

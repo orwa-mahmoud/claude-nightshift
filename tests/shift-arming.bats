@@ -90,7 +90,7 @@ load helpers
 
 @test "start is the command that arms the gate" {
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
-  grep -qF '.nightshift/.shift-armed' "$s"
+  grep -qF '$NS/.shift-armed' "$s"
   grep -qF 'Arm the gate' "$s"
 }
 
@@ -98,7 +98,7 @@ load helpers
 # skips the marker writes the items and holds nothing — the failure is silent and looks like work.
 @test "every skill that starts a shift arms the gate" {
   for s in start hunt quality; do
-    grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/$s/SKILL.md" \
+    grep -qF '$NS/.shift-armed' "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/$s/SKILL.md" \
       || { echo "starts a shift without arming: $s"; return 1; }
   done
 }
@@ -112,5 +112,5 @@ load helpers
 }
 
 @test "status reports whether a shift is running" {
-  grep -qF '.nightshift/.shift-armed' "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+  grep -qF '$NS/.shift-armed' "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 }
