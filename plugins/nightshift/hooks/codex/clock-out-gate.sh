@@ -146,7 +146,7 @@ if [ -f "$STOP" ]; then
   exit 0
 fi
 
-LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_NONCE="${NIGHTSHIFT_LEASE_NONCE:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 ns_shift_unbound codex gate
 own_rc=$?

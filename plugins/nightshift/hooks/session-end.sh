@@ -56,7 +56,7 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
   CURRENT_START=""
   [ -z "$CURRENT_PID" ] || CURRENT_START="$(ns_process_start "$CURRENT_PID" 2>/dev/null || true)"
   ns_lease_allows "$NS" "$SID" claude "$CURRENT_PID" "$CURRENT_START" \
-    "${NIGHTSHIFT_LEASE_TOKEN:-}" "${NIGHTSHIFT_LEASE_GENERATION:-}" || exit 0
+    "${NIGHTSHIFT_LEASE_NONCE:-}" "${NIGHTSHIFT_LEASE_GENERATION:-}" || exit 0
 fi
 
 if command -v jq >/dev/null 2>&1; then

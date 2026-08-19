@@ -111,7 +111,7 @@ if (Test-NSPathEntry $leasePath) {
         $leaseState = 'valid'
         $leaseHost = [string]$lease.HostName
         $leaseGeneration = [string]$lease.Generation
-        $leaseMode = if (-not [string]::IsNullOrEmpty([string]$lease.Token)) { 'recovered' } else { 'interactive' }
+        $leaseMode = if (-not [string]::IsNullOrEmpty([string]$lease.Nonce)) { 'recovered' } else { 'interactive' }
     }
     else {
         $leaseState = 'malformed'

@@ -917,7 +917,7 @@ function Read-NSLease {
         SessionId = $lines[0]
         HostName = $lines[1]
         Generation = [int]$lines[2]
-        Token = $lines[3]
+        Nonce = $lines[3]
         ProcessId = $lines[4]
         Start = $lines[5]
     }
@@ -929,11 +929,11 @@ function Write-NSLease {
         [AllowEmptyString()][string]$SessionId,
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
         [Parameter(Mandatory = $true)][int]$Generation,
-        [AllowEmptyString()][string]$Token,
+        [AllowEmptyString()][string]$Nonce,
         [AllowEmptyString()][string]$ProcessId,
         [AllowEmptyString()][string]$Start
     )
-    if ($Generation -lt 1 -or $Token -notmatch '^[A-Za-z0-9._-]*$' -or $ProcessId -notmatch '^[0-9]*$') {
+    if ($Generation -lt 1 -or $Nonce -notmatch '^[A-Za-z0-9._-]*$' -or $ProcessId -notmatch '^[0-9]*$') {
         return $false
     }
     foreach ($value in @($SessionId, $Start)) {
@@ -941,7 +941,7 @@ function Write-NSLease {
             return $false
         }
     }
-    if ([string]::IsNullOrEmpty($SessionId) -and [string]::IsNullOrEmpty($Token)) {
+    if ([string]::IsNullOrEmpty($SessionId) -and [string]::IsNullOrEmpty($Nonce)) {
         return $false
     }
     if ([string]::IsNullOrEmpty($ProcessId) -and -not [string]::IsNullOrEmpty($Start)) {
@@ -949,7 +949,7 @@ function Write-NSLease {
     }
     try {
         return Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.shift-lease') `
-            -Lines @($SessionId, $HostName, [string]$Generation, $Token, $ProcessId, $Start) -Private
+            -Lines @($SessionId, $HostName, [string]$Generation, $Nonce, $ProcessId, $Start) -Private
     }
     catch {
         return $false
@@ -980,7 +980,7 @@ function Claim-NSInitialLease {
     }
 }
 
-function New-NSLeaseToken {
+function New-NSLeaseNonce {
     param(
         [Parameter(Mandatory = $true)][string]$HostName,
         [Parameter(Mandatory = $true)][int]$Generation
@@ -1021,30 +1021,30 @@ function Takeover-NSLease {
             $generation = $lease.Generation
         }
         $generation++
-        $token = New-NSLeaseToken $HostName $generation
-        if (-not (Write-NSLease $NightshiftDir $SessionId $HostName $generation $token '' '')) {
+        $nonce = New-NSLeaseNonce $HostName $generation
+        if (-not (Write-NSLease $NightshiftDir $SessionId $HostName $generation $nonce '' '')) {
             return $null
         }
-        return [pscustomobject]@{ Generation = $generation; Token = $token }
+        return [pscustomobject]@{ Generation = $generation; Nonce = $nonce }
     }
     finally {
         Exit-NSMutex $mutex
     }
 }
 
-function Test-NSLeaseToken {
+function Test-NSLeaseNonce {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
-        [AllowEmptyString()][string]$Token,
+        [AllowEmptyString()][string]$Nonce,
         [AllowEmptyString()][string]$Generation
     )
-    if ([string]::IsNullOrEmpty($Token) -or $Generation -notmatch '^[1-9][0-9]*$') {
+    if ([string]::IsNullOrEmpty($Nonce) -or $Generation -notmatch '^[1-9][0-9]*$') {
         return $false
     }
     $lease = Read-NSLease $NightshiftDir
     return $null -ne $lease -and $lease.HostName -eq $HostName `
-        -and $lease.Generation -eq [int]$Generation -and $lease.Token -eq $Token
+        -and $lease.Generation -eq [int]$Generation -and $lease.Nonce -eq $Nonce
 }
 
 function Bind-NSLeaseSession {
@@ -1052,7 +1052,7 @@ function Bind-NSLeaseSession {
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [Parameter(Mandatory = $true)][string]$SessionId,
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
-        [Parameter(Mandatory = $true)][string]$Token,
+        [Parameter(Mandatory = $true)][string]$Nonce,
         [Parameter(Mandatory = $true)][string]$Generation
     )
     $mutex = Enter-NSMutex $NightshiftDir '.lease-lock.d'
@@ -1060,7 +1060,7 @@ function Bind-NSLeaseSession {
         return $false
     }
     try {
-        if (-not (Test-NSLeaseToken $NightshiftDir $HostName $Token $Generation)) {
+        if (-not (Test-NSLeaseNonce $NightshiftDir $HostName $Nonce $Generation)) {
             return $false
         }
         $lease = Read-NSLease $NightshiftDir
@@ -1068,7 +1068,7 @@ function Bind-NSLeaseSession {
         if ([string]::IsNullOrEmpty($scope)) {
             $scope = $SessionId
         }
-        return Write-NSLease $NightshiftDir $scope $HostName $lease.Generation $lease.Token $lease.ProcessId $lease.Start
+        return Write-NSLease $NightshiftDir $scope $HostName $lease.Generation $lease.Nonce $lease.ProcessId $lease.Start
     }
     finally {
         Exit-NSMutex $mutex
@@ -1079,7 +1079,7 @@ function Attach-NSLeaseProcess {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
-        [Parameter(Mandatory = $true)][string]$Token,
+        [Parameter(Mandatory = $true)][string]$Nonce,
         [Parameter(Mandatory = $true)][string]$Generation,
         [Parameter(Mandatory = $true)][string]$ProcessId,
         [AllowEmptyString()][string]$Start = ''
@@ -1089,11 +1089,11 @@ function Attach-NSLeaseProcess {
         return $false
     }
     try {
-        if (-not (Test-NSLeaseToken $NightshiftDir $HostName $Token $Generation)) {
+        if (-not (Test-NSLeaseNonce $NightshiftDir $HostName $Nonce $Generation)) {
             return $false
         }
         $lease = Read-NSLease $NightshiftDir
-        return Write-NSLease $NightshiftDir $lease.SessionId $HostName $lease.Generation $lease.Token $ProcessId $Start
+        return Write-NSLease $NightshiftDir $lease.SessionId $HostName $lease.Generation $lease.Nonce $ProcessId $Start
     }
     finally {
         Exit-NSMutex $mutex
@@ -1107,7 +1107,7 @@ function Test-NSLeaseAllows {
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$Start = '',
-        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Nonce = '',
         [AllowEmptyString()][string]$Generation = ''
     )
     $lease = Read-NSLease $NightshiftDir
@@ -1117,13 +1117,13 @@ function Test-NSLeaseAllows {
     if ($lease.HostName -ne $HostName) {
         return 'Deny'
     }
-    if (-not [string]::IsNullOrEmpty($lease.Token)) {
-        if ($lease.Token -eq $Token -and [string]$lease.Generation -eq $Generation) {
+    if (-not [string]::IsNullOrEmpty($lease.Nonce)) {
+        if ($lease.Nonce -eq $Nonce -and [string]$lease.Generation -eq $Generation) {
             return 'Allow'
         }
         return 'Deny'
     }
-    if ($lease.SessionId -ne $SessionId -or -not [string]::IsNullOrEmpty($Token) `
+    if ($lease.SessionId -ne $SessionId -or -not [string]::IsNullOrEmpty($Nonce) `
         -or -not [string]::IsNullOrEmpty($Generation)) {
         return 'Deny'
     }
@@ -1144,7 +1144,7 @@ function Test-NSLeaseAllows {
     try {
         $current = Read-NSLease $NightshiftDir
         if ($null -eq $current -or $current.SessionId -ne $SessionId -or $current.HostName -ne $HostName `
-            -or $current.Generation -ne $lease.Generation -or -not [string]::IsNullOrEmpty($current.Token) `
+            -or $current.Generation -ne $lease.Generation -or -not [string]::IsNullOrEmpty($current.Nonce) `
             -or (Test-NSRecordedProcess $current.ProcessId $current.Start) -ne 'Dead') {
             return 'Deny'
         }
@@ -1212,15 +1212,15 @@ function Resolve-NSShiftUnbound {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
-        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Nonce = '',
         [AllowEmptyString()][string]$Generation = '',
         [bool]$Revival = $false,
         [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode
     )
     $session = Read-NSSession $NightshiftDir
     $lease = Read-NSLease $NightshiftDir
-    if ($null -eq $session -and $null -ne $lease -and -not [string]::IsNullOrEmpty($lease.Token)) {
-        if (-not $Revival -or -not (Test-NSLeaseToken $NightshiftDir $HostName $Token $Generation)) {
+    if ($null -eq $session -and $null -ne $lease -and -not [string]::IsNullOrEmpty($lease.Nonce)) {
+        if (-not $Revival -or -not (Test-NSLeaseNonce $NightshiftDir $HostName $Nonce $Generation)) {
             if ($Mode -eq 'hardhat') {
                 return New-NSShiftDecision -Status Fail -Message 'BLOCKED: this shift is being recovered before its new conversation is bound. Reopen the recorded conversation and retry after recovery.'
             }
@@ -1238,7 +1238,7 @@ function Resolve-NSShiftRebind {
         [AllowEmptyString()][string]$Transcript = '',
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$ProcessStart = '',
-        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Nonce = '',
         [AllowEmptyString()][string]$Generation = '',
         [bool]$Revival = $false,
         [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode
@@ -1247,7 +1247,7 @@ function Resolve-NSShiftRebind {
     if (-not $Revival) {
         return New-NSShiftDecision -Status Continue -Session $session
     }
-    if (-not (Test-NSLeaseToken $NightshiftDir $HostName $Token $Generation)) {
+    if (-not (Test-NSLeaseNonce $NightshiftDir $HostName $Nonce $Generation)) {
         if ($Mode -eq 'hardhat') {
             return New-NSShiftDecision -Status Fail -Message 'BLOCKED: this recovered worker no longer owns the shift. Reopen the recorded conversation instead of continuing an older process.'
         }
@@ -1258,7 +1258,7 @@ function Resolve-NSShiftRebind {
     }
     $lease = Read-NSLease $NightshiftDir
     if ($null -ne $lease -and [string]::IsNullOrEmpty($lease.SessionId) `
-        -and -not (Bind-NSLeaseSession $NightshiftDir $SessionId $HostName $Token $Generation)) {
+        -and -not (Bind-NSLeaseSession $NightshiftDir $SessionId $HostName $Nonce $Generation)) {
         if ($Mode -eq 'hardhat') {
             return New-NSShiftDecision -Status Fail -Message 'BLOCKED: the shift process lease could not bind the recovered conversation. Issue STOP from another session, then run Start again.'
         }
@@ -1275,7 +1275,7 @@ function Resolve-NSShiftRebind {
     }
     $lease = Read-NSLease $NightshiftDir
     if ($null -ne $lease -and -not [string]::IsNullOrEmpty($ProcessId) -and $lease.ProcessId -ne $ProcessId `
-        -and -not (Attach-NSLeaseProcess $NightshiftDir $HostName $Token $Generation $ProcessId $ProcessStart)) {
+        -and -not (Attach-NSLeaseProcess $NightshiftDir $HostName $Nonce $Generation $ProcessId $ProcessStart)) {
         if ($Mode -eq 'hardhat') {
             return New-NSShiftDecision -Status Fail -Message 'BLOCKED: the recovered process could not refresh its shift lease. Reopen the recorded conversation.'
         }
@@ -1291,7 +1291,7 @@ function Resolve-NSShiftAuthorize {
         [AllowEmptyString()][string]$SessionId = '',
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$ProcessStart = '',
-        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Nonce = '',
         [AllowEmptyString()][string]$Generation = '',
         [bool]$Revival = $false,
         [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode,
@@ -1318,7 +1318,7 @@ function Resolve-NSShiftAuthorize {
         return New-NSShiftDecision -Status Fail -Session $Session -Message 'DO NOT STOP - the shift process lease is unreadable. Issue STOP from another session, then run Start again.'
     }
     $checkSession = if ([string]::IsNullOrEmpty($SessionId)) { $Session.SessionId } else { $SessionId }
-    $allow = Test-NSLeaseAllows $NightshiftDir $checkSession $HostName $ProcessId $ProcessStart $Token $Generation
+    $allow = Test-NSLeaseAllows $NightshiftDir $checkSession $HostName $ProcessId $ProcessStart $Nonce $Generation
     if ($allow -eq 'Deny') {
         if ($Mode -eq 'hardhat') {
             return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
@@ -1354,21 +1354,21 @@ function Resolve-NSShiftOwnership {
         [AllowEmptyString()][string]$Transcript = '',
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$ProcessStart = '',
-        [AllowEmptyString()][string]$Token = '',
+        [AllowEmptyString()][string]$Nonce = '',
         [AllowEmptyString()][string]$Generation = '',
         [bool]$Revival = $false,
         [Parameter(Mandatory = $true)][ValidateSet('hardhat', 'gate')][string]$Mode
     )
     $rebind = Resolve-NSShiftRebind -NightshiftDir $NightshiftDir -HostName $HostName `
         -SessionId $SessionId -Transcript $Transcript -ProcessId $ProcessId `
-        -ProcessStart $ProcessStart -Token $Token -Generation $Generation `
+        -ProcessStart $ProcessStart -Nonce $Nonce -Generation $Generation `
         -Revival $Revival -Mode $Mode
     if ($rebind.Status -ne 'Continue') {
         return $rebind
     }
     return Resolve-NSShiftAuthorize -NightshiftDir $NightshiftDir -HostName $HostName `
         -SessionId $SessionId -ProcessId $ProcessId -ProcessStart $ProcessStart `
-        -Token $Token -Generation $Generation -Revival $Revival -Mode $Mode `
+        -Nonce $Nonce -Generation $Generation -Revival $Revival -Mode $Mode `
         -Session $rebind.Session
 }
 

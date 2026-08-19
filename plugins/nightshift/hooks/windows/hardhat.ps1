@@ -628,12 +628,12 @@ $counts = Get-NSBoxCounts $punch
 $active = (Test-Path -LiteralPath $armed -PathType Leaf) -and (Test-Path -LiteralPath $punch -PathType Leaf) `
     -and -not (Test-Path -LiteralPath $ended -PathType Leaf) -and $counts.Open -gt 0
 
-$token = [string]$env:NIGHTSHIFT_LEASE_TOKEN
+$nonce = [string]$env:NIGHTSHIFT_LEASE_NONCE
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION
 $revival = $env:NIGHTSHIFT_REVIVAL -eq '1'
 
 if (-not $active) {
-    if ($revival -and (-not (Test-NSLeaseToken $ns $HostName $token $generation) `
+    if ($revival -and (-not (Test-NSLeaseNonce $ns $HostName $nonce $generation) `
         -or -not (Test-Path -LiteralPath $armed -PathType Leaf) `
         -or -not (Test-Path -LiteralPath $punch -PathType Leaf) `
         -or (Test-Path -LiteralPath $ended -PathType Leaf))) {
@@ -654,7 +654,7 @@ foreach ($target in $targets) {
 }
 
 $unbound = Resolve-NSShiftUnbound -NightshiftDir $ns -HostName $HostName `
-    -Token $token -Generation $generation -Revival $revival -Mode hardhat
+    -Nonce $nonce -Generation $generation -Revival $revival -Mode hardhat
 if ($unbound.Status -eq 'Pass') { exit 0 }
 if ($unbound.Status -eq 'Fail') { Write-Deny $unbound.Message }
 
@@ -674,7 +674,7 @@ if ($null -eq $session -and -not [string]::IsNullOrEmpty($sessionId) -and $tool 
 
 $rebind = Resolve-NSShiftRebind -NightshiftDir $ns -HostName $HostName `
     -SessionId $sessionId -Transcript $transcript -ProcessId $processId `
-    -ProcessStart $processStart -Token $token -Generation $generation `
+    -ProcessStart $processStart -Nonce $nonce -Generation $generation `
     -Revival $revival -Mode hardhat
 if ($rebind.Status -eq 'Pass') { exit 0 }
 if ($rebind.Status -eq 'Fail') { Write-Deny $rebind.Message }
@@ -691,7 +691,7 @@ if ($bindingProbe) {
 
 $owned = Resolve-NSShiftAuthorize -NightshiftDir $ns -HostName $HostName `
     -SessionId $sessionId -ProcessId $processId -ProcessStart $processStart `
-    -Token $token -Generation $generation -Revival $revival -Mode hardhat `
+    -Nonce $nonce -Generation $generation -Revival $revival -Mode hardhat `
     -Session $session
 if ($owned.Status -eq 'Pass') { exit 0 }
 if ($owned.Status -eq 'Fail') { Write-Deny $owned.Message }

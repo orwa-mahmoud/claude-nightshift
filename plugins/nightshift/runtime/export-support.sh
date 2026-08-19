@@ -101,7 +101,7 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
     LEASE_STATE="valid"
     LEASE_HOST="$NS_LEASE_HOST"
     LEASE_GENERATION="$NS_LEASE_GENERATION"
-    if [ -n "$NS_LEASE_TOKEN" ]; then
+    if [ -n "$NS_LEASE_NONCE" ]; then
       LEASE_MODE="recovered"
     else
       LEASE_MODE="interactive"

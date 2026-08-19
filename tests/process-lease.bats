@@ -165,14 +165,14 @@ lease_mode() {
   claude_bind "$p" shift-session
   claim="$(take_lease "$p" shift-session claude)"
   generation="${claim%% *}"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run claude_read "$p" shift-session
   is_deny "$output"
   printf '%s' "$output" | grep -q "continued in a recovered process"
 
   run claude_read "$p" shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_NONCE="$nonce"
   is_allow
 }
 
@@ -241,7 +241,7 @@ RUNNER
   [ "${first%% *}" -lt "${second%% *}" ]
 
   run claude_read "$p" shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${first%% *}" NIGHTSHIFT_LEASE_TOKEN="${first#* }"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${first%% *}" NIGHTSHIFT_LEASE_NONCE="${first#* }"
   is_deny "$output"
   printf '%s' "$output" | grep -q "no longer owns the shift"
 }
@@ -253,11 +253,11 @@ RUNNER
   claim="$(take_lease "$p" test-shift-session claude)"
   punch_done "$p"
   run gate "$p" \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_TOKEN="${claim#* }"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_NONCE="${claim#* }"
   is_release
 
   run claude_read "$p" test-shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_TOKEN="${claim#* }"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_NONCE="${claim#* }"
   is_deny "$output"
   printf '%s' "$output" | grep -q "no longer owns an active shift"
 
@@ -269,13 +269,13 @@ RUNNER
   run bash -c \
     'jq -nc '\''{hook_event_name:"Stop",session_id:"shift-session",transcript_path:""}'\'' |
       CODEX_PROJECT_DIR="$1" NIGHTSHIFT_REVIVAL=1 \
-      NIGHTSHIFT_LEASE_GENERATION="$3" NIGHTSHIFT_LEASE_TOKEN="$4" \
+      NIGHTSHIFT_LEASE_GENERATION="$3" NIGHTSHIFT_LEASE_NONCE="$4" \
       bash "$2/codex/clock-out-gate.sh"' \
     nightshift "$c" "$HOOKS" "${claim%% *}" "${claim#* }"
   [ "$status" -eq 0 ]
 
   run codex_read "$c" shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_TOKEN="${claim#* }"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_NONCE="${claim#* }"
   is_deny "$output"
   printf '%s' "$output" | grep -q "no longer owns an active shift"
 }
@@ -322,8 +322,8 @@ STUB
   [ "${a%% *}" -ne "${b%% *}" ]
 
   final_generation="$(sed -n 3p "$p/.nightshift/.shift-lease")"
-  final_token="$(sed -n 4p "$p/.nightshift/.shift-lease")"
-  case "$final_generation $final_token" in
+  final_nonce="$(sed -n 4p "$p/.nightshift/.shift-lease")"
+  case "$final_generation $final_nonce" in
     "$a")
       winner="$a"
       loser="$b"
@@ -338,10 +338,10 @@ STUB
   esac
 
   run claude_read "$p" shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${loser%% *}" NIGHTSHIFT_LEASE_TOKEN="${loser#* }"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${loser%% *}" NIGHTSHIFT_LEASE_NONCE="${loser#* }"
   is_deny "$output"
   run claude_read "$p" shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${winner%% *}" NIGHTSHIFT_LEASE_TOKEN="${winner#* }"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="${winner%% *}" NIGHTSHIFT_LEASE_NONCE="${winner#* }"
   is_allow
 }
 
@@ -351,10 +351,10 @@ STUB
   claude_bind "$p" original-session
   claim="$(take_lease "$p" original-session claude)"
   generation="${claim%% *}"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run claude_read "$p" recovered-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_NONCE="$nonce"
   is_allow
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "recovered-session" ]
   [ "$(lease_mode "$p/.nightshift/.shift-session")" = "600" ]
@@ -371,14 +371,14 @@ STUB
   punch_open "$p"
   claim="$(take_lease "$p" "" claude)"
   generation="${claim%% *}"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run claude_read "$p" helper-session
   is_deny "$output"
   [ ! -e "$p/.nightshift/.shift-session" ]
 
   run claude_read "$p" recovered-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_NONCE="$nonce"
   is_allow
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "recovered-session" ]
 
@@ -391,14 +391,14 @@ STUB
   punch_open "$p"
   claim="$(take_lease "$p" "" codex)"
   generation="${claim%% *}"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run codex_read "$p" helper-session
   is_deny "$output"
   [ ! -e "$p/.nightshift/.shift-session" ]
 
   run codex_read "$p" recovered-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_NONCE="$nonce"
   is_allow
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "recovered-session" ]
 }
@@ -409,12 +409,12 @@ STUB
   codex_bind "$p" shift-session
   claim="$(take_lease "$p" shift-session codex)"
   generation="${claim%% *}"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run codex_read "$p" shift-session
   is_deny "$output"
   run codex_read "$p" shift-session \
-    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_TOKEN="$token"
+    NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_NONCE="$nonce"
   is_allow
   [ -z "$(sed -n 5p "$p/.nightshift/.shift-lease")" ]
 

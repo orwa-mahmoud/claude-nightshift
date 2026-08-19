@@ -54,7 +54,7 @@ bundle_mode() {
   printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
   claim="$(bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" shift-session claude' \
     nightshift "$LIB" "$p")"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run bash "$EXPORT" --project "$p"
   [ "$status" -eq 0 ]
@@ -62,7 +62,7 @@ bundle_mode() {
   grep -q 'process_lease: valid' "$bundle"
   grep -q 'lease_host: claude' "$bundle"
   grep -q 'lease_mode: recovered' "$bundle"
-  ! grep -qF "$token" "$bundle"
+  ! grep -qF "$nonce" "$bundle"
 }
 
 @test "hostile secrets, URLs, user paths, and transcripts do not survive" {

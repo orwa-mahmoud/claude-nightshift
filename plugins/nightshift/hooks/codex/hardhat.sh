@@ -62,7 +62,7 @@ esac
 SCRUBBED="$(ns_hardhat_scrub "$CMD")"
 LEASE_COMMAND="$CMD"
 case "$TOOL" in Bash | PowerShell) LEASE_COMMAND="$SCRUBBED" ;; esac
-LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_NONCE="${NIGHTSHIFT_LEASE_NONCE:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 
 # Every remaining rule is shift-scoped: inert unless a shift is truly active. A stop-work order
@@ -72,7 +72,7 @@ LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 if ! ns_hardhat_active; then
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
     if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
-      || ! ns_lease_token_matches "$NS" codex "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      || ! ns_lease_nonce_matches "$NS" codex "$LEASE_NONCE" "$LEASE_GENERATION"; then
       deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
     fi
   fi
@@ -86,7 +86,7 @@ if ns_hardhat_payload_targets_lease "$TOOL" "$CODEX_RAW" "$LEASE_COMMAND"; then
 fi
 
 # Codex offers no interactive process ancestry this hook can vouch for, so the initial pid and
-# start-time lines stay empty. Watchman children carry a unique lease token and generation.
+# start-time lines stay empty. Watchman children carry a unique lease nonce and generation.
 ns_shift_unbound codex hardhat
 own_rc=$?
 [ "$own_rc" -eq 1 ] && exit 0

@@ -146,7 +146,7 @@ honor_stop() {
 }
 
 # Record conversation continuity and claim the original process lease if hardhat did not already
-# do it. A watchman child must present its exact token + generation before this Stop event may
+# do it. A watchman child must present its exact nonce + generation before this Stop event may
 # touch shared shift state.
 ns_host_process claude "$NS" "$$"
 CURRENT_PID="$NS_CURRENT_PID"
@@ -164,7 +164,7 @@ if [ -f "$STOP" ]; then
   exit 0
 fi
 
-LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_NONCE="${NIGHTSHIFT_LEASE_NONCE:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 ns_shift_unbound claude gate
 own_rc=$?

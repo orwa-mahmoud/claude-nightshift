@@ -355,7 +355,7 @@ function Start-NSAgent {
     $oldProject = if ($HostName -eq 'claude') { $env:CLAUDE_PROJECT_DIR } else { $env:CODEX_PROJECT_DIR }
     $oldRevival = $env:NIGHTSHIFT_REVIVAL
     $oldGeneration = $env:NIGHTSHIFT_LEASE_GENERATION
-    $oldToken = $env:NIGHTSHIFT_LEASE_TOKEN
+    $oldNonce = $env:NIGHTSHIFT_LEASE_NONCE
     try {
         if ($HostName -eq 'claude') {
             $env:CLAUDE_PROJECT_DIR = $workspace
@@ -365,7 +365,7 @@ function Start-NSAgent {
         }
         $env:NIGHTSHIFT_REVIVAL = '1'
         $env:NIGHTSHIFT_LEASE_GENERATION = [string]$lease.Generation
-        $env:NIGHTSHIFT_LEASE_TOKEN = $lease.Token
+        $env:NIGHTSHIFT_LEASE_NONCE = $lease.Nonce
         $argumentLine = (($arguments | ForEach-Object { Quote-NSWindowsArgument $_ }) -join ' ')
         try {
             $process = Start-Process -FilePath $fileName -ArgumentList $argumentLine `
@@ -376,7 +376,7 @@ function Start-NSAgent {
             return $false
         }
         $start = Get-NSProcessStart $process.Id
-        $null = Attach-NSLeaseProcess $ns $HostName $lease.Token ([string]$lease.Generation) ([string]$process.Id) $start
+        $null = Attach-NSLeaseProcess $ns $HostName $lease.Nonce ([string]$lease.Generation) ([string]$process.Id) $start
         $process.WaitForExit()
         return $process.ExitCode -eq 0
     }
@@ -389,7 +389,7 @@ function Start-NSAgent {
         }
         $env:NIGHTSHIFT_REVIVAL = $oldRevival
         $env:NIGHTSHIFT_LEASE_GENERATION = $oldGeneration
-        $env:NIGHTSHIFT_LEASE_TOKEN = $oldToken
+        $env:NIGHTSHIFT_LEASE_NONCE = $oldNonce
     }
 }
 

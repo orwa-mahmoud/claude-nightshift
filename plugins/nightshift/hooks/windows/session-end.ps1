@@ -58,7 +58,7 @@ if (Test-NSPathEntry $leasePath) {
     $processId = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.Id }
     $processStart = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.Start }
     $allow = Test-NSLeaseAllows $ns $sessionId 'claude' $processId $processStart `
-        ([string]$env:NIGHTSHIFT_LEASE_TOKEN) ([string]$env:NIGHTSHIFT_LEASE_GENERATION)
+        ([string]$env:NIGHTSHIFT_LEASE_NONCE) ([string]$env:NIGHTSHIFT_LEASE_GENERATION)
     if ($allow -ne 'Allow') {
         exit 0
     }

@@ -311,7 +311,7 @@ load helpers
   claim="$(bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" dead-old-id claude' \
     nightshift "$lib" "$p")"
   run gate "$p" NIGHTSHIFT_REVIVAL=1 \
-    NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_TOKEN="${claim#* }"
+    NIGHTSHIFT_LEASE_GENERATION="${claim%% *}" NIGHTSHIFT_LEASE_NONCE="${claim#* }"
   is_block "$output"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "test-shift-session" ]
 }

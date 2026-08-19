@@ -260,10 +260,10 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
     LEASE_STATE="valid"
     LEASE_HOST="$NS_LEASE_HOST"
     LEASE_GENERATION="$NS_LEASE_GENERATION"
-    LEASE_TOKEN="$NS_LEASE_TOKEN"
+    LEASE_NONCE="$NS_LEASE_NONCE"
     LEASE_PID="$NS_LEASE_PID"
     fact "process lease host $LEASE_HOST generation $LEASE_GENERATION"
-    if [ -n "$LEASE_TOKEN" ]; then
+    if [ -n "$LEASE_NONCE" ]; then
       fact "process lease belongs to a watchman recovery (capability not printed)"
     else
       fact "process lease belongs to the interactive shift process"
