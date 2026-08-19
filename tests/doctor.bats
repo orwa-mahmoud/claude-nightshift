@@ -56,13 +56,13 @@ doctor() {
   printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
   claim="$(bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" shift-session claude' \
     nightshift "$LIB" "$p")"
-  token="${claim#* }"
+  nonce="${claim#* }"
 
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'Lease:       valid (generation'
   printf '%s' "$output" | grep -q 'watchman recovery (capability not printed)'
-  ! printf '%s' "$output" | grep -qF "$token"
+  ! printf '%s' "$output" | grep -qF "$nonce"
 }
 
 @test "invoking Doctor alone changes no state" {

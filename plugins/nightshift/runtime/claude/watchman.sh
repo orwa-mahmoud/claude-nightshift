@@ -9,7 +9,7 @@
 # that conversation is itself unusable does it fall back, and the punch list on disk is what
 # carries a fresh session when it must. A persisted .nightshift/work-target tells that session
 # which child repository contains the code when run state lives in a parent workspace.
-# Before every spawn, the watchman advances a process lease and passes its generation/token to
+# Before every spawn, the watchman advances a process lease and passes its generation/nonce to
 # the child. An older terminal or IDE process on that conversation then loses observed tools.
 #
 #   watchman.sh [--project DIR] [--interval MIN] [--agent CMD] [--max-wakes N]
@@ -214,7 +214,7 @@ rung_prompt() { # $1 attempt, $2 total attempts this wake
   if [ "$1" -ge "$2" ] && [ "$2" -gt 1 ]; then printf '%s' "$PROMPT_FRESH"; else printf '%s' "$PROMPT_RESUME"; fi
 }
 
-# One spawn attempt. Ownership transfers before the child starts: the new generation/token is
+# One spawn attempt. Ownership transfers before the child starts: the new generation/nonce is
 # inherited by every hook in that process, while an older process on the same conversation loses
 # tool access immediately. The child shell's pid + start time make the holder inspectable; the
 # Claude hook replaces them with the exact Claude ancestor when its first tool arrives.

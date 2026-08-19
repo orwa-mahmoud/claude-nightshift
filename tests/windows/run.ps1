@@ -789,7 +789,7 @@ $record = @(
     [Environment]::CurrentDirectory,
     $env:NIGHTSHIFT_REVIVAL,
     $env:NIGHTSHIFT_LEASE_GENERATION,
-    $env:NIGHTSHIFT_LEASE_TOKEN,
+    $env:NIGHTSHIFT_LEASE_NONCE,
     $Prompt
 )
 [IO.File]::WriteAllLines($env:NIGHTSHIFT_TEST_AGENT_RECEIPT, $record)
@@ -805,7 +805,7 @@ exit 0
     Assert-Equal (Resolve-Path $recoveryTarget).ProviderPath $receiptLines[0] 'recovery child runs in the persisted work target'
     Assert-Equal '1' $receiptLines[1] 'recovery child inherits its revival mark'
     Assert-True ($receiptLines[2] -match '^[2-9][0-9]*$|^[2-9]$') 'watchman advances the lease generation'
-    Assert-True (-not [string]::IsNullOrEmpty($receiptLines[3])) 'recovery child inherits a lease token'
+    Assert-True (-not [string]::IsNullOrEmpty($receiptLines[3])) 'recovery child inherits a lease nonce'
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/.watchman'))) 'watchman pid marker is cleaned'
     $recoveryAcl = Get-Acl -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/.shift-lease')
     Assert-True $recoveryAcl.AreAccessRulesProtected 'lease takeover preserves the private ACL'
@@ -816,7 +816,7 @@ exit 0
     $recoveredTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' } @{
         NIGHTSHIFT_REVIVAL = '1'
         NIGHTSHIFT_LEASE_GENERATION = $receiptLines[2]
-        NIGHTSHIFT_LEASE_TOKEN = $receiptLines[3]
+        NIGHTSHIFT_LEASE_NONCE = $receiptLines[3]
     }
     Assert-True ([string]::IsNullOrWhiteSpace($recoveredTool.Stdout)) `
         'the child carrying the recovery capability remains allowed'

@@ -1,7 +1,7 @@
 {
   "name": "nightshift",
   "version": "0.14.2",
-  "description": "Keep long Codex runs on task with a persistent punch list, durable progress across compaction and resume, mechanical safety rules, recovery, and ready-made product and quality shifts.",
+  "description": "Accountable, time-bounded Codex shifts. Hand it your punch list, or let it research the product and ship complete improvements until quitting time. Progress stays on disk through compaction and resume. The morning is reviewable commits, a shift log, and the decisions that were made. When you are done reviewing the run, archive it dated so the live session stays lean.",
   "author": {
     "name": "Orwa Mahmoud",
     "url": "https://github.com/orwa-mahmoud"
@@ -9,12 +9,37 @@
   "homepage": "https://orwamahmoud.com/nightshift/",
   "repository": "https://github.com/orwa-mahmoud/nightshift",
   "license": "MIT",
+  "keywords": [
+    "codex",
+    "overnight",
+    "unattended",
+    "punch-list",
+    "autonomous-agents",
+    "agent-harness",
+    "hooks",
+    "crash-recovery",
+    "session-resume",
+    "product-evolution",
+    "Persistent punch-list shifts",
+    "Time-bounded engineering work",
+    "Ready-made quality hunts",
+    "Evidence-backed product evolution",
+    "Mechanical safety rules",
+    "Question parking",
+    "Reviewable run history",
+    "Interrupted-session recovery",
+    "archive",
+    "archived long run",
+    "run history",
+    "shift archive",
+    "Dated archive of finished runs"
+  ],
   "skills": "./skills/",
   "hooks": "./hooks/codex/hooks.json",
   "interface": {
     "displayName": "Nightshift",
     "shortDescription": "Run accountable coding shifts",
-    "longDescription": "Keep long Codex runs anchored to an authoritative punch list when conversations compact, sessions resume, or unattended work is interrupted. Use Nightshift with a real project opened in Codex or connected to its GitHub repository—not a temporary ChatGPT scratch workspace. Nightshift keeps goals, completion state, decisions, research, active progress, exact next actions, and verification on disk; parks questions instead of waiting; enforces owner-defined safety rules; and leaves reviewable commits and run history. Give it your own work or use a ready-made shift for evidence-backed product evolution, meaningful test coverage, lint and type debt, defect hunting, security advisories, or direct dependency upgrades.",
+    "longDescription": "Nightshift gives Codex accountable, time-bounded engineering shifts. Hand it your punch list, or let it research the product, rank opportunities, and ship complete improvements until quitting time. Progress stays on disk—goals, remaining work, parked decisions, and the exact next action—so compaction or resume cannot quietly clock out with open boxes. Hooks enforce your safety rules. The morning is reviewable commits, a shift log, and the decisions that were made. When you are done reviewing the run, archive it dated so the live session stays lean. Open a project in Codex or connect its GitHub repository; a temporary ChatGPT scratch workspace is the wrong place for a night.",
     "developerName": "Orwa Mahmoud",
     "category": "Productivity",
     "capabilities": [
@@ -25,10 +50,11 @@
       "Mechanical safety rules",
       "Question parking",
       "Reviewable run history",
-      "Interrupted-session recovery"
+      "Interrupted-session recovery",
+      "Dated archive of finished runs"
     ],
     "defaultPrompt": [
-      "Set up Nightshift in this real project workspace.",
+      "Set up Nightshift in this project workspace.",
       "Show me the ready-made shifts I can run tonight.",
       "Use the next four hours to research and improve this product."
     ],

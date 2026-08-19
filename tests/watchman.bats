@@ -91,7 +91,7 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
 @test "a Claude revival receives the exact lease generation written before spawn" {
   cat >"$BIN/lease-env.sh" <<'STUB'
 #!/usr/bin/env bash
-printf '%s\n%s\n' "$NIGHTSHIFT_LEASE_GENERATION" "$NIGHTSHIFT_LEASE_TOKEN" >.nightshift/lease-env
+printf '%s\n%s\n' "$NIGHTSHIFT_LEASE_GENERATION" "$NIGHTSHIFT_LEASE_NONCE" >.nightshift/lease-env
 STUB
   chmod +x "$BIN/lease-env.sh"
 

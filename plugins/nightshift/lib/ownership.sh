@@ -28,8 +28,8 @@ ns_unlock() { rm -rf "$1/.lock.d" 2>/dev/null; }
 # One active shift may keep one conversation identity across several host processes. The
 # conversation record preserves continuity; this lease fences the process that currently owns
 # that conversation after a watchman revival. Its six lines are:
-#   original session scope · host · generation · revival token · process pid · process start time
-# The token is empty for the original interactive process. A watchman writes a new token and
+#   original session scope · host · generation · revival nonce · process pid · process start time
+# The nonce is empty for the original interactive process. A watchman writes a new nonce and
 # generation before every spawn, so an older process carrying the same session id is fenced.
 ns_lease_lock() { # $1 = the .nightshift dir; bounded ~2s wait
   local dir="$1/.lease-lock.d" holder _
@@ -122,7 +122,7 @@ ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent 
   NS_LEASE_SID=""
   NS_LEASE_HOST=""
   NS_LEASE_GENERATION=""
-  NS_LEASE_TOKEN=""
+  NS_LEASE_NONCE=""
   NS_LEASE_PID=""
   NS_LEASE_START=""
   [ -f "$f" ] && [ ! -L "$f" ] || return 1
@@ -130,38 +130,38 @@ ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent 
     IFS= read -r NS_LEASE_SID &&
       IFS= read -r NS_LEASE_HOST &&
       IFS= read -r NS_LEASE_GENERATION &&
-      IFS= read -r NS_LEASE_TOKEN &&
+      IFS= read -r NS_LEASE_NONCE &&
       IFS= read -r NS_LEASE_PID &&
       IFS= read -r NS_LEASE_START || return 1
     if IFS= read -r _; then return 1; fi
   } <"$f"
   ns_lease_safe_line "$NS_LEASE_SID" && ns_lease_safe_line "$NS_LEASE_HOST" \
-    && ns_lease_safe_line "$NS_LEASE_GENERATION" && ns_lease_safe_line "$NS_LEASE_TOKEN" \
+    && ns_lease_safe_line "$NS_LEASE_GENERATION" && ns_lease_safe_line "$NS_LEASE_NONCE" \
     && ns_lease_safe_line "$NS_LEASE_PID" && ns_lease_safe_line "$NS_LEASE_START" || return 1
   case "$NS_LEASE_HOST" in claude | codex) ;; *) return 1 ;; esac
   case "$NS_LEASE_GENERATION" in '' | *[!0-9]*) return 1 ;; esac
   [ "$NS_LEASE_GENERATION" -gt 0 ] 2>/dev/null || return 1
-  case "$NS_LEASE_TOKEN" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$NS_LEASE_NONCE" in *[!A-Za-z0-9._-]*) return 1 ;; esac
   case "$NS_LEASE_PID" in *[!0-9]*) return 1 ;; esac
   [ -n "$NS_LEASE_PID" ] || [ -z "$NS_LEASE_START" ] || return 1
-  [ -n "$NS_LEASE_SID" ] || [ -n "$NS_LEASE_TOKEN" ] || return 1
+  [ -n "$NS_LEASE_SID" ] || [ -n "$NS_LEASE_NONCE" ] || return 1
   return 0
 }
 ns_lease_valid() { ns_lease_load "$1"; }
 
-ns_lease_write_unlocked() { # <ns> <sid> <host> <generation> <token> <pid> <start>
-  local ns="$1" sid="$2" host="$3" generation="$4" token="$5" pid="$6" start="$7" tmp
+ns_lease_write_unlocked() { # <ns> <sid> <host> <generation> <nonce> <pid> <start>
+  local ns="$1" sid="$2" host="$3" generation="$4" nonce="$5" pid="$6" start="$7" tmp
   ns_lease_safe_line "$sid" && ns_lease_safe_line "$start" || return 1
   case "$host" in claude | codex) ;; *) return 1 ;; esac
   case "$generation" in '' | *[!0-9]*) return 1 ;; esac
   [ "$generation" -gt 0 ] 2>/dev/null || return 1
-  case "$token" in *[!A-Za-z0-9._-]*) return 1 ;; esac
+  case "$nonce" in *[!A-Za-z0-9._-]*) return 1 ;; esac
   case "$pid" in *[!0-9]*) return 1 ;; esac
-  [ -n "$sid" ] || [ -n "$token" ] || return 1
+  [ -n "$sid" ] || [ -n "$nonce" ] || return 1
   [ -n "$pid" ] || [ -z "$start" ] || return 1
   tmp="$ns/.shift-lease.tmp.$$.$RANDOM"
   (umask 077; printf '%s\n%s\n%s\n%s\n%s\n%s\n' \
-    "$sid" "$host" "$generation" "$token" "$pid" "$start" >"$tmp") || {
+    "$sid" "$host" "$generation" "$nonce" "$pid" "$start" >"$tmp") || {
     rm -f "$tmp"
     return 1
   }
@@ -187,8 +187,8 @@ ns_lease_claim_initial() { # <ns> <sid> <host> <pid> <start>
   return "$rc"
 }
 
-ns_lease_takeover() { # <ns> <possibly-empty-sid> <host>; prints: generation token
-  local ns="$1" sid="$2" host="$3" generation=0 token rc existing_sid
+ns_lease_takeover() { # <ns> <possibly-empty-sid> <host>; prints: generation nonce
+  local ns="$1" sid="$2" host="$3" generation=0 nonce rc existing_sid
   ns_lease_lock "$ns" || return 2
   if [ -e "$ns/.shift-lease" ] || [ -L "$ns/.shift-lease" ]; then
     if ! ns_lease_valid "$ns"; then
@@ -200,28 +200,28 @@ ns_lease_takeover() { # <ns> <possibly-empty-sid> <host>; prints: generation tok
     generation="$NS_LEASE_GENERATION"
   fi
   generation=$((generation + 1))
-  token="$host.$generation.$$.$RANDOM.$RANDOM"
-  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "$token" "" ""
+  nonce="$host.$generation.$$.$RANDOM.$RANDOM"
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "$nonce" "" ""
   rc=$?
   ns_lease_unlock "$ns"
   [ "$rc" -eq 0 ] || return "$rc"
-  printf '%s %s' "$generation" "$token"
+  printf '%s %s' "$generation" "$nonce"
 }
 
-ns_lease_token_matches() { # <ns> <host> <token> <generation>; ignores sid for fresh fallback
-  local ns="$1" host="$2" token="$3" generation="$4"
-  [ -n "$token" ] && [ -n "$generation" ] || return 1
+ns_lease_nonce_matches() { # <ns> <host> <nonce> <generation>; ignores sid for fresh fallback
+  local ns="$1" host="$2" nonce="$3" generation="$4"
+  [ -n "$nonce" ] && [ -n "$generation" ] || return 1
   ns_lease_load "$ns" || return 1
   [ "$NS_LEASE_HOST" = "$host" ] || return 1
   [ "$NS_LEASE_GENERATION" = "$generation" ] || return 1
-  [ "$NS_LEASE_TOKEN" = "$token" ]
+  [ "$NS_LEASE_NONCE" = "$nonce" ]
 }
 
-ns_lease_rebind_session() { # <ns> <sid> <host> <token> <generation>; fills an empty scope
-  local ns="$1" sid="$2" host="$3" token="$4" generation="$5" scope pid start rc
+ns_lease_rebind_session() { # <ns> <sid> <host> <nonce> <generation>; fills an empty scope
+  local ns="$1" sid="$2" host="$3" nonce="$4" generation="$5" scope pid start rc
   [ -n "$sid" ] || return 1
   ns_lease_lock "$ns" || return 2
-  if ! ns_lease_token_matches "$ns" "$host" "$token" "$generation"; then
+  if ! ns_lease_nonce_matches "$ns" "$host" "$nonce" "$generation"; then
     ns_lease_unlock "$ns"
     return 1
   fi
@@ -229,21 +229,21 @@ ns_lease_rebind_session() { # <ns> <sid> <host> <token> <generation>; fills an e
   [ -n "$scope" ] || scope="$sid"
   pid="$NS_LEASE_PID"
   start="$NS_LEASE_START"
-  ns_lease_write_unlocked "$ns" "$scope" "$host" "$generation" "$token" "$pid" "$start"
+  ns_lease_write_unlocked "$ns" "$scope" "$host" "$generation" "$nonce" "$pid" "$start"
   rc=$?
   ns_lease_unlock "$ns"
   return "$rc"
 }
 
-ns_lease_attach_process() { # <ns> <host> <token> <generation> <pid> <start>
-  local ns="$1" host="$2" token="$3" generation="$4" pid="$5" start="$6" sid rc
+ns_lease_attach_process() { # <ns> <host> <nonce> <generation> <pid> <start>
+  local ns="$1" host="$2" nonce="$3" generation="$4" pid="$5" start="$6" sid rc
   ns_lease_lock "$ns" || return 2
-  if ! ns_lease_token_matches "$ns" "$host" "$token" "$generation"; then
+  if ! ns_lease_nonce_matches "$ns" "$host" "$nonce" "$generation"; then
     ns_lease_unlock "$ns"
     return 1
   fi
   sid="$NS_LEASE_SID"
-  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "$token" "$pid" "$start"
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "$nonce" "$pid" "$start"
   rc=$?
   ns_lease_unlock "$ns"
   return "$rc"
@@ -251,7 +251,7 @@ ns_lease_attach_process() { # <ns> <host> <token> <generation> <pid> <start>
 
 ns_lease_reclaim_interactive() { # <ns> <sid> <host> <old-generation> <pid> <start>
   local ns="$1" sid="$2" host="$3" old_generation="$4" pid="$5" start="$6"
-  local lease_sid lease_host generation token old_pid old_start rc
+  local lease_sid lease_host generation nonce old_pid old_start rc
   [ -n "$pid" ] || return 1
   ns_lease_lock "$ns" || return 2
   if ! ns_lease_valid "$ns"; then
@@ -261,11 +261,11 @@ ns_lease_reclaim_interactive() { # <ns> <sid> <host> <old-generation> <pid> <sta
   lease_sid="$NS_LEASE_SID"
   lease_host="$NS_LEASE_HOST"
   generation="$NS_LEASE_GENERATION"
-  token="$NS_LEASE_TOKEN"
+  nonce="$NS_LEASE_NONCE"
   old_pid="$NS_LEASE_PID"
   old_start="$NS_LEASE_START"
   if [ "$lease_sid" != "$sid" ] || [ "$lease_host" != "$host" ] \
-    || [ "$generation" != "$old_generation" ] || [ -n "$token" ]; then
+    || [ "$generation" != "$old_generation" ] || [ -n "$nonce" ]; then
     ns_lease_unlock "$ns"
     return 1
   fi
@@ -282,23 +282,23 @@ ns_lease_reclaim_interactive() { # <ns> <sid> <host> <old-generation> <pid> <sta
   return "$rc"
 }
 
-ns_lease_allows() { # <ns> <sid> <host> <pid> <start> <token> <generation>
-  local ns="$1" sid="$2" host="$3" pid="$4" start="$5" token="$6" generation="$7"
-  local lease_sid lease_host lease_generation lease_token lease_pid lease_start rc
+ns_lease_allows() { # <ns> <sid> <host> <pid> <start> <nonce> <generation>
+  local ns="$1" sid="$2" host="$3" pid="$4" start="$5" nonce="$6" generation="$7"
+  local lease_sid lease_host lease_generation lease_nonce lease_pid lease_start rc
   ns_lease_load "$ns" || return 2
   lease_sid="$NS_LEASE_SID"
   lease_host="$NS_LEASE_HOST"
   lease_generation="$NS_LEASE_GENERATION"
-  lease_token="$NS_LEASE_TOKEN"
+  lease_nonce="$NS_LEASE_NONCE"
   lease_pid="$NS_LEASE_PID"
   lease_start="$NS_LEASE_START"
   [ "$lease_host" = "$host" ] || return 1
-  if [ -n "$lease_token" ]; then
-    [ "$token" = "$lease_token" ] && [ "$generation" = "$lease_generation" ]
+  if [ -n "$lease_nonce" ]; then
+    [ "$nonce" = "$lease_nonce" ] && [ "$generation" = "$lease_generation" ]
     return
   fi
   [ "$lease_sid" = "$sid" ] || return 1
-  [ -z "$token" ] && [ -z "$generation" ] || return 1
+  [ -z "$nonce" ] && [ -z "$generation" ] || return 1
   [ -n "$lease_pid" ] || return 0 # Codex cannot vouch for an interactive process pid.
   if [ -n "$pid" ] && [ "$pid" = "$lease_pid" ]; then
     ns_recorded_process "$lease_pid" "$lease_start"
@@ -329,18 +329,18 @@ ns_lease_release_retry() { # $1 = the .nightshift dir
 # One ownership protocol for every host hook. Wrappers claim the first session and emit
 # the host-specific deny/pass. Unbound runs before that claim; rebind runs after it;
 # authorize runs after Start's binding probe so a losing Start cannot pass as a helper.
-# Uses NS, SID, TPATH, LEASE_TOKEN, LEASE_GENERATION, NIGHTSHIFT_REVIVAL.
+# Uses NS, SID, TPATH, LEASE_NONCE, LEASE_GENERATION, NIGHTSHIFT_REVIVAL.
 # Sets NS_SHIFT_REC and NS_SHIFT_FAIL.
 # Returns 0 = continue as owner, 1 = pass through, 2 = fail closed.
 # shellcheck disable=SC2034
 ns_shift_unbound() { # <host> <mode:hardhat|gate>
   local host="$1" mode="$2" bound
-  : "${LEASE_TOKEN:=}" "${LEASE_GENERATION:=}"
+  : "${LEASE_NONCE:=}" "${LEASE_GENERATION:=}"
   NS_SHIFT_FAIL=""
   bound="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-  if [ -z "$bound" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_TOKEN" ]; then
+  if [ -z "$bound" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_NONCE" ]; then
     if [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] \
-      || ! ns_lease_token_matches "$NS" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      || ! ns_lease_nonce_matches "$NS" "$host" "$LEASE_NONCE" "$LEASE_GENERATION"; then
       if [ "$mode" = hardhat ]; then
         NS_SHIFT_FAIL="BLOCKED: this shift is being recovered before its new conversation is bound. Reopen the recorded conversation and retry after recovery."
         return 2
@@ -355,13 +355,13 @@ ns_shift_unbound() { # <host> <mode:hardhat|gate>
 ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
   local host="$1" pid="$2" start="$3" mode="$4"
   local rec session_pid transcript
-  : "${LEASE_TOKEN:=}" "${LEASE_GENERATION:=}"
+  : "${LEASE_NONCE:=}" "${LEASE_GENERATION:=}"
   NS_SHIFT_REC=""
   NS_SHIFT_FAIL=""
 
   rec="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-    if ! ns_lease_token_matches "$NS" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+    if ! ns_lease_nonce_matches "$NS" "$host" "$LEASE_NONCE" "$LEASE_GENERATION"; then
       if [ "$mode" = hardhat ]; then
         NS_SHIFT_FAIL="BLOCKED: this recovered worker no longer owns the shift. Reopen the recorded conversation instead of continuing an older process."
         return 2
@@ -370,7 +370,7 @@ ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
     fi
     if [ -n "${SID:-}" ]; then
       if [ -z "$NS_LEASE_SID" ]; then
-        if ! ns_lease_rebind_session "$NS" "$SID" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+        if ! ns_lease_rebind_session "$NS" "$SID" "$host" "$LEASE_NONCE" "$LEASE_GENERATION"; then
           if [ "$mode" = hardhat ]; then
             NS_SHIFT_FAIL="BLOCKED: the shift process lease could not bind the recovered conversation. Issue STOP from another session, then run Start again."
             return 2
@@ -398,7 +398,7 @@ ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
           return 1
         fi
         if [ "$NS_LEASE_PID" != "$pid" ]; then
-          if ! ns_lease_attach_process "$NS" "$host" "$LEASE_TOKEN" "$LEASE_GENERATION" "$pid" "$start"; then
+          if ! ns_lease_attach_process "$NS" "$host" "$LEASE_NONCE" "$LEASE_GENERATION" "$pid" "$start"; then
             if [ "$mode" = hardhat ]; then
               NS_SHIFT_FAIL="BLOCKED: the recovered process could not refresh its shift lease. Reopen the recorded conversation."
               return 2
@@ -419,7 +419,7 @@ ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
 ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   local host="$1" pid="$2" start="$3" mode="$4"
   local rec session_pid lease_scope check_sid lease_rc transcript
-  : "${LEASE_TOKEN:=}" "${LEASE_GENERATION:=}"
+  : "${LEASE_NONCE:=}" "${LEASE_GENERATION:=}"
   NS_SHIFT_FAIL=""
   rec="${NS_SHIFT_REC:-$(sed -n 1p "$NS/.shift-session" 2>/dev/null)}"
 
@@ -447,7 +447,7 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   fi
 
   ns_lease_allows "$NS" "$check_sid" "$host" "$pid" "$start" \
-    "$LEASE_TOKEN" "$LEASE_GENERATION"
+    "$LEASE_NONCE" "$LEASE_GENERATION"
   lease_rc=$?
   if [ "$lease_rc" -eq 1 ]; then
     if [ "$mode" = hardhat ]; then
@@ -465,7 +465,7 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
     return 2
   fi
 
-  if [ -n "${SID:-}" ] && [ -n "$pid" ] && [ -z "$LEASE_TOKEN" ]; then
+  if [ -n "${SID:-}" ] && [ -n "$pid" ] && [ -z "$LEASE_NONCE" ]; then
     if ! ns_lease_load "$NS"; then
       if [ "$mode" = hardhat ]; then
         NS_SHIFT_FAIL="BLOCKED: the shift process lease became unreadable. Issue STOP from another session, then run Start again."
@@ -502,22 +502,22 @@ ns_shift_ownership() { # <host> <pid> <start> <mode:hardhat|gate>
 # Remaining arguments are the command line. Returns 3 when takeover fails.
 ns_watchman_run_child() { # <ns> <host> <sid> <work_target> <project_env> <project> <cmd...>
   local ns="$1" host="$2" sid="$3" work="$4" env_name="$5" project="$6"
-  local lease generation token child start rc
+  local lease generation nonce child start rc
   shift 6
   lease="$(ns_lease_takeover "$ns" "$sid" "$host")" || return 3
   generation="${lease%% *}"
-  token="${lease#* }"
+  nonce="${lease#* }"
   (
     cd "$work" || exit 1
     env "${env_name}=${project}" \
       NIGHTSHIFT_REVIVAL=1 \
       NIGHTSHIFT_LEASE_GENERATION="$generation" \
-      NIGHTSHIFT_LEASE_TOKEN="$token" \
+      NIGHTSHIFT_LEASE_NONCE="$nonce" \
       "$@" >/dev/null 2>&1
   ) &
   child=$!
   start="$(ns_process_start "$child" 2>/dev/null || true)"
-  ns_lease_attach_process "$ns" "$host" "$token" "$generation" "$child" "$start" || true
+  ns_lease_attach_process "$ns" "$host" "$nonce" "$generation" "$child" "$start" || true
   wait "$child"
   rc=$?
   return "$rc"

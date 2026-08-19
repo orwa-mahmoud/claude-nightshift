@@ -33,7 +33,7 @@ The native path uses the same on-disk contract and marker names as macOS and Lin
   lease state, applies exact `toolDeny` keys, and enforces configured command and commit guards;
 - Stop honors `STOP` first, releases completed or expired shifts, records stalls, commits optional
   receipts, and blocks while open Items remain;
-- the watchman advances the lease before every child, passes the generation and token in that
+- the watchman advances the lease before every child, passes the generation and nonce in that
   child's environment, and runs recovery in the persisted work target;
 - the scheduler emits a daily Task Scheduler definition with `IgnoreNew`, so Task Scheduler and
   the process lease both refuse overlapping starts;
@@ -152,7 +152,7 @@ PowerShell 7. It uses local host fixtures—no account or model subscription—t
 - Stop release behavior;
 - Task Scheduler XML, encoded command generation, and disposable native registration;
 - normal Codex recovery through an npm-style `codex.cmd` launcher;
-- recovery-child placement, generation/token inheritance, and live-process stand-down.
+- recovery-child placement, generation/nonce inheritance, and live-process stand-down.
 
 The checked Windows runner is x64. Native Windows on ARM64 is not yet a verified claim.
 

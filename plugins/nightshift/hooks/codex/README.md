@@ -21,7 +21,7 @@ arrive as `Bash`; file edits arrive as `apply_patch` with the patch text in
 function tools reach this path; hosted tools do not.
 
 Recovery ownership stays host-neutral too. The Codex watchman advances `.shift-lease` before each
-spawn and passes its generation/token through the child environment; the hardhat and Stop hook
+spawn and passes its generation/nonce through the child environment; the hardhat and Stop hook
 accept only that generation for the bound shift. Codex's hook payload does not provide process
 ancestry Nightshift can vouch for, so the watchman records its child process witness while the hook
 leaves the interactive pid fields empty.

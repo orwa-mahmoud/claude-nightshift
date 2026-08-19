@@ -302,7 +302,7 @@ if (Test-NSPathEntry $leasePath) {
         $leaseState = 'valid'
         $leaseGeneration = [string]$lease.Generation
         Add-NSFact "process lease host $($lease.HostName) generation $leaseGeneration"
-        if (-not [string]::IsNullOrEmpty([string]$lease.Token)) {
+        if (-not [string]::IsNullOrEmpty([string]$lease.Nonce)) {
             Add-NSFact 'process lease belongs to a watchman recovery (capability not printed)'
         }
         else {

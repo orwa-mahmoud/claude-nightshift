@@ -1,0 +1,28 @@
+name: HOL Plugin Scanner
+
+# Listing gate for the Codex plugin directory: this filename, Action, score, and
+# severity threshold are what the directory checks for. It is a separate workflow
+# because SARIF upload needs security-events, which the rest of CI does not.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: HOL Plugin Scanner
+        uses: hashgraph-online/ai-plugin-scanner-action@b402d3b3aaa8f59df8e8aa427dc97694a0af2819 # v1.2.528
+        with:
+          plugin_dir: "."
+          mode: scan
+          min_score: 80
+          fail_on_severity: high
+          format: sarif
+          upload_sarif: true

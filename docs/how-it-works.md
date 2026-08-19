@@ -116,7 +116,7 @@ and all other project-file activity do not vote on session life. They stand down
 shift, a stop-work order, quitting time, or a shift owned by the other host.
 
 Immediately before each revival attempt, the watchman atomically advances `.shift-lease` to a new
-generation and passes that generation's ownership token to the child process. Every observable
+generation and passes that generation's ownership nonce to the child process. Every observable
 tool call from the bound shift is checked against the lease. The recovered child is admitted; an
 older UI or headless process on the same conversation is denied and told to reopen the thread. A
 retry advances the generation again, fencing a previous recovery attempt that outlived its caller.
@@ -131,7 +131,7 @@ itself; ownership changes only through Start, the watchman, or clock-out.
 
 One narrow fail-closed window exists when recovery began before any session identity could be
 recorded. Until the recovered child's first observed call binds its new identity, Nightshift cannot
-distinguish that child from a helper conversation, so only the child carrying the recovery token is
+distinguish that child from a helper conversation, so only the child carrying the recovery nonce is
 admitted. Once bound, unrelated conversations are free again.
 
 Native Windows uses the same lease and marker contract through bundled PowerShell. Hooks identify
@@ -247,7 +247,7 @@ depends on a resumable identity recorded before the original process disappears.
 
 Claude's initial interactive lease can include the CLI ancestor's pid and process start time.
 On POSIX, Codex's hook payload cannot prove equivalent process ancestry, so its initial lease is
-scoped to the bound session; the watchman's private generation token supplies the process fence
+scoped to the bound session; the watchman's private generation nonce supplies the process fence
 once recovery begins. Native Windows hooks can walk the Codex process ancestry and record the
 same PID/start-time pair when the operating system exposes it.
 

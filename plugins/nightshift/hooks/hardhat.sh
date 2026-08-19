@@ -67,7 +67,7 @@ else
   TPATH="$(printf '%s' "$INPUT" | sed -n 's/.*"transcript_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
 [ -n "$CMD" ] || CMD="$INPUT"
-LEASE_TOKEN="${NIGHTSHIFT_LEASE_TOKEN:-}"
+LEASE_NONCE="${NIGHTSHIFT_LEASE_NONCE:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 
 # A commit message must not read as the command it mentions, so blank the message argument
@@ -84,7 +84,7 @@ case "$TOOL" in Bash | PowerShell) LEASE_COMMAND="$SCRUBBED" ;; esac
 if ! ns_hardhat_active; then
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
     if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
-      || ! ns_lease_token_matches "$NS" claude "$LEASE_TOKEN" "$LEASE_GENERATION"; then
+      || ! ns_lease_nonce_matches "$NS" claude "$LEASE_NONCE" "$LEASE_GENERATION"; then
       deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
     fi
   fi
@@ -99,7 +99,7 @@ fi
 
 # The conversation record preserves continuity; the lease names the process generation allowed
 # to act on it. Initial work uses the Claude ancestor's pid + start time. Every watchman spawn
-# instead carries a unique token and generation, so an old IDE process with the same session id
+# instead carries a unique nonce and generation, so an old IDE process with the same session id
 # is fenced before its next observable tool call.
 ns_host_process claude "$NS" "$$"
 CURRENT_PID="$NS_CURRENT_PID"

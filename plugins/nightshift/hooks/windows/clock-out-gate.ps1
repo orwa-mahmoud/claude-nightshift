@@ -250,12 +250,12 @@ if ($null -eq $payload) {
     Write-Block 'DO NOT STOP - the hook payload is unreadable while a shift is active. Retry after the host can provide valid hook JSON.'
 }
 
-$token = [string]$env:NIGHTSHIFT_LEASE_TOKEN
+$nonce = [string]$env:NIGHTSHIFT_LEASE_NONCE
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION
 $revival = $env:NIGHTSHIFT_REVIVAL -eq '1'
 
 $unbound = Resolve-NSShiftUnbound -NightshiftDir $ns -HostName $HostName `
-    -Token $token -Generation $generation -Revival $revival -Mode gate
+    -Nonce $nonce -Generation $generation -Revival $revival -Mode gate
 if ($unbound.Status -eq 'Pass') { Write-Release }
 if ($unbound.Status -eq 'Fail') { Write-Block $unbound.Message }
 
@@ -270,7 +270,7 @@ if ($null -eq $session -and -not [string]::IsNullOrEmpty($sessionId)) {
 
 $owned = Resolve-NSShiftOwnership -NightshiftDir $ns -HostName $HostName `
     -SessionId $sessionId -Transcript $transcript -ProcessId $processId `
-    -ProcessStart $processStart -Token $token -Generation $generation `
+    -ProcessStart $processStart -Nonce $nonce -Generation $generation `
     -Revival $revival -Mode gate
 if ($owned.Status -eq 'Pass') { Write-Release }
 if ($owned.Status -eq 'Fail') { Write-Block $owned.Message }

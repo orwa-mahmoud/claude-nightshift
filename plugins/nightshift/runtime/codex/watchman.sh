@@ -14,7 +14,7 @@
 # was writing when it died (verified live: a
 # SIGKILLed session's rollout ends mid-event with no terminal marker, and the resume continues
 # that very file). The fallback is a fresh headless run; the punch list on disk is its handover.
-# Before either spawn, the watchman advances a process lease and passes its generation/token to
+# Before either spawn, the watchman advances a process lease and passes its generation/nonce to
 # the child. An older Desktop or terminal process on that conversation then loses observed tools.
 #
 # The sandbox grant is danger-full-access because the workspace-write sandbox protects .git —
@@ -174,7 +174,7 @@ rollout_grew() {
 }
 
 # Spawn one revival attempt. Ownership transfers atomically before the child starts; every hook
-# in that child inherits the new generation/token, and an older Desktop or terminal process on
+# in that child inherits the new generation/nonce, and an older Desktop or terminal process on
 # the same conversation is fenced. Rung 1 resumes the recorded conversation; rung 2 is a fresh
 # headless run with the punch list as its handover.
 # A non-resumable recorded id is never passed to `codex exec resume` and never treated as a
