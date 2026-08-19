@@ -3,10 +3,11 @@ load helpers
 REF="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references"
 OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 
-# Nightshift Setup copies punch-list-template.md verbatim into .nightshift/punch-list.md, and
-# the clock-out gate blocks on any open "- [ ]" it finds there. A single illustrative checkbox
-# in the template — even inside a comment, which the gate does not understand — would trap every
-# freshly scaffolded project in a shift it never started.
+# Setup copies punch-list-template.md into .nightshift/punch-list.md after substituting
+# $NIGHTSHIFT_WORKSPACE with the resolved workspace path. The clock-out gate blocks on any
+# open "- [ ]" it finds there. A single illustrative checkbox in the template — even inside
+# a comment, which the gate does not understand — would trap every freshly scaffolded
+# project in a shift it never started.
 @test "the punch-list template ships with no open checkbox" {
   n="$(grep -cE "$OPEN_BOX" "$REF/punch-list-template.md" || true)"
   [ "${n:-0}" -eq 0 ]
@@ -86,7 +87,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 @test "setup pins the neutral ask and the rules home" {
   s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   grep -qF 'never describe the repo as recommended; the default is no' "$s"
-  grep -qF '`$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json` as-is' "$s"
+  grep -qF '`$NS/rules.json` as-is' "$s"
   grep -qF 'removes all of nightshift, rules' "$s"
 }
 
@@ -128,7 +129,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   printf '%s\n' "$run_direct" | grep -qi 'one-shift check'
   printf '%s\n' "$run_direct" | grep -qi 'stale run-control markers'
   printf '%s\n' "$run_direct" | grep -qi 'unattended permissions'
-  printf '%s\n' "$run_direct" | grep -qF '.nightshift/.shift-armed'
+  printf '%s\n' "$run_direct" | grep -qF '$NS/.shift-armed'
 }
 
 # The install copies plugins/nightshift/ alone, and MIT asks for the notice to travel with every copy — so the

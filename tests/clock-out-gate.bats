@@ -7,6 +7,17 @@ load helpers
   is_block "$output"
 }
 
+@test "clock-out reinjection qualifies punch-list against the workspace" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p"
+  is_block "$output"
+  printf '%s' "$output" | grep -qF "$p/.nightshift/punch-list.md"
+  printf '%s' "$output" | grep -qF "$p/.nightshift/parking-lot.md"
+  printf '%s' "$output" | grep -qF "$p/.nightshift/STOP"
+  ! printf '%s' "$output" | grep -qF '$NIGHTSHIFT_WORKSPACE'
+}
+
 @test "releases when every box is ticked" {
   p="$(new_project)"
   punch_done "$p"

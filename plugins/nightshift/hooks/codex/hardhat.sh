@@ -44,7 +44,7 @@ ENDED="$NS/.ended"
 
 # The emission (and its escaping) is the seam's; the guard only decides.
 deny() {
-  codex_emit_deny "$1"
+  codex_emit_deny "$(ns_expand_injected_paths "$PROJECT_DIR" "$1")"
   exit 0
 }
 

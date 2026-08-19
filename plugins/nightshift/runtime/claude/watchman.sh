@@ -198,8 +198,8 @@ resolve_agent() { rung_agent 1 2; }
 # does the enforcing. Its order is one line: you were cut off, keep going. Only the
 # fresh-session fallback, which starts empty, gets the full pointer at the punch list. Both are
 # the owner's to word (rules file keys: revivalPrompt, freshRevivalPrompt).
-PROMPT_RESUME="$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")"
-PROMPT_FRESH="$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")"
+PROMPT_RESUME="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")")"
+PROMPT_FRESH="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")")"
 for _req in "watchRetrySeconds:$RETRY_SPACING" "revivalPrompt:$PROMPT_RESUME" "freshRevivalPrompt:$PROMPT_FRESH"; do
   if [ -z "${_req#*:}" ]; then
     note unreadable-rules "${_req%%:*}"

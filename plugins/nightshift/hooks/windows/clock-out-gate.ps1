@@ -19,6 +19,9 @@ Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameC
 
 function Write-Block {
     param([Parameter(Mandatory = $true)][string]$Reason)
+    if ((Test-Path Variable:workspace) -and -not [string]::IsNullOrEmpty($workspace)) {
+        $Reason = Expand-NSInjectedPaths $workspace $Reason
+    }
     [Console]::Out.WriteLine((@{ decision = 'block'; reason = $Reason } | ConvertTo-Json -Compress))
     exit 0
 }

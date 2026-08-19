@@ -57,7 +57,7 @@ foreach ($entry in $templates.GetEnumerator()) {
     $source = Join-Path $pluginRoot $entry.Key
     $destination = Join-Path $ns $entry.Value
     if (-not (Test-NSPathEntry $destination)) {
-        Copy-Item -LiteralPath $source -Destination $destination
+        Copy-NSOwnerTemplate -Source $source -Destination $destination -Workspace $workspace
         $created.Add($entry.Value)
     }
 }

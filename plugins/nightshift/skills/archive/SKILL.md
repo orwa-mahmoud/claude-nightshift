@@ -15,7 +15,14 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
 present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search or guess. The shell's working directory persists
 between Bash calls, so never use a bare path.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
@@ -23,46 +30,55 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/archive/SKILL.md`). Substitute that
 absolute path below; never search for the plugin.
 
-Read `.nightshift/state-version` first. Legacy (missing) and current (`1`) may be archived.
+On native Windows, use the PowerShell tool and native paths throughout. Resolve the same values
+from `$env:CLAUDE_PROJECT_DIR`, `$env:CODEX_PROJECT_DIR`, and `$env:PLUGIN_ROOT`, with
+`[Environment]::CurrentDirectory` as the Codex cwd fallback. Do not route Archive through WSL or Git
+Bash.
+
+Read `$NS/state-version` first. Legacy (missing) and current (`1`) may be archived.
 A newer or malformed marker fails closed — file nothing, rewrite nothing, and never migrate.
 `state-version` itself stays live; it is not an archive record.
 
 ## Where it goes
 
-Everything lands in `.nightshift/archive/<YYYY-MM-DD>/` — today's date, one folder per archive
+Everything lands in `$NS/archive/<YYYY-MM-DD>/` — today's date, one folder per archive
 run (create parents; re-running on the same day appends to that day's files).
 
 ## What moves, what stays
 
-- **Punch list → `shipped.md`.** Move every ticked `- [x]` line under `## Items` into the
-  archive's `shipped.md` under a `## Shipped <date>` heading — that file reads as the plain
-  record of what actually landed. Open `- [ ]` items and everything above `## Items` (the
-  contract, the gates) stay exactly where they are.
-- **Shift log → the archive, whole.** Move `shift-log.md` into the folder and start a fresh one
-  with the same one-line header. The journal is mechanical; its lines belong to the dates they
-  happened.
+- **Punch list → `shipped.md`.** Move every ticked `- [x]` line under `## Items` in
+ `$NS/punch-list.md` into the
+ archive's `shipped.md` under a `## Shipped <date>` heading — that file reads as the plain
+ record of what actually landed. Open `- [ ]` items and everything above `## Items` (the
+ contract, the gates) stay exactly where they are.
+- **Shift log → the archive, whole.** Move `$NS/shift-log.md` into
+ the folder and start a fresh one
+ with the same one-line header. The journal is mechanical; its lines belong to the dates they
+ happened.
 - **Snag log — only what's handled.** Move entries that carry a disposition (fixed, ignored,
-  answered) into the archive's `snag-log.md`. Entries still awaiting the owner stay live: an
-  open question is not history yet.
-- **Parking lot — only what's answered.** Same rule: answered entries move, unanswered stay.
+ answered) from `$NS/snag-log.md` into the archive's `snag-log.md`.
+ Entries still awaiting the owner stay live: an
+ open question is not history yet.
+- **Parking lot — only what's answered.** Same rule on
+ `$NS/parking-lot.md`: answered entries move, unanswered stay.
 - **Work orders — only what's spent.** Orders already cut into a punch list or marked done
-  move; pending orders stay.
+ move from `$NS/work-orders.md`; pending orders stay.
 - **Product research → the archive after its shift.** When no shift is active, append the completed
-  entries from `product-research.md` to the archive's `product-research.md`, preserving their dates,
-  sources, evidence, and conclusions; then restore the live file from the shipped template. During
-  an active shift, leave all research live. Research is evidence, so never summarize it away or
-  strip its source URLs while filing it.
+ entries from `$NS/product-research.md` to the archive's `product-research.md`, preserving their dates,
+ sources, evidence, and conclusions; then restore the live file from the shipped template. During
+ an active shift, leave all research live. Research is evidence, so never summarize it away or
+ strip its source URLs while filing it.
 - **Opportunity map — only terminal outcomes.** Move `shipped` and `rejected` entries from
-  `opportunity-map.md` into the archive's `opportunity-map.md`, preserving their evidence links and
-  reasons. Keep `candidate`, `building`, and `parked` entries live: they can still affect a future
-  cycle or need the owner. Restore the shipped headings if moving the last terminal entry leaves an
-  empty section. Never renumber or silently change a status during archive.
+ `$NS/opportunity-map.md` into the archive's `opportunity-map.md`, preserving their evidence links and
+ reasons. Keep `candidate`, `building`, and `parked` entries live: they can still affect a future
+ cycle or need the owner. Restore the shipped headings if moving the last terminal entry leaves an
+ empty section. Never renumber or silently change a status during archive.
 
 ## Timing
 
 Best between shifts. During an active shift with open boxes, say so and ask before moving
 anything — the ticked lines are the night's scoreboard, and the owner may want the morning
-review to see them in place. If the receipts repo exists (`.nightshift/.git`), commit after
+review to see them in place. If the receipts repo exists (`$NS/.git`), commit after
 archiving so the move itself has history.
 
 ## Retention
@@ -73,17 +89,23 @@ After filing, preview generated history that the owner has opted in to prune. Ru
 "$NIGHTSHIFT_PLUGIN_ROOT/runtime/retain-history.sh" --project "$NIGHTSHIFT_WORKSPACE"
 ```
 
+On native Windows:
+
+```powershell
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\retain-history.ps1" -Project "$NIGHTSHIFT_WORKSPACE"
+```
+
 Print that preview verbatim — every eligible path, its age, and the governing rule
 (`retention.runtimeLogDays` or `retention.archiveDays`). Both default to `0` (keep forever);
 a preview that lists nothing is success, not a prompt to invent a number.
 
 Deletion is a second, explicit step. If the preview lists paths and the owner confirms in this
-interactive session, run the same command with `--apply`. If the shift is armed, the owner
-does not confirm, or either rule is `0`, stop after the preview. `--apply` deletes only the
+interactive session, run the same command with `--apply` (POSIX) or `-Apply` (native Windows). If the shift is armed, the owner
+does not confirm, or either rule is `0`, stop after the preview. `--apply`/`-Apply` deletes only the
 allowlisted runtime log (`scheduled.log`) and dated `archive/YYYY-MM-DD/` directories that
-are old enough, resolved under `.nightshift/`, not symlinks, and free of still-open work.
+are old enough, resolved under `$NS/`, not symlinks, and free of still-open work.
 
-Never call `retain-history.sh` from start, hooks, status, Doctor, or recovery. Never delete
+Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status, Doctor, or recovery. Never delete
 the live punch list, drafting table, parking lot, rules, current shift files, or owner-authored
 files.
 

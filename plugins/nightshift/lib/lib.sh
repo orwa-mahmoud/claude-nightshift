@@ -1508,3 +1508,33 @@ ns_sanitize_line() {
   ns_secret_line "$text" && return 1
   ns_tokenize_text "$text" "$2" "$3" "$4"
 }
+
+# Qualify bare .nightshift/ mentions in owner-authored injection text (clock-out,
+# revival, toolDeny) so a drifted cwd cannot send the agent to a nested copy.
+# Expansion happens at injection time; the owner's rules file keeps the relative
+# form so it stays editable without a skill variable.
+ns_expand_injected_paths() {
+  local ws="$1" text="$2"
+  [ -n "$ws" ] || { printf '%s' "$text"; return 0; }
+  text="${text//\$NIGHTSHIFT_WORKSPACE/$ws}"
+  text="${text//\$NS/$ws/.nightshift}"
+  printf '%s' "$text" | awk -v ws="$ws" '
+    BEGIN { ORS="" }
+    {
+      s = $0
+      while (match(s, /\.nightshift[\/\\]/)) {
+        prefix = substr(s, 1, RSTART - 1)
+        chunk = substr(s, RSTART, RLENGTH)
+        sep = substr(chunk, length(chunk), 1)
+        last = (length(prefix) ? substr(prefix, length(prefix), 1) : "")
+        if (last == "/" || last == "\\") {
+          printf "%s%s", prefix, chunk
+        } else {
+          printf "%s%s/.nightshift%s", prefix, ws, sep
+        }
+        s = substr(s, RSTART + RLENGTH)
+      }
+      printf "%s", s
+    }
+  '
+}

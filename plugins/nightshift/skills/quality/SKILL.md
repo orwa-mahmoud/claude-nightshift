@@ -10,7 +10,14 @@ Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUD
 Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
 otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
 present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`. Never search or guess. The shell's working directory persists
+`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+
+Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
+`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
+short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
+`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
+Never search or guess. The shell's working directory persists
 between Bash calls, so never use a bare path.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
@@ -22,7 +29,7 @@ Read these before scanning:
 
 - `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/execution-modes.md`
 - every applicable entry under
-  `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/shifts/`
+ `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/shifts/`
 
 Quality includes: lint, types, tests, flaky tests, coverage, dead code, TODO/FIXME debt,
 accessibility, localization, API contract drift, documentation drift, CI warnings, direct
@@ -35,7 +42,7 @@ GitHub issue hunts are catalogued under Hunt and start from imported drafts. Qua
 Ask two independent choices:
 
 1. **Guided** (the owner chooses quality areas) or **Automatic** (Nightshift selects every
-   applicable high-value area that fits the hours).
+  applicable high-value area that fits the hours).
 2. **Review first** or **Run directly**.
 
 Automatic mode requires hours. Guided mode asks for scope and requires hours only when an
@@ -48,7 +55,7 @@ without another pause under the decision policy in `execution-modes.md`.
 Detect the stack from the gates catalog (monorepo-aware), inspect repository-owned tooling and
 evidence, then apply the discovery rules from every relevant quality entry. Never install a tool
 merely to manufacture findings. In review-first mode use report-only commands: no fix flags and no
-writes. If `.nightshift/` does not exist, review-first may report, but any run-direct request must
+writes. If `$NS/` does not exist, review-first may report, but any run-direct request must
 stop and point to Setup (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex)
 before work can be armed.
 
@@ -64,16 +71,16 @@ When review first was chosen, summarize evidence per catalog entry and top-level
 numbers, then show the exact ordered work order. Offer three answers:
 
 - **fix now** — compose one work order from the selected catalog entries and start it here through
-  the Hunt cut and Start lifecycle. Preserve every entry's contract. Apply the one
-  deadline chosen for the combined shift. Follow Start's entire preflight before cutting or
-  arming, exactly as run directly does.
-- **draft for later** — append them to `.nightshift/drafting-table.md` and arm nothing. The
-  drafting table is staging: it is never read by the gate, which is exactly why proposals can wait
-  there safely. Tell the owner they can promote what they want into the punch list and run Start
-  after promotion (`/nightshift:start` on Claude Code, or ask Nightshift to start on Codex), or
-  compose it later through Hunt.
+ the Hunt cut and Start lifecycle. Preserve every entry's contract. Apply the one
+ deadline chosen for the combined shift. Follow Start's entire preflight before cutting or
+ arming, exactly as run directly does.
+- **draft for later** — append them to `$NS/drafting-table.md` and arm nothing. The
+ drafting table is staging: it is never read by the gate, which is exactly why proposals can wait
+ there safely. Tell the owner they can promote what they want into the punch list and run Start
+ after promotion (`/nightshift:start` on Claude Code, or ask Nightshift to start on Codex), or
+ compose it later through Hunt.
 - **ignore** — write nothing at all; fully respected. A finding the owner does not care about is
-  not a defect.
+ not a defect.
 
 Never write to the punch list on anything but an explicit **fix now** in review-first mode. Items there are the shift
 the next start will work, so writing them on a survey puts work in front of the owner that nobody
@@ -86,10 +93,13 @@ order, then enter the same Hunt cut and Start lifecycle used by **fix now**. Fol
 Start's entire preflight before cutting or arming, including the one-shift check, state and work
 target validation, stale run-control markers, deadline handling, rules, and unattended permissions.
 Only after it passes, cut the order and arm one shift with
-`touch "$NIGHTSHIFT_WORKSPACE/.nightshift/.shift-armed"`; log the start and arm the watchman exactly
-as the Start skill requires. Implement and verify the selected entry contracts, and continue
+`touch "$NS/.shift-armed"` on POSIX, or
+`New-Item -ItemType File -Force "$NS\.shift-armed"` in native
+Windows PowerShell; log the start and arm the watchman exactly as the Start skill requires.
+Implement and verify the selected entry contracts, and continue
 until the finite work is clear or the shared deadline ends. Record significant decisions and
-rollback instructions in `parking-lot.md`; never create a second shift per quality area.
+rollback instructions in `$NS/parking-lot.md`; never create a second
+shift per quality area.
 
 If the stack no longer matches the current `## Gates` block, say so in one line and point to
 Setup (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex) — gates belong to

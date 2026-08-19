@@ -142,6 +142,7 @@ load helpers
   punch_open "$p"
   run hardhat_ask "$p"
   is_deny "$output"
+  printf '%s' "$output" | grep -qF "$p/.nightshift/parking-lot.md"
 }
 
 @test "AskUserQuestion is allowed with no active shift" {

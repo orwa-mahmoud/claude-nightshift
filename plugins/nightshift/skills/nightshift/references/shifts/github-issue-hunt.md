@@ -10,12 +10,13 @@ start — point at Import issues and stop. Never search GitHub to fill the gap.
 ```text
 - [ ] **GitHub issue hunt — finish the selected imported issues, one commit each.**
   - Discovery: list proposed imports with
-    "$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --list-proposed.
+    `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --list-proposed`
+    (on native Windows, `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -ListProposed`).
     Guided mode previews that list and requires an explicit selection. Direct mode may rank and
     select only safe, finite candidates whose Repository matches the authorized work-target repo
     and that fit the time budget. Order by dependency first, then risk, then finite value.
   - Cut, never copy: move the selected entries into one punch list with the same qualified helper,
-    project argument, and `--promote`. They must not remain on the drafting table. Do not paste this
+    project argument, and `--promote` (native Windows `-Promote`). They must not remain on the drafting table. Do not paste this
     catalog item as an extra live box beside them.
   - Work top to bottom. One conventional commit per issue. Record the Source URL, delivered
     scope, verification, commit, parked decisions, and any divergence from the upstream request

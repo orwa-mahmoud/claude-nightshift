@@ -55,8 +55,8 @@ resolve_target() {
 @test "setup and start pin the same persisted work target contract" {
   setup_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   start_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
-  grep -qF '.nightshift/work-target' "$setup_skill"
-  grep -qF '.nightshift/work-target' "$start_skill"
+  grep -qF '$NS/work-target' "$setup_skill"
+  grep -qF '$NS/work-target' "$start_skill"
   grep -qF 'several child repositories' "$setup_skill"
   grep -qF 'refuse to arm' "$start_skill"
 }

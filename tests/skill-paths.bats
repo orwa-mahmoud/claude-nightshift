@@ -2,6 +2,10 @@ SKILLS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills"
 SETUP="$SKILLS/setup/SKILL.md"
 START="$SKILLS/start/SKILL.md"
 STOP="$SKILLS/stop/SKILL.md"
+HUNT="$SKILLS/hunt/SKILL.md"
+QUALITY="$SKILLS/quality/SKILL.md"
+SCHEDULE="$SKILLS/schedule/SKILL.md"
+DOCTOR_SH="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 
 # Shared skills are loaded unchanged by both hosts. Pin the path carriers and reject the unsafe
 # host-only fallbacks; wording and line wrapping remain free to change.
@@ -29,20 +33,29 @@ STOP="$SKILLS/stop/SKILL.md"
   grep -qF '$TASK_ROOT/.claude/settings.local.json' "$SETUP"
 }
 
-@test "setup writes the rules file to the resolved workspace" {
-  grep -qF '$NIGHTSHIFT_WORKSPACE/.nightshift/rules.json' "$SETUP"
+@test "every skill binds the Nightshift directory once after resolving the workspace" {
+  for s in "$SKILLS"/*/SKILL.md; do
+    grep -qF 'NS="$NIGHTSHIFT_WORKSPACE/.nightshift"' "$s" \
+      || { echo "no POSIX NS bind: $s"; return 1; }
+    grep -qF "Join-Path \$NIGHTSHIFT_WORKSPACE '.nightshift'" "$s" \
+      || { echo "no Windows NS bind: $s"; return 1; }
+  done
+}
+
+@test "setup writes the rules file to the bound Nightshift directory" {
+  grep -qF '$NS/rules.json' "$SETUP"
 }
 
 @test "setup writes state-version on a new workspace and migrates only on confirmation" {
-  grep -qF '$NIGHTSHIFT_WORKSPACE/.nightshift/state-version' "$SETUP"
+  grep -qF '$NS/state-version' "$SETUP"
   grep -qF 'runtime/migrate-state.sh' "$SETUP"
   grep -qF 'only after an explicit yes' "$SETUP"
 }
 
-@test "setup scaffolds every template to an absolute path" {
+@test "setup scaffolds every template into the bound Nightshift directory" {
   for f in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
-    grep -qF "\$NIGHTSHIFT_WORKSPACE/.nightshift/$f.md" "$SETUP" \
-      || { echo "scaffold target not absolute: $f"; return 1; }
+    grep -qF "\$NS/$f.md" "$SETUP" \
+      || { echo "scaffold target not bound: $f"; return 1; }
   done
 }
 
@@ -100,7 +113,7 @@ PY
 # git resolves its repo from the working directory, so the receipts repo is the one place a stray
 # cd would init a repo inside the code tree instead of the site.
 @test "setup inits the receipts repo without relying on the working directory" {
-  grep -qF 'git -C "$NIGHTSHIFT_WORKSPACE/.nightshift" init' "$SETUP"
+  grep -qF 'git -C "$NS" init' "$SETUP"
   grep -qF '`.shift-lease`' "$SETUP"
   grep -qF '`.mutex-scope`' "$SETUP"
   grep -qF '`.lease-lock.d/`' "$SETUP"
@@ -109,7 +122,7 @@ PY
 @test "setup refuses disposable ChatGPT scratch before writing" {
   grep -qF '/workspace/scratch/' "$SETUP"
   grep -qF 'Before creating or changing any file' "$SETUP"
-  grep -qF 'create no `.nightshift/` directory' "$SETUP"
+  grep -qF 'create no `$NS/` directory' "$SETUP"
   grep -qF 'Open your project in Codex' "$SETUP"
   grep -qF 'Do not mention Claude Code' "$SETUP"
 }
@@ -123,11 +136,11 @@ PY
 # Structural instruction contracts, not runtime E2E: pin the lifecycle words and shipped paths
 # whose accidental removal would leave a scheduled or headless shift unarmed or unstoppable.
 @test "start explicitly arms the shift and both host watchmen" {
-  grep -qF '.nightshift/.shift-armed' "$START"
+  grep -qF '$NS/.shift-armed' "$START"
   grep -qF 'runtime/claude/watchman.sh' "$START"
   grep -qF 'runtime/codex/watchman.sh' "$START"
   grep -qF '### Bind this session' "$START"
-  grep -qF '.nightshift/.shift-lease' "$START"
+  grep -qF '$NS/.shift-lease' "$START"
   grep -qF 'ns_lease_reset_stale' "$START"
   grep -qF ': nightshift-binding-probe' "$START"
   grep -qF 'jq` or `python3' "$START"
@@ -149,18 +162,167 @@ PY
 }
 
 @test "start refuses an active watchman before clearing stale lease state" {
-  active="$(grep -n 'A live `.nightshift/.watchman` beside an armed list' "$START" | cut -d: -f1)"
+  active="$(grep -n 'A live `$NS/.watchman` beside an armed list' "$START" | cut -d: -f1)"
   stale="$(grep -n 'Stand down a stale watchman before clearing its state' "$START" | cut -d: -f1)"
   clear="$(grep -n 'Clear every stale run-control marker first' "$START" | cut -d: -f1)"
   [ -n "$active" ]
   [ "$active" -lt "$stale" ]
   [ "$stale" -lt "$clear" ]
   grep -qF 'Refuse the second Start' "$START"
-  grep -qF '.nightshift/.shift-lease' "$START"
+  grep -qF '$NS/.shift-lease' "$START"
 }
 
 @test "stop writes the stop-work order and disarms the watchman" {
-  grep -qF '.nightshift/STOP' "$STOP"
-  grep -qF '.nightshift/.watchman' "$STOP"
+  grep -qF '$NS/STOP' "$STOP"
+  grep -qF '$NS/.watchman' "$STOP"
   grep -qi 'kill' "$STOP"
+}
+
+@test "stop panic commands use the bound Nightshift directory, not the working directory" {
+  grep -qF 'touch "$NS/STOP"' "$STOP"
+  grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$STOP"
+  ! grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$STOP"
+  ! grep -qF 'touch .nightshift/STOP' "$STOP"
+}
+
+@test "no skill uses a cwd-relative Windows STOP path" {
+  if grep -R --include='SKILL.md' -F 'New-Item -ItemType File -Force .nightshift\STOP' "$SKILLS"; then
+    echo "cwd-relative Windows STOP path in a skill" >&2
+    return 1
+  fi
+}
+
+@test "start STOP lever uses the bound Nightshift directory on both platforms" {
+  grep -qF 'touch "$NS/STOP"' "$START"
+  grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$START"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh' "$START"
+}
+
+@test "hunt and quality arm with the same bound pair as start" {
+  for f in "$START" "$HUNT" "$QUALITY"; do
+    grep -qF 'touch "$NS/.shift-armed"' "$f" \
+      || { echo "missing POSIX arm: $f"; return 1; }
+    grep -qF 'New-Item -ItemType File -Force "$NS\.shift-armed"' "$f" \
+      || { echo "missing Windows arm: $f"; return 1; }
+  done
+}
+
+@test "start and schedule inspect Claude settings at the task root" {
+  grep -qF '$TASK_ROOT/.claude/settings.local.json' "$START"
+  grep -qF '$TASK_ROOT/.claude/settings.json' "$START"
+  grep -qF '$TASK_ROOT/.claude/settings.local.json' "$SCHEDULE"
+  grep -qF '$TASK_ROOT/.claude/settings.json' "$SCHEDULE"
+}
+
+@test "setup writes gitignore and lists profiles on resolved roots" {
+  grep -qF '$NIGHTSHIFT_WORKSPACE/.gitignore' "$SETUP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/' "$SETUP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/nightshift-rules.schema.json' "$SETUP"
+  grep -qF 'docs/knobs.md' "$SETUP"
+}
+
+@test "schedule names the Windows generator from the plugin root" {
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1' "$SCHEDULE"
+  ! grep -qF '`runtime\windows\schedule.ps1`' "$SCHEDULE"
+}
+
+@test "no skill executable uses a cwd-relative marker or plugin helper" {
+  if grep -R --include='SKILL.md' -E '`touch \.nightshift/' "$SKILLS"; then
+    echo "cwd-relative POSIX nightshift command in a skill" >&2
+    return 1
+  fi
+  if grep -R --include='SKILL.md' -F 'New-Item -ItemType File -Force .nightshift' "$SKILLS"; then
+    echo "cwd-relative Windows nightshift command in a skill" >&2
+    return 1
+  fi
+  if grep -R --include='SKILL.md' -F '`runtime\windows' "$SKILLS"; then
+    echo "cwd-relative Windows runtime helper in a skill" >&2
+    return 1
+  fi
+}
+
+@test "doctor actions name helpers beside the inspector, not from cwd" {
+  ! grep -qF 'using runtime/' "$DOCTOR_SH"
+  ! grep -qF 'with runtime/' "$DOCTOR_SH"
+  grep -qF '$_here/link-workspace.sh' "$DOCTOR_SH"
+  grep -qF '$_here/migrate-state.sh' "$DOCTOR_SH"
+  grep -qF '$_here/export-support.sh' "$DOCTOR_SH"
+}
+
+@test "punch-list template STOP commands use the bound Nightshift directory" {
+  tpl="$SKILLS/nightshift/references/punch-list-template.md"
+  grep -qF 'touch "$NS/STOP"' "$tpl"
+  grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$tpl"
+  ! grep -qF 'touch .nightshift/STOP' "$tpl"
+  ! grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$tpl"
+}
+
+@test "native Windows skills pair runtime helpers instead of calling .sh" {
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/status/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$SKILLS/import-issues/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$HUNT"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\retain-history.ps1' "$SKILLS/archive/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SETUP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$START"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SETUP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\export-support.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' \
+    "$SKILLS/nightshift/references/shifts/github-issue-hunt.md"
+}
+
+@test "doctor Windows actions name helpers beside the inspector" {
+  DOCTOR_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
+  grep -qF "Join-Path \$here 'migrate-state.ps1'" "$DOCTOR_PS1"
+  grep -qF "Join-Path \$here 'export-support.ps1'" "$DOCTOR_PS1"
+  grep -qF "Join-Path \$here 'link-workspace.ps1'" "$DOCTOR_PS1"
+}
+
+@test "setup substitutes workspace and NS tokens when copying owner files" {
+  grep -qF 'substitute the resolved absolute workspace path for `$NIGHTSHIFT_WORKSPACE`' "$SETUP"
+  grep -qF 'bound Nightshift directory for `$NS`' "$SETUP"
+  grep -qF 'Never write those tokens into `rules.json`' "$SETUP"
+}
+
+@test "catalog prose uses Nightshift filenames, not a workspace prefix" {
+  for f in "$SKILLS/nightshift/references"/catalog-recipe.md \
+           "$SKILLS/nightshift/references"/execution-modes.md \
+           "$SKILLS/nightshift/references"/gates-catalog.md \
+           "$SKILLS/nightshift/references"/shift-catalog.md \
+           "$SKILLS/nightshift/references/shifts"/*.md; do
+    ! grep -qF '$NIGHTSHIFT_WORKSPACE/.nightshift/' "$f" \
+      || { echo "catalog still prefixes workspace: $f"; return 1; }
+  done
+}
+
+@test "skills do not repeat the workspace prefix after the NS bind" {
+  python3 - "$SKILLS" <<'PY'
+import pathlib
+import sys
+root = pathlib.Path(sys.argv[1])
+bind = 'NS="$NIGHTSHIFT_WORKSPACE/.nightshift"'
+for path in sorted(root.glob("*/SKILL.md")):
+    text = path.read_text().replace(bind, "")
+    if "$NIGHTSHIFT_WORKSPACE/.nightshift/" in text:
+        raise SystemExit(f"repeated workspace prefix: {path}")
+    if r"$NIGHTSHIFT_WORKSPACE\.nightshift" in text:
+        raise SystemExit(f"repeated Windows workspace prefix: {path}")
+PY
+}
+
+@test "Windows runtime helpers do not add a second toolchain" {
+  if grep -RE 'brew |npm install|pip install|python3|jq is required' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows"; then
+    echo "Windows helper depends on a toolchain Nightshift does not ship" >&2
+    return 1
+  fi
+}
+
+@test "rules template keeps relative nightshift paths for owner editing" {
+  rules="$SKILLS/nightshift/references/nightshift-rules-template.json"
+  grep -qF '.nightshift/punch-list.md' "$rules"
+  grep -qF '.nightshift/STOP' "$rules"
+  ! grep -qF '$NIGHTSHIFT_WORKSPACE' "$rules"
 }
