@@ -42,9 +42,9 @@ or a substantial feature, but never merges its own branch and never leaves a hal
   - Owner decisions stay owner decisions: park pricing, licensing, branding, privacy/legal policy,
     destructive data migrations, new external services, telemetry, authentication, paid
     dependencies, and architectural commitments. Do not turn an unattended guess into policy.
-  - Rotate lenses between cycles: product gaps, real user-path defects, UX friction, performance,
+  - Rotate lenses between cycles: product gaps, observed user-path defects, UX friction, performance,
     contracts between layers, meaningful test gaps, and verified dead code. If the project has a
-    UI, walk it live every few cycles with real clicks and the console open.
+    UI, walk it live every few cycles through direct interaction with the console open.
   - At every site inspection (the interval in `## Gates`; hourly if none is set), run the project's
     quality tooling in report mode. Treat new findings as evidence for the opportunity map, not as
     a requirement to spend the whole shift polishing lint.

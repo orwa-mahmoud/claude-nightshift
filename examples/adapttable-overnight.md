@@ -1,4 +1,4 @@
-# Example — a real overnight run on a production library
+# Example — an overnight run on a production library
 
 On 2026-07-19 a single nightshift punch list drove one overnight shift on
 [AdaptTable](https://github.com/orwa-mahmoud/adapttable), a published React data-table library:

@@ -37,7 +37,7 @@
   session. Size, difficulty, or hours already spent never justify a stub, a narrowed scope, or
   splitting an item for later. Only correctness does.
 - Run the item gate (the `## Gates` block below) right before each commit; it must be green to tick.
-- No suppression — fix real causes. No lint disables without a written reason next to them.
+- No suppression — fix root causes. No lint disables without a written reason next to them.
 - One conventional commit per item, local only. Never fake a tick.
 
 ## Site discipline

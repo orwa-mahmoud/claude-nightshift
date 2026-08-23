@@ -147,7 +147,7 @@ ns_git_verb_tail() {
 }
 
 # Replay add/commit against a copied index so guards can ask Git what would be written
-# without mutating the real index. 0 = prepared ($NS_GIT_PROSP_DIR, GIT_INDEX_FILE),
+# without mutating the working index. 0 = prepared ($NS_GIT_PROSP_DIR, GIT_INDEX_FILE),
 # 1 = no-op / empty, 2 = cannot model this command (fail closed).
 ns_git_prospective_prepare() { # <repo> <command> <add|commit>
   local repo="$1" cmd="$2" verb="$3" tmp src word rest=0 skip=0 form=index

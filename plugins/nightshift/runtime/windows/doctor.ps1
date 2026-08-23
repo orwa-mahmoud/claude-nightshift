@@ -97,7 +97,7 @@ function Write-NSDoctorReport {
 
 if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
     Add-NSWarn "no .nightshift/ at $workspace"
-    Add-NSAct confirm 'run Nightshift setup in the real project (not a ChatGPT scratch workspace)'
+    Add-NSAct confirm 'run Nightshift setup from the project you want to change (not a ChatGPT scratch workspace)'
     Write-NSDoctorReport -NightshiftLabel 'missing'
     exit 0
 }

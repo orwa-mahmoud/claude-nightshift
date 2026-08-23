@@ -6,7 +6,7 @@
 /nightshift:hunt       # compose tonight: pick ready shifts, set hours, add your scope
 /nightshift:import-issues  # stage explicitly named GitHub issues onto the drafting table
 # or write your items in the punch list by hand — one checkbox per task
-#   item anatomy, with real items: examples/overnight-webapp.md
+#   item anatomy, with filled items: examples/overnight-webapp.md
 /nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
@@ -26,7 +26,7 @@ Those are Claude Code's slash spellings. In Codex or repository-connected ChatGP
 Nightshift and ask naturally: “set up Nightshift,” “show me the ready-made shifts,” “run product
 evolution for four hours,” “start the shift,” or “show shift status.” A normal ChatGPT scratch
 conversation cannot affect the repository, so Setup redirects it to Codex before writing. The same
-skills and `.nightshift/` files are used in real project workspaces.
+skills and `.nightshift/` files are used in persistent project workspaces.
 
 For a custom timed objective, use Hunt in **Guided** mode and choose **Owner walkthrough**. Its
 scope answer is required and becomes the objective verbatim; then set the hours and choose review

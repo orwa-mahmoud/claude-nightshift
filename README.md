@@ -27,10 +27,10 @@ codex plugin marketplace add orwa-mahmoud/nightshift
 codex plugin add nightshift@nightshift
 ```
 
-Use Nightshift with the real project open in Codex, or with Codex connected to its GitHub
-repository. If invoked from a normal ChatGPT conversation backed by `/workspace/scratch/`, setup
-stops before writing anything and points the user to Codex—the scratch files would not affect the
-real repository.
+Use Nightshift with the project you want it to change open in Codex, or with Codex connected to
+its GitHub repository. If invoked from a normal ChatGPT conversation backed by
+`/workspace/scratch/`, setup stops before writing anything and points the user to Codex—the
+scratch files would not affect the repository.
 
 The punch-list gate, guards, skills, and crash revival are live-verified on Codex. A killed session
 is resumed into its recorded conversation when `.shift-session` holds a resumable identity; a
@@ -58,7 +58,7 @@ limits, and [Remote environments](docs/remote-environments.md) for co-location r
 
 ## Run a first shift
 
-You do not need to learn the whole system first. Start with one small, real task in a project you
+You do not need to learn the whole system first. Start with one small, concrete task in a project you
 trust. Keep the first run attended so you can see how your permissions, gates, stop order, and
 host-specific recovery behave.
 
@@ -74,7 +74,7 @@ Before leaving any run unattended, use the concise
 | Stop the shift | Ask Nightshift to stop | `/nightshift:stop` |
 
 1. Set up Nightshift and accept only the proposed gates you want.
-2. In `.nightshift/punch-list.md`, add one small, real task under `## Items`:
+2. In `.nightshift/punch-list.md`, add one small, concrete task under `## Items`:
 
    ```text
    - [ ] **1. <clear task title>.**
@@ -204,7 +204,7 @@ clocks out only once every box is ticked.
 - **The wall of warnings has no owner.** `/nightshift:quality` surveys lint, types, tests,
   dependencies, documentation, accessibility, contracts, and security; fix now, draft selected
   findings for later, or ignore them.
-- **The work must stop at a real boundary.** Run a bounded coverage, defect, dependency, or
+- **The work must stop at an explicit boundary.** Run a bounded coverage, defect, dependency, or
   vulnerability shift, or use an open-ended walkthrough that ends at quitting time.
 
 If you can write it as a checklist, you can hand it to the night.
@@ -325,7 +325,7 @@ The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-w
 **Codex support** is complete for the night: gate, guards, skills, scheduling and the watchman
 all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
 session alive at an API error is stood by, not revived, until that transcript signature has been
-observed in a real outage — see
+observed during an outage — see
 [#41](https://github.com/orwa-mahmoud/nightshift/issues/41).
 
 ## Contributing

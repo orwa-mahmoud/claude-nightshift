@@ -136,7 +136,7 @@ case "$INTERVAL_MIN" in
 esac
 [ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
 RETRY_SPACING="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
-NOTIFY="$(rule "$PROJECT" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")" # empty = silent, a real value
+NOTIFY="$(rule "$PROJECT" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")" # empty = silent, a configured value
 PUNCH="$NS/punch-list.md"
 PIDFILE="$NS/.watchman"
 SENTINEL="$NS/.watchman-tick"
@@ -252,7 +252,7 @@ resolve_transcript() {
 
 # The Esc tell: the owner's interrupt matters only as the transcript's LAST WORD — the same
 # rule as the wedge. An interrupt the owner already resumed past has newer conversation events
-# after it and is history, not a pause; a real death right after such a resume must read as
+# after it and is history, not a pause; process death right after such a resume must read as
 # death. Trailing bookkeeping lines are not conversation and cannot mask the marker.
 owner_paused() {
   local t

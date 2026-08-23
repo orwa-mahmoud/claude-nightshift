@@ -33,14 +33,14 @@ Give the host-native spelling: `/nightshift:setup` and `/nightshift:start` on Cl
 Nightshift to set up and start on Codex. Those skills own scaffolding and preflight; this skill
 owns the work.
 
-## Real-project boundary
+## Persistent-workspace boundary
 
-Nightshift is an engineering workflow for a real project workspace. If the resolved project root
-is under `/workspace/scratch/`, stop before setup or shift work and give the OpenAI-native redirect
-from the setup skill: open the real project in Codex (or connect Codex to its GitHub repository),
-then mention Nightshift there. Never create durable-looking run state in a disposable ChatGPT
-scratch workspace, and never claim those temporary files affect or preserve the user's repository.
-A non-git project outside that explicit scratch path remains valid.
+Nightshift is an engineering workflow for a persistent project workspace. If the resolved project
+root is under `/workspace/scratch/`, stop before setup or shift work and give the OpenAI-native
+redirect from the setup skill: open the project you want Nightshift to change in Codex (or connect
+Codex to its GitHub repository), then mention Nightshift there. Never create durable-looking run
+state in a disposable ChatGPT scratch workspace, and never claim those temporary files affect or
+preserve the user's repository. A non-git project outside that explicit scratch path remains valid.
 
 ## The contract is above `## Items`
 
@@ -62,7 +62,7 @@ Top to bottom, one item, no batching:
   No suppressions without a written reason beside them.
 4. **Commit** — one conventional commit, local by default: the owner reviews and pushes. Push
   yourself only when the punch list explicitly says to.
-5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is real.
+5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is complete.
 
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own
 **Verify** and **Commit** lines. Promote owner-approved work from
@@ -83,7 +83,7 @@ code, API, design, localization, or cleanup judgments into blockers merely becau
 exist. Preserve compatibility or provide migration and rollback, verify the result, and record the
 choice, evidence, alternatives, shipped result, and rollback in
 `$NS/parking-lot.md`. Stop only for
-publishing, merging, deploying, real-data deletion, secrets exposure, spending, or legal/licensing
+publishing, merging, deploying, production-data deletion, secrets exposure, spending, or legal/licensing
 decisions outside the coding-work authorization.
 
 ## Snag log discipline
@@ -123,7 +123,7 @@ finite item list ends at its last tick; never start a walkthrough without one.
 
 ## Red-tag yourself when stuck
 
-If you catch yourself unable to finish an item — looping, blocked on something real — **red-tag it
+If you catch yourself unable to finish an item — looping or blocked on an external constraint — **red-tag it
 yourself**: record the owner decision in `$NS/parking-lot.md` as
 `stalled — needs human`, note why, and move to the next
 item. Do not loop. The gate's stall warning is the backstop, not the plan.

@@ -1,6 +1,6 @@
 # Nightshift receipts
 
-Real runs with public evidence. These are not benchmarks and ticks are not treated as proof; each
+Documented runs with public evidence. These are not benchmarks and ticks are not treated as proof; each
 receipt separates the agent's work from the owner's review and links to the permanent result.
 
 ## Flagship — continuity at scale
@@ -15,7 +15,7 @@ conversation, one allowance and one coding agent.
 
 ## Start here — a reproducible first night
 
-### [A real overnight run on a production library](adapttable-overnight.md)
+### [An overnight run on a production library](adapttable-overnight.md)
 
 Nine focused items landed in four hours as unsquashed per-item commits, closed four issues on merge,
 and shipped AdaptTable v1.2.0 to npm the same day.

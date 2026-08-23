@@ -72,7 +72,7 @@ if [ -d "$NS" ]; then
 fi
 if [ ! -d "$NS" ]; then
   warn "no .nightshift/ at $WORKSPACE"
-  act confirm "run Nightshift setup in the real project (not a ChatGPT scratch workspace)"
+  act confirm "run Nightshift setup from the project you want to change (not a ChatGPT scratch workspace)"
   emit "Nightshift Doctor"
   emit "Host:        $HOST"
   emit "Workspace:   $WORKSPACE"

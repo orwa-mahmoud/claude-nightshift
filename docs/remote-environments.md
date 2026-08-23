@@ -16,7 +16,7 @@ machines, or infer that a process on one side of a connection is the process rec
 | WSL | Supported as Linux | Everything is inside one WSL distribution | No split Windows/WSL process or path state |
 | Remote SSH to Linux | Runtime fixture verified (x86_64) | Hook scripts, plugin, repository, state, and watchman are on the SSH target; the authenticated host remains an attended check | The fixture proves a detached watchman across separate SSH connections; account logout policy remains administrator-owned |
 | Linux devcontainer | Runtime fixture verified (x86_64) | Hook scripts, plugin, repository, state, and watchman are in the same container; the authenticated host remains an attended check | The fixture proves a detached watchman across separate container exec connections; stopping or rebuilding the container stops it |
-| Remote SSH to native Windows | Not verified | — | Use native Windows locally until a real SSH fixture covers the Windows process and session model |
+| Remote SSH to native Windows | Not verified | — | Use native Windows locally until a verified SSH fixture covers the Windows process and session model |
 | Host outside, tools or files inside a container | Unsupported | — | The watchman cannot prove host liveness across the PID namespace |
 | State or work target across host/container or local/remote namespaces | Unsupported | — | Absolute links, locks, process IDs, and start times no longer name the same resources |
 | Network filesystem without local atomic rename and private-file semantics | Unsupported | — | Lease ownership and capability privacy cannot be guaranteed |
@@ -64,7 +64,7 @@ different trust boundaries, so recovery must stand down rather than guess.
 
 ## Reproducible evidence
 
-The compatibility probe exercises a real Linux process and filesystem boundary with synthetic host
+The compatibility probe exercises a live Linux process and filesystem boundary with synthetic host
 events, then emits a sanitized JSON receipt. It checks:
 
 - workspace and work-target resolution through an explicit task-root link;

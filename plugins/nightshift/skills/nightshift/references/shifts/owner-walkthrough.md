@@ -11,8 +11,8 @@ entry; this walkthrough owns the shift's single continuation record.
 **Owner instructions:** Required. The guided scope answer is the objective, not optional tailoring.
 If it is empty, do not compose, cut, or arm the shift.
 
-Supported on a real project workspace whose objective can be advanced through local, reviewable
-engineering work. Publishing, deployment, spending, real-data mutation, secrets, and legal or
+Supported in a persistent project workspace whose objective can be advanced through local, reviewable
+engineering work. Publishing, deployment, spending, production-data mutation, secrets, and legal or
 licensing decisions remain outside the coding-work authorization.
 
 ```text

@@ -53,14 +53,14 @@ On native Windows, run
 instead.
 The pointer is local-only and state remains in the authoritative workspace; never copy it.
 
-## 0. Require a real project workspace
+## 0. Reject disposable ChatGPT scratch workspaces
 
 Before creating or changing any file, resolve the project root to an absolute path. If it is under
-`/workspace/scratch/`, this is a disposable ChatGPT scratch workspace rather than the user's real
+`/workspace/scratch/`, this is a disposable ChatGPT scratch workspace that cannot affect the user's
 repository. **Stop immediately: create no `$NS/` directory, rules, settings, receipts repo,
 or other files.** Tell the user directly:
 
-> Nightshift needs a real software project workspace. This ChatGPT conversation is using a
+> Nightshift needs a persistent software project workspace. This ChatGPT conversation is using a
 > temporary workspace, so files created here will not affect your repository.
 >
 > Open your project in Codex, or start Codex connected to its GitHub repository. Then mention
@@ -96,8 +96,8 @@ For each target below, copy the template only if the target does not already exi
 - `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/work-orders-template.md` → `$NS/work-orders.md`
 
 When copying, substitute the resolved absolute workspace path for `$NIGHTSHIFT_WORKSPACE` and the
-bound Nightshift directory for `$NS` in the destination file so the owner's copy contains real
-paths. A human copy-pasting STOP from their punch list does not have those skill variables. Leave
+bound Nightshift directory for `$NS` in the destination file so the owner's copy contains resolved
+absolute paths. A human copy-pasting STOP from their punch list does not have those skill variables. Leave
 the shipped template unchanged. Never write those tokens into `rules.json` — revival and clock-out
 text stay owner-editable, and the gate qualifies bare `.nightshift/` mentions at injection time.
 
