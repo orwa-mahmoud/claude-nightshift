@@ -1,6 +1,6 @@
 # First-night safety checklist
 
-Use this once before leaving Nightshift alone with a real project.
+Use this once before leaving Nightshift unattended in a project.
 
 - **Start attended.** Run one small shift while watching it. Confirm the proposed gates pass, one
   item becomes one reviewable commit, and the shift ends only after its box is ticked.

@@ -317,7 +317,7 @@ case "$AT" in
   *) printf 'schedule: --at needs a 24-hour HH:MM, got %s\n' "${AT:-nothing}" >&2; exit 1 ;;
 esac
 HH="${AT%%:*}"; MM="${AT##*:}"
-[ "$HH" -le 23 ] || { printf 'schedule: %s is not a real hour\n' "$HH" >&2; exit 1; }
+[ "$HH" -le 23 ] || { printf 'schedule: %s is not a valid hour\n' "$HH" >&2; exit 1; }
 
 if registered; then
   printf 'Already registered for this project — nothing to install.\n\n'

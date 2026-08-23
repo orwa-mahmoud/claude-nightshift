@@ -9,7 +9,7 @@ a second pause.
 - [ ] **Clear quality debt — fix what the project's own tooling reports.**
   - Scan first: run the item-gate commands from `## Gates` in report mode (lint, types, tests),
     per top-level package in a monorepo. Cluster the findings by tool and directory.
-  - Work one cluster per cycle: fix the real cause behind the item gate, commit, re-scan.
+  - Work one cluster per cycle: fix the root cause behind the item gate, commit, re-scan.
   - Never silence instead of fixing — no new suppressions, no relaxed config, no deleted tests. A
     finding the owner should decide on goes to parking-lot.md with a default, and work continues.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected) so a rejected finding is not raised

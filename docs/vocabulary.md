@@ -1,6 +1,6 @@
 # Vocabulary
 
-Everything is named from a real construction site — learn one term, guess the rest:
+Everything is named after construction-site work — learn one term, guess the rest:
 
 | Term | File / mechanism | Meaning |
 |---|---|---|

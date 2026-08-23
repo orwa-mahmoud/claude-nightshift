@@ -33,9 +33,9 @@ Native Windows PowerShell: `Get-Location` and
 | `.nightshift-link` file, no directory | This task root points at another workspace. |
 | neither | Nightshift is not set up here. |
 
-An absent `.nightshift/` is not a crash. Run setup in the real project (`/nightshift:setup` on
-Claude Code, or ask Nightshift to set up on Codex). ChatGPT scratch paths under
-`/workspace/scratch/` are refused on purpose — open the real repository.
+An absent `.nightshift/` is not a crash. Run setup from the project you want Nightshift to change
+(`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex). ChatGPT scratch paths
+under `/workspace/scratch/` are refused on purpose — open the repository in Codex.
 
 **Repair (link only).** If the task is open on a different folder than the workspace that already
 has `.nightshift/`, create an explicit pointer. Nightshift never searches nearby folders:

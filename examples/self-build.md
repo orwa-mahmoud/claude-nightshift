@@ -24,7 +24,7 @@ The one-commit-per-item history below is the proof: read it top to bottom and yo
 | 8 | Dogfood proof — this snapshot | done — 1 commit |
 | 9 | SonarQube site inspection | done |
 
-## The receipts — one conventional commit per item, real timestamps
+## The receipts — one conventional commit per item, recorded timestamps
 
 All on 2026-07-13, timestamps local; every line links to its commit:
 

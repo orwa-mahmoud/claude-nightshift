@@ -40,6 +40,6 @@ The item commits were merged without squashing, so the reviewable history surviv
 and the released tree is pinned by the
 [v0.9.2 tag](https://github.com/orwa-mahmoud/nightshift/tree/v0.9.2).
 
-This proves the bounded claim: Nightshift can keep a real Codex maintenance run anchored to an
+This proves the bounded claim: Nightshift can keep a documented Codex maintenance run anchored to an
 explicit punch list and leave a reviewable commit trail. It does not claim that Codex has Claude
 Code's identical session lifecycle or revival behavior.

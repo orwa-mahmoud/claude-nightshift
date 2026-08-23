@@ -17,7 +17,7 @@ Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameC
 $taskRoot = Resolve-NSCanonicalPath $Project
 $normalizedTaskRoot = $taskRoot.Replace('\', '/')
 if ($normalizedTaskRoot -match '^/workspace/scratch(?:/|$)') {
-    throw 'Nightshift needs a real software project workspace; disposable scratch workspaces are refused.'
+    throw 'Nightshift needs a persistent software project workspace; disposable scratch workspaces are refused.'
 }
 
 $workspace = Resolve-NSWorkspaceRoot $taskRoot

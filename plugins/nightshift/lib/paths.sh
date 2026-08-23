@@ -74,7 +74,7 @@ ns_path_under_protected() {
 }
 
 # ns_under_nightshift <workspace> <relative-path>
-# Print the canonical path when it resolves to a real child of .nightshift/.
+# Print the canonical path when it resolves to a valid child of .nightshift/.
 # Rejects symlinks, traversal, and anything that escapes the root.
 ns_under_nightshift() {
   local ws="$1" rel="$2" ns root parent base canon

@@ -74,7 +74,7 @@ Per the entry's declared ending:
 - **Open-ended** — hours are REQUIRED. These have no natural end but the clock; a walkthrough may
  not start without a deadline. The entry's declared open-ended title is the source of truth.
 - **Finite** — ask the ending as an explicit either/or: *until every finding
- is clear, or capped at N hours?* Both are real answers; the work ends when the list is empty
+ is clear, or capped at N hours?* Both are valid answers; the work ends when the list is empty
  either way, and hours are only a safeguard against a backlog bigger than the night.
 
 One deadline governs the whole shift. Automatic mode always requires hours. On a mixed selection

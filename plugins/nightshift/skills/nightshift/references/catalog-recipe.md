@@ -50,7 +50,7 @@ it, never weaken a test to make it pass, never delete without proving unreachabl
 history.
 
 **5. Verification.** The item gate must be green at every commit — state which commands prove this
-entry's work is real.
+entry meets its definition of done.
 
 **6. Supported stacks.** Which projects this makes sense on, and how it detects them. An entry that
 assumes vitest should say so rather than failing quietly on a Go repo.
@@ -87,4 +87,4 @@ check catches that. Expect questions about the refusals and the ending condition
 unattended work goes wrong.
 
 Entries are also welcome to be narrow. "Clear ruff findings in a Django project" is more useful
-than "improve Python code", because a narrow entry can state a real definition of done.
+than "improve Python code", because a narrow entry can state a specific definition of done.

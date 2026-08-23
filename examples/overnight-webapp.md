@@ -1,6 +1,6 @@
 # Example — an overnight webapp punch list
 
-A filled, real-shaped `.nightshift/punch-list.md` for a small TypeScript web app, part-way through a
+A filled, representative `.nightshift/punch-list.md` for a small TypeScript web app, part-way through a
 shift. It shows item anatomy: one top-level checkbox per task, plain sub-bullets, and every item
 carrying its own **Verify** and **Commit**. The contract header is abbreviated here — `setup`
 writes the full one.
@@ -8,7 +8,7 @@ writes the full one.
 ---
 
 > Contract (abbreviated): work items top to bottom, one at a time; run the item gate before each
-> commit; tick only when the work is real; pushing is the owner's; park owner decisions; deletion
+> commit; tick only when the work is complete; pushing is the owner's; park owner decisions; deletion
 > is not completion; history is append-only on shift.
 
 ## Gates

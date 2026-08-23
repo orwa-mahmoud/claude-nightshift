@@ -3,7 +3,7 @@
 ```text
 - [ ] **Coverage hunt — add meaningful tests until quitting time.**
   - Ending: open-ended — hours and a deadline are required.
-  - Each cycle: find the highest-value untested behaviour, write real tests for it, run the item
+  - Each cycle: find the highest-value untested behaviour, write behavior-protecting tests, run the item
     gate, commit. Coverage is a tripwire, never a target — no padding tests to move a number; any
     exclusion needs a written reason.
   - Log one line per cycle. Stop only at quitting time, then clock out orderly.

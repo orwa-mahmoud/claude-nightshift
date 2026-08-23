@@ -2,7 +2,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 
 @test "coverage hunt chooses valuable untested behaviour" {
   grep -qi 'highest-value untested behaviour' "$E"
-  grep -qi 'real tests' "$E"
+  grep -qi 'behavior-protecting tests' "$E"
 }
 
 @test "coverage hunt refuses padding and unexplained exclusions" {

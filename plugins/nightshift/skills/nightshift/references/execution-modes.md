@@ -46,7 +46,7 @@ Run directly means make progress, not avoid judgment:
   `parking-lot.md`; then continue.
 
 Stop for the owner only when the action is outside the granted coding-work boundary: publishing,
-merging, deploying, deleting real data, exposing secrets, spending money, or changing legal or licensing policy.
+merging, deploying, deleting production data, exposing secrets, spending money, or changing legal or licensing policy.
 A difficult or potentially breaking code change is not automatically outside the
 boundary when it is isolated, tested, reviewable, and reversible.
 
