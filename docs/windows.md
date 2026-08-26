@@ -80,6 +80,10 @@ Generate and inspect a task without registering it:
   -Project C:\path\to\workspace -Preflight
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
   -Project C:\path\to\workspace -At 04:05
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+  -Project C:\path\to\workspace -List
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+  -Project C:\path\to\workspace -Remove
 ```
 
 The generator prints one PowerShell registration command and the complete XML. The action invokes

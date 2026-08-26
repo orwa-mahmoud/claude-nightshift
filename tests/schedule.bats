@@ -175,6 +175,13 @@ STUB
   grep -q 'plugins/nightshift/runtime/schedule.sh --project . --at' "$r"
 }
 
+@test "native Windows Task Scheduler docs name list and remove" {
+  w="$BATS_TEST_DIRNAME/../docs/windows.md"
+  block="$(awk '/^## Task Scheduler$/{p=1; next} /^## /{p=0} p' "$w")"
+  printf '%s\n' "$block" | grep -qF -- '-List'
+  printf '%s\n' "$block" | grep -qF -- '-Remove'
+}
+
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
 @test "--agent swaps the headless runner in the generated entry" {
   p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
