@@ -278,7 +278,8 @@ Nightshift resolves two locations and persists both decisions:
 
 - the **state workspace** owns `.nightshift/`;
 - the **work target** is the Git repository that receives stack detection, gates, commits, and
-  verification. Its canonical path is stored in `.nightshift/work-target`.
+  verification. Its canonical path is stored in `.nightshift/work-target`. A plugin or
+  marketplace manifest may sit at that root or under `plugins/<name>/`.
 
 State resolution never searches parent or sibling folders. Work-target resolution accepts the
 opened repository or exactly one immediate, non-hidden child repository. Several candidates require

@@ -27,6 +27,7 @@ resolve_work_target() {
   done
 
   grep -qF '.nightshift/work-target' "$DOC"
+  grep -qF 'plugins/<name>/' "$DOC"
   grep -qF 'Start refuses to arm' "$DOC"
   grep -qF 'Nightshift never selects the first directory silently' "$DOC"
 }
