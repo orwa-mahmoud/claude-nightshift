@@ -36,6 +36,7 @@ parse_yaml() {
   grep -qF 'id: harness' "$FAILED"
   grep -qF 'id: plugin-version' "$FAILED"
   grep -qF 'id: host-version' "$FAILED"
+  grep -qF 'pwsh 7 / Windows 11' "$FAILED"
   grep -qF 'id: expected' "$FAILED"
   grep -qF 'id: observed' "$FAILED"
   grep -qF 'id: markers' "$FAILED"
