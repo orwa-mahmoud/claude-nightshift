@@ -20,6 +20,7 @@ Two tiers, cheapest first:
 | `go.mod` | `go vet` + `go test ./...` | `go test -race`, coverage |
 | `Cargo.toml` | `cargo clippy` + `cargo test` | coverage (`tarpaulin`) |
 | `Chart.yaml` / kustomize | `helm template \| kubeconform` (changed charts) | full catalog render |
+| `.claude-plugin/` or `.codex-plugin/` (plugin or marketplace manifest) | `bats -r tests/` when tests exist; tracked `*.sh` through `shellcheck -x`; `claude plugin validate . --strict` | repeat the item gate |
 | `Makefile` (fallback) | `make lint test` if those targets exist | — |
 | nothing detected | — | — |
 
