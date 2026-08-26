@@ -84,6 +84,23 @@ ns_count_boxes() { # $1 = punch list, $2 = ERE for the box state
 ns_open_boxes()   { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
 ns_ticked_boxes() { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[xX]\]'; }
 
+# Work orders have no ## Items heading. Count every top-level open box in the file.
+ns_open_boxes_file() {
+  local n
+  n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$1" 2>/dev/null || true)"
+  printf '%s' "${n:-0}"
+}
+
+# Drafting table: the fenced item-shape example sits above the first --- rule.
+ns_open_drafts() {
+  [ -f "$1" ] || { printf '0'; return 0; }
+  awk '
+    /^---[[:space:]]*$/ { seen=1; next }
+    seen && /^[[:space:]]*-[[:space:]]*\[[[:space:]]\]/ { n++ }
+    END { print n+0 }
+  ' "$1"
+}
+
 # Watchman reason codes — one token, no transcript. Written to .nightshift/.watch-reason
 # (line 1 = code, line 2 = optional non-sensitive detail). Status and Doctor render the same
 # labels. Adding a code here is the contract; callers must not invent ad-hoc strings.

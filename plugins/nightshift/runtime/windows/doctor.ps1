@@ -125,37 +125,13 @@ else {
     Add-NSWarn 'punch-list.md is missing'
 }
 
-$orders = 0
-$ordersPath = Join-Path $ns 'work-orders.md'
-if (Test-Path -LiteralPath $ordersPath -PathType Leaf) {
-    foreach ($line in [IO.File]::ReadLines($ordersPath)) {
-        if ($line -match '^\s*-\s*\[\s\]') {
-            $orders++
-        }
-    }
-    if ($orders -gt 0) {
-        Add-NSFact "pending Hunt work orders=$orders"
-    }
+$orders = Get-NSOpenBoxesInFile (Join-Path $ns 'work-orders.md')
+if ($orders -gt 0) {
+    Add-NSFact "pending Hunt work orders=$orders"
 }
-
-$drafts = 0
-$draftsPath = Join-Path $ns 'drafting-table.md'
-if (Test-Path -LiteralPath $draftsPath -PathType Leaf) {
-    $seenRule = $false
-    foreach ($line in [IO.File]::ReadLines($draftsPath)) {
-        if (-not $seenRule) {
-            if ($line -match '^---\s*$') {
-                $seenRule = $true
-            }
-            continue
-        }
-        if ($line -match '^\s*-\s*\[\s\]') {
-            $drafts++
-        }
-    }
-    if ($drafts -gt 0) {
-        Add-NSFact "staged drafting-table items=$drafts"
-    }
+$drafts = Get-NSOpenDrafts (Join-Path $ns 'drafting-table.md')
+if ($drafts -gt 0) {
+    Add-NSFact "staged drafting-table items=$drafts"
 }
 
 $armed = [int](Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf)

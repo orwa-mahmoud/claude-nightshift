@@ -404,6 +404,39 @@ function Get-NSBoxCounts {
     return [pscustomobject]@{ Open = $open; Ticked = $ticked; Total = ($open + $ticked) }
 }
 
+function Get-NSOpenBoxesInFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $open = 0
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        foreach ($line in [IO.File]::ReadLines($Path)) {
+            if ($line -match '^\s*-\s*\[\s\]') {
+                $open++
+            }
+        }
+    }
+    return $open
+}
+
+function Get-NSOpenDrafts {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $open = 0
+    $seenRule = $false
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        foreach ($line in [IO.File]::ReadLines($Path)) {
+            if (-not $seenRule) {
+                if ($line -match '^---\s*$') {
+                    $seenRule = $true
+                }
+                continue
+            }
+            if ($line -match '^\s*-\s*\[\s\]') {
+                $open++
+            }
+        }
+    }
+    return $open
+}
+
 function Get-NSCodexIdentityKind {
     param([AllowEmptyString()][string]$SessionId)
     if ([string]::IsNullOrEmpty($SessionId)) {

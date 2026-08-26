@@ -109,25 +109,13 @@ else
   warn "punch-list.md is missing"
 fi
 
-ORDERS=0
-if [ -f "$NS/work-orders.md" ]; then
-  ORDERS="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$NS/work-orders.md" 2>/dev/null || true)"
-  ORDERS="${ORDERS:-0}"
-  if [ "$ORDERS" -gt 0 ]; then
-    fact "pending Hunt work orders=$ORDERS"
-  fi
+ORDERS="$(ns_open_boxes_file "$NS/work-orders.md")"
+if [ "$ORDERS" -gt 0 ]; then
+  fact "pending Hunt work orders=$ORDERS"
 fi
-
-DRAFTS=0
-if [ -f "$NS/drafting-table.md" ]; then
-  DRAFTS="$(awk '
-    /^---[[:space:]]*$/ { seen=1; next }
-    seen && /^[[:space:]]*-[[:space:]]*\[[[:space:]]\]/ { n++ }
-    END { print n+0 }
-  ' "$NS/drafting-table.md")"
-  if [ "$DRAFTS" -gt 0 ]; then
-    fact "staged drafting-table items=$DRAFTS"
-  fi
+DRAFTS="$(ns_open_drafts "$NS/drafting-table.md")"
+if [ "$DRAFTS" -gt 0 ]; then
+  fact "staged drafting-table items=$DRAFTS"
 fi
 
 ARMED=0

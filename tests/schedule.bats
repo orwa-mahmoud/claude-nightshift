@@ -71,10 +71,20 @@ setup() {
 @test "warns when the punch list it would work is empty" {
   printf '## Items\n' >"$P/.nightshift/punch-list.md"
   printf '# Work Orders\n\n- [ ] **Coverage hunt.**\n' >"$P/.nightshift/work-orders.md"
+  cat >"$P/.nightshift/drafting-table.md" <<'EOF'
+```text
+- [ ] **1. example only.**
+```
+
+---
+
+- [ ] **Real draft.**
+EOF
   run "$SCHED" --project "$P" --at 04:05
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qi 'no open items'
   printf '%s' "$output" | grep -q 'Parked Hunt work orders: 1'
+  printf '%s' "$output" | grep -q 'Drafting-table items: 1'
 }
 
 @test "an open checkbox outside Items is not scheduled work" {
