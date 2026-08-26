@@ -50,7 +50,12 @@ run (create parents; re-running on the same day appends to that day's files).
  `$NS/punch-list.md` into the
  archive's `shipped.md` under a `## Shipped <date>` heading — that file reads as the plain
  record of what actually landed. Open `- [ ]` items and everything above `## Items` (the
- contract, the gates) stay exactly where they are.
+ contract, the gates) stay exactly where they are. When that move leaves zero open boxes,
+ append one reminder under `## Notes` (create the heading below `## Items` if it is missing):
+ leftover Shift contract and Gates still bind the next Hunt or Start cut; review them before
+ composing a new campaign; Archive does not reset them. Skip the note when open work remains,
+ when the same sentence is already present, or if adding it would require an open checkbox.
+ Never write `- [ ]` here and never edit above `## Items`.
 - **Shift log → the archive, whole.** Move `$NS/shift-log.md` into
  the folder and start a fresh one
  with the same one-line header. The journal is mechanical; its lines belong to the dates they

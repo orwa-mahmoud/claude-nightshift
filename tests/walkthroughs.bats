@@ -150,6 +150,9 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'unanswered stay' "$s"                  # open questions are not history
   grep -qF 'product-research.md' "$s"             # completed research is preserved
   grep -qF '`candidate`, `building`, and `parked`' "$s" # nonterminal opportunities stay live
+  grep -qF 'leftover Shift contract and Gates' "$s"
+  grep -qF '## Notes' "$s"
+  grep -qF 'Never write' "$s"
 }
 
 @test "status surfaces the active product cycle without mutating it" {
