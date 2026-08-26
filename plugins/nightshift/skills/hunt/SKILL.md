@@ -132,9 +132,10 @@ After review-first approval, ask **start now, or park it for later?** Run-direct
 and always starts now; choosing it was already explicit authorization.
 
 On **now** — start the shift yourself, here, without making the owner type another command. Follow
-the Start skill exactly: clear the stale markers, **move** the item out of
-`$NS/work-orders.md` and
-under `## Items` in the punch list (a cut, never a copy — it must not exist in two places), write
+the Start skill exactly: clear the stale markers, **cut** the whole `## Work order` section
+out of `$NS/work-orders.md` (heading, hours, and item — do not leave an empty
+order heading behind), put only the item under `## Items` in the punch list (a cut, never a
+copy — it must not exist in two places), write
 `$NS/deadline` from the recorded hours, **arm the gate** with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native

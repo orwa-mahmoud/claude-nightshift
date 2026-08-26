@@ -51,6 +51,16 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'never by editing the two markdown files by hand' "$START"
 }
 
+# Hunt writes a heading plus hours plus the item. Cutting only the checkbox leaves an empty
+# order that Doctor no longer counts and Archive has to guess about.
+@test "a work-order cut removes the whole section" {
+  grep -qF 'whole `## Work order` section' "$START"
+  grep -qF 'whole `## Work order` section' "$HUNT"
+  grep -qF 'order heading behind' "$HUNT"
+  grep -qi 'leftover shell from a cut' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
+}
+
 # An item in two files is an item that gets worked twice, or ticked in the wrong place.
 @test "a cut moves the item and never copies it" {
   grep -qi 'move, never copy' "$START"

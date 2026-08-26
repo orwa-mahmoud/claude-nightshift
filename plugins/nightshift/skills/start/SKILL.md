@@ -151,7 +151,8 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`)
  — never by editing the two markdown files by hand. A flagged import stays refused unless the
  owner overrides after seeing the flags (`--allow-flagged` / `-AllowFlagged`). Ordinary drafts
- keep the manual cut. From a work order, write `$NS/deadline` as a UNIX epoch from the
+ keep the manual cut. From a work order, remove the whole `## Work order` section (heading,
+ hours, and item), not just the checkbox, then write `$NS/deadline` as a UNIX epoch from the
  recorded hours (`now + hours*3600`); an order marked finite with no hours writes no deadline.
 - If the punch list is empty and nothing is parked, stop and say so: use Setup if the project is
  new, Hunt to compose a shift, or write an item by hand. Give host-native invocation when needed:

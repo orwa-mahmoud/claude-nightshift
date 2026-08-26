@@ -66,8 +66,9 @@ run (create parents; re-running on the same day appends to that day's files).
  open question is not history yet.
 - **Parking lot — only what's answered.** Same rule on
  `$NS/parking-lot.md`: answered entries move, unanswered stay.
-- **Work orders — only what's spent.** Orders already cut into a punch list or marked done
- move from `$NS/work-orders.md`; pending orders stay.
+- **Work orders — only what's spent.** Pending orders are open boxes; they stay.
+ A `## Work order` heading with no remaining box is leftover shell from a cut — delete it,
+ do not file it. File only an order whose box was ticked in place.
 - **Product research → the archive after its shift.** When no shift is active, append the completed
  entries from `$NS/product-research.md` to the archive's `product-research.md`, preserving their dates,
  sources, evidence, and conclusions; then restore the live file from the shipped template. During
