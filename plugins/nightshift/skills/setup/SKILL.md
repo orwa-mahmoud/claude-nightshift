@@ -143,7 +143,10 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
 
 Detect the stack in the persisted work target from the table in
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/gates-catalog.md`
-(monorepo-aware). Then ask the
+(monorepo-aware). A plugin or marketplace manifest may sit at the work-target
+root or one directory down at `plugins/<name>/.claude-plugin/` /
+`plugins/<name>/.codex-plugin/`; that nested layout is a match when no
+language-stack row already won. Then ask the
 user, showing the detected proposal, with three first-class answers:
 
 - **accept** the proposal as-is,

@@ -20,6 +20,7 @@ CAT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/gates
 
 @test "proposes bats, shellcheck, and plugin validate for a Claude or Codex plugin" {
   grep -qE '\.claude-plugin/|\.codex-plugin/' "$CAT"
+  grep -qF 'plugins/<name>/' "$CAT"
   grep -q 'bats -r tests/' "$CAT"
   grep -q 'shellcheck' "$CAT"
   grep -q 'claude plugin validate . --strict' "$CAT"
@@ -35,6 +36,12 @@ CAT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/gates
       if (!(ts < plugin && plugin < make)) { print "order"; exit 1 }
     }
   ' "$CAT"
+}
+
+@test "Setup treats a nested plugins/<name> manifest as a plugin-stack match" {
+  SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
+  grep -qF 'plugins/<name>/.claude-plugin/' "$SETUP"
+  grep -qF 'plugins/<name>/.codex-plugin/' "$SETUP"
 }
 
 @test "states that detection only proposes and the user decides" {
