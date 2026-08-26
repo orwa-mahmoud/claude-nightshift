@@ -450,6 +450,10 @@ try {
     $reasonLabelLogicRun = Invoke-TestScript $reasonLabelLogic
     Assert-Equal 0 $reasonLabelLogicRun.ExitCode `
         "watchman reason labels: $($reasonLabelLogicRun.Stdout) $($reasonLabelLogicRun.Stderr)"
+    $migrateStateLogic = Join-Path $PSScriptRoot 'migrate-state-logic.ps1'
+    $migrateStateLogicRun = Invoke-TestScript $migrateStateLogic
+    Assert-Equal 0 $migrateStateLogicRun.ExitCode `
+        "migrate-state armed refuse: $($migrateStateLogicRun.Stdout) $($migrateStateLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
