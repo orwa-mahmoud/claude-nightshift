@@ -8,7 +8,7 @@ Everything is named after construction-site work — learn one term, guess the r
 | **state workspace** | `.nightshift/` | the folder that owns run state — punch list, rules, receipts; may sit beside or above the work target |
 | **work target** | `.nightshift/work-target` | the Git repository that receives stack detection, gates, commits, and verification |
 | **clock-out gate** | Stop hook + `.shift-armed` | the bound session can't clock out while the armed punch list has open Items |
-| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns; denied, not discouraged |
+| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns, and expected commit identity; denied, not discouraged |
 | **process lease** | `.nightshift/.shift-lease` | transient ownership of the active shift process — each watchman recovery advances its generation, admitting the recovered worker and fencing stale processes on the same conversation without locking other tabs |
 | **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
