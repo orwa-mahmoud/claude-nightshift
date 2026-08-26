@@ -105,7 +105,9 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  On native Windows, use `Get-Process -Id <pid>` plus the recorded UTC start time through
  `Test-NSRecordedProcess`; an inaccessible process is unavailable evidence, not death.
 - **Stand down a stale watchman before clearing its state.** Only after the checks above prove no
- shift is live, kill a still-running pid from `$NS/.watchman` and wait for it to exit. A
+ shift is live, kill a still-running pid from `$NS/.watchman` and wait for it to exit. On native
+ Windows, read pid and start time, and `Stop-Process -Id` only when
+ `Test-NSRecordedProcess` returns Alive — a reused pid is not this watchman. A
  watchman must not be able to advance the old lease while Start removes markers.
 - **Reset stale lease state through the shared library, never by reading or deleting its files
  directly.** After the liveness checks and stale-watchman shutdown above, run:

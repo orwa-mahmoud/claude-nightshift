@@ -101,6 +101,14 @@ load helpers
   grep -qF 'ConvertFrom-Json' "$s"
 }
 
+@test "start stand-down matches Windows watchman start before kill" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
+  grep -qF 'Stand down a stale watchman' "$s"
+  grep -qF 'Test-NSRecordedProcess' "$s"
+  grep -qF 'Stop-Process -Id' "$s"
+  grep -qF 'a reused pid is not this watchman' "$s"
+}
+
 # hunt and quality both start shifts without the owner typing another command. A start path that
 # skips the marker writes the items and holds nothing — the failure is silent and looks like work.
 @test "every skill that starts a shift arms the gate" {
