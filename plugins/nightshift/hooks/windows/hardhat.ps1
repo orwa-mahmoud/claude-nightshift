@@ -701,7 +701,7 @@ try {
     $toolRules = Get-NSToolRules $workspace ([string]$env:NIGHTSHIFT_TOOL_RULES)
 }
 catch {
-    Write-Deny 'BLOCKED: toolDeny is not a JSON object of string values, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again.'
+    Write-Deny 'BLOCKED: toolDeny is not a JSON object of string values, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex).'
 }
 
 foreach ($target in $targets) {
@@ -725,7 +725,7 @@ if (-not $controlPassive) {
 if ($tool -in @('AskUserQuestion', 'request_user_input')) {
     $property = if ($null -eq $toolRules) { $null } else { $toolRules.PSObject.Properties[$tool] }
     if ($null -eq $property) {
-        Write-Deny "BLOCKED: toolDeny is missing the required '$tool' entry. Add that exact host tool name to .nightshift/rules.json with a denial message, or use an empty string to allow it; run Setup again to review the current template."
+        Write-Deny "BLOCKED: toolDeny is missing the required '$tool' entry. Add that exact host tool name to .nightshift/rules.json with a denial message, or use an empty string to allow it; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex) to review the current template."
     }
     if (-not [string]::IsNullOrEmpty([string]$property.Value)) {
         Write-Deny ([string]$property.Value)

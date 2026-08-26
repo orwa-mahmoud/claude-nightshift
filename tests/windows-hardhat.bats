@@ -5,6 +5,8 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/hardhat.ps1"
 CORE="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/shared/hardhat-core.sh"
 
+WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
+
 @test "Windows expected-email denials match POSIX wording" {
   grep -qF "committer identity ('" "$CORE"
   grep -qF "committer identity ('" "$HELPER"
@@ -28,4 +30,11 @@ CORE="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/shared/hardhat-core.sh"
   fi
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
   [ "$status" -eq 0 ]
+}
+
+@test "Windows toolDeny repairs name Setup like POSIX" {
+  grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex' "$WRAPPER"
+  grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex' "$CORE"
+  grep -qF 'Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex).' "$HELPER"
+  grep -qF 'run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex) to review the current template.' "$HELPER"
 }
