@@ -112,6 +112,10 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qi 'never clobber orders already' "$q"
 }
 
+@test "command reference says Quality fix now goes through a Hunt work order" {
+  grep -qF 'appends a Hunt work order' "$BATS_TEST_DIRNAME/../docs/commands.md"
+}
+
 @test "quality covers the full catalog and shares hunt execution modes" {
   q="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
   grep -qF 'execution-modes.md' "$q"

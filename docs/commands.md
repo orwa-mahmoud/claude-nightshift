@@ -18,9 +18,9 @@
 
 Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes
 as Hunt. A review-first survey is read-only until the owner chooses what happens next: **fix now**
-composes and starts the selected work, **draft for later** writes only to the drafting table, and
-**ignore** writes nothing. Run directly composes, arms, and starts the selected work without a
-second approval pause.
+appends a Hunt work order then cuts and starts it, **draft for later** writes only to the drafting
+table, and **ignore** writes nothing. Run directly composes that same work order, arms, and starts
+the selected work without a second approval pause.
 
 Those are Claude Code's slash spellings. In Codex or repository-connected ChatGPT, mention
 Nightshift and ask naturally: “set up Nightshift,” “show me the ready-made shifts,” “run product
