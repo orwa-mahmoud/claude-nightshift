@@ -47,3 +47,23 @@ EOF
     ! grep -qF '$seenRule' "$f"
   done
 }
+
+LOGIC="$BATS_TEST_DIRNAME/windows/box-counts-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable box-count heading-scope suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'box-counts-logic.ps1' "$RUN"
+  grep -qF 'this is prose, not work' "$LOGIC"
+  grep -qF 'Get-NSBoxCounts' "$LOGIC"
+  grep -qF 'Get-NSOpenDrafts' "$LOGIC"
+  grep -qF 'function Get-NSBoxCounts' "$PSM1"
+}
+
+@test "Windows box counts ignore contract checkboxes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}

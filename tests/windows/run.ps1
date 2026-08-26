@@ -438,6 +438,10 @@ try {
     $scheduleEmptyLogicRun = Invoke-TestScript $scheduleEmptyLogic
     Assert-Equal 0 $scheduleEmptyLogicRun.ExitCode `
         "schedule empty-list notes: $($scheduleEmptyLogicRun.Stdout) $($scheduleEmptyLogicRun.Stderr)"
+    $boxCountsLogic = Join-Path $PSScriptRoot 'box-counts-logic.ps1'
+    $boxCountsLogicRun = Invoke-TestScript $boxCountsLogic
+    Assert-Equal 0 $boxCountsLogicRun.ExitCode `
+        "box counts heading scope: $($boxCountsLogicRun.Stdout) $($boxCountsLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
