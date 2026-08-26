@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Read-only Nightshift diagnosis — workspace, rules, markers, session, process lease, watchman, and classified next actions. Use when a shift looks wrong, recovery is unclear, or the owner asks what Nightshift sees. Never repairs by being invoked.
+description: Read-only Nightshift diagnosis — workspace, rules, markers, session, process lease, watchman, deadline, and classified next actions. Use when a shift looks wrong, recovery is unclear, or the owner asks what Nightshift sees. Never repairs by being invoked.
 ---
 
 Diagnose the host-opened project **without changing anything**. Doctor is deeper than status: it
@@ -42,6 +42,10 @@ workspaces; never run it because Doctor was invoked. On native Windows, offer
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
 instead. Future versions are `[blocked]` — never
 downgrade.
+
+Report `$NS/deadline` as `deadline=none` when the file is missing, remaining seconds when it is a
+UNIX epoch, or a warning when it is not integer seconds. Watchmen compare epoch seconds; do not
+rewrite the file.
 
 ## 1. Run the inspector
 

@@ -157,6 +157,23 @@ esac
 [ "$SESSION_END" -eq 1 ] && fact "clean session-end marker is present"
 [ -n "$STALL" ] && fact "stall count $STALL"
 
+DEADLINE="$NS/deadline"
+if [ ! -f "$DEADLINE" ]; then
+  fact "deadline=none"
+else
+  dl_raw="$(tr -d '[:space:]' <"$DEADLINE" 2>/dev/null)"
+  if printf '%s' "$dl_raw" | grep -qE '^[0-9]+$'; then
+    now="$(date +%s)"
+    if [ "$now" -ge "$dl_raw" ]; then
+      fact "deadline=$dl_raw remaining=0s (elapsed)"
+    else
+      fact "deadline=$dl_raw remaining=$((dl_raw - now))s"
+    fi
+  else
+    warn "deadline is not a UNIX epoch — watchmen compare integer seconds"
+  fi
+fi
+
 if [ "$ARMED" -eq 1 ] && [ "$OPEN" -eq 0 ] && [ "$ENDED" -eq 0 ]; then
   warn "armed with no open boxes and no .ended — clock-out may still be due"
   act confirm "ask Nightshift for status, or start so the watchman can spawn the clock-out"

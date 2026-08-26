@@ -12,6 +12,9 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
   grep -qF 'pending Hunt work orders=1' "$LOGIC"
   grep -qF 'STOP leftover' "$LOGIC"
   grep -qF 'leftover Shift contract and Gates still bind the next Hunt or Start cut' "$HELPER"
+  grep -qF 'deadline=none' "$HELPER"
+  grep -qF 'Get-NSUnixTime' "$HELPER"
+  grep -qF 'deadline is not a UNIX epoch' "$HELPER"
 }
 
 @test "Windows Doctor leftover and staged-work logic passes when pwsh is present" {

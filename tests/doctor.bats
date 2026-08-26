@@ -25,6 +25,7 @@ doctor() {
   grep -qF 'write the parking lot or ask' "$SKILL"
   grep -qF 'Offer the classified repairs' "$SKILL"
   grep -qF 'Never perform a repair' "$SKILL" || grep -qF 'change nothing' "$SKILL"
+  grep -qF '$NS/deadline' "$SKILL"
   jq -e '.skills == "./skills/"' "$CODEX_PLUGIN" >/dev/null
   [ -d "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor" ]
 }
@@ -169,6 +170,45 @@ doctor() {
   after="$(fingerprint "$p")"
   [ "$before" = "$after" ]
   grep -q 'leftover campaign' "$p/.nightshift/punch-list.md"
+}
+
+@test "Doctor reports a missing deadline as none" {
+  p="$(new_project)"
+  punch_open "$p"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'deadline=none'
+}
+
+@test "Doctor reports remaining seconds for a UNIX epoch deadline" {
+  p="$(new_project)"
+  punch_open "$p"
+  future="$(( $(date +%s) + 3600 ))"
+  printf '%s' "$future" >"$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q "deadline=$future remaining="
+  ! printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'
+}
+
+@test "Doctor reports elapsed when the UNIX epoch deadline is past" {
+  p="$(new_project)"
+  punch_open "$p"
+  past="$(( $(date +%s) - 60 ))"
+  printf '%s' "$past" >"$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF "deadline=$past remaining=0s (elapsed)"
+}
+
+@test "Doctor warns when the deadline is not a UNIX epoch" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '2026-08-27T08:45:56+04:00\n' >"$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'
+  ! printf '%s' "$output" | grep -q 'deadline=none'
 }
 
 @test "the drafting-table item-shape example is not a staged draft" {

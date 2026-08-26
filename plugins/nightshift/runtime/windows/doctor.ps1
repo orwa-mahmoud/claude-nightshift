@@ -181,6 +181,34 @@ if ($stop -eq 1) { Add-NSFact 'STOP is present' }
 if ($sessionEnd -eq 1) { Add-NSFact 'clean session-end marker is present' }
 if (-not [string]::IsNullOrEmpty($stall)) { Add-NSFact "stall count $stall" }
 
+$deadlinePath = Join-Path $ns 'deadline'
+if (-not (Test-Path -LiteralPath $deadlinePath -PathType Leaf)) {
+    Add-NSFact 'deadline=none'
+}
+else {
+    $dlRaw = ''
+    try {
+        $dlRaw = ([IO.File]::ReadAllText($deadlinePath)).Trim()
+    }
+    catch {
+        $dlRaw = ''
+    }
+    if ($dlRaw -match '^[0-9]+$') {
+        $now = Get-NSUnixTime
+        $dl = [long]$dlRaw
+        if ($now -ge $dl) {
+            Add-NSFact "deadline=$dlRaw remaining=0s (elapsed)"
+        }
+        else {
+            $rem = $dl - $now
+            Add-NSFact "deadline=$dlRaw remaining=${rem}s"
+        }
+    }
+    else {
+        Add-NSWarn 'deadline is not a UNIX epoch - watchmen compare integer seconds'
+    }
+}
+
 if ($armed -eq 1 -and $open -eq 0 -and $ended -eq 0) {
     Add-NSWarn 'armed with no open boxes and no .ended - clock-out may still be due'
     Add-NSAct confirm 'ask Nightshift for status, or start so the watchman can spawn the clock-out'
