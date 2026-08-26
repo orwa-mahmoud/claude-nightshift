@@ -153,6 +153,12 @@ STUB
   printf '%s' "$output" | grep -q -- '--interval needs a value'
 }
 
+@test "Windows session-end marker matches POSIX wording" {
+  grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
+  grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  ! grep -qF ' - clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+}
+
 @test "session-end hook writes the marker only during an active shift" {
   p="$(new_project)"
   punch_open "$p"
