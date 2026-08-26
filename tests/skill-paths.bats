@@ -278,6 +278,8 @@ PY
   grep -qF "Join-Path \$here 'migrate-state.ps1'" "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'export-support.ps1'" "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'link-workspace.ps1'" "$DOCTOR_PS1"
+  grep -qF 'leftover Shift contract and Gates' "$DOCTOR_PS1"
+  grep -qF 'pending Hunt work orders=' "$DOCTOR_PS1"
 }
 
 @test "setup substitutes workspace and NS tokens when copying owner files" {
