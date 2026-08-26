@@ -442,6 +442,10 @@ try {
     $boxCountsLogicRun = Invoke-TestScript $boxCountsLogic
     Assert-Equal 0 $boxCountsLogicRun.ExitCode `
         "box counts heading scope: $($boxCountsLogicRun.Stdout) $($boxCountsLogicRun.Stderr)"
+    $codexIdentityLogic = Join-Path $PSScriptRoot 'codex-identity-logic.ps1'
+    $codexIdentityLogicRun = Invoke-TestScript $codexIdentityLogic
+    Assert-Equal 0 $codexIdentityLogicRun.ExitCode `
+        "Codex identity kinds: $($codexIdentityLogicRun.Stdout) $($codexIdentityLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

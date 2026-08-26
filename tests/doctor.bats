@@ -304,3 +304,23 @@ EOF
   printf '%s\n' "$output" | awk 'NR==5{exit $0=="malformed"?0:1}'
   printf '%s\n' "$output" | awk 'NR==6{exit $0=="malformed"?0:1}'
 }
+
+LOGIC="$BATS_TEST_DIRNAME/windows/codex-identity-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable Codex identity shape suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'codex-identity-logic.ps1' "$RUN"
+  grep -qF 'Get-NSCodexIdentityKind' "$LOGIC"
+  grep -qF 'thread_abc' "$LOGIC"
+  grep -qF 'function Get-NSCodexIdentityKind' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
+}
+
+@test "Windows Codex identity kinds match POSIX when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}
