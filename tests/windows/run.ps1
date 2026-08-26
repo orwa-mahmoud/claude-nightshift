@@ -636,14 +636,14 @@ try {
     $neverUpper = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
     }
-    Assert-True ($neverUpper.Stdout -match 'neverCommitPatterns') 'neverCommitPatterns is case-insensitive'
+    Assert-True ($neverUpper.Stdout -match 'never-commit pattern') 'never-commit pattern matching is case-insensitive'
 
     $null = & git -C $workTarget reset --quiet HEAD -- secret.txt
     $amSecret = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
     }
     Assert-True ($amSecret.Stdout -notmatch 'implicitly') "implicit staging inspects the real diff ($(Format-HookResult $amSecret))"
-    Assert-True ($amSecret.Stdout -match 'neverCommitPatterns') "git commit -am still sees working-tree secrets ($(Format-HookResult $amSecret))"
+    Assert-True ($amSecret.Stdout -match 'never-commit pattern') "git commit -am still sees working-tree secrets ($(Format-HookResult $amSecret))"
     Remove-Item -LiteralPath $secretFile -Force
     $amClean = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'

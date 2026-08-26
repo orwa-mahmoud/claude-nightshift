@@ -559,7 +559,7 @@ function Get-NSCommandDenyReason {
                 return 'BLOCKED: this commit uses a form the never-commit guard cannot verify. Do not retry a rephrased form.'
             }
             if ($neverRegex.IsMatch([string]$diff)) {
-                return 'BLOCKED: the diff this commit would write matches neverCommitPatterns. Remove the protected content before committing.'
+                return 'BLOCKED: the diff this commit would write matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list.'
             }
         }
     }

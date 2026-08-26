@@ -47,3 +47,10 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
   grep -qF 'forbidden list' "$RUN"
   grep -qF 'forbidden list' "$LOGIC"
 }
+
+@test "Windows never-commit denials match POSIX wording" {
+  grep -qF 'matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list.' "$CORE"
+  grep -qF 'matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list.' "$HELPER"
+  grep -qF 'never-commit pattern' "$RUN"
+  grep -qF 'never-commit pattern' "$LOGIC"
+}

@@ -73,14 +73,14 @@ try {
     $commitStaged = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
-    Expect-True ($commitStaged -match 'neverCommitPatterns') "staged never-commit: $commitStaged"
+    Expect-True ($commitStaged -match 'never-commit pattern') "staged never-commit: $commitStaged"
 
     $null = & git reset --quiet HEAD -- secret.txt
     $commitAm = Get-NSCommandDenyReason -Command 'git commit -am x' -Scrubbed 'git commit -am MSG' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
     Expect-True ($commitAm -notmatch 'cannot verify') "git commit -am is modeled: $commitAm"
-    Expect-True ($commitAm -match 'neverCommitPatterns') "git commit -am never-commit: $commitAm"
+    Expect-True ($commitAm -match 'never-commit pattern') "git commit -am never-commit: $commitAm"
 
     Remove-Item -LiteralPath (Join-Path $root 'secret.txt') -Force
     $commitClean = Get-NSCommandDenyReason -Command 'git commit -am x' -Scrubbed 'git commit -am MSG' `
