@@ -78,6 +78,8 @@ an owner-specific denylist that host permissions alone do not express.
 
 Hooks enforce command and stop boundaries. They do not prove that the work behind a checked box is
 good. Verification belongs in each item's gate, and a human still reviews the resulting commits.
+Doctor (`/nightshift:doctor` on Claude Code, or ask Nightshift to diagnose on Codex) prints what
+Nightshift resolved — facts, warnings, and classified next actions — and never repairs.
 
 ## Questions, stalls, and deadlines
 
