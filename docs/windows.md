@@ -141,7 +141,11 @@ PowerShell parses `rules.json` exactly with `ConvertFrom-Json`. `forbiddenComman
 classes used by existing rules (`[[:space:]]`, `[[:digit:]]`, `[[:alnum:]]`, and related classes)
 and fails closed on any class it cannot map. `neverCommitPatterns` is case-insensitive, matching
 the POSIX `grep -qiE` guard. Implicitly staging commits (`-a`, `--all`, or a pathspec after `--`)
-inspect `git diff HEAD`, the same content those commits would write.
+inspect `git diff HEAD`, the same content those commits would write. `expectedEmail` compares
+`git config user.email` in the target repository. A command-line override (`-c user.email=`,
+`--author`, `GIT_AUTHOR_EMAIL`, or `$env:GIT_AUTHOR_EMAIL`) is denied because the guard cannot
+verify it. `protectedDirs` matches the paths Git would write; backslashes in those Git paths are
+normalized to `/` before comparing.
 
 Session and lease files are written in one directory, claimed atomically, and protected with a
 non-inherited ACL for the current user and Local System before capability content is written.

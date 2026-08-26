@@ -210,6 +210,15 @@ STUB
   printf '%s\n' "$setup" | grep -qF -- '-Workspace'
 }
 
+@test "native Windows rule docs name expected-email and protected-dir matching" {
+  w="$BATS_TEST_DIRNAME/../docs/windows.md"
+  rules="$(awk '/^## Rule and filesystem details$/{p=1; next} /^## /{p=0} p' "$w")"
+  printf '%s\n' "$rules" | grep -qF 'git config user.email'
+  printf '%s\n' "$rules" | grep -qF 'expectedEmail'
+  printf '%s\n' "$rules" | grep -qF 'protectedDirs'
+  printf '%s\n' "$rules" | grep -qF 'normalized to `/`'
+}
+
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
 @test "--agent swaps the headless runner in the generated entry" {
   p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
