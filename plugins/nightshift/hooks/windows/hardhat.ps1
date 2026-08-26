@@ -565,7 +565,7 @@ function Get-NSCommandDenyReason {
     }
 
     if ($null -ne $forbiddenRegex -and $forbiddenRegex.IsMatch($Scrubbed)) {
-        return 'BLOCKED: this command matches forbiddenCommands for the active shift. Do not retry a rephrased form.'
+        return "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
     }
     return ''
 }

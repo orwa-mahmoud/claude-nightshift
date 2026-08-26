@@ -612,7 +612,8 @@ try {
 
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
-    Assert-True ($forbidden.Stdout -match 'forbiddenCommands') 'PowerShell commands honor forbiddenCommands'
+    Assert-True ($forbidden.Stdout -match 'forbidden list') 'PowerShell commands honor the forbidden list'
+    Assert-True ($forbidden.Stdout -match 'parking-lot.md') 'a forbidden command names the parking lot'
 
     $wrongEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
         NIGHTSHIFT_EXPECTED_EMAIL = 'owner@nope.io'

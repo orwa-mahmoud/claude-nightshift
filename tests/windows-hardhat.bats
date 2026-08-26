@@ -38,3 +38,12 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
   grep -qF 'Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex).' "$HELPER"
   grep -qF 'run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex) to review the current template.' "$HELPER"
 }
+
+@test "Windows forbidden-command denials match POSIX wording" {
+  grep -qF "the command matches the owner's forbidden list" "$CORE"
+  grep -qF "the command matches the owner's forbidden list" "$HELPER"
+  grep -qF 'parking-lot.md and keep working' "$CORE"
+  grep -qF 'parking-lot.md and keep working' "$HELPER"
+  grep -qF 'forbidden list' "$RUN"
+  grep -qF 'forbidden list' "$LOGIC"
+}

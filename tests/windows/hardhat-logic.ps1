@@ -91,7 +91,8 @@ try {
     $push = Get-NSCommandDenyReason -Command 'git push origin HEAD' -Scrubbed 'git push origin HEAD' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands 'git .*push'
-    Expect-True ($push -match 'forbidden') "forbidden push: $push"
+    Expect-True ($push -match 'forbidden list') "forbidden push: $push"
+    Expect-True ($push -match 'parking-lot.md') "forbidden push names parking lot: $push"
 
     $wrongEmail = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
