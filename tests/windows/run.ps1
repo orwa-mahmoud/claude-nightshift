@@ -434,6 +434,10 @@ try {
     $doctorLogicRun = Invoke-TestScript $doctorLogic
     Assert-Equal 0 $doctorLogicRun.ExitCode `
         "doctor leftover/staged counts: $($doctorLogicRun.Stdout) $($doctorLogicRun.Stderr)"
+    $scheduleEmptyLogic = Join-Path $PSScriptRoot 'schedule-empty-logic.ps1'
+    $scheduleEmptyLogicRun = Invoke-TestScript $scheduleEmptyLogic
+    Assert-Equal 0 $scheduleEmptyLogicRun.ExitCode `
+        "schedule empty-list notes: $($scheduleEmptyLogicRun.Stdout) $($scheduleEmptyLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
