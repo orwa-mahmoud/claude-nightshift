@@ -258,6 +258,10 @@ PY
 @test "schedule names the Windows generator from the plugin root" {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1' "$SCHEDULE"
   ! grep -qF '`runtime\windows\schedule.ps1`' "$SCHEDULE"
+  grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -List' "$SCHEDULE"
+  grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -Remove' "$SCHEDULE"
+  grep -qF -- '`--list` / `-List`' "$SCHEDULE"
+  grep -qF -- '`--remove` / `-Remove`' "$SCHEDULE"
   grep -qF 'parked Hunt work order' \
     "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
   grep -qF 'drafting-table item' \
