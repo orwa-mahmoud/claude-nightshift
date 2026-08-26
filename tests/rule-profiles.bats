@@ -79,6 +79,8 @@ with open(p,"w") as f: json.dump(d,f)
   p="$(new_project)"
   run bash "$APPLY" --project "$p" --profile not-a-profile --mode fill
   [ "$status" -eq 1 ]
+  run bash "$APPLY" --project "$p" --profile '../nightshift-rules-template' --mode fill
+  [ "$status" -eq 1 ]
   : >"$p/.nightshift/.shift-armed"
   run bash "$APPLY" --project "$p" --profile no-push --mode fill --apply
   [ "$status" -eq 2 ]
