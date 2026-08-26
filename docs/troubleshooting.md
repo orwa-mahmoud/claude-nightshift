@@ -13,6 +13,8 @@ watchman can revive a live session sitting on a host API-error event. A Codex se
 no Escape or clean-session-end signal, so closing an interactive session with open Items hands the
 night to its watchman. `touch .nightshift/STOP` is the POSIX stop-work order;
 `New-Item -ItemType File -Force .nightshift\STOP` is its native Windows PowerShell equivalent.
+Write it in the folder that contains `.nightshift/` — the workspace, or the target of
+`.nightshift-link`. A STOP next to the link file is not the order.
 The full Windows boundary is in [Native Windows](windows.md).
 
 ## 0. Where is the site?

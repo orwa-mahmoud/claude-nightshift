@@ -214,7 +214,8 @@ Claude session exit is different: it tells the watchman to stand down until Star
 headless run has no Escape. On Claude Code, Escape in the shift transcript also tells the watchman
 to stand by. Codex exposes no equivalent owner-interrupt signal; closing an interactive Codex
 session with open Items leaves the armed shift to its watchman. To end the shift itself on either
-host, use the host command or create the portable stop-work order:
+host, use the host command or create the portable stop-work order in the folder that contains
+`.nightshift/` (not beside `.nightshift-link`):
 
 ```bash
 touch .nightshift/STOP

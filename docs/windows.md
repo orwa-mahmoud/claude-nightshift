@@ -64,7 +64,8 @@ The mechanical scaffold is also available without a model turn:
 Setup still asks before choosing gates, changing project permissions, migrating legacy state, or
 creating a receipts repository. The script itself asks nothing.
 
-The panic stop from a project terminal is:
+The panic stop from the Nightshift workspace — the folder that contains `.nightshift/`,
+not a linked task root — is:
 
 ```powershell
 New-Item -ItemType File -Force .nightshift\STOP

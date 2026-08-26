@@ -170,8 +170,9 @@ Nightshift moves the contract outside the conversation so the list and decisions
   consistent; they are not prerequisites for headless recovery or lease enforcement.
 - **The handoff is inspectable.** Local commits, timestamps, decisions, snags, and recovery events
   remain in plain files.
-- **The owner can always stop it.** Use the host command or `touch .nightshift/STOP`; unfinished
-  boxes remain open.
+- **The owner can always stop it.** Use the host command or `touch .nightshift/STOP` in the
+  folder that contains `.nightshift/` (not beside `.nightshift-link`); unfinished boxes remain
+  open.
 
 Read [How Nightshift works](docs/how-it-works.md) for recovery evidence, host differences,
 workspace layouts, mechanical guarantees, and limits.
@@ -316,7 +317,8 @@ independent of that history. The precise boundaries are in
 - The stall guard treats ticks and commits as progress, so failed-attempt commits can look alive;
   the item gate and deadline remain the backstop.
 - Stop the shift at any time with the host command, `touch .nightshift/STOP` on POSIX, or
-  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell.
+  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell — in the
+  folder that contains `.nightshift/`, not beside `.nightshift-link`.
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 

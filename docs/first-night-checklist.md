@@ -7,7 +7,8 @@ Use this once before leaving Nightshift unattended in a project.
 - **Choose permissions deliberately.** Pre-allow only what the work needs, or explicitly accept the
   unattended full-access option. Nightshift's owner-defined deny rules still matter; they are not a
   sandbox and do not replace reviewing the agent's permissions.
-- **Prove STOP before sleeping.** From another terminal run `touch .nightshift/STOP` on POSIX or
+- **Prove STOP before sleeping.** From another terminal, in the folder that contains
+  `.nightshift/` (not beside `.nightshift-link`), run `touch .nightshift/STOP` on POSIX or
   `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell, then confirm the
   next stop attempt ends the shift while unfinished boxes remain open. Remove the test STOP file
   and start a fresh shift afterward.
@@ -28,7 +29,8 @@ Use this once before leaving Nightshift unattended in a project.
 - **Leave pushing for morning.** Keep the default local-only commits, review the diff and receipts,
   then push or open a pull request yourself.
 
-The emergency stop is always available from the workspace root:
+The emergency stop is always available from the Nightshift workspace — the folder that
+contains `.nightshift/`, not a linked task root:
 
 ```sh
 touch .nightshift/STOP

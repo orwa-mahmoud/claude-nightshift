@@ -50,8 +50,10 @@ plugins\nightshift\runtime\windows\link-workspace.ps1 `
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected; Nightshift never searches for a workspace automatically.
 
-Stop-work order, any time, from a POSIX terminal: `touch .nightshift/STOP`. Native Windows
-PowerShell uses `New-Item -ItemType File -Force .nightshift\STOP`. On Claude Code, Escape
+Stop-work order, any time, from a POSIX terminal in the folder that contains `.nightshift/`:
+`touch .nightshift/STOP`. Native Windows PowerShell uses
+`New-Item -ItemType File -Force .nightshift\STOP`. A STOP next to `.nightshift-link` is not
+the order. On Claude Code, Escape
 pauses the interactive session and its watchman reads that interrupt before reviving. Codex exposes
 no equivalent owner-interrupt signal, so closing an interactive Codex session with open Items hands
 the shift to its watchman. STOP reaches either host, including a headless run, and ends the shift
