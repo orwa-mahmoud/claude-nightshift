@@ -228,7 +228,7 @@ On native Windows, preview with
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.
 Applying requires an explicit yes and `--apply` / `-Apply`. Fill never overwrites an owner value. Replace
 shows the complete next file first. Profiles are a one-time local copy — no network, no
-subscription. Refuse `--apply` while armed.
+subscription. Refuse `--apply` / `-Apply` while armed.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's top-level keys and its nested `toolDeny` keys to the owner's file
