@@ -3,6 +3,13 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.14.5](https://github.com/orwa-mahmoud/nightshift/compare/v0.14.4...v0.14.5) (2026-08-26)
+
+
+### Bug Fixes
+
+* **hooks:** classify the session host from its transcript path ([07f52e4](https://github.com/orwa-mahmoud/nightshift/commit/07f52e493a0c681952cc01511ac7653be655fe67))
+
 ## [0.14.4](https://github.com/orwa-mahmoud/nightshift/compare/v0.14.3...v0.14.4) (2026-08-23)
 
 
