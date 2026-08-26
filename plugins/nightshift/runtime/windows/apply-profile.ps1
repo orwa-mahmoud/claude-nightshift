@@ -53,7 +53,7 @@ if ($Mode -notin @('replace', 'fill')) {
     [Console]::Error.WriteLine('apply-profile: --mode must be replace or fill')
     exit 1
 }
-if ($Profile -notin @('balanced', 'no-push', 'strict-secrets')) {
+if ($Profile -notin @('balanced', 'no-push', 'strict-secrets', 'isolated-branch')) {
     [Console]::Error.WriteLine("apply-profile: unknown profile $Profile")
     exit 1
 }

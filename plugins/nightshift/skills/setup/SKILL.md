@@ -218,7 +218,7 @@ Claude Code's `$TASK_ROOT/.claude/settings.local.json` still carries `NIGHTSHIFT
 earlier version synced from this file, offer to remove them: the file is the one copy.
 
 **Local rule profiles — offer, never impose.** Setup may list the shipped examples in
-`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`) and preview
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`, `isolated-branch`) and preview
 one with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
 On native Windows, preview with

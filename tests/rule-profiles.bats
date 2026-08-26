@@ -6,7 +6,7 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
 
 @test "shipped profiles are version 1 and use only schema keys" {
   schema="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/nightshift-rules.schema.json"
-  for name in balanced no-push strict-secrets; do
+  for name in balanced no-push strict-secrets isolated-branch; do
     f="$PROFILES/$name.json"
     [ -f "$f" ]
     jq -e --arg n "$name" '.name == $n and .version == 1 and .risk and .use and (.rules|type=="object")' "$f" >/dev/null

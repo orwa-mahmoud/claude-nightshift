@@ -387,6 +387,28 @@ load helpers
 
 # The no-push recipe in docs/knobs.md is `git .*push` so that config injection cannot slip between the
 # words. This pins the recipe itself.
+@test "the isolated-branch recipe denies default-branch checkout, merge, and push" {
+  p="$(new_project)"
+  punch_open "$p"
+  recipe="$(jq -r '.rules.forbiddenCommands' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/profiles/isolated-branch.json")"
+  run hardhat_bash "$p" "git checkout main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git switch master" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git checkout origin/main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git merge feature" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git -c http.proxy=x push origin main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git checkout -b nightshift/product-evolution-2026-08-27" \
+    NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_allow
+  run hardhat_bash "$p" "git commit -m 'merge and push later'" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_allow
+}
+
 @test "the no-push recipe catches git -c k=v push" {
   p="$(new_project)"
   punch_open "$p"

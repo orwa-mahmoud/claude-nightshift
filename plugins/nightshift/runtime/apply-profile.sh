@@ -69,7 +69,7 @@ case "$MODE" in
   *) printf 'apply-profile: --mode must be replace or fill\n' >&2; exit 1 ;;
 esac
 case "$PROFILE" in
-  balanced | no-push | strict-secrets) ;;
+  balanced | no-push | strict-secrets | isolated-branch) ;;
   *) printf 'apply-profile: unknown profile %s\n' "$PROFILE" >&2; exit 1 ;;
 esac
 SRC="$PROFILES/${PROFILE}.json"
