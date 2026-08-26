@@ -60,7 +60,8 @@ A scheduled run is headless and cannot answer a prompt. On Claude Code, if neith
 `$TASK_ROOT/.claude/settings.local.json` nor `$TASK_ROOT/.claude/settings.json` grants
 frictionless permissions, warn
 once. On Codex the grant travels in the command itself — the generator's
-`--agent 'codex exec -s danger-full-access'` carries it — so a Codex entry generated
+`--agent 'codex exec -s danger-full-access'` (POSIX) or
+`-Agent 'codex exec -s danger-full-access'` (native Windows) carries it — so a Codex entry generated
 without that agent will stall on the
 first tool that asks. Setup offers the fix.
 

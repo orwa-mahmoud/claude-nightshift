@@ -262,6 +262,8 @@ PY
   grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -Remove' "$SCHEDULE"
   grep -qF -- '`--list` / `-List`' "$SCHEDULE"
   grep -qF -- '`--remove` / `-Remove`' "$SCHEDULE"
+  grep -qF -- "-Agent 'codex exec -s danger-full-access'" "$SCHEDULE"
+  grep -qF -- "--agent 'codex exec -s danger-full-access'" "$SCHEDULE"
   grep -qF 'parked Hunt work order' \
     "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
   grep -qF 'drafting-table item' \

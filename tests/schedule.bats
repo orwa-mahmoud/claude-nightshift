@@ -159,6 +159,10 @@ STUB
   grep -qi 'cannot answer a prompt' "$s"     # headless permissions
   grep -qi 'install nothing' "$s"            # generator, never a daemon
 
+  perms="$(awk '/^## 3\./ { capture=1; next } /^## 4\./ { exit } capture' "$s")"
+  printf '%s\n' "$perms" | grep -qF -- "--agent 'codex exec -s danger-full-access'"
+  printf '%s\n' "$perms" | grep -qF -- "-Agent 'codex exec -s danger-full-access'"
+
   arming="$(awk '/^## 4\./ { capture=1; next } /^## 5\./ { exit } capture' "$s")"
   printf '%s\n' "$arming" | grep -qF '.shift-armed'
   printf '%s\n' "$arming" | grep -qi 'do not activate'
