@@ -337,7 +337,7 @@ try {
         $null = Write-NSAtomicLines -Path $stall -Lines @($fingerprint, [string]$attempts)
     }
     else {
-        Write-NSLogLine 'stall guard down - stallMax/stallWarnEvery unreadable; run Setup again'
+        Write-NSLogLine 'stall guard down - stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)'
     }
 }
 finally {
@@ -349,4 +349,4 @@ finally {
 if (-not [string]::IsNullOrEmpty($gateMessage)) {
     Write-Block $gateMessage
 }
-Write-Block 'DO NOT STOP - the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item''s gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: clockOutMessage is unreadable; run Setup again.)'
+Write-Block 'DO NOT STOP - the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item''s gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage - unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)'
