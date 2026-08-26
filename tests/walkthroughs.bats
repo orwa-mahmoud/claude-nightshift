@@ -185,6 +185,9 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'leftover Shift contract and Gates' "$s"
   grep -qF '## Notes' "$s"
   grep -qF 'Never write' "$s"
+  grep -qF 'git -C "$NS"' "$s"
+  grep -qF 'user.email=nightshift@localhost' "$s"
+  grep -qF 'commit.gpgsign=false' "$s"
 }
 
 @test "status surfaces the active product cycle without mutating it" {

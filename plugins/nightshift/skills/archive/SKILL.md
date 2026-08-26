@@ -86,7 +86,17 @@ run (create parents; re-running on the same day appends to that day's files).
 Best between shifts. During an active shift with open boxes, say so and ask before moving
 anything — the ticked lines are the night's scoreboard, and the owner may want the morning
 review to see them in place. If the receipts repo exists (`$NS/.git`), commit after
-archiving so the move itself has history.
+archiving so the move itself has history. Use the same headless identity the clock-out gate
+uses, and turn signing off so a global `commit.gpgsign=true` cannot stall:
+
+```bash
+git -C "$NS" add -A
+git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
+  -c commit.gpgsign=false commit -q -m "archive"
+```
+
+On native Windows the same `git -C` flags work in PowerShell. Nothing to commit is success.
+Never add a remote, never push.
 
 ## Retention
 
