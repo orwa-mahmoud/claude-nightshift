@@ -194,6 +194,14 @@ STUB
   grep -qF 'import-issues, apply-profile, and export-support helpers' "$w"
 }
 
+@test "native Windows setup docs name the workspace linker" {
+  w="$BATS_TEST_DIRNAME/../docs/windows.md"
+  setup="$(awk '/^## Setup and start$/{p=1; next} /^## /{p=0} p' "$w")"
+  printf '%s\n' "$setup" | grep -qF 'runtime\windows\link-workspace.ps1'
+  printf '%s\n' "$setup" | grep -qF -- '-HostRoot'
+  printf '%s\n' "$setup" | grep -qF -- '-Workspace'
+}
+
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
 @test "--agent swaps the headless runner in the generated entry" {
   p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
