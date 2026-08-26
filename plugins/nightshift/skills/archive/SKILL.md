@@ -41,7 +41,8 @@ A newer or malformed marker fails closed — file nothing, rewrite nothing, and 
 
 ## Where it goes
 
-Everything lands in `$NS/archive/<YYYY-MM-DD>/` — today's date, one folder per archive
+Everything lands in `$NS/archive/<YYYY-MM-DD>/` — today's date (`date +%Y-%m-%d` on POSIX, or
+`Get-Date -Format yyyy-MM-dd` on native Windows), one folder per archive
 run (create parents; re-running on the same day appends to that day's files).
 
 ## What moves, what stays

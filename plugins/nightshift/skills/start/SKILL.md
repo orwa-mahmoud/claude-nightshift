@@ -162,7 +162,8 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  slash commands on Claude Code, or ask Nightshift for the named skill on Codex.
 - The working tree is clean enough to commit per item (warn if not).
 - **Rotate the journal before it becomes one.** If `$NS/shift-log.md` is larger than
- ~500 KB, move it to `$NS/archive/<YYYY-MM-DD>/shift-log.md` and start a fresh one
+ ~500 KB, move it to `$NS/archive/<YYYY-MM-DD>/shift-log.md` (today's date with
+ `date +%Y-%m-%d` on POSIX, or `Get-Date -Format yyyy-MM-dd` on native Windows) and start a fresh one
  with the same one-line header. Only the mechanical journal auto-rotates — `snag-log.md` and
  `parking-lot.md` are the owner's review material; Archive files those on the owner's order.
 - **Require an exact JSON parser for tool rules.** `jq` or `python3` must be available before

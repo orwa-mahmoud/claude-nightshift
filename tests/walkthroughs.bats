@@ -175,6 +175,10 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'stay exactly where they are' "$s"      # open items + contract stay
   grep -qF 'never ticks a box' "$s"                # files paperwork, does no work
   grep -qF 'archive/<YYYY-MM-DD>/' "$s"            # dated folders are the shape
+  grep -qF 'date +%Y-%m-%d' "$s"
+  grep -qF 'Get-Date -Format yyyy-MM-dd' "$s"
+  grep -qF 'date +%Y-%m-%d' "$START"
+  grep -qF 'Get-Date -Format yyyy-MM-dd' "$START"
   grep -qF 'unanswered stay' "$s"                  # open questions are not history
   grep -qF 'product-research.md' "$s"             # completed research is preserved
   grep -qF '`candidate`, `building`, and `parked`' "$s" # nonterminal opportunities stay live
