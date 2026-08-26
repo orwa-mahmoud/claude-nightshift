@@ -202,6 +202,22 @@ if [ "$MODE" = "preflight" ]; then
   if [ "$open" -eq 0 ]; then
     pf "FAIL punch list has no open items — a scheduled start promotes nothing"
     fail=1
+    if [ -f "$PROJECT/.nightshift/work-orders.md" ]; then
+      orders="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PROJECT/.nightshift/work-orders.md" 2>/dev/null || true)"
+      if [ "${orders:-0}" -gt 0 ]; then
+        pf "NOTE $orders parked Hunt work order(s) — start will not promote them"
+      fi
+    fi
+    if [ -f "$PROJECT/.nightshift/drafting-table.md" ]; then
+      drafts="$(awk '
+        /^---[[:space:]]*$/ { seen=1; next }
+        seen && /^[[:space:]]*-[[:space:]]*\[[[:space:]]\]/ { n++ }
+        END { print n+0 }
+      ' "$PROJECT/.nightshift/drafting-table.md")"
+      if [ "$drafts" -gt 0 ]; then
+        pf "NOTE $drafts drafting-table item(s) — start will not promote them"
+      fi
+    fi
   else
     pf "OK   punch list has $open open item(s)"
   fi
@@ -330,7 +346,24 @@ fi
 # empty list at %s means the run does nothing at all.
 if [ "$(ns_open_boxes "$PROJECT/.nightshift/punch-list.md")" -eq 0 ]; then
   printf 'Note: the punch list has no open items. A scheduled start works the list it finds and\n'
-  printf 'promotes nothing, so queue the work before %s or the run will find nothing to do.\n\n' "$AT"
+  printf 'promotes nothing, so queue the work before %s or the run will find nothing to do.\n' "$AT"
+  if [ -f "$PROJECT/.nightshift/work-orders.md" ]; then
+    orders="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$PROJECT/.nightshift/work-orders.md" 2>/dev/null || true)"
+    if [ "${orders:-0}" -gt 0 ]; then
+      printf 'Parked Hunt work orders: %s (start will not promote them).\n' "$orders"
+    fi
+  fi
+  if [ -f "$PROJECT/.nightshift/drafting-table.md" ]; then
+    drafts="$(awk '
+      /^---[[:space:]]*$/ { seen=1; next }
+      seen && /^[[:space:]]*-[[:space:]]*\[[[:space:]]\]/ { n++ }
+      END { print n+0 }
+    ' "$PROJECT/.nightshift/drafting-table.md")"
+    if [ "$drafts" -gt 0 ]; then
+      printf 'Drafting-table items: %s (start will not promote them).\n' "$drafts"
+    fi
+  fi
+  printf '\n'
 fi
 
 printf 'Scheduled start for %s at %s\n\n' "$PROJECT" "$AT"

@@ -201,6 +201,31 @@ if ($Preflight) {
     if ($counts.Open -eq 0) {
         $failures.Add('punch list has no open items')
         'FAIL punch list has no open items - a scheduled start promotes nothing'
+        $ordersPath = Join-Path $ns 'work-orders.md'
+        if (Test-Path -LiteralPath $ordersPath -PathType Leaf) {
+            $orders = 0
+            foreach ($line in [IO.File]::ReadLines($ordersPath)) {
+                if ($line -match '^\s*-\s*\[\s\]') { $orders++ }
+            }
+            if ($orders -gt 0) {
+                "NOTE $orders parked Hunt work order(s) - start will not promote them"
+            }
+        }
+        $draftsPath = Join-Path $ns 'drafting-table.md'
+        if (Test-Path -LiteralPath $draftsPath -PathType Leaf) {
+            $drafts = 0
+            $seenRule = $false
+            foreach ($line in [IO.File]::ReadLines($draftsPath)) {
+                if (-not $seenRule) {
+                    if ($line -match '^---\s*$') { $seenRule = $true }
+                    continue
+                }
+                if ($line -match '^\s*-\s*\[\s\]') { $drafts++ }
+            }
+            if ($drafts -gt 0) {
+                "NOTE $drafts drafting-table item(s) - start will not promote them"
+            }
+        }
     }
     else {
         "OK   punch list has $($counts.Open) open item(s)"

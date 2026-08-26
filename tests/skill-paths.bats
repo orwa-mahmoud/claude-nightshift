@@ -224,6 +224,10 @@ PY
 @test "schedule names the Windows generator from the plugin root" {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1' "$SCHEDULE"
   ! grep -qF '`runtime\windows\schedule.ps1`' "$SCHEDULE"
+  grep -qF 'parked Hunt work order' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
+  grep -qF 'drafting-table item' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
 }
 
 @test "no skill executable uses a cwd-relative marker or plugin helper" {
