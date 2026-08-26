@@ -37,7 +37,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 }
 
 @test "every template setup copies is present" {
-  for t in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
+  for t in punch-list drafting-table parking-lot snag-log product-research opportunity-map work-orders; do
     [ -f "$REF/$t-template.md" ] || { echo "missing $t-template.md"; return 1; }
     grep -qF "$t-template.md" "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md" \
       || { echo "setup does not scaffold $t-template.md"; return 1; }
