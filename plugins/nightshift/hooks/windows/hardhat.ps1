@@ -541,7 +541,7 @@ function Get-NSCommandDenyReason {
         }
         if (-not [string]::IsNullOrEmpty($ExpectedEmail) `
             -and $Scrubbed -match '(?i)-c\s*user\.email=|--author|GIT_(AUTHOR|COMMITTER)_EMAIL=|\$env:GIT_(AUTHOR|COMMITTER)_EMAIL') {
-            return 'BLOCKED: this commit overrides the author identity on the command line, which the expected-identity guard cannot verify. Commit with the repository configured identity.'
+            return "BLOCKED: this commit overrides the author identity on the command line, which the expected-identity guard cannot verify. Commit with the repository's configured identity."
         }
         $repository = Resolve-NSCommandRepository $Command $CurrentDirectory $Workspace
         if ([string]::IsNullOrEmpty($repository)) {
@@ -550,7 +550,7 @@ function Get-NSCommandDenyReason {
         if (-not [string]::IsNullOrEmpty($ExpectedEmail)) {
             $email = Invoke-NSGit $repository @('config', 'user.email')
             if ($email -ne $ExpectedEmail) {
-                return "BLOCKED: Git user.email is '$email', expected '$ExpectedEmail'. Configure the repository identity before committing."
+                return "BLOCKED: committer identity ('$email') is not the expected '$ExpectedEmail'. Fix git config user.email, then retry."
             }
         }
         if ($null -ne $neverRegex) {

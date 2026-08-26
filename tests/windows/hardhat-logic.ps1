@@ -1,6 +1,7 @@
 # Portable PowerShell probe for Windows hardhat command guards.
 # Run on macOS or Windows before pushing: pwsh -File tests/windows/hardhat-logic.ps1
-# It does not replace windows-native CI (ACLs, mutexes, dispatchers).
+# It does not replace windows-native CI (ACLs, mutexes, dispatchers), and Windows CI
+# also runs it via tests/windows/run.ps1.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
@@ -64,6 +65,9 @@ try {
         -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
     Expect-True ($addDeleted -match 'protected directory') "git add -A deletion: $addDeleted"
 
+    [IO.File]::WriteAllText((Join-Path $root 'secret.txt'), "placeholder`n")
+    $null = & git add -- secret.txt
+    $null = & git commit --quiet -m secret-seed
     [IO.File]::WriteAllText((Join-Path $root 'secret.txt'), "SECRET_KEY=abc`n")
     $null = & git add -- secret.txt
     $commitStaged = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
@@ -88,6 +92,25 @@ try {
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands 'git .*push'
     Expect-True ($push -match 'forbidden') "forbidden push: $push"
+
+    $wrongEmail = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'owner@nope.io' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($wrongEmail -match "committer identity \('dev@example.com'\) is not the expected 'owner@nope.io'") `
+        "wrong expectedEmail: $wrongEmail"
+    Expect-True ($wrongEmail -match 'Fix git config user.email') "wrong expectedEmail names git config: $wrongEmail"
+
+    $rightEmail = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ([string]::IsNullOrWhiteSpace($rightEmail)) "expected identity is allowed: $rightEmail"
+
+    $overrideEmail = Get-NSCommandDenyReason -Command 'git -c user.email=other@example.com commit -m x' `
+        -Scrubbed 'git -c user.email=other@example.com commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($overrideEmail -match "repository's configured identity") `
+        "command-line identity override: $overrideEmail"
 }
 finally {
     Set-Location $repository

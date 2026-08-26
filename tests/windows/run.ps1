@@ -454,6 +454,10 @@ try {
     $migrateStateLogicRun = Invoke-TestScript $migrateStateLogic
     Assert-Equal 0 $migrateStateLogicRun.ExitCode `
         "migrate-state armed refuse: $($migrateStateLogicRun.Stdout) $($migrateStateLogicRun.Stderr)"
+    $hardhatLogic = Join-Path $PSScriptRoot 'hardhat-logic.ps1'
+    $hardhatLogicRun = Invoke-TestScript $hardhatLogic
+    Assert-Equal 0 $hardhatLogicRun.ExitCode `
+        "hardhat expectedEmail: $($hardhatLogicRun.Stdout) $($hardhatLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
@@ -609,6 +613,21 @@ try {
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
     Assert-True ($forbidden.Stdout -match 'forbiddenCommands') 'PowerShell commands honor forbiddenCommands'
+
+    $wrongEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'owner@nope.io'
+    }
+    Assert-True ($wrongEmail.Stdout -match 'committer identity') 'wrong expectedEmail is denied'
+    Assert-True ($wrongEmail.Stdout -match 'Fix git config user.email') 'wrong expectedEmail names git config'
+    $rightEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
+    }
+    Assert-True ([string]::IsNullOrWhiteSpace($rightEmail.Stdout)) 'the expected identity is allowed'
+    $overrideEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git -c user.email=other@example.com commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
+    }
+    Assert-True ($overrideEmail.Stdout -match "repository's configured identity") `
+        'a command-line identity override is denied'
 
     $secretFile = Join-Path $workTarget 'secret.txt'
     [IO.File]::WriteAllText($secretFile, "SECRET_KEY=abc`n")
