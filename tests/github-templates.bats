@@ -15,6 +15,11 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
   grep -qF 'Codex and Claude Code' "$CONTRIBUTING"
 }
 
+@test "CONTRIBUTING names the Windows CI job" {
+  grep -qF 'windows-native' "$CONTRIBUTING"
+  grep -qF 'tests/windows/run.ps1' "$CONTRIBUTING"
+}
+
 parse_yaml() {
   ruby -ryaml -e 'YAML.load_file(ARGV[0]); puts "ok"' "$1"
 }
