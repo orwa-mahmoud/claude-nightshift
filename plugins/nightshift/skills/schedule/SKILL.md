@@ -43,9 +43,13 @@ Count the open `- [ ]` in `$NS/punch-list.md`:
 
 - **Items present** — say what they are in one line and carry on.
 - **None** — say so plainly and offer the ways to fix it: compose a shift now with
- Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), promote
- something from `$NS/drafting-table.md`, or write an item by hand. Then re-check. Never
- schedule an empty list without saying it will do nothing.
+ Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), cut an
+ ordinary draft from `$NS/drafting-table.md`, cut a `Status: proposed` import with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --promote …`
+ (on native Windows,
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`),
+ or write an item by hand. Then re-check. Never schedule an empty list without saying it
+ will do nothing.
 
 A parked work order is not queued work. If one exists, say so: it must be moved into the punch list
 before the scheduled time, because start will not promote it.

@@ -153,6 +153,9 @@ STUB
   [ -f "$s" ]
   grep -qi 'promotes nothing' "$s"           # an empty list is a run that does nothing
   grep -qF 'Hunt' "$s"                       # and how to fix that
+  grep -qF 'Status: proposed' "$s"
+  grep -qF -- '--promote' "$s"
+  grep -qF -- '-Promote' "$s"
   grep -qi 'cannot answer a prompt' "$s"     # headless permissions
   grep -qi 'install nothing' "$s"            # generator, never a daemon
 
