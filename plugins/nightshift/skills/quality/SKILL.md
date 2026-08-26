@@ -104,7 +104,12 @@ target validation, stale run-control markers, deadline handling, rules, and unat
 Only after it passes, cut the order and arm one shift with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
-Windows PowerShell; log the start and arm the watchman exactly as the Start skill requires.
+Windows PowerShell; log the start and arm the watchman exactly as the Start
+skill requires. Claude Code uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh`; Codex uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; native Windows uses
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
+`-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`).
 Implement and verify the selected entry contracts, and continue
 until the finite work is clear or the shared deadline ends. Record significant decisions and
 rollback instructions in `$NS/parking-lot.md`; never create a second

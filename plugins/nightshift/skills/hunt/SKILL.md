@@ -143,8 +143,13 @@ copy — it must not exist in two places), write
 `$NS/deadline` from the recorded hours, **arm the gate** with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
-Windows PowerShell, log the start, arm the watchman. The
-marker is what starts the shift — without it the list is written and nothing is holding it. From
+Windows PowerShell, log the start, and arm the watchman as the Start skill
+requires. Claude Code uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh`; Codex uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; native Windows uses
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
+`-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`).
+The marker is what starts the shift — without it the list is written and nothing is holding it. From
 that second the gate holds this session until the list is done, a stop-work order lands, or the
 whistle blows. An empty `## Items` section still keeps the Shift contract and Gates; they bind
 the cut item. Record leftover campaign rules in `$NS/parking-lot.md` when they are not this

@@ -139,6 +139,7 @@ PY
   grep -qF '$NS/.shift-armed' "$START"
   grep -qF 'runtime/claude/watchman.sh' "$START"
   grep -qF 'runtime/codex/watchman.sh' "$START"
+  grep -qF 'start-watchman.ps1' "$START"
   grep -qF '### Bind this session' "$START"
   grep -qF '$NS/.shift-lease' "$START"
   grep -qF 'ns_lease_reset_stale' "$START"
@@ -204,6 +205,19 @@ PY
       || { echo "missing POSIX arm: $f"; return 1; }
     grep -qF 'New-Item -ItemType File -Force "$NS\.shift-armed"' "$f" \
       || { echo "missing Windows arm: $f"; return 1; }
+  done
+}
+
+# Hunt and Quality start a shift without a second command. Naming only .shift-armed
+# left Windows and Codex to invent a launcher; Start already ships the three.
+@test "hunt and quality name the same watchman launchers as start" {
+  for f in "$START" "$HUNT" "$QUALITY"; do
+    grep -qF 'runtime/claude/watchman.sh' "$f" \
+      || { echo "missing Claude watchman: $f"; return 1; }
+    grep -qF 'runtime/codex/watchman.sh' "$f" \
+      || { echo "missing Codex watchman: $f"; return 1; }
+    grep -qF 'start-watchman.ps1' "$f" \
+      || { echo "missing Windows watchman: $f"; return 1; }
   done
 }
 
@@ -279,6 +293,8 @@ PY
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/status/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$SKILLS/import-issues/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$HUNT"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$HUNT"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$QUALITY"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\retain-history.ps1' "$SKILLS/archive/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$START"
