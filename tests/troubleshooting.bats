@@ -32,6 +32,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'watchMinutes' "$DOC"
   grep -qF 'leftover Shift contract' "$DOC"
   grep -qF 'leftover Shift contract' "$HOW"
+  grep -qF 'Hunt or Quality when they start immediately' "$HOW"
+  grep -qF 'Hunt or Quality when they start immediately' "$DOC"
 }
 
 @test "troubleshooting marks checks before repairs and splits the hosts" {

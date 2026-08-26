@@ -194,7 +194,8 @@ Start; on native Windows, import `lib\Nightshift.psm1` and call
 
 ## 6. Missing session identity
 
-**Check.** Immediately after arming, Start makes a harmless Bash binding probe on POSIX or a
+**Check.** Immediately after arming, Start — and Hunt or Quality when they start immediately —
+make a harmless Bash binding probe on POSIX or a
 PowerShell binding probe on native Windows. It writes
 `.nightshift/.shift-session` before item work. Typical layout: session id, transcript or rollout
 path, pid, process start time, host (`claude` or `codex`). Claude fills the process fields when it

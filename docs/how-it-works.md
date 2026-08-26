@@ -43,7 +43,8 @@ Archive files ticked items and never resets the leftover Shift contract or Gates
 composing a new campaign. Status and Doctor report the leftover; Archive writes a Notes reminder
 when a campaign is fully filed.
 
-Immediately after arming, Start makes a harmless host-shell probe—Bash on POSIX, PowerShell on
+Immediately after arming, Start — and Hunt or Quality when they start immediately — make a
+harmless host-shell probe—Bash on POSIX, PowerShell on
 native Windows—that records `.shift-session` before item work and creates `.shift-lease` for that
 process. Passive reads, searches, and MCP calls cannot
 make that first claim. The complete session record appears atomically; if two Start probes race,
