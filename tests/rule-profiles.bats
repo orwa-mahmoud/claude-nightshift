@@ -94,3 +94,9 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'every version-1 JSON file' "$SETUP"
   grep -qF 'every version-1 JSON file' "$BATS_TEST_DIRNAME/../docs/knobs.md"
 }
+
+@test "Windows apply-profile usage errors name native flags" {
+  ps1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/apply-profile.ps1"
+  grep -qF -- '-Mode must be replace or fill' "$ps1"
+  ! grep -qF '--mode must be' "$ps1"
+}

@@ -50,7 +50,7 @@ if ($List) {
 }
 
 if ($Mode -notin @('replace', 'fill')) {
-    [Console]::Error.WriteLine('apply-profile: --mode must be replace or fill')
+    [Console]::Error.WriteLine('apply-profile: -Mode must be replace or fill')
     exit 1
 }
 if ([string]::IsNullOrEmpty($Profile) -or $Profile -notmatch '^[A-Za-z0-9_-]+$') {
