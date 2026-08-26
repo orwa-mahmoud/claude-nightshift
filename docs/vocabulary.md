@@ -5,6 +5,8 @@ Everything is named after construction-site work — learn one term, guess the r
 | Term | File / mechanism | Meaning |
 |---|---|---|
 | **punch list** | `.nightshift/punch-list.md` | construction's final acceptance list — the job isn't done until every item is cleared and signed off; the Shift contract above Items survives Archive and binds the next cut |
+| **state workspace** | `.nightshift/` | the folder that owns run state — punch list, rules, receipts; may sit beside or above the work target |
+| **work target** | `.nightshift/work-target` | the Git repository that receives stack detection, gates, commits, and verification |
 | **clock-out gate** | Stop hook + `.shift-armed` | the bound session can't clock out while the armed punch list has open Items |
 | **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns; denied, not discouraged |
 | **process lease** | `.nightshift/.shift-lease` | transient ownership of the active shift process — each watchman recovery advances its generation, admitting the recovered worker and fencing stale processes on the same conversation without locking other tabs |
