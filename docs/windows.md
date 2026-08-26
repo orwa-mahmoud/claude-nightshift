@@ -105,6 +105,7 @@ profiles, and a local support bundle:
 ```powershell
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project C:\path\to\workspace
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\retain-history.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project C:\path\to\workspace -ListProposed
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project C:\path\to\workspace -List
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\export-support.ps1" -Project C:\path\to\workspace
 ```
@@ -150,7 +151,7 @@ PowerShell 7. It uses local host fixtures—no account or model subscription—t
 
 - setup and paths containing spaces;
 - workspace links and persisted work targets;
-- Doctor, migrate-state, retain-history, apply-profile, and export-support helpers;
+- Doctor, migrate-state, retain-history, import-issues, apply-profile, and export-support helpers;
 - PID/start-time evidence;
 - atomic session and lease ownership;
 - command, rules-file, and lease-file denials;

@@ -182,6 +182,14 @@ STUB
   printf '%s\n' "$block" | grep -qF -- '-Remove'
 }
 
+@test "native Windows helper docs name import-issues" {
+  w="$BATS_TEST_DIRNAME/../docs/windows.md"
+  helpers="$(awk '/^## Doctor and other helpers$/{p=1; next} /^## /{p=0} p' "$w")"
+  printf '%s\n' "$helpers" | grep -qF 'runtime\windows\import-issues.ps1'
+  printf '%s\n' "$helpers" | grep -qF -- '-ListProposed'
+  grep -qF 'import-issues, apply-profile, and export-support helpers' "$w"
+}
+
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
 @test "--agent swaps the headless runner in the generated entry" {
   p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
