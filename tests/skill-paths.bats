@@ -221,6 +221,21 @@ PY
   done
 }
 
+# The Codex watchman must not arm against an unsupported identity. Hunt's listed
+# start steps used to jump from .shift-armed to the launcher.
+@test "hunt and quality run the binding probe and Codex identity checkpoint before the watchman" {
+  for f in "$START" "$HUNT" "$QUALITY"; do
+    grep -qF ': nightshift-binding-probe' "$f" \
+      || { echo "missing POSIX binding probe: $f"; return 1; }
+    grep -qF "\$null = 'nightshift-binding-probe'" "$f" \
+      || { echo "missing Windows binding probe: $f"; return 1; }
+    grep -qF 'ns_codex_identity_kind' "$f" \
+      || { echo "missing Codex identity helper: $f"; return 1; }
+    grep -qF 'Get-NSCodexIdentityKind' "$f" \
+      || { echo "missing Windows Codex identity helper: $f"; return 1; }
+  done
+}
+
 @test "start and schedule inspect Claude settings at the task root" {
   grep -qF '$TASK_ROOT/.claude/settings.local.json' "$START"
   grep -qF '$TASK_ROOT/.claude/settings.json' "$START"

@@ -104,8 +104,14 @@ target validation, stale run-control markers, deadline handling, rules, and unat
 Only after it passes, cut the order and arm one shift with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
-Windows PowerShell; log the start and arm the watchman exactly as the Start
-skill requires. Claude Code uses
+Windows PowerShell; log the start, run the binding probe
+(`: nightshift-binding-probe` on POSIX, `$null = 'nightshift-binding-probe'`
+on native Windows), classify Codex `$NS/.shift-session` line 1 with
+`ns_codex_identity_kind` from `$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh` (native
+Windows: `Get-NSCodexIdentityKind`) before arming the watchman or beginning
+item work, and arm the watchman exactly as the Start skill requires.
+Unsupported or malformed identities refuse as Start requires — never resume
+them. Claude Code uses
 `$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh`; Codex uses
 `$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; native Windows uses
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
