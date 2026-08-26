@@ -230,6 +230,19 @@ PY
     "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
 }
 
+@test "Windows schedule generate names parked work on an empty list" {
+  ps1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
+  grep -qF 'Note: the punch list has no open items' "$ps1"
+  grep -qF 'Parked Hunt work orders:' "$ps1"
+  grep -qF 'Drafting-table items:' "$ps1"
+  awk '
+    /if \(\$Preflight\)/ { pre=NR }
+    /Note: the punch list has no open items/ { note=NR }
+    /"Scheduled start for/ { start=NR }
+    END { exit !(pre && note && start && pre < note && note < start) }
+  ' "$ps1"
+}
+
 @test "no skill executable uses a cwd-relative marker or plugin helper" {
   if grep -R --include='SKILL.md' -E '`touch \.nightshift/' "$SKILLS"; then
     echo "cwd-relative POSIX nightshift command in a skill" >&2

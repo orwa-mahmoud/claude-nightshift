@@ -307,6 +307,21 @@ if ($AsJson) {
     exit 0
 }
 
+$counts = Get-NSBoxCounts (Join-Path $ns 'punch-list.md')
+if ($counts.Open -eq 0) {
+    'Note: the punch list has no open items. A scheduled start works the list it finds and'
+    "promotes nothing, so queue the work before $timeText or the run will find nothing to do."
+    $orders = Get-NSOpenBoxesInFile (Join-Path $ns 'work-orders.md')
+    if ($orders -gt 0) {
+        "Parked Hunt work orders: $orders (start will not promote them)."
+    }
+    $drafts = Get-NSOpenDrafts (Join-Path $ns 'drafting-table.md')
+    if ($drafts -gt 0) {
+        "Drafting-table items: $drafts (start will not promote them)."
+    }
+    ''
+}
+
 "Scheduled start for $workspace at $timeText"
 ''
 "Task: $taskPath$taskName"
