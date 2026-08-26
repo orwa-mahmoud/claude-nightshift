@@ -113,7 +113,7 @@ own_rc=$?
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
   case "$TOOL" in
     Bash | AskUserQuestion | Edit | Write | MultiEdit | NotebookEdit)
-      ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" claude || true
+      ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" "$(ns_claude_session_host "${TPATH:-}")" || true
       ;;
   esac
 fi
