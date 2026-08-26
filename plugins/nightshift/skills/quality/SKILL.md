@@ -70,10 +70,12 @@ remaining time. In Guided mode keep only the areas and scope the owner selected.
 When review first was chosen, summarize evidence per catalog entry and top-level directory in plain
 numbers, then show the exact ordered work order. Offer three answers:
 
-- **fix now** — compose one work order from the selected catalog entries and start it here through
- the Hunt cut and Start lifecycle. Preserve every entry's contract. Apply the one
- deadline chosen for the combined shift. Follow Start's entire preflight before cutting or
- arming, exactly as run directly does.
+- **fix now** — compose one Hunt work order from the selected catalog entries: append it to
+ `$NS/work-orders.md` (heading, hours, and item; never clobber orders already
+ sitting there), then cut and start it through the Hunt cut and Start lifecycle. Never write
+ the punch list first. Preserve every entry's contract. Apply the one deadline chosen for the
+ combined shift. Follow Start's entire preflight before cutting or arming, exactly as run
+ directly does.
 - **draft for later** — append them to `$NS/drafting-table.md` and arm nothing. The
  drafting table is staging: it is never read by the gate, which is exactly why proposals can wait
  there safely. Tell the owner they can promote what they want into the punch list and run Start
@@ -88,8 +90,10 @@ agreed to — the box and the start belong together, or neither happens.
 
 ## 5. Run directly
 
-When run directly was chosen, do not present the three-answer review menu. Compose one ordered work
-order, then enter the same Hunt cut and Start lifecycle used by **fix now**. Follow
+When run directly was chosen, do not present the three-answer review menu. Compose one ordered Hunt
+work order, append it to `$NS/work-orders.md` (heading, hours, and item; never
+clobber orders already sitting there), then enter the same Hunt cut and Start lifecycle used by
+**fix now**. Never write the punch list first. Follow
 Start's entire preflight before cutting or arming, including the one-shift check, state and work
 target validation, stale run-control markers, deadline handling, rules, and unattended permissions.
 Only after it passes, cut the order and arm one shift with

@@ -105,6 +105,13 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qi 'or neither happens' "$q"
 }
 
+@test "quality cut goes through work-orders.md the same way Hunt does" {
+  q="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  grep -qF '$NS/work-orders.md' "$q"
+  grep -qi 'never write the punch list first' "$q"
+  grep -qi 'never clobber orders already' "$q"
+}
+
 @test "quality covers the full catalog and shares hunt execution modes" {
   q="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
   grep -qF 'execution-modes.md' "$q"
