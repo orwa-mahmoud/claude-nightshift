@@ -91,4 +91,6 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -E 'curl|wget|http' "$APPLY" "$PROFILES"/*.json
   grep -qF 'apply-profile.sh' "$SETUP"
   grep -qF 'one-time local copy' "$SETUP"
+  grep -qF 'every version-1 JSON file' "$SETUP"
+  grep -qF 'every version-1 JSON file' "$BATS_TEST_DIRNAME/../docs/knobs.md"
 }
