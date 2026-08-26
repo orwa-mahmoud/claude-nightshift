@@ -23,3 +23,9 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'POSIX uses `sh -c`' "$KNOBS"
   grep -qF 'native Windows uses PowerShell `Invoke-Expression`' "$KNOBS"
 }
+
+@test "expected-email guard names git config user.email" {
+  grep -qF 'git config user.email' "$KNOBS"
+  grep -qF 'GIT_AUTHOR_EMAIL' "$KNOBS"
+  grep -qF -- '-c user.email=' "$KNOBS"
+}
