@@ -39,3 +39,29 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
   bash -c '. "$1"; ns_record_reason "$2" not-a-real-code' _ "$LIB" "$ns"
   [ "$(sed -n 1p "$ns/.watch-reason")" = "stand-down" ]
 }
+
+LOGIC="$BATS_TEST_DIRNAME/windows/reason-label-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable watchman reason-label suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'reason-label-logic.ps1' "$RUN"
+  grep -qF 'Get-NSReasonLabel' "$LOGIC"
+  grep -qF 'process-evidence-unavailable' "$LOGIC"
+}
+
+@test "Windows reason labels match POSIX when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+  while IFS=$'\t' read -r code label; do
+    [ -n "$code" ] || continue
+    posix="$(bash -c '. "$1"; ns_reason_label "$2"' _ "$LIB" "$code")"
+    [ "$posix" = "$label" ] || {
+      echo "mismatch $code: posix='$posix' win='$label'" >&2
+      return 1
+    }
+  done <<< "$output"
+}

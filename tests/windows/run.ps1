@@ -446,6 +446,10 @@ try {
     $codexIdentityLogicRun = Invoke-TestScript $codexIdentityLogic
     Assert-Equal 0 $codexIdentityLogicRun.ExitCode `
         "Codex identity kinds: $($codexIdentityLogicRun.Stdout) $($codexIdentityLogicRun.Stderr)"
+    $reasonLabelLogic = Join-Path $PSScriptRoot 'reason-label-logic.ps1'
+    $reasonLabelLogicRun = Invoke-TestScript $reasonLabelLogic
+    Assert-Equal 0 $reasonLabelLogicRun.ExitCode `
+        "watchman reason labels: $($reasonLabelLogicRun.Stdout) $($reasonLabelLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
