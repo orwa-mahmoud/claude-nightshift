@@ -430,6 +430,10 @@ try {
     $importLogicRun = Invoke-TestScript $importLogic
     Assert-Equal 0 $importLogicRun.ExitCode `
         "import-issues list/promote: $($importLogicRun.Stdout) $($importLogicRun.Stderr)"
+    $doctorLogic = Join-Path $PSScriptRoot 'doctor-logic.ps1'
+    $doctorLogicRun = Invoke-TestScript $doctorLogic
+    Assert-Equal 0 $doctorLogicRun.ExitCode `
+        "doctor leftover/staged counts: $($doctorLogicRun.Stdout) $($doctorLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
