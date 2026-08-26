@@ -109,6 +109,15 @@ else
   warn "punch-list.md is missing"
 fi
 
+ORDERS=0
+if [ -f "$NS/work-orders.md" ]; then
+  ORDERS="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$NS/work-orders.md" 2>/dev/null || true)"
+  ORDERS="${ORDERS:-0}"
+  if [ "$ORDERS" -gt 0 ]; then
+    fact "pending Hunt work orders=$ORDERS"
+  fi
+fi
+
 ARMED=0
 [ -f "$NS/.shift-armed" ] && ARMED=1
 ENDED=0
@@ -159,6 +168,16 @@ fi
 if [ "$STOP" -eq 1 ] && [ "$ARMED" -eq 0 ]; then
   warn "STOP leftover while no shift is armed — start will clear it"
   act confirm "run start when you want a new shift, which clears stale STOP"
+fi
+if [ -f "$PUNCH" ] && [ "$OPEN" -eq 0 ]; then
+  fact "punch list has no open items — leftover Shift contract and Gates still bind the next Hunt or Start cut"
+  if [ "$ARMED" -eq 0 ]; then
+    warn "empty punch list will inherit the current contract"
+    act confirm "review punch-list.md contract and Gates before composing a new campaign; Archive files ticked items but never resets them"
+  fi
+fi
+if [ "$ORDERS" -gt 0 ] && [ "$ARMED" -eq 0 ]; then
+  act confirm "start to promote a parked Hunt order, or hunt to compose a new one"
 fi
 
 json_is_object() {

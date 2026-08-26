@@ -125,6 +125,19 @@ else {
     Add-NSWarn 'punch-list.md is missing'
 }
 
+$orders = 0
+$ordersPath = Join-Path $ns 'work-orders.md'
+if (Test-Path -LiteralPath $ordersPath -PathType Leaf) {
+    foreach ($line in [IO.File]::ReadLines($ordersPath)) {
+        if ($line -match '^\s*-\s*\[\s\]') {
+            $orders++
+        }
+    }
+    if ($orders -gt 0) {
+        Add-NSFact "pending Hunt work orders=$orders"
+    }
+}
+
 $armed = [int](Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf)
 $ended = [int](Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf)
 $stop = [int](Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf)
@@ -183,6 +196,16 @@ if ($stop -eq 1 -and $armed -eq 1) {
 if ($stop -eq 1 -and $armed -eq 0) {
     Add-NSWarn 'STOP leftover while no shift is armed - start will clear it'
     Add-NSAct confirm 'run start when you want a new shift, which clears stale STOP'
+}
+if ((Test-Path -LiteralPath $punch -PathType Leaf) -and $open -eq 0) {
+    Add-NSFact 'punch list has no open items - leftover Shift contract and Gates still bind the next Hunt or Start cut'
+    if ($armed -eq 0) {
+        Add-NSWarn 'empty punch list will inherit the current contract'
+        Add-NSAct confirm 'review punch-list.md contract and Gates before composing a new campaign; Archive files ticked items but never resets them'
+    }
+}
+if ($orders -gt 0 -and $armed -eq 0) {
+    Add-NSAct confirm 'start to promote a parked Hunt order, or hunt to compose a new one'
 }
 
 $rulesPath = Join-Path $ns 'rules.json'

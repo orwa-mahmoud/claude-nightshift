@@ -141,7 +141,9 @@ under `## Items` in the punch list (a cut, never a copy — it must not exist in
 Windows PowerShell, log the start, arm the watchman. The
 marker is what starts the shift — without it the list is written and nothing is holding it. From
 that second the gate holds this session until the list is done, a stop-work order lands, or the
-whistle blows.
+whistle blows. An empty `## Items` section still keeps the Shift contract and Gates; they bind
+the cut item. Record leftover campaign rules in `$NS/parking-lot.md` when they are not this
+order's.
 
 On **later** — the order stays parked in `$NS/work-orders.md` with its hours, costing nothing. It arms
 nothing and the gate stays inert. Start (`/nightshift:start` on Claude Code, or ask Nightshift to

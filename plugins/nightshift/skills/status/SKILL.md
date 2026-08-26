@@ -43,10 +43,13 @@ Read `$NS/` and print:
 - **Items** — ticked vs open counts from `$NS/punch-list.md`, counted **below the `## Items`
  heading only** (open = lines matching a dash + bracketed space; ticked = bracketed x), and the
  title of the current open item. A checkbox above that heading is contract prose, not work, and
- the gate does not count it either.
+ the gate does not count it either. When no open boxes remain, say plainly that the leftover
+ Shift contract and Gates still bind the next Hunt or Start cut — Archive files ticked items
+ and never resets those sections. If ticked items are still in the list, name Archive.
 - **Parked** — the count and one-line titles of entries in `$NS/parking-lot.md`.
 - **Staged** — known later items in `$NS/drafting-table.md`, separately from pending timed
- Hunt orders in `$NS/work-orders.md`.
+ Hunt orders in `$NS/work-orders.md`. Count open `- [ ]` boxes there as parked Hunt orders;
+ if any exist and the punch list is empty, say Start will offer them.
 - **Snag log** — the last few dispositions from `$NS/snag-log.md`, if any.
 - **Product evolution** — when `$NS/product-research.md` or
  `$NS/opportunity-map.md` contains more than its template headings, report the most recent

@@ -133,7 +133,8 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  can no longer be given a clock.
 - **The punch list is the shift.** If `$NS/punch-list.md` has at least one open `- [ ]`
  under `## Items`, that is the work — start it. Do not promote, cut, or add anything: parked
- orders and drafts stay exactly where the owner left them.
+ orders and drafts stay exactly where the owner left them. An empty `## Items` section still
+ keeps the Shift contract and Gates; they bind whatever Hunt or Start cuts next.
 - **Resume the active product cycle before rediscovery.** When the open item is product evolution,
  inspect `$NS/opportunity-map.md` for its single `Status: building` entry before doing new
  research or selecting work. If present, its `Next` action and `Verify remaining` are the

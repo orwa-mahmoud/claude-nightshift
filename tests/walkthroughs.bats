@@ -159,3 +159,13 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'Verify remaining' "$s"
   grep -qF 'without changing them' "$s"
 }
+
+@test "status, start, and hunt name leftover contract on an empty punch list" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+  grep -qF 'leftover' "$s"
+  grep -qF 'never resets' "$s"
+  grep -qF 'parked Hunt orders' "$s"
+  grep -qF 'Shift contract and Gates' "$START"
+  grep -qF 'Shift contract and Gates' "$HUNT"
+  grep -qF 'parking-lot.md' "$HUNT"
+}

@@ -155,6 +155,34 @@ doctor() {
   [ -f "$p/.nightshift/.watchman" ]
 }
 
+@test "empty punch list reports leftover contract without rewriting it" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Shift contract\n- leftover campaign\n\n## Gates\n- none\n\n## Items\n\n' \
+    >"$p/.nightshift/punch-list.md"
+  before="$(fingerprint "$p")"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'leftover Shift contract and Gates'
+  printf '%s' "$output" | grep -q 'empty punch list will inherit the current contract'
+  printf '%s' "$output" | grep -q '\[confirm\].*review punch-list.md contract'
+  after="$(fingerprint "$p")"
+  [ "$before" = "$after" ]
+  grep -q 'leftover campaign' "$p/.nightshift/punch-list.md"
+}
+
+@test "pending Hunt work orders are counted when the punch list is empty" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
+  printf '# Work Orders\n\n## Work order — test\nHours: 2\n\n- [ ] **Coverage hunt.**\n' \
+    >"$p/.nightshift/work-orders.md"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'pending Hunt work orders=1'
+  printf '%s' "$output" | grep -q '\[confirm\].*promote a parked Hunt order'
+}
+
 @test "leftover STOP while unarmed requires owner confirmation" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"
