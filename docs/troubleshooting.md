@@ -167,6 +167,12 @@ A leftover `STOP`, `.ended`, `.session-end`, `.shift-session`, or `.shift-lease`
 will surprise tonight. Start clears stale run-control markers before it arms. Do not delete them by
 hand while a session is still working the list.
 
+A leftover Shift contract is different: Archive and Start leave it in place. After a finished
+campaign, `punch-list.md` can have zero open boxes and still name last night's branch, release,
+and issue-close list. The next Hunt cut inherits that text. Status and Doctor report it; review
+the contract and Gates before composing a new campaign. Do not delete the punch list to "clear"
+it.
+
 **Repair (you want the shift ended now).** From any terminal at the workspace that owns
 `.nightshift/`:
 

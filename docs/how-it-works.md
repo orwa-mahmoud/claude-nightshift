@@ -38,6 +38,11 @@ not activate hooks: Start, or a Hunt or Quality path that starts immediately, cr
 `.shift-armed` after preflight. The clock-out gate and owner rules are active only while that marker
 exists, open Items remain, and the shift has not ended.
 
+Archive files ticked items and never resets the leftover Shift contract or Gates. An empty
+`## Items` section still binds the next Hunt or Start cut — review those sections before
+composing a new campaign. Status and Doctor report the leftover; Archive writes a Notes reminder
+when a campaign is fully filed.
+
 Immediately after arming, Start makes a harmless host-shell probe—Bash on POSIX, PowerShell on
 native Windows—that records `.shift-session` before item work and creates `.shift-lease` for that
 process. Passive reads, searches, and MCP calls cannot

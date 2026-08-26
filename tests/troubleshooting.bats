@@ -27,6 +27,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF '.shift-armed' "$DOC"
   grep -qF '.shift-session' "$DOC"
   grep -qF 'watchMinutes' "$DOC"
+  grep -qF 'leftover Shift contract' "$DOC"
+  grep -qF 'leftover Shift contract' "$HOW"
 }
 
 @test "troubleshooting marks checks before repairs and splits the hosts" {
