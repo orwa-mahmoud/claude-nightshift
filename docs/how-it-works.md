@@ -238,7 +238,7 @@ dispositions under `.nightshift/`. The folder is ignored by the project reposito
 optionally version it in a separate local-only Git repository. That repository is off by default;
 Nightshift gives it no remote and never pushes it.
 
-Archiving moves finished work into `.nightshift/archive/<date>/` while keeping the current working
+Archiving moves finished work into `.nightshift/archive/<YYYY-MM-DD>/` while keeping the current working
 files small.
 
 ## Different strengths on each host

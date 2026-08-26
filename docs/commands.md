@@ -12,7 +12,7 @@
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
                        # optional follow-up: export a redacted local support bundle (never uploaded)
 /nightshift:stop       # end the shift now; open boxes stay open
-/nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags; leftover contract stays
+/nightshift:archive    # file finished work into .nightshift/archive/<YYYY-MM-DD>/ — shipped items, logs, handled snags; leftover contract stays
 # you review the local commits and push — or forbid pushing outright (one env line below)
 ```
 
