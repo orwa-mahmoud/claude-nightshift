@@ -82,6 +82,8 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF 'leftover campaign text' "$s"
   grep -qF 'restore the template contract' "$s"
   grep -qF 'Never rewrite without an explicit yes' "$s"
+  grep -qF 'PSObject.Properties.Name' "$s"
+  grep -qF 'ConvertFrom-Json' "$s"
 }
 
 # The contracts the setup conversation must not drift on: the receipts repo is never

@@ -94,6 +94,13 @@ load helpers
   grep -qF 'Arm the gate' "$s"
 }
 
+@test "start lists missing knobs with ConvertFrom-Json on Windows" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
+  grep -qF 'New knobs check' "$s"
+  grep -qF 'PSObject.Properties.Name' "$s"
+  grep -qF 'ConvertFrom-Json' "$s"
+}
+
 # hunt and quality both start shifts without the owner typing another command. A start path that
 # skips the marker writes the items and holds nothing — the failure is silent and looks like work.
 @test "every skill that starts a shift arms the gate" {

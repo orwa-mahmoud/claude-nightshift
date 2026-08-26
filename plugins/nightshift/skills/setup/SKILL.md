@@ -232,7 +232,9 @@ subscription. Refuse `--apply` / `-Apply` while armed.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's top-level keys and its nested `toolDeny` keys to the owner's file
-(`jq -r 'keys[]'` on each object): offer any missing key with its default — "this version added
+(`jq -r 'keys[]'` on each object, or equivalent Python when jq is absent; on native Windows,
+`(Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json).PSObject.Properties.Name`
+and the same for `.toolDeny`): offer any missing key with its default — "this version added
 `request_user_input`; add it?" — and never touch a value the owner already has. A missing native
 question key is a configuration error, not permission to invent a fallback. Same posture for the
 contract: if the shipped punch-list template's contract (the text above `## Items`) has changed

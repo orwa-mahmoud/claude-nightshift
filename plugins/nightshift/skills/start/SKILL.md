@@ -172,7 +172,9 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `ConvertFrom-Json`, so neither external parser is required there.
 - **New knobs check:** if `$NS/rules.json` exists, compare the shipped template's
  top-level keys and nested `toolDeny` keys against the same objects in the file (`jq -r 'keys[]'`
- on each, or equivalent Python when jq is absent). Keys the template has that the file lacks mean
+ on each, or equivalent Python when jq is absent; on native Windows,
+ `(Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json).PSObject.Properties.Name`
+ and `.toolDeny.PSObject.Properties.Name`). Keys the template has that the file lacks mean
  a plugin update brought new knobs — say so once and point at Setup to review them; never add
  them yourself here. A missing native question-tool key must be repaired before an ask tool can
  run. (The hooks read the file live — there is no drift to check and no restart to suggest.)
