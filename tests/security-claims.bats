@@ -29,3 +29,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'GIT_AUTHOR_EMAIL' "$KNOBS"
   grep -qF -- '-c user.email=' "$KNOBS"
 }
+
+@test "protected-dir guard names Git path matching" {
+  grep -qF 'paths Git would write' "$KNOBS"
+  grep -qF 'native Windows also normalizes' "$KNOBS"
+}
