@@ -14,6 +14,8 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF 'Claude Code' "$CHECKLIST"
   grep -qF 'Codex' "$CHECKLIST"
   grep -qF 'Hunt or Quality that start immediately' "$CHECKLIST"
+  grep -qF 'native Windows' "$CHECKLIST"
+  grep -qF 'PID plus UTC start time' "$CHECKLIST"
 }
 
 @test "first-night checklist relative links resolve" {

@@ -22,7 +22,8 @@ Use this once before leaving Nightshift unattended in a project.
 - **Know the host boundary.** Both hosts' Stop hooks mechanically reject an early clock-out and
   both watchmen target the recorded session. Recovery evidence differs: Claude Code records Escape
   and clean session ends; Codex does not, so do not treat closing a live Codex session as a crash
-  test.
+  test. On native Windows the same Stop and watchman contracts apply through PowerShell; a recorded
+  process is identified by PID plus UTC start time.
 - **Reopen a recovered thread only to inspect or interact.** The headless worker continues against
   the punch list without being watched, but a stale Claude Code or Codex panel cannot display its
   appended turns. Do not continue in that unchanged panel while recovery may still be working; the
