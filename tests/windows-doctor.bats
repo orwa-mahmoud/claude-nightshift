@@ -15,6 +15,8 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
   grep -qF 'deadline=none' "$HELPER"
   grep -qF 'Get-NSUnixTime' "$HELPER"
   grep -qF 'deadline is not a UNIX epoch' "$HELPER"
+  grep -qF 'Test-NSRecordedProcess $spid $sstart' "$HELPER"
+  grep -qF 'Test-NSRecordedProcess $wpid $wstart' "$HELPER"
 }
 
 @test "Windows Doctor leftover and staged-work logic passes when pwsh is present" {

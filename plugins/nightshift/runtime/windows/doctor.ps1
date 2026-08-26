@@ -293,6 +293,7 @@ $hostRec = 'none'
 $sid = ''
 $tpath = ''
 $spid = ''
+$sstart = ''
 $sessionPath = Join-Path $ns '.shift-session'
 if (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
     try {
@@ -300,6 +301,7 @@ if (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
         if ($sessionLines.Count -gt 0) { $sid = [string]$sessionLines[0] }
         if ($sessionLines.Count -gt 1) { $tpath = [string]$sessionLines[1] }
         if ($sessionLines.Count -gt 2) { $spid = ([string]$sessionLines[2] -replace '\s', '') }
+        if ($sessionLines.Count -gt 3) { $sstart = [string]$sessionLines[3] }
         if ($sessionLines.Count -gt 4 -and -not [string]::IsNullOrEmpty(([string]$sessionLines[4]).Trim())) {
             $hostRec = ([string]$sessionLines[4]).Trim()
         }
@@ -327,7 +329,7 @@ if (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
         Add-NSAct confirm 'let the next tool call record identity, or accept a fresh-session fallback'
     }
     if ($spid -match '^[0-9]+$') {
-        $liveness = Test-NSRecordedProcess $spid
+        $liveness = Test-NSRecordedProcess $spid $sstart
         if ($liveness -eq 'Alive') {
             Add-NSFact "recorded pid $spid is alive"
         }
@@ -383,18 +385,21 @@ elseif ($armed -eq 1 -and -not [string]::IsNullOrEmpty($sid)) {
 }
 
 $wpid = ''
+$wstart = ''
 $watchmanPath = Join-Path $ns '.watchman'
 if (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
     try {
-        $wpid = (([IO.File]::ReadAllLines($watchmanPath) | Select-Object -First 1) -as [string])
-        $wpid = ($wpid -replace '\s', '')
+        $watchLines = [IO.File]::ReadAllLines($watchmanPath)
+        $wpid = if ($watchLines.Count -gt 0) { ([string]$watchLines[0] -replace '\s', '') } else { '' }
+        $wstart = if ($watchLines.Count -gt 1) { [string]$watchLines[1] } else { '' }
     }
     catch {
         $wpid = ''
+        $wstart = ''
     }
 }
 if ($wpid -match '^[0-9]+$') {
-    $watchLive = Test-NSRecordedProcess $wpid
+    $watchLive = Test-NSRecordedProcess $wpid $wstart
     if ($watchLive -eq 'Alive') {
         Add-NSFact "watchman pid $wpid is alive"
     }
