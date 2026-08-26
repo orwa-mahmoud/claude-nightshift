@@ -22,6 +22,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'push, open a PR, deploy, publish' "$E"
   grep -qi 'dedicated nightshift branch' "$E"
   grep -qF 'nightshift/<short-purpose>-<YYYY-MM-DD>' "$E"
+  grep -qF 'isolated-branch' "$E"
 }
 
 @test "product evolution leaves an evidence-backed morning handoff" {

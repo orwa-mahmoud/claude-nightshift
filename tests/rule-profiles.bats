@@ -23,6 +23,7 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   run bash "$APPLY" --project "$p" --list
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'no-push'
+  printf '%s' "$output" | grep -q 'isolated-branch'
   printf '%s' "$output" | grep -q 'not a subscription'
   run bash "$APPLY" --project "$p" --profile no-push --mode fill
   [ "$status" -eq 0 ]

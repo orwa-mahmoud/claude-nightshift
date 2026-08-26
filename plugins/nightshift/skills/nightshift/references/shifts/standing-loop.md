@@ -8,7 +8,9 @@ or a substantial feature, but never merges its own branch and never leaves a hal
 - [ ] **Product evolution — research, build, and improve until quitting time.**
   - Ending: open-ended — hours and a deadline are required.
   - Isolate first: work on a dedicated nightshift branch named
-    `nightshift/<short-purpose>-<YYYY-MM-DD>`, never the default branch. Never merge,
+    `nightshift/<short-purpose>-<YYYY-MM-DD>`, never the default branch. The optional
+    `isolated-branch` rule profile makes checkout of `main`/`master`, merge, and push
+    mechanical denials when the owner applied it at Setup. Never merge,
     push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
     authorized that exact action. The owner decides what ships in the morning.
   - Understand before inventing: read the product docs, issues, architecture, existing features,

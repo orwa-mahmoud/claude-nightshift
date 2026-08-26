@@ -416,6 +416,7 @@ try {
     $applyRun = Invoke-TestScript $applyProfile @('-Project', $workspace, '-List')
     Assert-Equal 0 $applyRun.ExitCode "apply-profile list: $($applyRun.Stderr)"
     Assert-True $applyRun.Stdout.Contains('not a subscription') 'apply-profile lists local copies'
+    Assert-True $applyRun.Stdout.Contains('isolated-branch') 'apply-profile lists the isolated-branch profile'
     $exportRun = Invoke-TestScript $exportSupport @('-Project', $workspace)
     Assert-Equal 0 $exportRun.ExitCode "export-support: $($exportRun.Stderr)"
     Assert-True $exportRun.Stdout.Contains('Support bundle:') 'export-support prints the bundle path'
