@@ -4,6 +4,8 @@ Use this once before leaving Nightshift unattended in a project.
 
 - **Start attended.** Run one small shift while watching it. Confirm the proposed gates pass, one
   item becomes one reviewable commit, and the shift ends only after its box is ticked.
+  Hunt or Quality that start immediately write the same binding probe and arm the same watchman —
+  watch that first run too, even if you never invoked Start.
 - **Choose permissions deliberately.** Pre-allow only what the work needs, or explicitly accept the
   unattended full-access option. Nightshift's owner-defined deny rules still matter; they are not a
   sandbox and do not replace reviewing the agent's permissions.
