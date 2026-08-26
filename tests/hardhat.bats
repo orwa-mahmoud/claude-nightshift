@@ -400,6 +400,11 @@ load helpers
   is_deny "$output"
   run hardhat_bash "$p" "git merge feature" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
   is_deny "$output"
+  run hardhat_bash "$p" "git -C /tmp checkout main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git -c protocol.file.allow=always merge feature" \
+    NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
   run hardhat_bash "$p" "git -c http.proxy=x push origin main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
   is_deny "$output"
   run hardhat_bash "$p" "git checkout -b nightshift/product-evolution-2026-08-27" \
