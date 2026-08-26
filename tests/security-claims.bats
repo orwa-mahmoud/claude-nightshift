@@ -17,3 +17,9 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'native Windows uses .NET regular expressions against the host command string' "$KNOBS"
   grep -qF 'native Windows .NET regular expressions, case-insensitive' "$KNOBS"
 }
+
+@test "notification command names Windows Invoke-Expression" {
+  grep -qF 'unrestricted owner-provided shell' "$KNOBS"
+  grep -qF 'POSIX uses `sh -c`' "$KNOBS"
+  grep -qF 'native Windows uses PowerShell `Invoke-Expression`' "$KNOBS"
+}
