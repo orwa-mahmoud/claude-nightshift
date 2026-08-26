@@ -64,6 +64,18 @@ When a shift is not where you think it is — wrong folder, broken `.nightshift-
 `/nightshift:doctor` on Claude Code or ask Nightshift to diagnose on Codex, then walk
 [Troubleshooting](troubleshooting.md) before changing files. Doctor reports; it never repairs.
 
+A redacted local support bundle from a terminal (never uploaded):
+
+```bash
+plugins/nightshift/runtime/export-support.sh --project .
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\export-support.ps1 -Project .
+```
+
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
 and a watchman revival runs headless — a denied tool stays denied. For long runs,
 `bypassPermissions` is the recommended mode, set in the project's `.claude/settings.local.json` so

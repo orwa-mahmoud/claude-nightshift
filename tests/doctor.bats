@@ -320,6 +320,7 @@ EOF
   grep -qF '/nightshift:doctor' "$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qF 'never repairs' "$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qF '/nightshift:doctor' "$BATS_TEST_DIRNAME/../docs/troubleshooting.md"
+  grep -qF 'runtime/export-support.sh' "$BATS_TEST_DIRNAME/../docs/commands.md"
 }
 
 @test "identity helpers classify Codex session shapes" {
