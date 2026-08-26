@@ -1,3 +1,4 @@
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Project = [Environment]::CurrentDirectory,
     [switch]$Fetch,

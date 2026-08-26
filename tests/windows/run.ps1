@@ -426,6 +426,10 @@ try {
     $expectedPunch = 'Read ' + ($workspace.TrimEnd('\', '/') + '/.nightshift/punch-list.md')
     Assert-Equal $expectedPunch $expanded 'injection qualifies a bare .nightshift path'
     Assert-True $importIssues.EndsWith('import-issues.ps1') 'import-issues helper is bundled'
+    $importLogic = Join-Path $PSScriptRoot 'import-issues-logic.ps1'
+    $importLogicRun = Invoke-TestScript $importLogic
+    Assert-Equal 0 $importLogicRun.ExitCode `
+        "import-issues list/promote: $($importLogicRun.Stdout) $($importLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
