@@ -171,6 +171,40 @@ doctor() {
   grep -q 'leftover campaign' "$p/.nightshift/punch-list.md"
 }
 
+@test "the drafting-table item-shape example is not a staged draft" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  cp "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/drafting-table-template.md" \
+    "$p/.nightshift/drafting-table.md"
+  printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  ! printf '%s' "$output" | grep -q 'staged drafting-table items='
+}
+
+@test "drafting-table items after the rule are counted" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
+  cat >"$p/.nightshift/drafting-table.md" <<'EOF'
+# Drafting Table
+
+```text
+- [ ] **1. example only.**
+```
+
+---
+
+- [ ] **Real draft.**
+  - Verify: true
+  - Commit: `fix: x`
+EOF
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'staged drafting-table items=1'
+  printf '%s' "$output" | grep -q '\[confirm\].*drafting-table items'
+}
+
 @test "pending Hunt work orders are counted when the punch list is empty" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"

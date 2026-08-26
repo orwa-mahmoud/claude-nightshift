@@ -118,6 +118,18 @@ if [ -f "$NS/work-orders.md" ]; then
   fi
 fi
 
+DRAFTS=0
+if [ -f "$NS/drafting-table.md" ]; then
+  DRAFTS="$(awk '
+    /^---[[:space:]]*$/ { seen=1; next }
+    seen && /^[[:space:]]*-[[:space:]]*\[[[:space:]]\]/ { n++ }
+    END { print n+0 }
+  ' "$NS/drafting-table.md")"
+  if [ "$DRAFTS" -gt 0 ]; then
+    fact "staged drafting-table items=$DRAFTS"
+  fi
+fi
+
 ARMED=0
 [ -f "$NS/.shift-armed" ] && ARMED=1
 ENDED=0
@@ -178,6 +190,9 @@ if [ -f "$PUNCH" ] && [ "$OPEN" -eq 0 ]; then
 fi
 if [ "$ORDERS" -gt 0 ] && [ "$ARMED" -eq 0 ]; then
   act confirm "start to promote a parked Hunt order, or hunt to compose a new one"
+fi
+if [ "$DRAFTS" -gt 0 ] && [ "$ARMED" -eq 0 ]; then
+  act confirm "promote agreed drafting-table items into punch-list.md, or start to be offered them"
 fi
 
 json_is_object() {

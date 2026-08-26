@@ -138,6 +138,26 @@ if (Test-Path -LiteralPath $ordersPath -PathType Leaf) {
     }
 }
 
+$drafts = 0
+$draftsPath = Join-Path $ns 'drafting-table.md'
+if (Test-Path -LiteralPath $draftsPath -PathType Leaf) {
+    $seenRule = $false
+    foreach ($line in [IO.File]::ReadLines($draftsPath)) {
+        if (-not $seenRule) {
+            if ($line -match '^---\s*$') {
+                $seenRule = $true
+            }
+            continue
+        }
+        if ($line -match '^\s*-\s*\[\s\]') {
+            $drafts++
+        }
+    }
+    if ($drafts -gt 0) {
+        Add-NSFact "staged drafting-table items=$drafts"
+    }
+}
+
 $armed = [int](Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf)
 $ended = [int](Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf)
 $stop = [int](Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf)
@@ -206,6 +226,9 @@ if ((Test-Path -LiteralPath $punch -PathType Leaf) -and $open -eq 0) {
 }
 if ($orders -gt 0 -and $armed -eq 0) {
     Add-NSAct confirm 'start to promote a parked Hunt order, or hunt to compose a new one'
+}
+if ($drafts -gt 0 -and $armed -eq 0) {
+    Add-NSAct confirm 'promote agreed drafting-table items into punch-list.md, or start to be offered them'
 }
 
 $rulesPath = Join-Path $ns 'rules.json'
