@@ -235,6 +235,10 @@ question key is a configuration error, not permission to invent a fallback. Same
 contract: if the shipped punch-list template's contract (the text above `## Items`) has changed
 since the owner's copy was scaffolded, show the diff and offer a merge — the owner's
 wording wins every conflict, and a punch list with open boxes is never touched at all.
+The same empty-Items offer applies when the owner's contract is leftover campaign text
+(a finished branch, release, or issue-close list) even if the shipped template has not
+changed: show the diff and offer to restore the template contract, or keep theirs.
+Never rewrite without an explicit yes.
 
 ## 6. Summarize
 

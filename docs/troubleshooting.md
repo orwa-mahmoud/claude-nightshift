@@ -171,7 +171,7 @@ A leftover Shift contract is different: Archive and Start leave it in place. Aft
 campaign, `punch-list.md` can have zero open boxes and still name last night's branch, release,
 and issue-close list. The next Hunt cut inherits that text. Status and Doctor report it; review
 the contract and Gates before composing a new campaign. Do not delete the punch list to "clear"
-it.
+it. Re-run Setup while Items are empty to be offered a restore of the shipped contract.
 
 **Repair (you want the shift ended now).** From any terminal at the workspace that owns
 `.nightshift/`:

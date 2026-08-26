@@ -79,6 +79,9 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF 'touch a value the owner already has' "$s"
   grep -qF "wording wins every conflict" "$s"
   grep -qF 'open boxes is never touched' "$s"
+  grep -qF 'leftover campaign text' "$s"
+  grep -qF 'restore the template contract' "$s"
+  grep -qF 'Never rewrite without an explicit yes' "$s"
 }
 
 # The contracts the setup conversation must not drift on: the receipts repo is never
