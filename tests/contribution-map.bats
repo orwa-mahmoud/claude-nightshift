@@ -37,6 +37,9 @@ RECEIPTS="$ROOT/examples/README.md"
   grep -qF 'runtime/windows/watchman.ps1' "$MAP"
   grep -qF 'runtime/windows/start-watchman.ps1' "$MAP"
   grep -qF 'lib/Nightshift.psm1' "$MAP"
+  grep -qF 'hooks/windows/hardhat.ps1' "$MAP"
+  grep -qF 'hooks/windows/clock-out-gate.ps1' "$MAP"
+  grep -qF 'tests/windows-hardhat.bats' "$MAP"
 }
 
 @test "the contribution map preserves focused and repository checks" {
@@ -60,6 +63,9 @@ RECEIPTS="$ROOT/examples/README.md"
     plugins/nightshift/runtime/windows/start-watchman.ps1 \
     plugins/nightshift/lib/Nightshift.psm1 \
     plugins/nightshift/hooks examples/bad-night-template.md \
+    plugins/nightshift/hooks/windows/hardhat.ps1 \
+    plugins/nightshift/hooks/windows/clock-out-gate.ps1 \
+    tests/windows-hardhat.bats \
     tests/codex tests/fixtures tests/shifts \
     tests/catalog.bats tests/contribution-map.bats \
     tests/first-night-checklist.bats tests/troubleshooting.bats \
