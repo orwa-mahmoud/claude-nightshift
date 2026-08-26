@@ -57,7 +57,9 @@ without another pause under the decision policy in `execution-modes.md`.
 
 ## 2. Detect and scan
 
-Detect the stack from the gates catalog (monorepo-aware), inspect repository-owned tooling and
+Detect the stack from the gates catalog (monorepo-aware), including a plugin
+or marketplace manifest at the work-target root or under `plugins/<name>/`,
+inspect repository-owned tooling and
 evidence, then apply the discovery rules from every relevant quality entry. Never install a tool
 merely to manufacture findings. In review-first mode use report-only commands: no fix flags and no
 writes. If `$NS/` does not exist, review-first may report, but any run-direct request must

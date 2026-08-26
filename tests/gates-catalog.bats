@@ -40,8 +40,10 @@ CAT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/gates
 
 @test "Setup treats a nested plugins/<name> manifest as a plugin-stack match" {
   SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
+  QUALITY="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
   grep -qF 'plugins/<name>/.claude-plugin/' "$SETUP"
   grep -qF 'plugins/<name>/.codex-plugin/' "$SETUP"
+  grep -qF 'plugins/<name>/' "$QUALITY"
 }
 
 @test "states that detection only proposes and the user decides" {
