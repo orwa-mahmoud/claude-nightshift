@@ -25,6 +25,11 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/quality/SKILL.md`). Substitute that
 absolute path below; never search for the plugin.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary known plans never become work orders.
+
 Read these before scanning:
 
 - `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/execution-modes.md`

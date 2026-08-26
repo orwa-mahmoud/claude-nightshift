@@ -2,7 +2,7 @@ ROOT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills"
 REF="$ROOT/nightshift/references"
 
 @test "active workflow skills carry the same state map" {
-  for skill in nightshift setup start status archive import-issues; do
+  for skill in nightshift setup start status archive import-issues hunt quality; do
     file="$ROOT/$skill/SKILL.md"
     grep -qF 'punch-list.md` → owner-approved work active in this shift' "$file"
     grep -qF 'drafting-table.md` → known work staged for a later shift' "$file"

@@ -18,8 +18,12 @@ short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpe
 `--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
 Never search or guess. The shell's working directory persists
 between Bash calls, so never use a bare path. If `$NS/` does not
-exist, stop and point to Setup first (`/nightshift:setup` on Claude Code, or ask Nightshift to set
-up on Codex).
+exist yet, tell the user to run Setup, then return.
+
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary known plans never become work orders.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 `${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
