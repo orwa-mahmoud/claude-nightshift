@@ -21,6 +21,7 @@ Everything is named after construction-site work — learn one term, guess the r
 | **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
 | **park, don't ask** | `toolDeny` question entries | during a shift the host's ask tool is denied with the configured message — the question is parked with a default chosen; an empty native entry allows ask-and-wait instead |
 | **quality survey** | Nightshift Quality | the optional debt audit — review findings first or choose a direct run that fixes them |
+| **doctor** | `/nightshift:doctor` | read-only diagnosis — facts, warnings, classified next actions; invoking it never repairs |
 | **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
 | **issue import** | Nightshift Import issues | copies selected GitHub issues onto the drafting table as quoted source; never searches, never writes back to GitHub |
 | **quitting time** | `.nightshift/deadline` | UNIX epoch seconds; past that instant the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |

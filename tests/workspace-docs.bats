@@ -37,6 +37,8 @@ resolve_work_target() {
   grep -qF 'UNIX epoch seconds' "$VOCAB"
   grep -qF '.nightshift/work-target' "$VOCAB"
   grep -qF '**state workspace**' "$VOCAB"
+  grep -qF '**doctor**' "$VOCAB"
+  grep -qF 'never repairs' "$VOCAB"
   grep -qF 'Start refuses to arm' "$DOC"
   grep -qF 'Nightshift never selects the first directory silently' "$DOC"
 }
