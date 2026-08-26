@@ -12,3 +12,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'unrestricted owner-provided shell' "$KNOBS"
   grep -qF 'can access the network' "$KNOBS"
 }
+
+@test "command and commit guards name Windows matching" {
+  grep -qF 'native Windows uses .NET regular expressions against the host command string' "$KNOBS"
+  grep -qF 'native Windows .NET regular expressions, case-insensitive' "$KNOBS"
+}
