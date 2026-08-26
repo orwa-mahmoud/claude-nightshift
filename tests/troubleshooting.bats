@@ -34,6 +34,9 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'leftover Shift contract' "$HOW"
   grep -qF 'Hunt or Quality when they start immediately' "$HOW"
   grep -qF 'Hunt or Quality when they start immediately' "$DOC"
+  repair="$(awk '/^## 2\. Invalid/{p=1; next} /^## /{p=0} p' "$DOC")"
+  printf '%s\n' "$repair" | grep -qF 'link-workspace.sh'
+  printf '%s\n' "$repair" | grep -qF 'link-workspace.ps1'
 }
 
 @test "troubleshooting marks checks before repairs and splits the hosts" {
