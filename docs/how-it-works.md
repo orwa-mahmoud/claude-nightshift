@@ -101,8 +101,9 @@ Review-first Hunt and Quality runs scan or draft only and arm nothing until the 
 Run-direct paths perform the same Start preflight before arming.
 
 A no-progress stop attempt is logged as a stall while the finite contract remains open. Owners who
-prefer a hard retry cap can set `NIGHTSHIFT_STALL_MAX=N`. Open-ended shifts require a deadline;
-Start refuses to arm one without it. Finite shifts may also use one as a cap.
+prefer a hard retry cap can set `NIGHTSHIFT_STALL_MAX=N`. Open-ended shifts require a deadline
+in `.nightshift/deadline` as UNIX epoch seconds; Start refuses to arm one without it. Finite
+shifts may also use one as a cap.
 
 The stall guard reads checked items and commits as progress. A deadline is therefore the final
 cost boundary when failed attempts could otherwise keep producing commits. Without a deadline or

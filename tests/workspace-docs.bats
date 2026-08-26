@@ -2,6 +2,7 @@ load helpers
 
 ROOT="$BATS_TEST_DIRNAME/.."
 DOC="$ROOT/docs/how-it-works.md"
+VOCAB="$ROOT/docs/vocabulary.md"
 LIB="$ROOT/plugins/nightshift/lib/lib.sh"
 LINKER="$ROOT/plugins/nightshift/runtime/link-workspace.sh"
 
@@ -28,6 +29,9 @@ resolve_work_target() {
 
   grep -qF '.nightshift/work-target' "$DOC"
   grep -qF 'plugins/<name>/' "$DOC"
+  grep -qF '.nightshift/deadline' "$DOC"
+  grep -qF 'UNIX epoch' "$DOC"
+  grep -qF 'UNIX epoch seconds' "$VOCAB"
   grep -qF 'Start refuses to arm' "$DOC"
   grep -qF 'Nightshift never selects the first directory silently' "$DOC"
 }
