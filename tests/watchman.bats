@@ -833,6 +833,14 @@ STUB
   grep -q 'owned by codex' "$P/.nightshift/shift-log.md"
 }
 
+@test "the watchman stands down on a cursor-owned shift" {
+  printf 'sid\n/Users/o/.cursor/projects/x/u.jsonl\n99999\nstart\ncursor\n' >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'owned by cursor' "$P/.nightshift/shift-log.md"
+}
+
 # A record written before hosts were named can only be Claude's — nothing else could write one.
 @test "a record with no host is treated as claude" {
   printf 'sid\n/tmp/t.jsonl\n99999\nstart\n' >"$P/.nightshift/.shift-session"

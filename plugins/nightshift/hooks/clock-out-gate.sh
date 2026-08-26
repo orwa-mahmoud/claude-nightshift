@@ -174,7 +174,7 @@ if [ "$own_rc" -eq 2 ]; then
   exit 0
 fi
 if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
-  ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" claude || true
+  ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" "$(ns_claude_session_host "${TPATH:-}")" || true
 fi
 ns_shift_ownership claude "$CURRENT_PID" "$CURRENT_START" gate
 own_rc=$?

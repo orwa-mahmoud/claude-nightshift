@@ -62,7 +62,7 @@ ns_session_write() { # <ns> <sid> <transcript> <pid> <start> <host> <tmp>; valid
   ns_lease_safe_line "$sid" && ns_lease_safe_line "$transcript" \
     && ns_lease_safe_line "$pid" && ns_lease_safe_line "$start" || return 1
   case "$pid" in *[!0-9]*) return 1 ;; esac
-  case "$host" in claude | codex) ;; *) return 1 ;; esac
+  case "$host" in claude | codex | cursor) ;; *) return 1 ;; esac
   (umask 077; printf '%s\n%s\n%s\n%s\n%s\n' \
     "$sid" "$transcript" "$pid" "$start" "$host" >"$tmp") || {
     rm -f "$tmp"
@@ -152,7 +152,7 @@ ns_lease_valid() { ns_lease_load "$1"; }
 ns_lease_write_unlocked() { # <ns> <sid> <host> <generation> <nonce> <pid> <start>
   local ns="$1" sid="$2" host="$3" generation="$4" nonce="$5" pid="$6" start="$7" tmp
   ns_lease_safe_line "$sid" && ns_lease_safe_line "$start" || return 1
-  case "$host" in claude | codex) ;; *) return 1 ;; esac
+  case "$host" in claude | codex | cursor) ;; *) return 1 ;; esac
   case "$generation" in '' | *[!0-9]*) return 1 ;; esac
   [ "$generation" -gt 0 ] 2>/dev/null || return 1
   case "$nonce" in *[!A-Za-z0-9._-]*) return 1 ;; esac
@@ -544,6 +544,18 @@ ns_lease_reset_stale() { # $1 = .nightshift; caller has proved no process or wat
   rc=$?
   ns_lease_unlock "$ns"
   return "$rc"
+}
+
+# Every tool that speaks Claude Code's plugin interface executes these same hooks, so a hook
+# cannot assume Claude is the host it runs in. The transcript path names the writer: Cursor
+# keeps its conversations under ~/.cursor, and a record claimed from one belongs to Cursor —
+# Claude's watchman must stand down from it rather than fire `claude --resume` at a
+# conversation it can never reach. Paths without a known foreign marker stay claude.
+ns_claude_session_host() { # <transcript-path>
+  case "$1" in
+    */.cursor/*) printf 'cursor' ;;
+    *) printf 'claude' ;;
+  esac
 }
 
 # Which host owns this shift. Absent means a record written before hosts were distinguished,

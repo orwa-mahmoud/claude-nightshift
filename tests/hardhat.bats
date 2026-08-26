@@ -409,6 +409,26 @@ load helpers
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
 }
 
+# Cursor runs Claude Code's plugin interface, so these hooks execute there too. The record
+# must name the real host: Claude's watchman stands down from a cursor-owned shift instead of
+# firing `claude --resume` at a conversation it can never reach.
+@test "a session working from a cursor transcript records the cursor host" {
+  p="$(new_project)"
+  punch_open "$p"
+  jq -nc '{tool_name:"Bash",session_id:"cursor-tab",transcript_path:"/Users/o/.cursor/projects/x/agent-transcripts/u/u.jsonl",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "cursor-tab" ]
+  [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "cursor" ]
+}
+
+@test "a claude transcript keeps recording the claude host" {
+  p="$(new_project)"
+  punch_open "$p"
+  jq -nc '{tool_name:"Bash",session_id:"claude-tab",transcript_path:"/Users/o/.claude/projects/x/u.jsonl",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "claude" ]
+}
+
 @test "no active shift means no session record" {
   p="$(new_project)"
   punch_done "$p"
