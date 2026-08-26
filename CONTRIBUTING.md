@@ -47,7 +47,9 @@ claude plugin validate . --strict    # manifest + marketplace validation
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
 on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps the system Bash
 3.2 first on `PATH`. A `windows-native` job runs `tests/windows/run.ps1` under Windows PowerShell
-5.1 and PowerShell 7.
+5.1 and PowerShell 7. A `remote-ssh` job crosses an ephemeral OpenSSH connection; a `devcontainer`
+job starts the checked-in fixture. Both compare sanitized receipts — they do not load an
+authenticated host session.
 
 ## Releasing
 

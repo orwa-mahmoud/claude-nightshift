@@ -20,6 +20,12 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
   grep -qF 'tests/windows/run.ps1' "$CONTRIBUTING"
 }
 
+@test "CONTRIBUTING names the remote environment CI jobs" {
+  grep -qF 'remote-ssh' "$CONTRIBUTING"
+  grep -qF 'devcontainer' "$CONTRIBUTING"
+  grep -qF 'sanitized receipts' "$CONTRIBUTING"
+}
+
 parse_yaml() {
   ruby -ryaml -e 'YAML.load_file(ARGV[0]); puts "ok"' "$1"
 }
