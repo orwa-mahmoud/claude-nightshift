@@ -233,6 +233,8 @@ PY
       || { echo "missing Codex identity helper: $f"; return 1; }
     grep -qF 'Get-NSCodexIdentityKind' "$f" \
       || { echo "missing Windows Codex identity helper: $f"; return 1; }
+    grep -qF 'Nightshift.psm1' "$f" \
+      || { echo "missing Windows module import: $f"; return 1; }
   done
 }
 

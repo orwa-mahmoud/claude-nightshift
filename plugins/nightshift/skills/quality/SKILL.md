@@ -108,7 +108,8 @@ Windows PowerShell; log the start, run the binding probe
 (`: nightshift-binding-probe` on POSIX, `$null = 'nightshift-binding-probe'`
 on native Windows), classify Codex `$NS/.shift-session` line 1 with
 `ns_codex_identity_kind` from `$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh` (native
-Windows: `Get-NSCodexIdentityKind`) before arming the watchman or beginning
+Windows: `Get-NSCodexIdentityKind` after
+`Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force`) before arming the watchman or beginning
 item work, and arm the watchman exactly as the Start skill requires.
 Unsupported or malformed identities refuse as Start requires — never resume
 them. Claude Code uses
