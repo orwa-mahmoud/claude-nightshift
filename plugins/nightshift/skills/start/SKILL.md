@@ -153,7 +153,10 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  owner overrides after seeing the flags (`--allow-flagged` / `-AllowFlagged`). Ordinary drafts
  keep the manual cut. From a work order, remove the whole `## Work order` section (heading,
  hours, and item), not just the checkbox, then write `$NS/deadline` as a UNIX epoch from the
- recorded hours (`now + hours*3600`); an order marked finite with no hours writes no deadline.
+ recorded hours (`now + hours*3600`; compute now with `date +%s` on POSIX, or
+ `Get-NSUnixTime` after
+ `Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force` on native
+ Windows); an order marked finite with no hours writes no deadline.
 - If the punch list is empty and nothing is parked, stop and say so: use Setup if the project is
  new, Hunt to compose a shift, or write an item by hand. Give host-native invocation when needed:
  slash commands on Claude Code, or ask Nightshift for the named skill on Codex.

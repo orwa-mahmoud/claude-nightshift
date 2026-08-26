@@ -140,7 +140,10 @@ the Start skill exactly: clear the stale markers, **cut** the whole `## Work ord
 out of `$NS/work-orders.md` (heading, hours, and item — do not leave an empty
 order heading behind), put only the item under `## Items` in the punch list (a cut, never a
 copy — it must not exist in two places), write
-`$NS/deadline` from the recorded hours, **arm the gate** with
+`$NS/deadline` as a UNIX epoch from the recorded hours (`date +%s` plus
+hours*3600 on POSIX, or `Get-NSUnixTime` plus hours*3600 after
+`Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force` on native
+Windows), **arm the gate** with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
 Windows PowerShell, log the start, run the binding probe

@@ -78,6 +78,11 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 @test "start writes the deadline from a cut order's recorded hours" {
   grep -q 'work-orders.md' "$START"
   grep -q 'hours\*3600' "$START"
+  grep -qF 'date +%s' "$START"
+  grep -qF 'Get-NSUnixTime' "$START"
+  grep -q 'hours\*3600' "$HUNT"
+  grep -qF 'date +%s' "$HUNT"
+  grep -qF 'Get-NSUnixTime' "$HUNT"
   grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
 }
 
