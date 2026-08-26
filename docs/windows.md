@@ -112,6 +112,7 @@ profiles, and a local support bundle:
 
 ```powershell
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project C:\path\to\workspace
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\retain-history.ps1" -Project C:\path\to\workspace
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project C:\path\to\workspace -ListProposed
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project C:\path\to\workspace -List

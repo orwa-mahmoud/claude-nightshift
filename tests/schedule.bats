@@ -194,6 +194,14 @@ STUB
   grep -qF 'import-issues, apply-profile, and export-support helpers' "$w"
 }
 
+@test "native Windows helper docs name migrate-state" {
+  w="$BATS_TEST_DIRNAME/../docs/windows.md"
+  helpers="$(awk '/^## Doctor and other helpers$/{p=1; next} /^## /{p=0} p' "$w")"
+  printf '%s\n' "$helpers" | grep -qF 'runtime\windows\migrate-state.ps1'
+  printf '%s\n' "$helpers" | grep -qF -- '-Project'
+  grep -qF 'Doctor, migrate-state, retain-history' "$w"
+}
+
 @test "native Windows setup docs name the workspace linker" {
   w="$BATS_TEST_DIRNAME/../docs/windows.md"
   setup="$(awk '/^## Setup and start$/{p=1; next} /^## /{p=0} p' "$w")"
