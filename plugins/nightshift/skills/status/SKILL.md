@@ -65,13 +65,14 @@ Read `$NS/` and print:
  Windows). Otherwise "no deadline (finite list)".
 - **State** — whether `$NS/STOP` is present (and its reason), and the current
  `$NS/.stall` attempt count if any. If a shift is running, the bound session from
- `$NS/.shift-session` and whether its process is still alive. Also report
+ `$NS/.shift-session` (never print the session id). Also report
  `$NS/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
- show its host, generation, and whether its recorded process is alive. Obtain those lease facts
- by running `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/doctor.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ show its host, generation, and whether its recorded process is alive. Obtain session
+ process liveness, watchman pid liveness, and lease facts by running
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/doctor.sh" --project "$NIGHTSHIFT_WORKSPACE"`
  (on native Windows, `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
- and
- reading its Process lease lines; do not read the runtime-owned lease file directly. The
+ and reading its `recorded pid`, `watchman pid`, and Process lease lines; do not
+ reimplement liveness, and do not read the runtime-owned lease file directly. The
  inspector validates it with the shared library and never prints its session scope or ownership
  capability.
 - **Watchman** — if `$NS/.watch-reason` exists, print line 1 (the stable code) and the

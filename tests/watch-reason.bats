@@ -22,6 +22,14 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
   grep -qF '.watch-reason' "$DOCTOR_SKILL" || grep -qF 'watchman reason' "$DOCTOR"
 }
 
+@test "status reads session and watchman liveness from Doctor" {
+  grep -qF 'recorded pid' "$STATUS"
+  grep -qF 'watchman pid' "$STATUS"
+  grep -qF 'reimplement liveness' "$STATUS"
+  grep -qF 'recorded pid' "$DOCTOR"
+  grep -qF 'watchman pid' "$DOCTOR"
+}
+
 @test "Windows reason allow-list matches the shared codes" {
   psm1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'function Write-NSReason' "$psm1"
