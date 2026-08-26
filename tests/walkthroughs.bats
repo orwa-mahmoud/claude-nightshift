@@ -38,6 +38,19 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'drafting-table.md' "$START"
 }
 
+# Imported issues carry review flags the helper enforces. A hand-edit of the two markdown files
+# would skip that, so empty-list Start must use the same promote path Hunt already names.
+@test "start cuts a proposed import through the promote helper" {
+  grep -qF 'Status: proposed' "$START"
+  grep -qF 'runtime/import-issues.sh' "$START"
+  grep -qF -- '--promote' "$START"
+  grep -qF 'runtime\windows\import-issues.ps1' "$START"
+  grep -qF -- '-Promote' "$START"
+  grep -qF -- '--allow-flagged' "$START"
+  grep -qF -- '-AllowFlagged' "$START"
+  grep -qi 'never by editing the two markdown files by hand' "$START"
+}
+
 # An item in two files is an item that gets worked twice, or ticked in the wrong place.
 @test "a cut moves the item and never copies it" {
   grep -qi 'move, never copy' "$START"

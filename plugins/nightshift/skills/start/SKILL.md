@@ -144,9 +144,15 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
 - **Only when the punch list is empty, offer what is staged.** Read `$NS/work-orders.md`
  and `$NS/drafting-table.md`. If either holds work, show it in one short list and ask
  which to work now. On the owner's choice, **cut it — move, never copy**: the item goes under
- `## Items` and is removed from the file it came from, so it never exists in two places. From a
- work order, write `$NS/deadline` as a UNIX epoch from the recorded hours
- (`now + hours*3600`); an order marked finite with no hours writes no deadline.
+ `## Items` and is removed from the file it came from, so it never exists in two places. An
+ imported draft (`Status: proposed` and a canonical `Source:` GitHub URL) is cut with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --promote …`
+ (on native Windows,
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`)
+ — never by editing the two markdown files by hand. A flagged import stays refused unless the
+ owner overrides after seeing the flags (`--allow-flagged` / `-AllowFlagged`). Ordinary drafts
+ keep the manual cut. From a work order, write `$NS/deadline` as a UNIX epoch from the
+ recorded hours (`now + hours*3600`); an order marked finite with no hours writes no deadline.
 - If the punch list is empty and nothing is parked, stop and say so: use Setup if the project is
  new, Hunt to compose a shift, or write an item by hand. Give host-native invocation when needed:
  slash commands on Claude Code, or ask Nightshift for the named skill on Codex.
