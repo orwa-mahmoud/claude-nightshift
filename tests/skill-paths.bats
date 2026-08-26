@@ -308,6 +308,8 @@ PY
 @test "native Windows skills pair runtime helpers instead of calling .sh" {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/doctor/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/status/SKILL.md"
+  grep -qF 'Get-NSUnixTime' "$SKILLS/status/SKILL.md"
+  grep -qF 'Get-NSReasonLabel' "$SKILLS/status/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$SKILLS/import-issues/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$HUNT"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$HUNT"

@@ -60,7 +60,9 @@ Read `$NS/` and print:
  and Verify remaining. Flag multiple building entries as inconsistent without changing them.
  Do not turn the map into work or change a status.
 - **Deadline** — if `$NS/deadline` exists, the time remaining until quitting time (it holds a
- UNIX epoch; compare with `date +%s`). Otherwise "no deadline (finite list)".
+ UNIX epoch; compare with `date +%s` on POSIX, or `Get-NSUnixTime` after
+ `Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force` on native
+ Windows). Otherwise "no deadline (finite list)".
 - **State** — whether `$NS/STOP` is present (and its reason), and the current
  `$NS/.stall` attempt count if any. If a shift is running, the bound session from
  `$NS/.shift-session` and whether its process is still alive. Also report
@@ -73,7 +75,8 @@ Read `$NS/` and print:
  inspector validates it with the shared library and never prints its session scope or ownership
  capability.
 - **Watchman** — if `$NS/.watch-reason` exists, print line 1 (the stable code) and the
- same human label Doctor prints (`ns_reason_label` in the shared library). Do not print
+ same human label Doctor prints (`ns_reason_label` in the shared library; on native
+ Windows, `Get-NSReasonLabel` after the same module import). Do not print
  transcript paths, session ids, prompts, or any other payload. Line 2 is optional non-sensitive
  detail only.
 

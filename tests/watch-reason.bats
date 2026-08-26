@@ -16,6 +16,7 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
 @test "status and Doctor render the same shared reason file" {
   grep -qF '.watch-reason' "$STATUS"
   grep -qF 'ns_reason_label' "$STATUS"
+  grep -qF 'Get-NSReasonLabel' "$STATUS"
   grep -qF 'ns_reason_code' "$DOCTOR"
   grep -qF 'ns_reason_label' "$DOCTOR"
   grep -qF '.watch-reason' "$DOCTOR_SKILL" || grep -qF 'watchman reason' "$DOCTOR"
