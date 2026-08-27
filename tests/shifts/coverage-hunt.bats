@@ -2,6 +2,9 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
+HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
+SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "coverage hunt chooses valuable untested behaviour" {
   grep -qi 'highest-value untested behaviour' "$E"
@@ -31,4 +34,7 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qi 'Never select coverage hunt when work mode is artifact' "$HUNT"
   grep -qi 'Skip coverage hunt when work mode is artifact' "$QUALITY"
   grep -qi 'Skip coverage hunt when work mode is artifact' "$MODES"
+  grep -qi 'skips coverage hunt in artifact mode' "$COMMANDS"
+  grep -qi 'skips coverage hunt in artifact mode' "$HOW"
+  grep -qF 'Coverage hunt is skipped in artifact mode' "$SHIFT_MODES"
 }

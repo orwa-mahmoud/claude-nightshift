@@ -48,6 +48,7 @@ The GitHub issue hunt is skipped in artifact mode.
 The defect hunt is skipped in artifact mode.
 Documentation drift is skipped in artifact mode.
 TODO and FIXME debt is skipped in artifact mode.
+Coverage hunt is skipped in artifact mode.
 The clock starts only after approval.
 
 ## Automatic + Run directly

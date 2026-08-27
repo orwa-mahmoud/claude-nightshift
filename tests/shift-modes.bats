@@ -27,6 +27,7 @@ MODES="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/exe
   grep -qF 'The defect hunt is skipped in artifact mode' "$DOC"
   grep -qF 'Documentation drift is skipped in artifact mode' "$DOC"
   grep -qF 'TODO and FIXME debt is skipped in artifact mode' "$DOC"
+  grep -qF 'Coverage hunt is skipped in artifact mode' "$DOC"
   grep -qF 'most recently written' "$DOC"
 }
 
