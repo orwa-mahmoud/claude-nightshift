@@ -112,6 +112,8 @@ sed -n '1p' .nightshift/work-target 2>/dev/null
 git -C "$(sed -n '1p' .nightshift/work-target 2>/dev/null || pwd)" rev-parse --show-toplevel
 ```
 
+Native Windows: `Get-Content -TotalCount 1 .nightshift\work-target`
+
 Two git repositories as siblings of `.nightshift/` with no `work-target` is undecidable: commit
 guards deny rather than pick one.
 
@@ -126,6 +128,8 @@ hand unless it is the absolute git top-level of the repo you mean.
 ls -l .nightshift/rules.json
 python3 -m json.tool .nightshift/rules.json >/dev/null
 ```
+
+Native Windows: `Get-Content -Raw .nightshift\rules.json | ConvertFrom-Json | Out-Null`
 
 Watchman refuses to arm when `watchMinutes` is missing or not a whole number, or when
 `watchRetrySeconds`, `revivalPrompt`, or `freshRevivalPrompt` are empty. The clock-out stall
@@ -155,6 +159,8 @@ ls -l .nightshift/STOP .nightshift/.shift-armed .nightshift/.ended \
   .nightshift/.watchman 2>/dev/null
 sed -n '1,5p' .nightshift/STOP 2>/dev/null
 ```
+
+Native Windows: `Get-Content -TotalCount 5 .nightshift\STOP`
 
 | Marker | Meaning |
 |---|---|
@@ -213,6 +219,8 @@ workspace is bootstrapped by the bound session's next tool call.
 sed -n '1,5p' .nightshift/.shift-session 2>/dev/null
 ```
 
+Native Windows: `Get-Content -TotalCount 5 .nightshift\.shift-session`
+
 A 500 can land **before** the binding probe, so the file may be missing while the punch list is
 open. On Claude Code the watchman then treats the newest conversation ending in the host's API-error
 event as the wedge and resumes with `--continue`. On Codex, with no recorded id, revival falls
@@ -230,6 +238,8 @@ project will append to the wrong conversation.
 tail -n 40 .nightshift/shift-log.md
 ls -l .nightshift/.watchman .nightshift/.watchman-tick 2>/dev/null
 ```
+
+Native Windows: `Get-Content -Tail 40 .nightshift\shift-log.md`
 
 Stand-down is success when the night already reached a declared ending. Matching log lines:
 

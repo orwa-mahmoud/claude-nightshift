@@ -37,6 +37,11 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   repair="$(awk '/^## 2\. Invalid/{p=1; next} /^## /{p=0} p' "$DOC")"
   printf '%s\n' "$repair" | grep -qF 'link-workspace.sh'
   printf '%s\n' "$repair" | grep -qF 'link-workspace.ps1'
+  grep -qF 'Get-Content -TotalCount 1 .nightshift\work-target' "$DOC"
+  grep -qF 'ConvertFrom-Json | Out-Null' "$DOC"
+  grep -qF 'Get-Content -TotalCount 5 .nightshift\STOP' "$DOC"
+  grep -qF 'Get-Content -TotalCount 5 .nightshift\.shift-session' "$DOC"
+  grep -qF 'Get-Content -Tail 40 .nightshift\shift-log.md' "$DOC"
 }
 
 @test "troubleshooting marks checks before repairs and splits the hosts" {
