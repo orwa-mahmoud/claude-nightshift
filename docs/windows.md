@@ -124,7 +124,7 @@ profiles, a local support bundle, and artifact-mode completion receipts:
 ```
 
 In artifact mode Doctor reports `artifact receipts N` and, when any exist, `latest artifact receipt`
-with the filename only. It warns `artifact mode has ticked items but no receipts` when ticks exist
+with the filename only of the most recently written receipt. It warns `artifact mode has ticked items but no receipts` when ticks exist
 without a receipt; write the receipt with `write-receipt.ps1` rather than a work-target commit.
 
 ## Process evidence and recovery

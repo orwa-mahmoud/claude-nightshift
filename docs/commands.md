@@ -64,7 +64,7 @@ When a shift is not where you think it is — wrong folder, broken `.nightshift-
 `/nightshift:doctor` on Claude Code or ask Nightshift to diagnose on Codex, then walk
 [Troubleshooting](troubleshooting.md) before changing files. Doctor reports; it never repairs.
 In artifact mode it also reports `artifact receipts N`, `latest artifact receipt` with the
-filename when any exist, and warns `artifact mode has ticked items but no receipts` when boxes
+filename of the most recently written receipt when any exist, and warns `artifact mode has ticked items but no receipts` when boxes
 were ticked without `write-receipt`.
 
 A redacted local support bundle from a terminal (never uploaded):

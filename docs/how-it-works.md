@@ -372,7 +372,7 @@ Completion in artifact mode is a file under `$NS/receipts/`, written by
 records the item, output paths, verification, optional decisions and sources, timestamps, and
 file identity (bytes, SHA-256, mtime). Missing or empty outputs are refused. The stall guard
 treats a new receipt like a commit; Doctor reports `artifact receipts N` and, when any exist,
-`latest artifact receipt` with the filename only, and warns when ticked items have no receipts;
+`latest artifact receipt` with the filename only of the most recently written receipt, and warns when ticked items have no receipts;
 Archive copies receipts
 into the dated folder and leaves the live files in place. Repository mode still requires a
 work-target git commit.
