@@ -500,6 +500,9 @@ function Get-NSCommandDenyReason {
         if (Test-NSGitVerb $Scrubbed 'add') { $verb = 'add' }
         if (Test-NSGitVerb $Scrubbed 'commit') { $verb = 'commit' }
         if ($null -ne $verb) {
+            if ($Scrubbed -match '(?i)--git-dir|--work-tree') {
+                return "BLOCKED: --git-dir/--work-tree point this $verb somewhere the protected-directory guard cannot verify. Run it from inside the repository instead."
+            }
             $repository = Resolve-NSCommandRepository $Command $CurrentDirectory $Workspace
             if ([string]::IsNullOrEmpty($repository)) {
                 return "BLOCKED: cannot tell which Git repository this $verb targets, so the protected-directory guard cannot run. Run it from inside the repository."

@@ -65,6 +65,18 @@ try {
         -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
     Expect-True ($addDeleted -match 'protected directory') "git add -A deletion: $addDeleted"
 
+    $gitDirAdd = Get-NSCommandDenyReason -Command 'git --git-dir=C:\elsewhere\.git add x' `
+        -Scrubbed 'git --git-dir=C:\elsewhere\.git add x' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories 'ai_docs' `
+        -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($gitDirAdd -match 'protected-directory guard cannot verify') "git-dir add: $gitDirAdd"
+
+    $workTreeCommit = Get-NSCommandDenyReason -Command 'git --work-tree=C:\elsewhere commit -am x' `
+        -Scrubbed 'git --work-tree=C:\elsewhere commit -am MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories 'ai_docs' `
+        -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($workTreeCommit -match 'protected-directory guard cannot verify') "work-tree commit: $workTreeCommit"
+
     [IO.File]::WriteAllText((Join-Path $root 'secret.txt'), "placeholder`n")
     $null = & git add -- secret.txt
     $null = & git commit --quiet -m secret-seed

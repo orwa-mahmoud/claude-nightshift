@@ -610,6 +610,12 @@ try {
     }
     Assert-True ($addDeleted.Stdout -match 'protected directory') 'git add -A sees a staged protected deletion'
 
+    $gitDirAdd = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git --git-dir=C:\elsewhere\.git add x' } @{
+        NIGHTSHIFT_PROTECTED_DIRS = 'ai_docs'
+    }
+    Assert-True ($gitDirAdd.Stdout -match 'protected-directory guard cannot verify') `
+        'a --git-dir add is unverifiable under protectedDirs'
+
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
     Assert-True ($forbidden.Stdout -match 'forbidden list') 'PowerShell commands honor the forbidden list'

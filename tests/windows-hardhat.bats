@@ -54,3 +54,10 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
   grep -qF 'never-commit pattern' "$RUN"
   grep -qF 'never-commit pattern' "$LOGIC"
 }
+
+@test "Windows protected-dir git-dir denials match POSIX wording" {
+  grep -qF 'somewhere the protected-directory guard cannot verify' "$CORE"
+  grep -qF 'somewhere the protected-directory guard cannot verify' "$HELPER"
+  grep -qF 'protected-directory guard cannot verify' "$RUN"
+  grep -qF 'protected-directory guard cannot verify' "$LOGIC"
+}

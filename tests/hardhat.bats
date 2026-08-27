@@ -81,6 +81,22 @@ load helpers
   is_deny "$output"
 }
 
+@test "a --git-dir add is denied when a protected directory is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --git-dir=/somewhere/else/.git add x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'protected-directory guard cannot verify'
+}
+
+@test "a --work-tree commit is denied when a protected directory is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --work-tree=/somewhere/else commit -am x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'protected-directory guard cannot verify'
+}
+
 @test "protected-dir check is skipped when unset" {
   p="$(new_project)"
   punch_open "$p"
