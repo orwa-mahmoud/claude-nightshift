@@ -308,7 +308,7 @@ active.
 If Doctor says the lease is malformed, or work was already interleaved before the fence took
 effect, run Stop (`/nightshift:stop` on Claude Code, or ask Nightshift to stop on Codex) from a
 separate helper conversation, or create `STOP` from another terminal. Wait for the active process
-to stop, inspect the repository and shift log, then run Start; do not rewrite `.shift-lease` by
+to stop, inspect the work target and shift log, then run Start; do not rewrite `.shift-lease` by
 hand. A bare `touch` leaves the watchman running until it checks the marker after the current
 subprocess returns or on its next wake.
 
@@ -323,6 +323,7 @@ worker.
 ## See also
 
 - [Command reference](commands.md) — setup, start, status, doctor, stop, schedule
+- [Shift modes](shift-modes.md) — copyable Hunt and Quality launch combinations
 - [Owner knobs](knobs.md) — `rules.json` and env overrides
 - [First-night safety checklist](first-night-checklist.md)
 - [Security policy](../SECURITY.md) — public issues by default; private advisory is optional

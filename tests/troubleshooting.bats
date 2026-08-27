@@ -23,6 +23,7 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF '.nightshift-link' "$DOC"
   grep -qF 'work-target' "$DOC"
   grep -qF 'work-mode' "$DOC"
+  grep -qF 'inspect the work target' "$DOC"
   grep -qF '.nightshift/receipts' "$DOC"
   grep -qF 'latest artifact receipt' "$DOC"
   grep -qF 'Do not `git init` an artifact' "$DOC"
@@ -65,6 +66,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   [ -f "$BATS_TEST_DIRNAME/../docs/knobs.md" ]
   [ -f "$BATS_TEST_DIRNAME/../docs/commands.md" ]
   [ -f "$BATS_TEST_DIRNAME/../docs/first-night-checklist.md" ]
+  [ -f "$BATS_TEST_DIRNAME/../docs/shift-modes.md" ]
+  grep -qF '[Shift modes](shift-modes.md)' "$DOC"
   [ -f "$BATS_TEST_DIRNAME/../SECURITY.md" ]
   [ -f "$BATS_TEST_DIRNAME/../.github/ISSUE_TEMPLATE/failed_shift.yml" ]
   grep -qF 'issues/new?template=failed_shift.yml' "$DOC"
