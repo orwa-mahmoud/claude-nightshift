@@ -26,6 +26,12 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
   grep -qF 'sanitized receipts' "$CONTRIBUTING"
 }
 
+@test "CONTRIBUTING requires PowerShell 5.1 and 7 portability" {
+  grep -qF 'PowerShell must stay portable' "$CONTRIBUTING"
+  grep -qF 'Avoid syntax and APIs that exist on' "$CONTRIBUTING"
+  grep -qF 'only one of those runtimes' "$CONTRIBUTING"
+}
+
 parse_yaml() {
   ruby -ryaml -e 'YAML.load_file(ARGV[0]); puts "ok"' "$1"
 }
