@@ -28,8 +28,9 @@ session until it is.
 
 The native path uses the same on-disk contract and marker names as macOS and Linux:
 
-- setup copies only absent templates, writes `state-version`, records the selected Git work
-  target, and can create the optional local-only receipts repository;
+- setup copies only absent templates, writes `state-version`, records work-mode and the selected
+  work target (a Git repository or a persistent folder), and can create the optional local-only
+  receipts repository;
 - PreToolUse binds one session, creates and enforces the process lease, protects `rules.json` and
   lease state, applies exact `toolDeny` keys, and enforces configured command and commit guards;
 - Stop honors `STOP` first, releases completed or expired shifts, records stalls, commits optional

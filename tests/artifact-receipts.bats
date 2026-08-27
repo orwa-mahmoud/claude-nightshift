@@ -214,6 +214,7 @@ new_artifact() {
   grep -qF 'latest artifact receipt' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$WINDOC"
+  grep -qF 'persistent folder' "$WINDOC"
   grep -qF 'artifact receipts' "$README"
 }
 
