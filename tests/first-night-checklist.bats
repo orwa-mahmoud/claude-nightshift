@@ -25,6 +25,8 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
 @test "first-night checklist relative links resolve" {
   [ -f "$BATS_TEST_DIRNAME/../docs/knobs.md" ]
   [ -f "$BATS_TEST_DIRNAME/../docs/commands.md" ]
+  [ -f "$BATS_TEST_DIRNAME/../docs/shift-modes.md" ]
+  grep -qF '[Shift modes](shift-modes.md)' "$CHECKLIST"
 }
 
 @test "first-run overnight guidance names persistent folders" {

@@ -45,5 +45,6 @@ touch .nightshift/STOP
 Native Windows: `New-Item -ItemType File -Force .nightshift\STOP`.
 
 See [Owner knobs](knobs.md) for the exact rule and notification settings,
+[Shift modes](shift-modes.md) for copyable Hunt requests,
 [Command reference](commands.md) for setup, start, hunt, import-issues, status, doctor, stop, and archive, and
 [Troubleshooting](troubleshooting.md) if the site is not where you expect.
