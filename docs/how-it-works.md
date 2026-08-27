@@ -122,7 +122,7 @@ periodically. The default cadence is ten minutes and is owner-configurable.
 Both watchmen act only on a shift recorded for their own host and require positive evidence before
 reviving a dead session. When a resumable identity exists, they target that conversation first;
 the host-specific continuation and fresh-session fallbacks below cover failed resume attempts or a
-missing identity. They never revive merely because a repository “looks stuck”: builds, syncs, logs,
+missing identity. They never revive merely because a workspace “looks stuck”: builds, syncs, logs,
 and all other project-file activity do not vote on session life. They stand down for a completed
 shift, a stop-work order, quitting time, or a shift owned by the other host.
 

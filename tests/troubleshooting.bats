@@ -77,6 +77,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
 @test "recovery docs separate unattended work from the manual UI refresh" {
   grep -qF 'owner does not need to watch it' "$README"
   grep -qF 'needs no owner monitoring' "$HOW"
+  grep -qi 'looks stuck' "$HOW"
+  grep -qF 'project-file activity' "$HOW"
   grep -qF 'owner does not need to watch the recovery' "$DOC"
   grep -qF 'without being watched' "$CHECKLIST"
   grep -qF 'does not require an owner to monitor it' "$KNOBS"
