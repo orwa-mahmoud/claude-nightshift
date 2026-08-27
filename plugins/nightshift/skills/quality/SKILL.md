@@ -65,7 +65,8 @@ detection that needs a repository. Skip quality-debt entries whose discovery sur
 absent. Do not `git init` a notes folder to make them applicable.
 Skip documentation drift when work mode is artifact.
 Skip TODO and FIXME debt when work mode is artifact.
-Skip coverage hunt when work mode is artifact. Then apply the discovery rules from every relevant quality
+Skip coverage hunt when work mode is artifact.
+Skip tooling quality-debt entries when work mode is artifact. Then apply the discovery rules from every relevant quality
 entry. Never install a tool
 merely to manufacture findings. In review-first mode use report-only commands: no fix flags and no
 writes. If `$NS/` does not exist, review-first may report, but any run-direct request must

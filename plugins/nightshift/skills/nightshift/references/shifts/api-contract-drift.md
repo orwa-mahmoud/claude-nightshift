@@ -6,9 +6,11 @@ found using API tooling the repository already configures. Breaking choices rema
 Supported on projects with an established contract source and comparison command: OpenAPI or
 GraphQL generation/checks, protobuf or schema compilation, consumer-contract tests, generated SDK
 checks, or an equivalent repository-owned gate. Without both, this shift must not start.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 ```text
 - [ ] **API contract drift — align existing API artifacts without silently changing the public API.**
+  - Never select this entry when work mode is artifact.
   - Discovery: identify the repository's authoritative API source and run its configured generation,
     diff, schema, compatibility, or consumer-contract command. Compare server routes, checked-in
     schemas, generated clients, fixtures, and contract tests as applicable. Dedupe findings against

@@ -7,9 +7,11 @@ with a human.
 Supported only when the project already has locale catalogs plus an established checker, generator,
 type system, or canonical source locale. If localization is absent or no source of truth can be
 identified, this shift is unsupported and must not start.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 ```text
 - [ ] **Localization parity — repair objective key drift without inventing translations.**
+  - Never select this entry when work mode is artifact.
   - Discovery: detect the repository's locale catalogs, canonical source locale, and configured
     localization check, generator, or typed-key command. Use those established sources to find
     missing, unused, duplicate, or structurally inconsistent keys. Dedupe against snag-log.md

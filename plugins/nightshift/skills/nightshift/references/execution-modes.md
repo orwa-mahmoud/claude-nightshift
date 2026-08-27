@@ -19,6 +19,7 @@ imports exist. Skip the defect hunt when work mode is artifact.
 Skip documentation drift when work mode is artifact.
 Skip TODO and FIXME debt when work mode is artifact.
 Skip coverage hunt when work mode is artifact.
+Skip tooling quality-debt entries when work mode is artifact.
 Do not `git init` a notes folder to make them applicable.
 For each applicable entry record one sentence of evidence. Rank by:
 
