@@ -56,6 +56,8 @@ done.
 **6. Supported stacks.** Which projects this makes sense on, and how it detects them. An entry that
 assumes vitest should say so rather than failing quietly on a Go repo. An entry that can run in
 artifact mode should say so and must not require a git history that cannot exist.
+An entry that cannot run in artifact mode must say `Never select this entry in artifact mode`.
+Do not `git init` a notes folder to make a commit-only entry fit.
 
 Two more that make an entry pleasant rather than merely correct: a **typical hours** hint so the
 owner is not guessing, and **deduplication** against `snag-log.md` so a finding the owner already

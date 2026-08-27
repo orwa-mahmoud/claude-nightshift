@@ -95,5 +95,9 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   grep -qF 'commit or artifact receipt' "$CATALOG_FORM"
   grep -qF 'commit or artifact receipt' "$RECIPE"
   grep -qF 'must not require a git history' "$RECIPE"
+  grep -qF 'Never select this entry in artifact mode' "$RECIPE"
+  grep -qF 'Never select this entry in artifact mode' "$CATALOG_FORM"
+  grep -qF 'Do not `git init` a notes folder' "$RECIPE"
+  grep -qF 'Do not `git init` a notes folder' "$CATALOG_FORM"
   [ -f "$RECIPE" ]
 }
