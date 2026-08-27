@@ -46,6 +46,8 @@ parse_yaml() {
   grep -qF 'id: expected' "$FAILED"
   grep -qF 'id: observed' "$FAILED"
   grep -qF 'id: markers' "$FAILED"
+  grep -qF 'work-mode is artifact' "$FAILED"
+  grep -qF 'receipts/ had completion files' "$FAILED"
   grep -qF 'id: recovery' "$FAILED"
   grep -qF 'id: logs' "$FAILED"
 }

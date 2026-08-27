@@ -79,6 +79,8 @@ body:
         - label: "deadline"
         - label: ".watchman (pid file)"
         - label: ".nightshift-link (task root pointed at another workspace)"
+        - label: "work-mode is artifact"
+        - label: "receipts/ had completion files (do not paste them)"
   - type: dropdown
     id: recovery
     attributes:
