@@ -136,6 +136,25 @@ age_file() {
   grep -qF 'from start, hooks, status, Doctor, or recovery' "$ARCHIVE"
 }
 
+LOGIC="$BATS_TEST_DIRNAME/windows/retain-history-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable retain-history apply suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'retain-history-logic.ps1' "$RUN"
+  grep -qF 'Deleted the eligible allowlisted paths' "$LOGIC"
+  grep -qF 'open-work archive is not eligible' "$LOGIC"
+  grep -qF 'refuse to delete while the shift is armed' "$LOGIC"
+}
+
+@test "Windows retain-history apply logic passes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}
+
 @test "archive skill and schema describe the nested retention knobs" {
   grep -qF 'retention.runtimeLogDays' "$ARCHIVE"
   grep -qF 'retention.archiveDays' "$ARCHIVE"

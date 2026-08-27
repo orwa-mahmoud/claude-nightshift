@@ -462,6 +462,10 @@ try {
     $exportSupportLogicRun = Invoke-TestScript $exportSupportLogic
     Assert-Equal 0 $exportSupportLogicRun.ExitCode `
         "export-support redaction: $($exportSupportLogicRun.Stdout) $($exportSupportLogicRun.Stderr)"
+    $retainHistoryLogic = Join-Path $PSScriptRoot 'retain-history-logic.ps1'
+    $retainHistoryLogicRun = Invoke-TestScript $retainHistoryLogic
+    Assert-Equal 0 $retainHistoryLogicRun.ExitCode `
+        "retain-history apply: $($retainHistoryLogicRun.Stdout) $($retainHistoryLogicRun.Stderr)"
     $hardhatLogic = Join-Path $PSScriptRoot 'hardhat-logic.ps1'
     $hardhatLogicRun = Invoke-TestScript $hardhatLogic
     Assert-Equal 0 $hardhatLogicRun.ExitCode `
