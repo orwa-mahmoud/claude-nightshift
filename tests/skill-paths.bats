@@ -147,6 +147,9 @@ PY
   grep -qF 'Read-NSLease' "$START"
   grep -qF ': nightshift-binding-probe' "$START"
   grep -qF 'jq` or `python3' "$START"
+  grep -qF 'watchRetrySeconds' "$START"
+  grep -qF 'revivalPrompt' "$START"
+  grep -qF 'freshRevivalPrompt' "$START"
 }
 
 @test "start validates the captured Codex identity before its watchman or item work" {

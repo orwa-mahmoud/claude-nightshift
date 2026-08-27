@@ -182,6 +182,12 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  a plugin update brought new knobs — say so once and point at Setup to review them; never add
  them yourself here. A missing native question-tool key must be repaired before an ask tool can
  run. (The hooks read the file live — there is no drift to check and no restart to suggest.)
+- **Watchman recovery keys.** When `watchMinutes` is a positive whole number (and
+ `NIGHTSHIFT_WATCH` is not `0`), resolve `watchRetrySeconds`, `revivalPrompt`, and
+ `freshRevivalPrompt` the same way the watchman does — file plus matching env override,
+ expanding the two prompts. If any is empty, refuse to arm and point at Setup to restore the
+ shipped template. Doctor reports those keys; Start does not write them. `watchMinutes` `0`
+ leaves the watchman disarmed and does not require them.
 - The night cannot click Allow. On Claude Code: if neither
  `$TASK_ROOT/.claude/settings.local.json` nor `$TASK_ROOT/.claude/settings.json` grants
  frictionless permissions (`bypassPermissions` default mode or an
