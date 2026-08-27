@@ -57,10 +57,12 @@ without another pause under the decision policy in `execution-modes.md`.
 
 ## 2. Detect and scan
 
-Detect the stack from the gates catalog (monorepo-aware), including a plugin
-or marketplace manifest at the work-target root or under `plugins/<name>/`,
-inspect repository-owned tooling and
-evidence, then apply the discovery rules from every relevant quality entry. Never install a tool
+Detect the stack from the gates catalog (monorepo-aware) when the work mode is repository,
+including a plugin or marketplace manifest at the work-target root or under `plugins/<name>/`,
+and inspect repository-owned tooling and evidence. In artifact mode inspect the persistent
+folder's files and any existing manifests or reports; do not require git history or stack
+detection that needs a repository. Then apply the discovery rules from every relevant quality
+entry. Never install a tool
 merely to manufacture findings. In review-first mode use report-only commands: no fix flags and no
 writes. If `$NS/` does not exist, review-first may report, but any run-direct request must
 stop and point to Setup (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex)

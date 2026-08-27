@@ -144,9 +144,13 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 
 @test "automatic hunt ranks evidence and uses one combined clock" {
   mode="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+  quality="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
   grep -qi 'inspect the work target' "$mode"
+  grep -qi 'inspect the work target' "$HUNT"
   grep -qi 'artifact mode' "$mode"
   grep -qi 'do not require a git history' "$mode"
+  grep -qi 'do not require git history' "$quality"
+  grep -qi 'artifact mode' "$quality"
   grep -qi 'user or production impact' "$mode"
   grep -qi 'Remove overlaps' "$mode"
   grep -qi 'Run finite entries first' "$mode"
