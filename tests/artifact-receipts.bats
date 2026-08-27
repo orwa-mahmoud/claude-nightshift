@@ -244,6 +244,8 @@ new_artifact() {
   grep -qF 'runtime\windows\write-receipt.ps1' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$WINDOC"
   grep -qF 'persistent folder' "$WINDOC"
+  grep -qF 'latest artifact receipt' "$WINDOC"
+  grep -qF 'artifact mode has ticked items but no receipts' "$WINDOC"
   grep -qF 'artifact receipts' "$README"
   grep -qF 'reviewable commits or artifact receipts' "$CODEX_PLUGIN"
   grep -qF 'Git repository or a local folder' "$CODEX_PLUGIN"

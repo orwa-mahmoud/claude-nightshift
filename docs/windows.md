@@ -123,6 +123,10 @@ profiles, a local support bundle, and artifact-mode completion receipts:
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\check-report.ps1" -Project C:\path\to\workspace -Report C:\path\to\report.md -Manifest C:\path\to\sources.tsv -Output C:\path\to\report.md
 ```
 
+In artifact mode Doctor reports `artifact receipts N` and, when any exist, `latest artifact receipt`
+with the filename only. It warns `artifact mode has ticked items but no receipts` when ticks exist
+without a receipt; write the receipt with `write-receipt.ps1` rather than a work-target commit.
+
 ## Process evidence and recovery
 
 Windows hooks walk native process ancestry through `Win32_Process`; a recorded holder is identified
