@@ -40,6 +40,7 @@ RECEIPTS="$ROOT/examples/README.md"
   grep -qF 'hooks/windows/hardhat.ps1' "$MAP"
   grep -qF 'hooks/windows/clock-out-gate.ps1' "$MAP"
   grep -qF 'tests/windows-hardhat.bats' "$MAP"
+  grep -qF 'tests/windows-watchman.bats' "$MAP"
 }
 
 @test "the contribution map preserves focused and repository checks" {
@@ -66,6 +67,7 @@ RECEIPTS="$ROOT/examples/README.md"
     plugins/nightshift/hooks/windows/hardhat.ps1 \
     plugins/nightshift/hooks/windows/clock-out-gate.ps1 \
     tests/windows-hardhat.bats \
+    tests/windows-watchman.bats \
     tests/codex tests/fixtures tests/shifts \
     tests/catalog.bats tests/contribution-map.bats \
     tests/first-night-checklist.bats tests/troubleshooting.bats \
