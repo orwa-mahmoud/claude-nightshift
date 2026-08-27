@@ -253,6 +253,34 @@ STUB
   printf '%s' "$output" | grep -q 'punch list has'
 }
 
+@test "--preflight fails when watchman recovery keys are empty" {
+  cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
+  python3 -c '
+import json,sys
+p=sys.argv[1]
+with open(p) as f: d=json.load(f)
+d["watchRetrySeconds"]=""
+d["revivalPrompt"]=""
+d["freshRevivalPrompt"]=""
+with open(p,"w") as f: json.dump(d,f)
+' "$P/.nightshift/rules.json"
+  run "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -q 'watchRetrySeconds is empty'
+  printf '%s' "$output" | grep -q 'revivalPrompt is empty'
+  printf '%s' "$output" | grep -q 'freshRevivalPrompt is empty'
+  printf '%s' "$output" | grep -q 'watchman will refuse to arm'
+}
+
+@test "Windows schedule preflight names empty watchman recovery keys" {
+  grep -qF 'watchRetrySeconds is empty' "$SCHED"
+  grep -qF 'revivalPrompt is empty' "$SCHED"
+  grep -qF 'freshRevivalPrompt is empty' "$SCHED"
+  grep -qF 'watchRetrySeconds is empty' "$WIN"
+  grep -qF 'revivalPrompt is empty' "$WIN"
+  grep -qF 'freshRevivalPrompt is empty' "$WIN"
+}
+
 @test "--preflight fails closed on an empty punch list" {
   cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
   printf '## Items\n' >"$P/.nightshift/punch-list.md"

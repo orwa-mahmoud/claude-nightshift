@@ -195,6 +195,23 @@ if ($Preflight) {
         }
         else {
             "OK   rules.json (watchMinutes $watch)"
+            if ([int]$watch -gt 0) {
+                $retrySpacing = Get-NSRule $workspace 'watchRetrySeconds' ([string]$env:NIGHTSHIFT_WATCH_RETRY)
+                $revivalPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'revivalPrompt' ([string]$env:NIGHTSHIFT_REVIVAL_PROMPT))
+                $freshPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'freshRevivalPrompt' ([string]$env:NIGHTSHIFT_FRESH_PROMPT))
+                if ([string]::IsNullOrEmpty($retrySpacing)) {
+                    $failures.Add('watchRetrySeconds is empty')
+                    'FAIL watchRetrySeconds is empty - watchman will refuse to arm'
+                }
+                if ([string]::IsNullOrEmpty($revivalPrompt)) {
+                    $failures.Add('revivalPrompt is empty')
+                    'FAIL revivalPrompt is empty - watchman will refuse to arm'
+                }
+                if ([string]::IsNullOrEmpty($freshPrompt)) {
+                    $failures.Add('freshRevivalPrompt is empty')
+                    'FAIL freshRevivalPrompt is empty - watchman will refuse to arm'
+                }
+            }
         }
     }
     $counts = Get-NSBoxCounts (Join-Path $ns 'punch-list.md')

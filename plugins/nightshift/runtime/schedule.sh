@@ -191,7 +191,26 @@ if [ "$MODE" = "preflight" ]; then
     wm="$(rule "$PROJECT" watchMinutes "")"
     case "$wm" in
       '' | *[!0-9]*) pf "FAIL watchMinutes missing or not a whole number"; fail=1 ;;
-      *) pf "OK   rules.json (watchMinutes $wm)" ;;
+      *)
+        pf "OK   rules.json (watchMinutes $wm)"
+        if [ "$wm" -gt 0 ]; then
+          retry="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
+          resume="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")")"
+          fresh="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")")"
+          if [ -z "$retry" ]; then
+            pf "FAIL watchRetrySeconds is empty — watchman will refuse to arm"
+            fail=1
+          fi
+          if [ -z "$resume" ]; then
+            pf "FAIL revivalPrompt is empty — watchman will refuse to arm"
+            fail=1
+          fi
+          if [ -z "$fresh" ]; then
+            pf "FAIL freshRevivalPrompt is empty — watchman will refuse to arm"
+            fail=1
+          fi
+        fi
+        ;;
     esac
   else
     pf "FAIL rules.json is unreadable or not a JSON object"
