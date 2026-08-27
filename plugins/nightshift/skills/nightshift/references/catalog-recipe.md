@@ -49,11 +49,13 @@ are what a tired model reaches for at 4am. Be specific: never silence a linter i
 it, never weaken a test to make it pass, never delete without proving unreachable, never rewrite
 history.
 
-**5. Verification.** The item gate must be green at every commit — state which commands prove this
-entry meets its definition of done.
+**5. Verification.** The item gate must be green at every commit in repository mode, or every
+artifact receipt in artifact mode — state which commands prove this entry meets its definition of
+done.
 
 **6. Supported stacks.** Which projects this makes sense on, and how it detects them. An entry that
-assumes vitest should say so rather than failing quietly on a Go repo.
+assumes vitest should say so rather than failing quietly on a Go repo. An entry that can run in
+artifact mode should say so and must not require a git history that cannot exist.
 
 Two more that make an entry pleasant rather than merely correct: a **typical hours** hint so the
 owner is not guessing, and **deduplication** against `snag-log.md` so a finding the owner already
@@ -75,7 +77,7 @@ a sentence on when to use it, then the item in a fenced block ready to paste und
   - <the working loop or the order of operations>
   - <what it will never do — be explicit>
   - <the ending condition, stated as a test>
-  - Verify: <the commands that must pass before each commit>
+  - Verify: <the commands that must pass before each commit or artifact receipt>
 ```
 ```
 

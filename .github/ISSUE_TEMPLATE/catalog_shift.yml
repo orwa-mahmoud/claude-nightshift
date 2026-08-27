@@ -60,7 +60,7 @@ body:
     id: verification
     attributes:
       label: Verification
-      description: Commands that must be green at every commit for this entry's work.
+      description: Commands that must be green at every commit or artifact receipt for this entry's work.
     validations:
       required: true
   - type: textarea
