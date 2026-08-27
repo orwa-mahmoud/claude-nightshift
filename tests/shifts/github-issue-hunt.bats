@@ -2,6 +2,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 
 @test "the GitHub issue hunt consumes only imported proposed drafts" {
   grep -qF 'Status: proposed' "$E"
@@ -45,5 +46,6 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qF -- '--list-proposed' "$HUNT"
   grep -qi 'does not replace defect hunt or product' "$HUNT"
   grep -qi 'Never select it when work mode is artifact' "$HUNT"
+  grep -qi 'skips the GitHub issue hunt in artifact mode' "$COMMANDS"
   grep -qi 'Quality does not import, search, or work GitHub issues' "$QUALITY"
 }
