@@ -466,6 +466,10 @@ try {
     $writeReceiptLogicRun = Invoke-TestScript $writeReceiptLogic
     Assert-Equal 0 $writeReceiptLogicRun.ExitCode `
         "write-receipt artifact mode: $($writeReceiptLogicRun.Stdout) $($writeReceiptLogicRun.Stderr)"
+    $checkReportLogic = Join-Path $PSScriptRoot 'check-report-logic.ps1'
+    $checkReportLogicRun = Invoke-TestScript $checkReportLogic
+    Assert-Equal 0 $checkReportLogicRun.ExitCode `
+        "check-report cited research: $($checkReportLogicRun.Stdout) $($checkReportLogicRun.Stderr)"
     $retainHistoryLogic = Join-Path $PSScriptRoot 'retain-history-logic.ps1'
     $retainHistoryLogicRun = Invoke-TestScript $retainHistoryLogic
     Assert-Equal 0 $retainHistoryLogicRun.ExitCode `

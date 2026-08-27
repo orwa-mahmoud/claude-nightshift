@@ -74,6 +74,11 @@ Top to bottom, one item, no batching:
   list explicitly says to.
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is complete.
 
+Cited research, SEO audits, sourced documentation, and research synthesis follow
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md`. Verify those reports with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`) before the commit or artifact receipt.
+
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own
 **Verify** and **Commit** lines. Promote owner-approved work from
 `$NS/drafting-table.md` into `## Items`; never invent scope the owner

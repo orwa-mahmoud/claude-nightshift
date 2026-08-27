@@ -64,7 +64,10 @@ Complete each item with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh" --project "$NIGHTSHIFT_WORKSPACE"`
 (native Windows:
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
-instead of a work-target commit. Validate with `ns_work_mode` / `ns_work_target` (native Windows: `Get-NSWorkMode` /
+instead of a work-target commit. Cited reports in that folder still follow
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md` and
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`). Validate with `ns_work_mode` / `ns_work_target` (native Windows: `Get-NSWorkMode` /
 `Resolve-NSWorkTarget` after Import-Module). Refuse to arm when the mode is malformed, the target
 is a disposable scratch path, or repository mode cannot resolve a Git repository. If the record is
 missing, use the workspace itself when it is a repository or its single immediate child

@@ -119,6 +119,7 @@ profiles, a local support bundle, and artifact-mode completion receipts:
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project C:\path\to\workspace -List
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\export-support.ps1" -Project C:\path\to\workspace
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\write-receipt.ps1" -Project C:\path\to\workspace -Item 'title' -Verify 'checks' -Output C:\path\to\file.md
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\check-report.ps1" -Project C:\path\to\workspace -Report C:\path\to\report.md -Manifest C:\path\to\sources.tsv -Output C:\path\to\report.md
 ```
 
 ## Process evidence and recovery

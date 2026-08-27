@@ -88,6 +88,18 @@ Native Windows:
 plugins\nightshift\runtime\windows\write-receipt.ps1 -Project . -Item 'title' -Verify 'checks' -Output .\out.md
 ```
 
+A cited research report against its source manifest:
+
+```bash
+plugins/nightshift/runtime/check-report.sh --project . --report ./report.md --manifest ./sources.tsv --output ./report.md
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\check-report.ps1 -Project . -Report .\report.md -Manifest .\sources.tsv -Output .\report.md
+```
+
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
 and a watchman revival runs headless — a denied tool stays denied. For long runs,
 `bypassPermissions` is the recommended mode, set in the project's `.claude/settings.local.json` so
