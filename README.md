@@ -80,13 +80,14 @@ Before leaving any run unattended, use the concise
    - [ ] **1. <clear task title>.**
      - <exactly what must change>
      - Verify: <commands that prove it is done>
-     - Commit: `<type: concise message>`
+     - Commit: `<type: concise message>` (repository) or an artifact receipt (notes folder)
    ```
 
 3. Start the shift.
 4. Check status later. If the site looks wrong, diagnose it first; Doctor reports and never
    repairs.
-5. Review the local commit, then push it yourself.
+5. Review the local commit or `$NS/receipts/` (Doctor names the latest file), then push only if
+   this is a git repository.
 
 If the host task and the workspace holding `.nightshift/` are different folders, use the explicit
 link described under [Workspaces and repositories](docs/how-it-works.md#workspaces-and-repositories);
