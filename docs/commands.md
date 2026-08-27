@@ -13,7 +13,7 @@
                        # optional follow-up: export a redacted local support bundle (never uploaded)
 /nightshift:stop       # end the shift now; open boxes stay open
 /nightshift:archive    # file finished work into .nightshift/archive/<YYYY-MM-DD>/ — shipped items, logs, handled snags; leftover contract stays
-# you review the local commits and push — or forbid pushing outright (one env line below)
+# you review the local commits or artifact receipts — push only in repository mode, or forbid pushing outright (one env line below)
 ```
 
 Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes

@@ -213,6 +213,7 @@ new_artifact() {
   grep -qF 'runtime/write-receipt.sh' "$COMMANDS"
   grep -qF 'artifact mode has ticked items but no receipts' "$COMMANDS"
   grep -qF 'latest artifact receipt' "$COMMANDS"
+  grep -qF 'local commits or artifact receipts' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$WINDOC"
   grep -qF 'persistent folder' "$WINDOC"
