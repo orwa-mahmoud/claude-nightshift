@@ -19,7 +19,8 @@
 #
 # The sandbox grant is danger-full-access because the workspace-write sandbox protects .git —
 # a revived session could edit but never commit (verified live: "Git cannot create
-# .git/index.lock"), and one commit per item IS the contract. The fence around that access is
+# .git/index.lock"), and one commit per item IS the contract in repository mode.
+# Artifact mode writes a receipt instead. The fence around that access is
 # nightshift's own guards: the hardhat denies what the owner forbade, in every mode — the same
 # trade Claude Code makes with bypassPermissions.
 #
