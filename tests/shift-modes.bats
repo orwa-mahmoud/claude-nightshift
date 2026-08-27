@@ -22,6 +22,7 @@ MODES="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/exe
   grep -qF 'do not prove the work' "$DOC"
   grep -qF '/nightshift:hunt' "$DOC"
   grep -qF 'Hunt Automatic for four hours' "$DOC"
+  grep -qF 'Quality-debt entries are skipped' "$DOC"
 }
 
 @test "how-it-works links the shift-modes walkthroughs" {

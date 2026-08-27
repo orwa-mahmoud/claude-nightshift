@@ -43,6 +43,7 @@ Claude Code: `/nightshift:hunt`, then **Automatic**, set the hours, then **Revie
 Codex: ask **“Hunt Automatic for four hours, review first.”**
 
 In artifact mode the scan uses the folder's files and manifests; it does not require git history.
+Quality-debt entries are skipped when the folder has no tests, tooling, or manifests to inspect.
 The clock starts only after approval.
 
 ## Automatic + Run directly
