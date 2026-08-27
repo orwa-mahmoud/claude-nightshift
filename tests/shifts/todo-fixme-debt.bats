@@ -2,6 +2,9 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
+HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
+SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "TODO debt inventories tracked human-authored markers" {
   grep -qi 'tracked, human-authored' "$E"
@@ -35,4 +38,7 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qi 'Never select TODO and FIXME debt when work mode is artifact' "$HUNT"
   grep -qi 'Skip TODO and FIXME debt when work mode is artifact' "$QUALITY"
   grep -qi 'Skip TODO and FIXME debt when work mode is artifact' "$MODES"
+  grep -qi 'skips TODO and FIXME debt in artifact mode' "$COMMANDS"
+  grep -qi 'skips TODO and FIXME debt in artifact mode' "$HOW"
+  grep -qF 'TODO and FIXME debt is skipped in artifact mode' "$SHIFT_MODES"
 }

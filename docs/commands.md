@@ -37,6 +37,7 @@ Automatic mode also skips the GitHub issue hunt in artifact mode. Imported draft
 drafting table until the work target is a matching git repository.
 Automatic mode also skips the defect hunt in artifact mode.
 Automatic mode also skips documentation drift in artifact mode.
+Automatic mode also skips TODO and FIXME debt in artifact mode.
 
 When the task root and Nightshift workspace differ, setup can create an explicit local link after
 showing both absolute paths and receiving confirmation. The offline equivalent is:
