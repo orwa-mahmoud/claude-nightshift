@@ -174,6 +174,22 @@ load helpers
   [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "1" ]
 }
 
+@test "an artifact receipt resets the stall counter" {
+  p="$(new_project art-stall)"
+  printf 'artifact\n' >"$p/.nightshift/work-mode"
+  punch_open "$p"
+  run gate "$p"
+  run gate "$p"
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "2" ]
+  printf 'ok\n' >"$p/note.md"
+  run bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/write-receipt.sh" \
+    --project "$p" --item 'x' --verify 'ok' --output "$p/note.md"
+  [ "$status" -eq 0 ]
+  run gate "$p"
+  is_block "$output"
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "1" ]
+}
+
 @test "workspace layout: a commit in the repo below still counts as progress" {
   w="$(new_workspace)"
   punch_open "$w"

@@ -28,6 +28,12 @@ short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpe
 Never search or guess.
 The shell's working directory persists between Bash calls, so never rely on a bare path.
 
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/nightshift/SKILL.md`). Substitute that
+absolute path below; never search for the plugin.
+On native Windows, resolve the same plugin root from `$env:CLAUDE_PLUGIN_ROOT` or `$env:PLUGIN_ROOT`.
+
 If `$NS/` doesn't exist yet, tell the user to run Setup, then Start.
 Give the host-native spelling: `/nightshift:setup` and `/nightshift:start` on Claude Code, or ask
 Nightshift to set up and start on Codex. Those skills own scaffolding and preflight; this skill
@@ -58,10 +64,14 @@ Top to bottom, one item, no batching:
 2. **Build** it fully — production-ready, no stubs, no "documented for later". If you can do it now,
   do it now. Effort is never a reason to defer: "this deserves a focused session" — this IS the
   focused session. Only correctness justifies narrowing an item.
-3. **Gate** — run the item gate (the `## Gates` commands) right before the commit. It must be green.
-  No suppressions without a written reason beside them.
-4. **Commit** — one conventional commit, local by default: the owner reviews and pushes. Push
-  yourself only when the punch list explicitly says to.
+3. **Gate** — run the item gate (the `## Gates` commands) right before the commit or artifact
+  receipt. It must be green. No suppressions without a written reason beside them.
+4. **Receipt** — repository mode: one conventional commit in the work target, local by default.
+  Artifact mode: one completion receipt via
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh"` (native Windows:
+  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1"`), recording the item, outputs,
+  verification, and sources. Never tick without that receipt. Push yourself only when the punch
+  list explicitly says to.
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is complete.
 
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own
@@ -132,6 +142,7 @@ item. Do not loop. The gate's stall warning is the backstop, not the plan.
 
 You may stop only when every box is `- [x]`, or the owner issues a stop-work order
 (`$NS/STOP`). If a shift must end mid-work, clock out orderly: a
-`wip:` commit plus one handover line in `$NS/shift-log.md`, then
+`wip:` commit (repository mode) or an artifact receipt (artifact mode)
+plus one handover line in `$NS/shift-log.md`, then
 stop. History is append-only on shift — no `reset --hard`,
 `rebase`, `amend`, or force operations; the night's receipts must survive to morning.

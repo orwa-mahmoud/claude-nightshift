@@ -76,6 +76,18 @@ Native Windows:
 plugins\nightshift\runtime\windows\export-support.ps1 -Project .
 ```
 
+An artifact-mode completion receipt (refuses repository mode; rejects missing or empty outputs):
+
+```bash
+plugins/nightshift/runtime/write-receipt.sh --project . --item 'title' --verify 'checks' --output ./out.md
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\write-receipt.ps1 -Project . -Item 'title' -Verify 'checks' -Output .\out.md
+```
+
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
 and a watchman revival runs headless — a denied tool stays denied. For long runs,
 `bypassPermissions` is the recommended mode, set in the project's `.claude/settings.local.json` so

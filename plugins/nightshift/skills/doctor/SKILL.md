@@ -61,7 +61,8 @@ On native Windows:
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. The script uses the
 same workspace, work-mode, and work-target libraries as the hooks. The report's `work mode`
-fact is `repository` or `artifact`.
+fact is `repository` or `artifact`. In artifact mode the report also includes
+`artifact receipts N` for files under `$NS/receipts/`.
 
 ## 2. Classify actions — do not execute them
 

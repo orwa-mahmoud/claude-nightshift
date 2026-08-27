@@ -314,7 +314,7 @@ independent of that history. The precise boundaries are in
 - Guards are owner-configured pattern rules, not a security sandbox.
 - Completion beats cost by default: a stuck finite shift is held and flagged rather than silently
   ended. Bound it with a deadline, `NIGHTSHIFT_STALL_MAX`, or both when cost matters more.
-- The stall guard treats ticks and commits as progress, so failed-attempt commits can look alive;
+- The stall guard treats ticks, commits, and artifact receipts as progress, so failed-attempt commits can look alive;
   the item gate and deadline remain the backstop.
 - Stop the shift at any time with the host command, `touch .nightshift/STOP` on POSIX, or
   `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell — in the

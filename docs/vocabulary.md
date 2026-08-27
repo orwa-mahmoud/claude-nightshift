@@ -11,7 +11,8 @@ Everything is named after construction-site work — learn one term, guess the r
 | **clock-out gate** | Stop hook + `.shift-armed` | the bound session can't clock out while the armed punch list has open Items |
 | **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns, and expected commit identity; denied, not discouraged |
 | **process lease** | `.nightshift/.shift-lease` | transient ownership of the active shift process — each watchman recovery advances its generation, admitting the recovered worker and fencing stale processes on the same conversation without locking other tabs |
-| **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
+| **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit or artifact receipt |
+| **artifact receipt** | `.nightshift/receipts/` | durable completion record in artifact mode — item, outputs, verification, identity hashes; replaces a work-target commit |
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
 | **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
 | **hunt** | Nightshift Hunt | writes a ready-made walkthrough as a work order; cuts it into the punch list only on your word |

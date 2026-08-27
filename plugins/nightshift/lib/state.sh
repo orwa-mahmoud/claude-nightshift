@@ -402,3 +402,58 @@ ns_retention_apply() {
 $(ns_retention_eligible "$ws")
 EOF
 }
+
+# Artifact completion receipts live in .nightshift/receipts/. They replace a work-target
+# git commit only while work-mode is artifact. Repository mode still requires a real commit.
+
+ns_receipts_dir() {
+  printf '%s' "$1/.nightshift/receipts"
+}
+
+ns_file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" 2>/dev/null | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+ns_receipts_count() {
+  local dir n
+  dir="$(ns_receipts_dir "$1")"
+  n=0
+  if [ -d "$dir" ]; then
+    n="$(find "$dir" -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
+  fi
+  printf '%s' "${n:-0}"
+}
+
+# Stable stall token: none when the directory is empty, otherwise a cksum of every receipt.
+ns_receipts_fingerprint() {
+  local dir out
+  dir="$(ns_receipts_dir "$1")"
+  if [ ! -d "$dir" ]; then
+    printf 'none'
+    return 0
+  fi
+  out="$(find "$dir" -type f ! -name '.*' -print 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
+    cksum "$f" 2>/dev/null
+  done)"
+  if [ -z "$out" ]; then
+    printf 'none'
+    return 0
+  fi
+  printf '%s\n' "$out" | cksum | awk '{print $1"-"$2}'
+}
+
+ns_receipt_slug() {
+  local s
+  s="$(printf '%s' "$1" | tr -cs 'A-Za-z0-9' '-' | tr '[:upper:]' '[:lower:]')"
+  s="${s#-}"
+  s="${s%-}"
+  s="$(printf '%s' "$s" | cut -c1-40)"
+  [ -n "$s" ] || s=item
+  printf '%s' "$s"
+}

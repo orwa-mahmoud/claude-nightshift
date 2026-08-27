@@ -343,6 +343,96 @@ function Write-NSWorkTarget {
     $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @($top)
 }
 
+function Get-NSReceiptsDir {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    return (Join-Path $Workspace '.nightshift/receipts')
+}
+
+function Get-NSFileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-NSReceiptSlug {
+    param([AllowEmptyString()][string]$Text)
+    $s = ([string]$Text).ToLowerInvariant() -replace '[^a-z0-9]+', '-'
+    $s = $s.Trim('-')
+    if ($s.Length -gt 40) {
+        $s = $s.Substring(0, 40).TrimEnd('-')
+    }
+    if ([string]::IsNullOrEmpty($s)) {
+        $s = 'item'
+    }
+    return $s
+}
+
+function Get-NSReceiptsCount {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        return 0
+    }
+    return @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.Name.StartsWith('.') }).Count
+}
+
+function Get-NSReceiptsFingerprint {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        return 'none'
+    }
+    $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.Name.StartsWith('.') } |
+        Sort-Object { $_.FullName })
+    if ($files.Count -eq 0) {
+        return 'none'
+    }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $utf8 = New-Object Text.UTF8Encoding $false
+        foreach ($file in $files) {
+            $line = '{0} {1}{2}' -f (Get-NSFileSha256 $file.FullName), $file.Name, "`n"
+            $bytes = $utf8.GetBytes($line)
+            [void]$sha.TransformBlock($bytes, 0, $bytes.Length, $null, 0)
+        }
+        [void]$sha.TransformFinalBlock([byte[]]@(), 0, 0)
+        return (([BitConverter]::ToString($sha.Hash)) -replace '-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-NSWorkTargetHead {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    try {
+        $target = Resolve-NSWorkTarget $Workspace
+        $head = Invoke-NSGit $target @('rev-parse', 'HEAD')
+        if (-not [string]::IsNullOrWhiteSpace($head)) {
+            return $head
+        }
+    }
+    catch {
+    }
+    return 'nohead'
+}
+
+function Get-NSProgressToken {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $mode = 'repository'
+    try {
+        $mode = Get-NSWorkMode $Workspace
+    }
+    catch {
+        $mode = 'repository'
+    }
+    if ($mode -eq 'artifact') {
+        return Get-NSReceiptsFingerprint $Workspace
+    }
+    return Get-NSWorkTargetHead $Workspace
+}
+
 function Get-NSStateKind {
     param([Parameter(Mandatory = $true)][string]$Workspace)
 

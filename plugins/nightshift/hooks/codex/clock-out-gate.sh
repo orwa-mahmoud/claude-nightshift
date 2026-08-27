@@ -9,7 +9,7 @@
 #   4. otherwise       — block, re-injecting the contract
 #
 # Stall guard: consecutive stop attempts with no progress are counted (progress = a tick or a
-# commit). By default a stalled shift is HELD — every 3 stuck attempts a stall warning lands
+# commit in repository mode, or a tick or an artifact receipt in artifact mode). By default a stalled shift is HELD — every 3 stuck attempts a stall warning lands
 # in the shift log and the gate keeps blocking; only STOP, done, or the deadline release.
 # Owner opt-in: stallMax N in the rules file auto-ends the shift after N stuck attempts.
 #
@@ -68,11 +68,8 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 open_boxes() { ns_gate_open_boxes; }
 ticked_boxes() { ns_gate_ticked_boxes; }
 
-# The code repo is what makes a commit visible as progress, and the recommended layout puts it
-# one level below the project dir. Where several repos sit there, fingerprint all of them — a
-# commit in any one still counts.
-project_head() { ns_gate_project_head; }
-
+# Stall progress is a tick plus either work-target HEAD (repository mode) or the artifact
+# receipts fingerprint (artifact mode). ns_gate_progress_token chooses.
 deadline_passed() { ns_gate_deadline_passed; }
 
 # Morning whistle — fires at most once per shift; $1 is the summary line.
@@ -208,11 +205,11 @@ if [ -f "$DEADLINE" ] && deadline_passed; then
 fi
 
 # Stall guard — consecutive stop attempts with no progress. Progress = a box ticked OR a
-# commit landed, captured in the fingerprint; either resets the counter. Held by default:
+# commit (repository) / artifact receipt (artifact mode), captured in the fingerprint; either resets the counter. Held by default:
 # warn in the shift log every STALL_WARN stuck attempts and keep blocking. Auto-end only on
 # the owner's stallMax opt-in.
 if [ "$STALL_OK" -eq 1 ]; then
-  FP="$TICKED:$(project_head)"
+  FP="$TICKED:$(ns_gate_progress_token)"
   prev_fp=""
   prev_n=0
   if [ -f "$STALL" ]; then

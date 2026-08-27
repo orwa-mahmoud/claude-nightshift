@@ -107,7 +107,8 @@ prefer a hard retry cap can set `NIGHTSHIFT_STALL_MAX=N`. Open-ended shifts requ
 in `.nightshift/deadline` as UNIX epoch seconds; Start refuses to arm one without it. Finite
 shifts may also use one as a cap.
 
-The stall guard reads checked items and commits as progress. A deadline is therefore the final
+The stall guard reads checked items and commits as progress in repository mode, and checked
+items and artifact receipts in artifact mode. A deadline is therefore the final
 cost boundary when failed attempts could otherwise keep producing commits. Without a deadline or
 stall cap, a finite shift can remain held and retry until the owner intervenes.
 
@@ -365,6 +366,14 @@ refuses `/workspace/scratch/` and any path under it — that ChatGPT workspace i
 Start, Status, Doctor, Archive, Schedule, and workspace links read the same mode record. Existing
 repository workspaces stay repository mode when `work-mode` is absent.
 
+Completion in artifact mode is a file under `$NS/receipts/`, written by
+`runtime/write-receipt.sh` (native Windows: `runtime/windows/write-receipt.ps1`). The receipt
+records the item, output paths, verification, optional decisions and sources, timestamps, and
+file identity (bytes, SHA-256, mtime). Missing or empty outputs are refused. The stall guard
+treats a new receipt like a commit; Doctor reports `artifact receipts N`; Archive copies receipts
+into the dated folder and leaves the live files in place. Repository mode still requires a
+work-target git commit.
+
 ### Linked task root (explicit opt-in)
 
 If the host task and state workspace must be different folders, create one explicit link:
@@ -407,7 +416,7 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
   item is good.
 - **Completion beats cost by default:** a stuck finite shift remains held and flagged. Add a
   deadline or `NIGHTSHIFT_STALL_MAX` when a cost boundary matters more than indefinite retry.
-- **Progress is approximate:** the stall guard treats ticks and commits as progress, so a failed
+- **Progress is approximate:** the stall guard treats ticks, commits, and artifact receipts as progress, so a failed
   attempt committed by the agent can look alive. Item checks and the deadline remain the backstop.
 - **No built-in push block:** pushing is allowed unless the owner adds it to the shift rules.
 - **Guards are not a sandbox:** shell-command rules match command text. The pattern rules prevent

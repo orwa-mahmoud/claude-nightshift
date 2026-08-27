@@ -60,7 +60,11 @@ repository — the historical default. `artifact` means the work target is a per
 a Git repository. Keep every `$NS/` read and write in the bound directory, but run project
 inspection, edits, gates, Git operations, commits, and verification in that work target when the
 mode is repository. In artifact mode, inspect and edit that folder and do not require Git.
-Validate with `ns_work_mode` / `ns_work_target` (native Windows: `Get-NSWorkMode` /
+Complete each item with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows:
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
+instead of a work-target commit. Validate with `ns_work_mode` / `ns_work_target` (native Windows: `Get-NSWorkMode` /
 `Resolve-NSWorkTarget` after Import-Module). Refuse to arm when the mode is malformed, the target
 is a disposable scratch path, or repository mode cannot resolve a Git repository. If the record is
 missing, use the workspace itself when it is a repository or its single immediate child

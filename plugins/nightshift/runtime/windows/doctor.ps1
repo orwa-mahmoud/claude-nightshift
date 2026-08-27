@@ -103,7 +103,11 @@ if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
 }
 
 try {
-    Add-NSFact "work mode $(Get-NSWorkMode $workspace)"
+    $reportedMode = Get-NSWorkMode $workspace
+    Add-NSFact "work mode $reportedMode"
+    if ($reportedMode -eq 'artifact') {
+        Add-NSFact "artifact receipts $(Get-NSReceiptsCount $workspace)"
+    }
 }
 catch {
     Add-NSWarn 'work mode is malformed; treating the site as unusable until Setup rewrites it'

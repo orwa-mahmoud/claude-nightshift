@@ -38,7 +38,8 @@ Read `$NS/` and print:
  newer or malformed marker and stop there; never rewrite it and never run migration from status.
 - **Work mode** — `$NS/work-mode` (`repository` or `artifact`; missing means repository) and the
  resolved work target from Doctor's `work mode` / `work target` facts. Artifact mode is a
- persistent folder, not a Git repository.
+ persistent folder, not a Git repository. In artifact mode, also report Doctor's
+ `artifact receipts N` fact — completion receipts under `$NS/receipts/`, not work-target commits.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list
  is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on

@@ -7,6 +7,9 @@ CODEX_HOOKS="$HOOKS/codex"
   grep -qF 'shared/gate-core.sh' "$HOOKS/clock-out-gate.sh"
   grep -qF '../shared/gate-core.sh' "$HOOKS/codex/clock-out-gate.sh"
   [ -f "$HOOKS/shared/gate-core.sh" ]
+  grep -qF 'ns_gate_progress_token' "$HOOKS/shared/gate-core.sh"
+  grep -qF 'ns_gate_progress_token' "$HOOKS/clock-out-gate.sh"
+  grep -qF 'ns_gate_progress_token' "$HOOKS/codex/clock-out-gate.sh"
 }
 
 @test "both hardhat wrappers source one shared active-shift core" {

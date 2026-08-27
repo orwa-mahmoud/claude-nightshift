@@ -40,7 +40,9 @@ A newer or malformed marker fails closed — file nothing, rewrite nothing, and 
 `state-version` itself stays live; it is not an archive record.
 
 In artifact mode the work target is a persistent folder, not a Git repository. File the same
-Nightshift records; do not require a work-target commit that cannot exist.
+Nightshift records; do not require a work-target commit that cannot exist. Copy `$NS/receipts/`
+into `$NS/archive/<YYYY-MM-DD>/receipts/` when those files exist, and leave the live copies in
+place so stall progress still sees them. Never delete live receipts as part of Archive.
 
 ## Where it goes
 

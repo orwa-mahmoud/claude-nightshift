@@ -343,6 +343,8 @@ PY
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SKILLS/doctor/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\export-support.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$START"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$SKILLS/nightshift/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' \
     "$SKILLS/nightshift/references/shifts/github-issue-hunt.md"
 }

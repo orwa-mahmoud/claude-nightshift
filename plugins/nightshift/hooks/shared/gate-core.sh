@@ -13,6 +13,18 @@ ns_gate_project_head() {
   fi
 }
 
+# Stall progress token: repository mode uses the work-target HEAD; artifact mode uses
+# completion receipts so a missing git repo cannot pretend a commit landed.
+ns_gate_progress_token() {
+  local mode
+  mode="$(ns_work_mode "$PROJECT_DIR" 2>/dev/null)" || mode=repository
+  if [ "$mode" = artifact ]; then
+    ns_receipts_fingerprint "$PROJECT_DIR"
+  else
+    ns_gate_project_head
+  fi
+}
+
 ns_gate_deadline_passed() {
   local now dl target
   now="$(date +%s)"

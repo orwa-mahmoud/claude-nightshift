@@ -22,3 +22,9 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/codex/clock-out-gate.sh"
   grep -qF 'user.email=nightshift@localhost' "$HELPER"
   grep -qF 'commit.gpgsign=false' "$HELPER"
 }
+
+@test "Windows stall progress token pairs POSIX artifact receipts" {
+  grep -qF 'ns_gate_progress_token' "$CORE"
+  grep -qF 'ns_gate_progress_token' "$CODEX"
+  grep -qF 'Get-NSProgressToken' "$HELPER"
+}

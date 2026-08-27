@@ -150,19 +150,6 @@ function Test-NSDeadlinePassed {
     }
 }
 
-function Get-NSProjectHead {
-    try {
-        $target = Resolve-NSWorkTarget $workspace
-        $head = Invoke-NSGit $target @('rev-parse', 'HEAD')
-        if (-not [string]::IsNullOrWhiteSpace($head)) {
-            return $head
-        }
-    }
-    catch {
-    }
-    return 'nohead'
-}
-
 $raw = Get-NSStdinText -Piped $HookJson
 if ([string]::IsNullOrWhiteSpace($raw)) {
     $raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
@@ -307,7 +294,7 @@ try {
     }
 
     if ($stallReady) {
-        $fingerprint = "$($counts.Ticked):$(Get-NSProjectHead)"
+        $fingerprint = "$($counts.Ticked):$(Get-NSProgressToken $workspace)"
         $previousFingerprint = ''
         $previousAttempts = 0
         if (Test-Path -LiteralPath $stall -PathType Leaf) {
