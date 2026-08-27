@@ -143,6 +143,8 @@ PY
   grep -qF '### Bind this session' "$START"
   grep -qF '$NS/.shift-lease' "$START"
   grep -qF 'ns_lease_reset_stale' "$START"
+  grep -qF 'ns_lease_valid' "$START"
+  grep -qF 'Read-NSLease' "$START"
   grep -qF ': nightshift-binding-probe' "$START"
   grep -qF 'jq` or `python3' "$START"
 }
@@ -160,6 +162,7 @@ PY
   grep -qF '.shift-armed' "$START"
   grep -qF '.shift-session' "$START"
   grep -qF 'before the watchman or item work' "$START"
+  grep -qF 'with no other command between marker removal' "$START"
 }
 
 @test "start refuses an active watchman before clearing stale lease state" {

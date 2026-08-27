@@ -77,7 +77,9 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
 ## 1. Preflight
 
 - **One shift, one agent — check before touching anything.** Read `$NS/.shift-session` and
- validate `$NS/.shift-lease` with `ns_lease_valid` when it exists; never print its
+ validate `$NS/.shift-lease` with `ns_lease_valid` when it exists (on native Windows,
+ `Read-NSLease "$NS"` after `Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force`;
+ a null result is malformed); never print its
  capability line. Session line 5 names the host, while the lease records the current process
  generation. A malformed lease is unowned state: refuse to start and direct the owner to issue
  STOP, run the stale-lease reset command below themselves in a terminal, and retry. If either
@@ -273,7 +275,7 @@ On native Windows, call `Get-NSCodexIdentityKind` from the imported PowerShell m
  this attempted start (`$NS/.shift-armed` and its new
  `$NS/.shift-session`) and reset the lease with
  `ns_lease_reset_stale` in the same Bash call, so no hook call between those operations can
- bootstrap the aborted lease again. Append one failed-preflight line to
+ bootstrap the aborted lease again. On native Windows, `Reset-NSStaleLease "$NS"` with no other command between marker removal and the reset. Append one failed-preflight line to
  `$NS/shift-log.md`, and stop
  before the watchman or item work. Never pass the value to Codex, print it, guess a replacement,
  or start a fresh unrelated task.
