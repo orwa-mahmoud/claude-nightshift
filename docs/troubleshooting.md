@@ -126,7 +126,7 @@ guards deny rather than pick one.
 
 In artifact mode the work target is the persistent folder itself. There is no work-target git
 history. Look at `.nightshift/receipts/` — Doctor reports `artifact receipts N` and, when any
-exist, `latest artifact receipt` with the filename. A failing `git -C … rev-parse` here is
+exist, `latest artifact receipt` with the filename of the most recently written receipt. A failing `git -C … rev-parse` here is
 expected, not a broken site.
 
 ```sh
