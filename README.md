@@ -234,7 +234,7 @@ Named GitHub issues can be copied onto the drafting table with `/nightshift:impo
 URLs or `owner/repo` plus numbers only. Nightshift never searches GitHub and never writes back.
 
 You do not have to invent the night's work. `/nightshift:hunt` reads the catalog and can either let
-you choose the work (**Guided**) or inspect the repository and rank the strongest applicable work
+you choose the work (**Guided**) or inspect the work target and rank the strongest applicable work
 for the time available (**Automatic**). Then choose when execution begins:
 
 | | **Review first** | **Run directly** |

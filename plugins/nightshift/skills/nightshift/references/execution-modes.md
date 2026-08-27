@@ -5,12 +5,14 @@ Hunt and Quality use two independent choices. Never infer one from the other.
 ## Selection
 
 - **Guided** — the owner chooses one or more catalog entries, then may add scope or approach.
-- **Automatic** — the owner supplies a time budget; inspect the repository and choose the
+- **Automatic** — the owner supplies a time budget; inspect the work target and choose the
   applicable catalog entries that offer the strongest evidenced user value in that time.
 
 Automatic selection is not a generic brainstorm. Read every entry in `shifts/`, then inspect the
-project's tooling, tests, documentation, issue references available in the workspace, and recent
-git history. For each applicable entry record one sentence of evidence. Rank by:
+work target. In repository mode that is tooling, tests, documentation, issue references available
+in the workspace, and recent git history. In artifact mode that is the persistent folder's files
+and any existing source manifests or reports; do not require a git history that cannot exist.
+For each applicable entry record one sentence of evidence. Rank by:
 
 1. user or production impact;
 2. strength of repository evidence;
