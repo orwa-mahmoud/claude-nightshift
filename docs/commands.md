@@ -17,7 +17,7 @@
 ```
 
 Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes
-as Hunt. A review-first survey is read-only until the owner chooses what happens next: **fix now**
+as Hunt. Copyable owner requests for each combination are in [Shift modes](shift-modes.md). A review-first survey is read-only until the owner chooses what happens next: **fix now**
 appends a Hunt work order then cuts and starts it, **draft for later** writes only to the drafting
 table, and **ignore** writes nothing. Run directly composes that same work order, arms, and starts
 the selected work without a second approval pause.

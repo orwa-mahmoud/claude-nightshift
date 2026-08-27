@@ -243,6 +243,8 @@ for the time available (**Automatic**). Then choose when execution begins:
 | **Guided** | Pick one or more shifts, inspect the assembled order, then approve or park it. | Pick the shifts and let Nightshift discover, implement, and verify their work without another pause. |
 | **Automatic** | Set the hours; Nightshift scans and ranks the work, but waits for approval before the clock starts. | Set the hours and leave; Nightshift starts the clock, selects the highest-value applicable work, and keeps shipping until quitting time. |
 
+Copyable owner requests for each cell are in [Shift modes](docs/shift-modes.md).
+
 Every combination becomes one ordered work order, one deadline where required, and one set of
 receipts. Review-first discovery is read-only and arms nothing until approval. Run directly is
 explicit authority to cut and arm the shift immediately; significant decisions and rollback
@@ -295,6 +297,7 @@ independent of that history. The precise boundaries are in
 - [**Remote environments**](docs/remote-environments.md) — local, Remote SSH, devcontainer, and
   split-runtime evidence.
 - [**First-night safety checklist**](docs/first-night-checklist.md) — what to verify before leaving.
+- [**Shift modes**](docs/shift-modes.md) — copyable Guided/Automatic × Review first/Run directly walkthroughs.
 - [**Command reference**](docs/commands.md) — every command, natural-language Codex equivalents,
   and offline paths that need no session.
 - [**Troubleshooting**](docs/troubleshooting.md) — read-only diagnosis before changing files.

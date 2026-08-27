@@ -70,7 +70,7 @@ RECEIPTS="$ROOT/examples/README.md"
     tests/windows-watchman.bats \
     tests/codex tests/fixtures tests/shifts \
     tests/catalog.bats tests/contribution-map.bats \
-    tests/first-night-checklist.bats tests/troubleshooting.bats \
+    tests/first-night-checklist.bats tests/shift-modes.bats tests/troubleshooting.bats \
     tests/bad-night-template.bats tests/github-templates.bats \
     tests/watchman.bats tests/codex/watchman.bats \
     tests/process-evidence.bats tests/degradation.bats tests/watch-reason.bats \
