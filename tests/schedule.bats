@@ -1,6 +1,7 @@
 load helpers
 
 SCHED="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/schedule.sh"
+WIN="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
 
 setup() {
   P="$BATS_TEST_TMPDIR/proj"
@@ -13,6 +14,11 @@ setup() {
   [ "$status" -eq 1 ]
   printf '%s' "$output" | grep -qF '/nightshift:setup'
   printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
+}
+
+@test "Windows missing-state names Setup like POSIX" {
+  grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex' "$SCHED"
+  grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex' "$WIN"
 }
 
 @test "an option with no value exits instead of spinning" {

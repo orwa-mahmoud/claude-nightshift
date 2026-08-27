@@ -52,7 +52,7 @@ $hostPath = Resolve-NSCanonicalPath $Project
 $workspace = Resolve-NSWorkspaceRoot $hostPath
 $ns = Join-Path $workspace '.nightshift'
 if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
-    throw "schedule: no .nightshift at $workspace - run Setup first"
+    throw "schedule: no .nightshift at $workspace - run Setup first (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
 }
 $stateKind = Get-NSStateKind $workspace
 if ($stateKind -in @('malformed', 'future')) {
