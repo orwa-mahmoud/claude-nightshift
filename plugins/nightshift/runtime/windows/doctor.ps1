@@ -107,6 +107,10 @@ try {
     Add-NSFact "work mode $reportedMode"
     if ($reportedMode -eq 'artifact') {
         Add-NSFact "artifact receipts $(Get-NSReceiptsCount $workspace)"
+        $latest = Get-NSLatestReceipt $workspace
+        if (-not [string]::IsNullOrEmpty($latest)) {
+            Add-NSFact "latest artifact receipt $([IO.Path]::GetFileName($latest))"
+        }
     }
 }
 catch {

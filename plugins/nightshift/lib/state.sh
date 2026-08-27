@@ -430,6 +430,17 @@ ns_receipts_count() {
   printf '%s' "${n:-0}"
 }
 
+# Newest completion receipt path, or status 1 when none exist.
+# Filenames start with a UTC stamp, so a C-locale sort is chronological.
+ns_latest_receipt() {
+  local dir out
+  dir="$(ns_receipts_dir "$1")"
+  [ -d "$dir" ] || return 1
+  out="$(find "$dir" -type f ! -name '.*' -print 2>/dev/null | LC_ALL=C sort | tail -n 1)"
+  [ -n "$out" ] || return 1
+  printf '%s' "$out"
+}
+
 # Stable stall token: none when the directory is empty, otherwise a cksum of every receipt.
 ns_receipts_fingerprint() {
   local dir out

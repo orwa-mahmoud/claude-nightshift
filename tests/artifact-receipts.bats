@@ -98,19 +98,44 @@ new_artifact() {
 }
 
 @test "Doctor reports artifact receipts only in artifact mode" {
+  empty="$(new_artifact doctor-empty)"
+  run bash "$DOCTOR" --project "$empty"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'work mode artifact'
+  printf '%s' "$output" | grep -qF 'artifact receipts 0'
+  ! printf '%s' "$output" | grep -qF 'latest artifact receipt'
+
   a="$(new_artifact doctor)"
   printf 'ok\n' >"$a/out/topic.md"
   bash "$WRITE" --project "$a" --item 'x' --verify 'ok' --output "$a/out/topic.md" >/dev/null
+  name="$(find "$a/.nightshift/receipts" -type f ! -name '.*' -print | awk -F/ '{print $NF}')"
+  [ -n "$name" ]
   run bash "$DOCTOR" --project "$a"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode artifact'
   printf '%s' "$output" | grep -qF 'artifact receipts 1'
+  printf '%s' "$output" | grep -qF "latest artifact receipt $name"
+  line="$(printf '%s' "$output" | grep 'latest artifact receipt')"
+  ! printf '%s' "$line" | grep -q '/'
 
   r="$(new_project receipt-doctor-repo)"
   run bash "$DOCTOR" --project "$r"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode repository'
   ! printf '%s' "$output" | grep -qF 'artifact receipts'
+  ! printf '%s' "$output" | grep -qF 'latest artifact receipt'
+}
+
+@test "Doctor names the newest artifact receipt filename" {
+  a="$(new_artifact doctor-latest)"
+  mkdir -p "$a/.nightshift/receipts"
+  printf 'old\n' >"$a/.nightshift/receipts/20260101T000000Z-old.md"
+  printf 'new\n' >"$a/.nightshift/receipts/20261231T235959Z-new.md"
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 2'
+  printf '%s' "$output" | grep -qF 'latest artifact receipt 20261231T235959Z-new.md'
+  ! printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-old.md'
 }
 
 @test "an artifact receipt resets the stall counter" {
@@ -149,9 +174,12 @@ new_artifact() {
   grep -qF 'runtime\windows\write-receipt.ps1' "$NIGHTSHIFT"
   grep -qF 'runtime/write-receipt.sh' "$START"
   grep -qF 'artifact receipts N' "$STATUS"
+  grep -qF 'latest artifact receipt' "$STATUS"
   grep -qF 'artifact receipts N' "$DOCTOR_SKILL"
+  grep -qF 'latest artifact receipt' "$DOCTOR_SKILL"
   grep -qF 'artifact receipt' "$TEMPLATE"
   grep -qF 'runtime/write-receipt.sh' "$DOC"
+  grep -qF 'latest artifact receipt' "$DOC"
   grep -qF '**artifact receipt**' "$VOCAB"
   grep -qF 'runtime/write-receipt.sh' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$COMMANDS"
@@ -162,10 +190,13 @@ new_artifact() {
 @test "Windows helpers pair the same receipt and stall token" {
   grep -qF 'function Get-NSReceiptsDir' "$PSM1"
   grep -qF 'function Get-NSReceiptsCount' "$PSM1"
+  grep -qF 'function Get-NSLatestReceipt' "$PSM1"
   grep -qF 'function Get-NSReceiptsFingerprint' "$PSM1"
   grep -qF 'function Get-NSProgressToken' "$PSM1"
   grep -qF 'Get-NSReceiptsCount' "$DOCTOR_PS1"
+  grep -qF 'Get-NSLatestReceipt' "$DOCTOR_PS1"
   grep -qF 'artifact receipts' "$DOCTOR_PS1"
+  grep -qF 'latest artifact receipt' "$DOCTOR_PS1"
   grep -qF 'Get-NSProgressToken' "$WIN_GATE"
   grep -qF 'ns_gate_progress_token' "$CORE"
   grep -qF 'ns_gate_progress_token' "$GATE"

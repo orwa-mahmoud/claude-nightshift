@@ -376,6 +376,21 @@ function Get-NSReceiptsCount {
         Where-Object { -not $_.Name.StartsWith('.') }).Count
 }
 
+function Get-NSLatestReceipt {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        return $null
+    }
+    $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { -not $_.Name.StartsWith('.') } |
+        Sort-Object { $_.Name })
+    if ($files.Count -eq 0) {
+        return $null
+    }
+    return $files[-1].FullName
+}
+
 function Get-NSReceiptsFingerprint {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     $dir = Get-NSReceiptsDir $Workspace

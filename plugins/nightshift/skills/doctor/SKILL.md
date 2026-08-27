@@ -62,7 +62,8 @@ On native Windows:
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. The script uses the
 same workspace, work-mode, and work-target libraries as the hooks. The report's `work mode`
 fact is `repository` or `artifact`. In artifact mode the report also includes
-`artifact receipts N` for files under `$NS/receipts/`.
+`artifact receipts N` for files under `$NS/receipts/`. When at least one receipt exists, Doctor
+also reports `latest artifact receipt` with the filename only (no directory path).
 
 ## 2. Classify actions — do not execute them
 

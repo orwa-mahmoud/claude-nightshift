@@ -95,6 +95,9 @@ if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
   fact "work mode $MODE"
   if [ "$MODE" = artifact ]; then
     fact "artifact receipts $(ns_receipts_count "$WORKSPACE")"
+    if latest="$(ns_latest_receipt "$WORKSPACE")"; then
+      fact "latest artifact receipt ${latest##*/}"
+    fi
   fi
 else
   MODE=""
