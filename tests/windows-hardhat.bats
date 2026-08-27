@@ -61,3 +61,14 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
   grep -qF 'protected-directory guard cannot verify' "$RUN"
   grep -qF 'protected-directory guard cannot verify' "$LOGIC"
 }
+
+@test "Windows invalid-pattern denials match POSIX wording" {
+  grep -qF 'is not a valid extended regular expression, so the guard it configures cannot run' "$CORE"
+  grep -qF 'is not a valid extended regular expression, so the guard it configures cannot run' "$HELPER"
+  grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression' "$HELPER"
+  grep -qF 'NIGHTSHIFT_NEVER_COMMIT_PATTERNS is not a valid extended regular expression' "$HELPER"
+  grep -qF 'Fix the pattern in your session settings.' "$CORE"
+  grep -qF 'Fix the pattern in your session settings.' "$HELPER"
+  grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression' "$RUN"
+  grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression' "$LOGIC"
+}

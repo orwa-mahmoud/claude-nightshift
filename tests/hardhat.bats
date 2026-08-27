@@ -238,6 +238,15 @@ load helpers
   is_deny "$output"
 }
 
+@test "an invalid forbidden-command pattern names the session repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git status" NIGHTSHIFT_FORBIDDEN_COMMANDS='(unclosed'
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression'
+  printf '%s' "$output" | grep -qF 'Fix the pattern in your session settings.'
+}
+
 @test "forbidden-commands rule is shift-scoped: inert once every box is ticked" {
   p="$(new_project)"
   punch_done "$p"

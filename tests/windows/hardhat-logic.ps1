@@ -106,6 +106,14 @@ try {
     Expect-True ($push -match 'forbidden list') "forbidden push: $push"
     Expect-True ($push -match 'parking-lot.md') "forbidden push names parking lot: $push"
 
+    $badForbidden = Get-NSCommandDenyReason -Command 'git status' -Scrubbed 'git status' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands '[[:punct:]]'
+    Expect-True ($badForbidden -match 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression') `
+        "invalid forbidden pattern: $badForbidden"
+    Expect-True ($badForbidden -match 'Fix the pattern in your session settings') `
+        "invalid forbidden pattern names session settings: $badForbidden"
+
     $wrongEmail = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail 'owner@nope.io' -NeverCommitPatterns '' -ForbiddenCommands ''

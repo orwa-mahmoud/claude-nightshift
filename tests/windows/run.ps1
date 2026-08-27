@@ -659,8 +659,10 @@ try {
     $unmapped = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git status' } @{
         NIGHTSHIFT_FORBIDDEN_COMMANDS = '[[:punct:]]'
     }
-    Assert-True ($unmapped.Stdout -match 'not a valid regular expression') `
+    Assert-True ($unmapped.Stdout -match 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression') `
         'unmapped POSIX classes fail closed'
+    Assert-True ($unmapped.Stdout -match 'Fix the pattern in your session settings') `
+        'an invalid forbidden pattern names session settings'
 
     $helper = Invoke-Hardhat $workspace '33333333-3333-3333-3333-333333333333' 'WebSearch' @{ query = 'ordinary helper work' }
     Assert-True ([string]::IsNullOrWhiteSpace($helper.Stdout)) 'an unrelated conversation remains unrestricted'

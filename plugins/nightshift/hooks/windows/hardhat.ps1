@@ -481,16 +481,21 @@ function Get-NSCommandDenyReason {
     )
     $forbiddenRegex = $null
     $neverRegex = $null
-    try {
-        if (-not [string]::IsNullOrEmpty($ForbiddenCommands)) {
+    if (-not [string]::IsNullOrEmpty($ForbiddenCommands)) {
+        try {
             $forbiddenRegex = New-NSRegex $ForbiddenCommands
         }
-        if (-not [string]::IsNullOrEmpty($NeverCommitPatterns)) {
-            $neverRegex = New-NSRegex $NeverCommitPatterns -IgnoreCase
+        catch {
+            return 'BLOCKED: NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in your session settings.'
         }
     }
-    catch {
-        return 'BLOCKED: a Nightshift command or commit pattern is not a valid regular expression on this host. Fix the pattern in .nightshift/rules.json.'
+    if (-not [string]::IsNullOrEmpty($NeverCommitPatterns)) {
+        try {
+            $neverRegex = New-NSRegex $NeverCommitPatterns -IgnoreCase
+        }
+        catch {
+            return 'BLOCKED: NIGHTSHIFT_NEVER_COMMIT_PATTERNS is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in your session settings.'
+        }
     }
 
     $isGitWrite = (Test-NSGitVerb $Scrubbed 'add') -or (Test-NSGitVerb $Scrubbed 'commit') `
