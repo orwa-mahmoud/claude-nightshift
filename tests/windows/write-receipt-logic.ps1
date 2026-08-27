@@ -85,6 +85,11 @@ try {
     [IO.File]::WriteAllText((Join-Path $ns 'work-target'), "$artifact`n")
     Import-Module $module -Force -DisableNameChecking
     Expect-True ($null -eq (Get-NSLatestReceipt $artifact)) 'no latest receipt before any write'
+    [IO.File]::WriteAllText((Join-Path $ns 'punch-list.md'), "## Items`n- [x] **done.**`n")
+    $before = Invoke-Doctor $artifact
+    Expect-True ($before.ExitCode -eq 0) "Doctor before receipts exits 0 (got $($before.ExitCode) $($before.Stderr))"
+    Expect-True ($before.Stdout -match 'artifact mode has ticked items but no receipts') `
+        'Doctor warns when ticks exist without receipts'
 
     $note = Join-Path $outDir 'topic.md'
     [IO.File]::WriteAllText($note, "research notes`n")
@@ -126,6 +131,8 @@ try {
         'Doctor names the newest receipt filename'
     Expect-True ($report.Stdout -notmatch [regex]::Escape("latest artifact receipt $firstName")) `
         'Doctor does not name the older receipt as latest'
+    Expect-True ($report.Stdout -notmatch 'artifact mode has ticked items but no receipts') `
+        'Doctor stops warning after receipts exist'
 
     $empty = Join-Path $outDir 'blank.md'
     [IO.File]::WriteAllText($empty, '')

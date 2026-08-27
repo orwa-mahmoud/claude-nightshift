@@ -240,6 +240,7 @@ new_artifact() {
   grep -qF 'write-receipt-logic.ps1' "$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'Get-NSLatestReceipt' "$WRITE_LOGIC"
   grep -qF 'latest artifact receipt' "$WRITE_LOGIC"
+  grep -qF 'artifact mode has ticked items but no receipts' "$WRITE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
   fi
