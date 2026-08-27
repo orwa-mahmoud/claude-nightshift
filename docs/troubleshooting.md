@@ -143,6 +143,7 @@ The defect hunt is skipped in artifact mode.
 Documentation drift is skipped in artifact mode.
 TODO and FIXME debt is skipped in artifact mode.
 Coverage hunt is skipped in artifact mode.
+Tooling quality-debt entries are skipped in artifact mode.
 
 ## 4. Unreadable rules
 

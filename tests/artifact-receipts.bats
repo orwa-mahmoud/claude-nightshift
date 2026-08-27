@@ -284,6 +284,7 @@ new_artifact() {
   grep -qF 'Documentation drift is skipped in artifact mode' "$WINDOC"
   grep -qF 'TODO and FIXME debt is skipped in artifact mode' "$WINDOC"
   grep -qF 'Coverage hunt is skipped in artifact mode' "$WINDOC"
+  grep -qF 'Tooling quality-debt entries are skipped in artifact mode' "$WINDOC"
   grep -qF 'Do not `git init` a notes folder' "$WINDOC"
   grep -qF 'artifact receipts' "$README"
   grep -qF 'Doctor names the most recently written file' "$README"

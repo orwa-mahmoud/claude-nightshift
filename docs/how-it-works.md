@@ -385,6 +385,7 @@ imported drafts stay on the drafting table. It also skips the defect hunt in art
 It also skips documentation drift in artifact mode.
 It also skips TODO and FIXME debt in artifact mode.
 It also skips coverage hunt in artifact mode.
+It also skips tooling quality-debt entries in artifact mode.
 
 ### Linked task root (explicit opt-in)
 
