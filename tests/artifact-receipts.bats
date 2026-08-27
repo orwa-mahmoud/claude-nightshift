@@ -139,6 +139,27 @@ new_artifact() {
   ! printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-old.md'
 }
 
+@test "Doctor warns when artifact ticks have no receipts" {
+  a="$(new_artifact ticks-no-receipts)"
+  punch_open "$a"
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
+  printf '%s' "$output" | grep -qF 'write-receipt.sh'
+
+  printf 'ok\n' >"$a/out/topic.md"
+  bash "$WRITE" --project "$a" --item 'x' --verify 'ok' --output "$a/out/topic.md" >/dev/null
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  ! printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
+
+  r="$(new_project ticks-repo)"
+  punch_open "$r"
+  run bash "$DOCTOR" --project "$r"
+  [ "$status" -eq 0 ]
+  ! printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
+}
+
 @test "an artifact receipt resets the stall counter" {
   p="$(new_artifact stall)"
   punch_open "$p"
@@ -181,6 +202,7 @@ new_artifact() {
   grep -qF 'latest artifact receipt' "$STATUS"
   grep -qF 'artifact receipts N' "$DOCTOR_SKILL"
   grep -qF 'latest artifact receipt' "$DOCTOR_SKILL"
+  grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_SKILL"
   grep -qF 'artifact receipt' "$TEMPLATE"
   grep -qF 'runtime/write-receipt.sh' "$DOC"
   grep -qF 'latest artifact receipt' "$DOC"
@@ -201,6 +223,8 @@ new_artifact() {
   grep -qF 'Get-NSLatestReceipt' "$DOCTOR_PS1"
   grep -qF 'artifact receipts' "$DOCTOR_PS1"
   grep -qF 'latest artifact receipt' "$DOCTOR_PS1"
+  grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_PS1"
+  grep -qF "Join-Path \$here 'write-receipt.ps1'" "$DOCTOR_PS1"
   grep -qF 'Get-NSProgressToken' "$WIN_GATE"
   grep -qF 'ns_gate_progress_token' "$CORE"
   grep -qF 'ns_gate_progress_token' "$GATE"

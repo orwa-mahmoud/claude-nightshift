@@ -145,6 +145,15 @@ else {
     Add-NSWarn 'punch-list.md is missing'
 }
 
+try {
+    if ((Get-NSWorkMode $workspace) -eq 'artifact' -and $ticked -gt 0 -and (Get-NSReceiptsCount $workspace) -eq 0) {
+        Add-NSWarn 'artifact mode has ticked items but no receipts'
+        Add-NSAct confirm "complete ticked items with $(Join-Path $here 'write-receipt.ps1') or untick them; Doctor does not rewrite the punch list"
+    }
+}
+catch {
+}
+
 $orders = Get-NSOpenBoxesInFile (Join-Path $ns 'work-orders.md')
 if ($orders -gt 0) {
     Add-NSFact "pending Hunt work orders=$orders"

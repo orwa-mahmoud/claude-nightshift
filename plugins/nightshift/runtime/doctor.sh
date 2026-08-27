@@ -126,6 +126,13 @@ else
   warn "punch-list.md is missing"
 fi
 
+if [ "$MODE" = artifact ]; then
+  if [ "${TICKED:-0}" -gt 0 ] && [ "$(ns_receipts_count "$WORKSPACE")" -eq 0 ]; then
+    warn "artifact mode has ticked items but no receipts"
+    act confirm "complete ticked items with $_here/write-receipt.sh (native Windows: runtime/windows/write-receipt.ps1) or untick them; Doctor does not rewrite the punch list"
+  fi
+fi
+
 ORDERS="$(ns_open_boxes_file "$NS/work-orders.md")"
 if [ "$ORDERS" -gt 0 ]; then
   fact "pending Hunt work orders=$ORDERS"

@@ -63,7 +63,9 @@ Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. Th
 same workspace, work-mode, and work-target libraries as the hooks. The report's `work mode`
 fact is `repository` or `artifact`. In artifact mode the report also includes
 `artifact receipts N` for files under `$NS/receipts/`. When at least one receipt exists, Doctor
-also reports `latest artifact receipt` with the filename only (no directory path).
+also reports `latest artifact receipt` with the filename only (no directory path). When ticked
+items exist and the receipts directory is empty, Doctor warns
+`artifact mode has ticked items but no receipts`.
 
 ## 2. Classify actions — do not execute them
 
