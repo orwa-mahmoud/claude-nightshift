@@ -1,0 +1,3 @@
+ok	2026-08-28T08:00:00Z	S1	file:source-a.md
+ok	2026-08-28T08:00:00Z	S2	file:source-b.md
+unavailable	2026-08-28T08:00:00Z	S3	https://example.invalid/calendar
