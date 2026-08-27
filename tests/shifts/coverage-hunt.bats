@@ -1,4 +1,7 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/coverage-hunt.md"
+HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
+QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
+MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
 
 @test "coverage hunt chooses valuable untested behaviour" {
   grep -qi 'highest-value untested behaviour' "$E"
@@ -19,4 +22,13 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 
 @test "coverage hunt gates every commit" {
   grep -qi 'item gate is green at every commit' "$E"
+}
+
+@test "coverage hunt is skipped in artifact mode" {
+  grep -qi 'Never select this entry in artifact mode' "$E"
+  grep -qi 'Never select this entry when work mode is artifact' "$E"
+  grep -qF 'Do not `git init` a notes folder' "$E"
+  grep -qi 'Never select coverage hunt when work mode is artifact' "$HUNT"
+  grep -qi 'Skip coverage hunt when work mode is artifact' "$QUALITY"
+  grep -qi 'Skip coverage hunt when work mode is artifact' "$MODES"
 }

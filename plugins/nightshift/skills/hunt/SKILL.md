@@ -65,6 +65,7 @@ it. Never select it when work mode is artifact.
 Never select defect hunt when work mode is artifact.
 Never select documentation drift when work mode is artifact.
 Never select TODO and FIXME debt when work mode is artifact.
+Never select coverage hunt when work mode is artifact.
 
 ## 2. Ask when execution starts
 
