@@ -34,3 +34,8 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'paths Git would write' "$KNOBS"
   grep -qF 'native Windows also normalizes' "$KNOBS"
 }
+
+@test "command and commit guards name invalid-pattern session repair" {
+  grep -qF 'invalid pattern fails closed' "$KNOBS"
+  grep -qF 'fix it in session settings' "$KNOBS"
+}

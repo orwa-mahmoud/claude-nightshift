@@ -223,6 +223,8 @@ STUB
   printf '%s\n' "$rules" | grep -qF 'expectedEmail'
   printf '%s\n' "$rules" | grep -qF 'protectedDirs'
   printf '%s\n' "$rules" | grep -qF 'normalized to `/`'
+  printf '%s\n' "$rules" | grep -qF 'invalid command or commit pattern fails closed'
+  printf '%s\n' "$rules" | grep -qF 'fix it in'
 }
 
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.

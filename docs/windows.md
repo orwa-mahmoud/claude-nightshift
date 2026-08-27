@@ -139,7 +139,9 @@ thread to inspect or interact with it; the process lease already fences stale ob
 PowerShell parses `rules.json` exactly with `ConvertFrom-Json`. `forbiddenCommands` and
 `neverCommitPatterns` run through .NET regular expressions. Nightshift translates the common POSIX
 classes used by existing rules (`[[:space:]]`, `[[:digit:]]`, `[[:alnum:]]`, and related classes)
-and fails closed on any class it cannot map. `neverCommitPatterns` is case-insensitive, matching
+and fails closed on any class it cannot map. An invalid command or commit pattern fails closed
+and names `NIGHTSHIFT_FORBIDDEN_COMMANDS` or `NIGHTSHIFT_NEVER_COMMIT_PATTERNS`; fix it in
+session settings. `neverCommitPatterns` is case-insensitive, matching
 the POSIX `grep -qiE` guard. Implicitly staging commits (`-a`, `--all`, or a pathspec after `--`)
 inspect `git diff HEAD`, the same content those commits would write. `expectedEmail` compares
 `git config user.email` in the target repository. A command-line override (`-c user.email=`,
