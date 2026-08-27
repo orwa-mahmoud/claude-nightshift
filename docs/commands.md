@@ -31,7 +31,7 @@ skills and `.nightshift/` files are used in persistent project workspaces.
 For a custom timed objective, use Hunt in **Guided** mode and choose **Owner walkthrough**. Its
 scope answer is required and becomes the objective verbatim; then set the hours and choose review
 first or run directly. Automatic mode never selects this entry because the goal must come from the
-owner rather than repository discovery.
+owner rather than work-target discovery.
 
 When the task root and Nightshift workspace differ, setup can create an explicit local link after
 showing both absolute paths and receiving confirmation. The offline equivalent is:

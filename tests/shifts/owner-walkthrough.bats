@@ -1,12 +1,15 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/owner-walkthrough.md"
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 START="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/start/SKILL.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 
 @test "owner walkthrough requires a verbatim owner objective and guided selection" {
   grep -qF '**Selection:** Guided only.' "$E"
   grep -qF '**Owner instructions:** Required.' "$E"
   grep -qi 'must remain verbatim' "$E"
   grep -qi 'Never select this entry in Automatic mode' "$E"
+  grep -qi 'work-target discovery' "$E"
+  grep -qi 'work-target discovery' "$COMMANDS"
   grep -qi 'do not compose, cut, or arm' "$E"
 }
 
