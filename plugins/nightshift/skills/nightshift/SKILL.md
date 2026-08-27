@@ -54,7 +54,10 @@ preserve the user's repository. A non-git project outside that explicit scratch 
 whole shift: **never edit, trim, or reword it, and never delete an item** — not even to end the
 shift. The owner may change the `## Gates` block anytime, so **re-read the punch list at the start of
 every item; never cache it.** If you ever notice the contract or an item was altered, restore it
-from git before continuing, then carry on.
+from git before continuing. In repository mode that is the work-target history, or
+`git -C "$NS"` when the owner opted into a local receipts repo. In artifact mode restore only
+from that receipts repo when it exists; do not `git init` the notes folder to invent history.
+If `$NS/punch-list.md` has no git history, park the conflict and keep the on-disk file.
 
 ## One item at a time
 
