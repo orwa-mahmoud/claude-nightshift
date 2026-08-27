@@ -138,6 +138,10 @@ Native Windows: `Get-ChildItem .nightshift\receipts -ErrorAction SilentlyContinu
 **Repair.** Re-run setup and choose the folder explicitly. Do not invent a `work-target` by
 hand unless it is the absolute git top-level of the repo you mean. Do not `git init` an artifact
 folder to satisfy this page.
+The GitHub issue hunt is skipped in artifact mode.
+The defect hunt is skipped in artifact mode.
+Documentation drift is skipped in artifact mode.
+TODO and FIXME debt is skipped in artifact mode.
 
 ## 4. Unreadable rules
 
