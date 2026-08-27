@@ -86,7 +86,7 @@ Before leaving any run unattended, use the concise
 3. Start the shift.
 4. Check status later. If the site looks wrong, diagnose it first; Doctor reports and never
    repairs.
-5. Review the local commit or `$NS/receipts/` (Doctor names the latest file), then push only if
+5. Review the local commit or `$NS/receipts/` (Doctor names the most recently written file), then push only if
    this is a git repository.
 
 If the host task and the workspace holding `.nightshift/` are different folders, use the explicit

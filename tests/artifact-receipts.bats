@@ -280,6 +280,7 @@ new_artifact() {
   grep -qF 'most recently written' "$WINDOC"
   grep -qF 'artifact mode has ticked items but no receipts' "$WINDOC"
   grep -qF 'artifact receipts' "$README"
+  grep -qF 'Doctor names the most recently written file' "$README"
   grep -qF 'reviewable commits or artifact receipts' "$CODEX_PLUGIN"
   grep -qF 'Git repository or a local folder' "$CODEX_PLUGIN"
 }
