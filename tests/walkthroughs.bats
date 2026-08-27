@@ -135,6 +135,11 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'park it for later' "$HUNT"
 }
 
+@test "Start and Hunt name artifact receipts in the live work loop" {
+  grep -qF 'gate before each commit or artifact receipt' "$START"
+  grep -qF 'gate green at every commit or artifact receipt' "$HUNT"
+}
+
 @test "hunt separates selection mode from launch mode" {
   grep -qi 'Guided' "$HUNT"
   grep -qi 'Automatic' "$HUNT"

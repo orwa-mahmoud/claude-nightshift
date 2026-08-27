@@ -102,7 +102,7 @@ Never edit the entry's own contract to fit it; the owner's words become their ow
 ```
 
 The entry's rules stay above it untouched. They enforce the shift contract — assert behaviour
-rather than counts, gate green at every commit, never silence instead of fixing — and owner text
+rather than counts, gate green at every commit or artifact receipt, never silence instead of fixing — and owner text
 adds constraints rather than replacing them.
 
 ## 5. Review or cut

@@ -353,7 +353,7 @@ run can receive.
 
 ## 6. Work
 
-Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit, tick only
+Begin item 1 and follow the nightshift skill: one item at a time, gate before each commit or artifact receipt, tick only
 after the item is complete, park don't ask, leave pushing to the owner unless the punch list says
 otherwise. From here the clock-out gate owns the session — it will not let
 you stop while any box is open.
