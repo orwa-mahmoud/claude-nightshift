@@ -20,6 +20,7 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF 'runtime/windows/write-receipt.ps1' "$CHECKLIST"
   grep -qF 'reviewable commit' "$CHECKLIST"
   grep -qF '$NS/receipts/' "$CHECKLIST"
+  grep -qF 'most recently written' "$CHECKLIST"
 }
 
 @test "first-night checklist relative links resolve" {

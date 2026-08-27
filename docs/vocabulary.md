@@ -25,7 +25,7 @@ Everything is named after construction-site work — learn one term, guess the r
 | **quality survey** | Nightshift Quality | the optional debt audit — review findings first or choose a direct run that fixes them |
 | **doctor** | `/nightshift:doctor` | read-only diagnosis — facts, warnings, classified next actions; invoking it never repairs |
 | **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
-| **issue import** | Nightshift Import issues | copies selected GitHub issues onto the drafting table as quoted source; never searches, never writes back to GitHub |
+| **issue import** | Nightshift Import issues | copies selected GitHub issues onto the drafting table as quoted source; never searches, never writes back to GitHub; Hunt consumes them only in repository mode |
 | **quitting time** | `.nightshift/deadline` | UNIX epoch seconds; past that instant the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
 | **stop-work order** | `.nightshift/STOP` | Nightshift Stop — or the platform-native terminal command that creates this file — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |

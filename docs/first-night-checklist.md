@@ -33,7 +33,7 @@ Use this once before leaving Nightshift unattended in a project.
   [recovery handoff and upstream limitation](how-it-works.md#reopening-a-revived-thread).
 - **Leave pushing for morning.** Keep the default local-only commits, review the diff and receipts,
   then push or open a pull request yourself. In artifact mode there is no work-target git history:
-  review `$NS/receipts/` instead (Doctor names the latest file).
+  review `$NS/receipts/` instead (Doctor names the most recently written file).
 
 The emergency stop is always available from the Nightshift workspace — the folder that
 contains `.nightshift/`, not a linked task root:

@@ -41,6 +41,7 @@ resolve_work_target() {
   grep -qF '**doctor**' "$VOCAB"
   grep -qF 'never repairs' "$VOCAB"
   grep -qF 'expected commit identity' "$VOCAB"
+  grep -qF 'Hunt consumes them only in repository mode' "$VOCAB"
   grep -qF 'Start refuses to arm' "$DOC"
   grep -qF 'Nightshift never selects the first directory silently' "$DOC"
 }
