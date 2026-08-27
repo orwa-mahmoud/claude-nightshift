@@ -40,7 +40,7 @@ Read `$NS/` and print:
  resolved work target from Doctor's `work mode` / `work target` facts. Artifact mode is a
  persistent folder, not a Git repository. In artifact mode, also report Doctor's
  `artifact receipts N` fact — completion receipts under `$NS/receipts/`, not work-target commits.
- When Doctor prints `latest artifact receipt`, name that file; do not invent a git log.
+ When Doctor prints `latest artifact receipt`, name that most recently written file; do not invent a git log.
  When Doctor warns `artifact mode has ticked items but no receipts`, say so — ticked boxes without
  a receipt are not reviewable completion.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list

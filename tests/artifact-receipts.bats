@@ -228,6 +228,7 @@ new_artifact() {
   grep -qF 'runtime\windows\write-receipt.ps1' "$SETUP"
   grep -qF 'artifact receipts N' "$STATUS"
   grep -qF 'latest artifact receipt' "$STATUS"
+  grep -qF 'most recently written' "$STATUS"
   grep -qF 'artifact mode has ticked items but no receipts' "$STATUS"
   grep -qF 'artifact receipts N' "$DOCTOR_SKILL"
   grep -qF 'latest artifact receipt' "$DOCTOR_SKILL"
