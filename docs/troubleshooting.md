@@ -103,22 +103,41 @@ that already owns `.nightshift/`. Do not hand-write a relative path.
 
 ## 3. Wrong workspace or work target
 
-**Check.** Run state lives in the resolved workspace. The code repository may be that same folder,
-or the single git child named in `.nightshift/work-target`:
+**Check.** Run state lives in the resolved workspace. Read the mode first:
 
 ```sh
 # after resolving the workspace (pwd, or the link target)
+sed -n '1p' .nightshift/work-mode 2>/dev/null
 sed -n '1p' .nightshift/work-target 2>/dev/null
-git -C "$(sed -n '1p' .nightshift/work-target 2>/dev/null || pwd)" rev-parse --show-toplevel
 ```
 
-Native Windows: `Get-Content -TotalCount 1 .nightshift\work-target`
+Native Windows: `Get-Content -TotalCount 1 .nightshift\work-mode` and
+`Get-Content -TotalCount 1 .nightshift\work-target`.
+
+Missing `work-mode` means repository. In repository mode the code repository may be that same
+folder, or the single git child named in `.nightshift/work-target`:
+
+```sh
+git -C "$(sed -n '1p' .nightshift/work-target 2>/dev/null || pwd)" rev-parse --show-toplevel
+```
 
 Two git repositories as siblings of `.nightshift/` with no `work-target` is undecidable: commit
 guards deny rather than pick one.
 
-**Repair.** Re-run setup and choose the repository explicitly. Do not invent a `work-target` by
-hand unless it is the absolute git top-level of the repo you mean.
+In artifact mode the work target is the persistent folder itself. There is no work-target git
+history. Look at `.nightshift/receipts/` — Doctor reports `artifact receipts N` and, when any
+exist, `latest artifact receipt` with the filename. A failing `git -C … rev-parse` here is
+expected, not a broken site.
+
+```sh
+ls .nightshift/receipts 2>/dev/null
+```
+
+Native Windows: `Get-ChildItem .nightshift\receipts -ErrorAction SilentlyContinue`
+
+**Repair.** Re-run setup and choose the folder explicitly. Do not invent a `work-target` by
+hand unless it is the absolute git top-level of the repo you mean. Do not `git init` an artifact
+folder to satisfy this page.
 
 ## 4. Unreadable rules
 
