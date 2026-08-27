@@ -46,6 +46,7 @@ In artifact mode the scan uses the folder's files and manifests; it does not req
 Quality-debt entries are skipped when the folder has no tests, tooling, or manifests to inspect.
 The GitHub issue hunt is skipped in artifact mode.
 The defect hunt is skipped in artifact mode.
+Documentation drift is skipped in artifact mode.
 The clock starts only after approval.
 
 ## Automatic + Run directly

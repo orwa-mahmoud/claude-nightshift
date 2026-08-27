@@ -2,6 +2,9 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
+HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
+SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "documentation drift discovers local references against the tree" {
   grep -qi 'Discovery' "$E"
@@ -32,4 +35,7 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qi 'Never select documentation drift when work mode is artifact' "$HUNT"
   grep -qi 'Skip documentation drift when work mode is artifact' "$QUALITY"
   grep -qi 'Skip documentation drift when work mode is artifact' "$MODES"
+  grep -qi 'skips documentation drift in artifact mode' "$COMMANDS"
+  grep -qi 'skips documentation drift in artifact mode' "$HOW"
+  grep -qF 'Documentation drift is skipped in artifact mode' "$SHIFT_MODES"
 }
