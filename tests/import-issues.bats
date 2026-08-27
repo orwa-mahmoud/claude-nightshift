@@ -144,6 +144,8 @@ prep_draft() {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh' "$SKILL"
   grep -qF -- '--project "$NIGHTSHIFT_WORKSPACE"' "$SKILL"
   grep -qF 'Claude Code and Codex run the same platform helper' "$SKILL"
+  grep -qF 'If work mode is artifact' "$SKILL"
+  grep -qi 'will not consume them' "$SKILL"
 }
 
 @test "the helper never searches, mutates GitHub, or fetches the network itself" {

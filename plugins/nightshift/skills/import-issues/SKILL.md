@@ -87,4 +87,6 @@ entry carries Source URL, imported title, quoted acceptance text, labels, import
 `Status: proposed`. Duplicates by canonical URL are skipped.
 
 Never create, edit, comment, label, assign, or close GitHub issues. Never push, open a PR, or
-promote the drafts into `$NS/punch-list.md` from this command.
+promote the drafts into `$NS/punch-list.md` from this command. If work mode is artifact, still
+stage the drafts; Hunt's GitHub issue hunt will not consume them until the work target is a
+matching git repository.
