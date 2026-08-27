@@ -126,6 +126,12 @@ profiles, a local support bundle, and artifact-mode completion receipts:
 In artifact mode Doctor reports `artifact receipts N` and, when any exist, `latest artifact receipt`
 with the filename only of the most recently written receipt. It warns `artifact mode has ticked items but no receipts` when ticks exist
 without a receipt; write the receipt with `write-receipt.ps1` rather than a work-target commit.
+Automatic Hunt and Quality skip quality-debt entries the folder cannot support.
+The GitHub issue hunt is skipped in artifact mode.
+The defect hunt is skipped in artifact mode.
+Documentation drift is skipped in artifact mode.
+TODO and FIXME debt is skipped in artifact mode.
+Do not `git init` a notes folder.
 
 ## Process evidence and recovery
 
