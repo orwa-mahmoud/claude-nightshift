@@ -101,3 +101,20 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF -- '-Mode must be replace or fill' "$ps1"
   ! grep -qF '--mode must be' "$ps1"
 }
+
+LOGIC="$BATS_TEST_DIRNAME/windows/apply-profile-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable apply-profile armed-refuse suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'apply-profile-logic.ps1' "$RUN"
+  grep -qF 'refuse to write rules while the shift is armed' "$LOGIC"
+}
+
+@test "Windows apply-profile refuses Apply when armed if pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}

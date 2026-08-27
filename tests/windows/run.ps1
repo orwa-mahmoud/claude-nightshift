@@ -454,6 +454,10 @@ try {
     $migrateStateLogicRun = Invoke-TestScript $migrateStateLogic
     Assert-Equal 0 $migrateStateLogicRun.ExitCode `
         "migrate-state armed refuse: $($migrateStateLogicRun.Stdout) $($migrateStateLogicRun.Stderr)"
+    $applyProfileLogic = Join-Path $PSScriptRoot 'apply-profile-logic.ps1'
+    $applyProfileLogicRun = Invoke-TestScript $applyProfileLogic
+    Assert-Equal 0 $applyProfileLogicRun.ExitCode `
+        "apply-profile armed refuse: $($applyProfileLogicRun.Stdout) $($applyProfileLogicRun.Stderr)"
     $hardhatLogic = Join-Path $PSScriptRoot 'hardhat-logic.ps1'
     $hardhatLogicRun = Invoke-TestScript $hardhatLogic
     Assert-Equal 0 $hardhatLogicRun.ExitCode `
