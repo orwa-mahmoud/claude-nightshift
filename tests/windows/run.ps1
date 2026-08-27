@@ -636,6 +636,12 @@ try {
     Assert-True ($overrideEmail.Stdout -match "repository's configured identity") `
         'a command-line identity override is denied'
 
+    $gitDirCommit = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git --git-dir=C:\elsewhere\.git commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
+    }
+    Assert-True ($gitDirCommit.Stdout -match 'configured commit guards cannot verify') `
+        'a --git-dir commit is unverifiable under expectedEmail'
+
     $secretFile = Join-Path $workTarget 'secret.txt'
     [IO.File]::WriteAllText($secretFile, "SECRET_KEY=abc`n")
     $null = & git -C $workTarget add -- secret.txt

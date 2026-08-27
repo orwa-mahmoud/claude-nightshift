@@ -72,3 +72,10 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
   grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression' "$RUN"
   grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression' "$LOGIC"
 }
+
+@test "Windows git-dir commit-guard denials match POSIX wording" {
+  grep -qF 'somewhere the configured commit guards cannot verify' "$CORE"
+  grep -qF 'somewhere the configured commit guards cannot verify' "$HELPER"
+  grep -qF 'configured commit guards cannot verify' "$RUN"
+  grep -qF 'configured commit guards cannot verify' "$LOGIC"
+}

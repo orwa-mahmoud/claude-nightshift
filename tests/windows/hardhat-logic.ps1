@@ -132,6 +132,20 @@ try {
         -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
     Expect-True ($overrideEmail -match "repository's configured identity") `
         "command-line identity override: $overrideEmail"
+
+    $gitDirCommit = Get-NSCommandDenyReason -Command 'git --git-dir=C:\elsewhere\.git commit -m x' `
+        -Scrubbed 'git --git-dir=C:\elsewhere\.git commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($gitDirCommit -match 'configured commit guards cannot verify') `
+        "git-dir commit under expectedEmail: $gitDirCommit"
+
+    $workTreeNever = Get-NSCommandDenyReason -Command 'git --work-tree=C:\elsewhere commit -am x' `
+        -Scrubbed 'git --work-tree=C:\elsewhere commit -am MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
+    Expect-True ($workTreeNever -match 'configured commit guards cannot verify') `
+        "work-tree commit under never-commit: $workTreeNever"
 }
 finally {
     Set-Location $repository
