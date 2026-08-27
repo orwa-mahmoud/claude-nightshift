@@ -41,6 +41,8 @@ Read `$NS/` and print:
  persistent folder, not a Git repository. In artifact mode, also report Doctor's
  `artifact receipts N` fact — completion receipts under `$NS/receipts/`, not work-target commits.
  When Doctor prints `latest artifact receipt`, name that file; do not invent a git log.
+ When Doctor warns `artifact mode has ticked items but no receipts`, say so — ticked boxes without
+ a receipt are not reviewable completion.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list
  is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on
