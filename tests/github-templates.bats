@@ -90,6 +90,8 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   grep -qF 'catalog-recipe.md' "$CATALOG_FORM"
   grep -qF 'does **not** add the shift' "$CATALOG_FORM"
   grep -qi 'unattended' "$CATALOG_FORM"
+  grep -qi "stranger's workspace" "$CATALOG_FORM"
+  grep -qF 'must not require a git history' "$CATALOG_FORM"
   grep -qF 'commit or artifact receipt' "$CATALOG_FORM"
   grep -qF 'commit or artifact receipt' "$RECIPE"
   grep -qF 'must not require a git history' "$RECIPE"
