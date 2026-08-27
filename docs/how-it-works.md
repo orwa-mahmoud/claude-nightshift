@@ -238,7 +238,9 @@ point.
 Nightshift leaves timestamps, per-item commits, cycle logs, parked decisions, and snag
 dispositions under `.nightshift/`. The folder is ignored by the project repository. Setup can
 optionally version it in a separate local-only Git repository. That repository is off by default;
-Nightshift gives it no remote and never pushes it.
+Nightshift gives it no remote and never pushes it. Clock-out and Archive commit it with `git -C`,
+identity `nightshift@localhost`, and `commit.gpgsign=false` so a global signing requirement cannot
+stall a headless snapshot.
 
 Archiving moves finished work into `.nightshift/archive/<YYYY-MM-DD>/` while keeping the current working
 files small.
