@@ -24,6 +24,7 @@ VOCAB="$BATS_TEST_DIRNAME/../docs/vocabulary.md"
 COMMANDS="$BATS_TEST_DIRNAME/../docs/commands.md"
 WINDOC="$BATS_TEST_DIRNAME/../docs/windows.md"
 README="$BATS_TEST_DIRNAME/../README.md"
+CODEX_PLUGIN="$BATS_TEST_DIRNAME/../plugins/nightshift/.codex-plugin/plugin.json"
 
 new_artifact() {
   local p="$BATS_TEST_TMPDIR/${1:-artifact}"
@@ -216,6 +217,8 @@ new_artifact() {
   grep -qF 'runtime\windows\write-receipt.ps1' "$WINDOC"
   grep -qF 'persistent folder' "$WINDOC"
   grep -qF 'artifact receipts' "$README"
+  grep -qF 'reviewable commits or artifact receipts' "$CODEX_PLUGIN"
+  grep -qF 'Git repository or a local folder' "$CODEX_PLUGIN"
 }
 
 @test "Windows helpers pair the same receipt and stall token" {
