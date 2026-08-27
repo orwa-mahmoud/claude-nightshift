@@ -24,6 +24,10 @@ MODES="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/exe
   grep -qF 'Hunt Automatic for four hours' "$DOC"
 }
 
+@test "how-it-works links the shift-modes walkthroughs" {
+  grep -qF '[Shift modes](shift-modes.md)' "$BATS_TEST_DIRNAME/../docs/how-it-works.md"
+}
+
 @test "shift-modes relative links resolve" {
   [ -f "$MODES" ]
   [ -f "$BATS_TEST_DIRNAME/../docs/commands.md" ]

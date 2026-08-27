@@ -100,6 +100,7 @@ for morning review; publishing, destructive changes, and owner policy remain out
 explicitly authorized.
 
 Review-first Hunt and Quality runs scan or draft only and arm nothing until the owner approves.
+Copyable owner requests for each combination are in [Shift modes](shift-modes.md).
 Run-direct paths perform the same Start preflight before arming.
 
 A no-progress stop attempt is logged as a stall while the finite contract remains open. Owners who
@@ -437,5 +438,6 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
   ChatGPT scratch workspace), observe stop and recovery behavior, and review every local commit or
   artifact receipt before relying on an overnight run.
 
-Continue with the [first-night safety checklist](first-night-checklist.md), the
+Continue with the [first-night safety checklist](first-night-checklist.md),
+[Shift modes](shift-modes.md), the
 [owner knobs](knobs.md), or the [command reference](commands.md).
