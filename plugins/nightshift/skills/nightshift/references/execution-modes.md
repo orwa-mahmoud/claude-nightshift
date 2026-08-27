@@ -15,7 +15,7 @@ and any existing source manifests or reports; do not require a git history that 
 For each applicable entry record one sentence of evidence. Rank by:
 
 1. user or production impact;
-2. strength of repository evidence;
+2. strength of work-target evidence;
 3. ability to finish and verify inside the remaining time;
 4. risk and reversibility.
 
