@@ -7,10 +7,11 @@ or a substantial feature, but never merges its own branch and never leaves a hal
 ```text
 - [ ] **Product evolution — research, build, and improve until quitting time.**
   - Ending: open-ended — hours and a deadline are required.
-  - Isolate first: work on a dedicated nightshift branch named
+  - Isolate first: in repository mode, work on a dedicated nightshift branch named
     `nightshift/<short-purpose>-<YYYY-MM-DD>`, never the default branch. The optional
     `isolated-branch` rule profile makes checkout of `main`/`master`, merge, and push
-    mechanical denials when the owner applied it at Setup. Never merge,
+    mechanical denials when the owner applied it at Setup. In artifact mode do not `git init` the folder;
+    keep outputs inside the persistent work target. Never merge,
     push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
     authorized that exact action. The owner decides what ships in the morning.
   - Understand before inventing: read the product docs, issues, architecture, existing features,
@@ -31,12 +32,14 @@ or a substantial feature, but never merges its own branch and never leaves a hal
   - Each cycle: choose the strongest complete improvement that fits the remaining time. Before
     substantial implementation, make it the single building entry using the shipped structure.
     Small fixes, coherent medium work, and substantial features are all valid. Build end-to-end,
-    run the item gate, commit separately, update the opportunity map, then reassess the product
-    before choosing again. Keep the branch buildable after every commit.
+    run the item gate, then commit separately in repository mode or write an artifact receipt in
+    artifact mode, update the opportunity map, then reassess the product
+    before choosing again. Keep the branch buildable after every commit; in artifact mode keep
+    outputs reviewable after every receipt.
   - The building entry is the cycle's continuation record. Refresh Current phase, Completed,
     Decisions, Rejected, Next, and Verify remaining after meaningful boundaries — research or
-    design concludes, a coherent implementation step lands, a decision closes a path, a commit is
-    made, or verification changes state. Do not rewrite it after every command and do not use the
+    design concludes, a coherent implementation step lands, a decision closes a path, a commit or
+    artifact receipt is written, or verification changes state. Do not rewrite it after every command and do not use the
     snag log as a progress journal.
   - Large is allowed; half-built is not. Start a larger feature only when the problem is supported
     by evidence, it fits the product direction, it has a clean rollback boundary, and it can be
@@ -55,10 +58,11 @@ or a substantial feature, but never merges its own branch and never leaves a hal
     parking-lot.md and keep working. Log one line per cycle to shift-log.md.
   - Open-ended: the deadline is the ONLY thing that ends this item. An empty cycle means the lens
     was too shallow — research a new user, competitor, subsystem, entry point, or workflow.
-  - At quitting time finish the current coherent unit, leave the branch green, write a morning
-    handoff covering research, opportunities, shipped commits, parked decisions, and how to review
-    or reject the branch. If the current unit must remain unfinished, leave its building entry with
-    an exact Next and Verify remaining before the wip commit and handover, then clock out orderly.
-  - Verify: the item gate is green at every commit; every implemented change traces to evidence in
+  - At quitting time finish the current coherent unit, leave the branch green or the outputs
+    reviewable, write a morning
+    handoff covering research, opportunities, shipped commits or receipts, parked decisions, and how to review
+    or reject the branch or folder. If the current unit must remain unfinished, leave its building entry with
+    an exact Next and Verify remaining before the wip commit or artifact receipt and handover, then clock out orderly.
+  - Verify: the item gate is green at every commit or artifact receipt; every implemented change traces to evidence in
     product-research.md and a disposition in opportunity-map.md.
 ```

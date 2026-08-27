@@ -37,6 +37,8 @@ START="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'work-target tests and tooling' "$E"
   grep -qi 'push, open a PR, deploy, publish' "$E"
   grep -qi 'morning handoff' "$E"
+  grep -qF 'do not `git init` the folder' "$E"
+  grep -qi 'artifact receipt' "$E"
 }
 
 @test "hunt recognizes required objectives and declared entry compatibility" {

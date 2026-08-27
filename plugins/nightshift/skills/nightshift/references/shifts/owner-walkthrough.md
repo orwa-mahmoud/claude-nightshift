@@ -1,11 +1,11 @@
 # Owner walkthrough — open-ended — pursue one owner-supplied objective until quitting time
 
 A custom hours-cycle for a goal the owner names. Nightshift keeps the objective verbatim, derives
-the next concrete unit from the repository, and implements, verifies, and reassesses until the
+the next concrete unit from the work target, and implements, verifies, and reassesses until the
 objective is verifiably satisfied or the clock ends the shift.
 
 **Selection:** Guided only. Never select this entry in Automatic mode: its objective must come
-directly from the owner, not from repository discovery. Do not combine it with another open-ended
+directly from the owner, not from work-target discovery. Do not combine it with another open-ended
 entry; this walkthrough owns the shift's single continuation record.
 
 **Owner instructions:** Required. The guided scope answer is the objective, not optional tailoring.
@@ -21,7 +21,8 @@ licensing decisions remain outside the coding-work authorization.
     finish it earlier.
   - Objective: the Owner instructions attached by Hunt are authoritative and must remain verbatim.
     Never replace them with an easier, narrower, or merely adjacent goal.
-  - Isolate first: work on a dedicated nightshift branch, never the default branch. Never merge,
+  - Isolate first: in repository mode, work on a dedicated nightshift branch, never the default
+    branch. In artifact mode do not `git init` the folder; write receipts instead of commits. Never merge,
     push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
     authorized that exact action.
   - Establish the continuation record before implementation: use the single `Status: building`
@@ -31,13 +32,13 @@ licensing decisions remain outside the coding-work authorization.
     resume its exact Next action before exploring again. Never open a second building entry.
   - Each cycle: inspect current work-target evidence and the continuation record, choose the
     strongest coherent unit that advances the objective and fits the remaining time, implement it
-    end-to-end, run the item gate, commit separately, then refresh the continuation record and
+    end-to-end, run the item gate, commit separately or write an artifact receipt, then refresh the continuation record and
     reassess. Prefer completing one reviewable path over starting several partial ones.
   - Verification comes from the objective, work-target tests and tooling, and the configured
     item gate. Never weaken a test, suppress a finding, or redefine acceptance merely to claim
-    progress. The item gate must be green at every commit.
+    progress. The item gate must be green at every commit or artifact receipt.
   - Keep the continuation record current at meaningful boundaries: after design, a coherent
-    implementation step, a stable decision, a commit, or a verification-state change. Record the
+    implementation step, a stable decision, a commit or artifact receipt, or a verification-state change. Record the
     exact next action and remaining verification so compaction or revival can continue without
     reconstructing the conversation. Do not rewrite it after every command.
   - Park genuine owner decisions with the strongest sensible reversible default and continue.
@@ -49,9 +50,9 @@ licensing decisions remain outside the coding-work authorization.
     the item, and clock out early. Never manufacture busywork or expand into unrelated work to fill
     the remaining hours.
   - Open-ended: quitting time is the normal ending. At the whistle, finish the coherent unit in
-    hand, leave the branch green, update the continuation record, and write a morning handoff with
-    delivered commits, decisions, remaining work, exact Next, and Verify remaining. The owner's
+    hand, leave the branch green or the outputs reviewable, update the continuation record, and write a morning handoff with
+    delivered commits or receipts, decisions, remaining work, exact Next, and Verify remaining. The owner's
     stop-work order remains available and leaves unfinished work open.
-  - Verify: the item gate is green at every commit; each delivered unit advances the verbatim
+  - Verify: the item gate is green at every commit or artifact receipt; each delivered unit advances the verbatim
     owner objective; opportunity-map.md and the morning handoff identify the exact current state.
 ```
