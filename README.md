@@ -193,7 +193,7 @@ clocks out only once every box is ticked.
 - **Your allowance is about to reset and you have no backlog ready.** Ask Hunt for the product
   evolution shift: it studies the product, its history, user needs, and relevant standards; ranks
   opportunities by evidence, value, effort, reversibility, and risk; then builds the strongest
-  complete improvements on an isolated branch. During a long build, the active opportunity records
+  complete improvements on an isolated branch or in the persistent folder. During a long build, the active opportunity records
   completed work, rejected paths, the exact next action, and verification still due.
 - **The API is failing and you are about to leave.** The watchman keeps checking and resumes the
   recorded conversation when the host can prove it died and the identity is resumable. The

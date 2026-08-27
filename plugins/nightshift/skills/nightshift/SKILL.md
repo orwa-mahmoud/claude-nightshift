@@ -124,7 +124,7 @@ at its declared condition:
  stop even with time on the clock.
 - **Product evolution (standing loop)** — understand the product, research its space, rank an
  evidence-backed opportunity map, and build the strongest complete improvements that fit the
- clock on an isolated branch. Lint and tests verify the work; they do not choose the roadmap.
+ clock on an isolated branch or, in artifact mode, inside the persistent folder. Lint and tests verify the work; they do not choose the roadmap.
  Small fixes through substantial features are valid, but the shift never merges itself and never
  leaves a half-built production path. The single `building` opportunity is the continuation
  record: read it first on resume and keep its completed work, rejected paths, exact next action,

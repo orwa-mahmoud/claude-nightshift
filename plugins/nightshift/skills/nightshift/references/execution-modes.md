@@ -41,7 +41,7 @@ to implement; the launch choice decides that.
 Run directly means make progress, not avoid judgment:
 
 - choose the strongest production-quality default;
-- make reasonable, reversible decisions on the isolated branch;
+- make reasonable, reversible decisions on the isolated branch or inside the artifact work target;
 - preserve compatibility or include migration and rollback where a breaking change is justified;
 - implement and verify the decision;
 - record every significant choice, evidence, alternatives, shipped result, and rollback in
@@ -54,7 +54,7 @@ boundary when it is isolated, tested, reviewable, and reversible.
 
 ## One shift contract
 
-Any combination becomes one ordered work order, one punch list, one branch, one deadline where
+Any combination becomes one ordered work order, one punch list, one branch or artifact work target, one deadline where
 required, and one set of receipts. Never arm a separate shift per entry. The catalog entry remains
 the definition of done; selection and launch modes decide who chooses it and whether discovery
 pauses for approval.

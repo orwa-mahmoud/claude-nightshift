@@ -178,6 +178,8 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'rollback' "$mode"
   grep -qi 'publishing' "$mode"
   grep -qi 'legal or licensing policy' "$mode"
+  grep -qi 'isolated branch or inside the artifact work target' "$mode"
+  grep -qi 'one branch or artifact work target' "$mode"
 }
 
 # The archive files finished paperwork only — the contract and open work are untouchable.
