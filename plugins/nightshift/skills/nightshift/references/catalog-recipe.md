@@ -20,7 +20,7 @@ ending condition. Your own `tests/shifts/<your-shift>.bats` is for what is speci
 above all its refusals, which are the lines a tired model reaches past at 4am.
 
 Before writing, understand what you are writing: **a shift is a contract handed to an agent that
-will work unattended, on a stranger's repository, while they sleep.** It is not documentation and
+will work unattended, on a stranger's workspace, while they sleep.** It is not documentation and
 not a suggestion. Every line is an instruction that will be followed literally.
 
 To discuss an idea before writing files, open a

@@ -69,6 +69,7 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
     grep -qi "$d" "$RECIPE" || { echo "recipe does not demand: $d"; return 1; }
   done
   grep -qi 'read by a human before merge' "$RECIPE"
+  grep -qi "stranger's workspace" "$RECIPE"
 }
 
 @test "the recipe tells a contributor to add a file, not edit a shared one" {
