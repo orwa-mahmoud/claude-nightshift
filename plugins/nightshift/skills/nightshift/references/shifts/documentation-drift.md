@@ -8,6 +8,7 @@ version that only the docs still claim. Not a rewrite of positioning, voice, or 
 
 Supported on any repository that keeps documentation in-tree (markdown, man pages, `--help`
 examples checked into the repo). Skip generated sites whose source of truth is elsewhere.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make docs commitable.
 
 ```text
 - [ ] **Documentation drift — make in-repo docs match the current tree.**
@@ -16,6 +17,7 @@ examples checked into the repo). Skip generated sites whose source of truth is e
     claim to describe this repository. Resolve each against the tree and the manifests that
     already exist here (plugin.json version, PATH commands the repo documents, files on disk).
     Do not query the network for "current" product claims.
+  - Never select this entry when work mode is artifact.
   - Work one cluster per cycle (broken links, then stale commands, then version pins): restore
     the documentation to the repository's truth, or restore a renamed file if the docs are right
     and the tree drifted. Run the item gate, commit.
