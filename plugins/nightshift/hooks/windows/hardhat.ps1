@@ -216,7 +216,7 @@ function Test-NSNightshiftDirContext {
 function Test-NSControlRewritePath {
     param([AllowEmptyString()][string]$Target)
     $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target)(/|$|[^A-Za-z0-9_.-])'
+    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)(/|$|[^A-Za-z0-9_.-])'
 }
 
 function Test-NSControlListPath {
@@ -227,7 +227,7 @@ function Test-NSControlListPath {
 
 function Test-NSControlRewriteName {
     param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target)([;&|()\s]|$)'
+    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)([;&|()\s]|$)'
 }
 
 function Test-NSControlListName {
@@ -725,7 +725,7 @@ $controlPassive = $tool -in @(
 if (-not $controlPassive) {
     foreach ($target in $targets) {
         if (Test-NSControlTarget ([string]$target)) {
-            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, or work-target, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
+            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
         }
     }
 }

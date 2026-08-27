@@ -46,17 +46,36 @@ repo_root() {
 
 # ns_work_target <workspace>
 #
-# Resolve the repository Nightshift works on while keeping run state in <workspace>/.nightshift.
-# Setup persists the choice in .nightshift/work-target; readers prefer that record so resumed,
-# scheduled, and revived sessions do not rediscover a different repository. The record may be an
-# absolute path or a path relative to the workspace. Return 2 when several child repositories make
-# an unstored choice ambiguous, 1 when no repository can be resolved.
+# Resolve the work target Nightshift works on while keeping run state in <workspace>/.nightshift.
+# Setup persists the choice in .nightshift/work-target and the mode in .nightshift/work-mode.
+# Readers prefer those records so resumed, scheduled, and revived sessions do not rediscover a
+# different folder. The path record may be absolute or relative to the workspace.
+# Return 2 when several child repositories make an unstored repository choice ambiguous, 3 when
+# the target is a disposable scratch path, 1 when nothing can be resolved.
 ns_work_target() {
-  local project="$1" record="$1/.nightshift/work-target" target="" child base top found=""
+  local project="$1" record="$1/.nightshift/work-target" target="" child base top found="" mode=""
+  mode="$(ns_work_mode "$project")" || return 1
   if [ -s "$record" ]; then
     IFS= read -r target <"$record" || true
     case "$target" in /*) ;; *) target="$project/$target" ;; esac
+    top="$(cd -P "$target" 2>/dev/null && pwd)" || return 1
+    if ns_is_scratch_path "$top"; then
+      return 3
+    fi
+    if [ "$mode" = artifact ]; then
+      [ -d "$top" ] || return 1
+      printf '%s' "$top"
+      return 0
+    fi
     top="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 1
+    printf '%s' "$top"
+    return 0
+  fi
+  if [ "$mode" = artifact ]; then
+    top="$(cd -P "$project" 2>/dev/null && pwd)" || return 1
+    if ns_is_scratch_path "$top"; then
+      return 3
+    fi
     printf '%s' "$top"
     return 0
   fi
@@ -77,13 +96,27 @@ ns_work_target() {
   printf '%s' "$found"
 }
 
-# ns_record_work_target <workspace> <repository>
-# Persist an absolute canonical repository path atomically.
+# ns_record_work_target <workspace> <path> [repository|artifact]
+# Persist an absolute canonical work-target path atomically. The optional mode defaults to
+# repository and is written to .nightshift/work-mode. Artifact mode records a persistent
+# directory and does not require Git. Scratch paths are refused.
 ns_record_work_target() {
-  local project="$1" target top tmp
-  target="$2"
-  top="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  local project="$1" target="$2" mode="${3:-repository}" top tmp
+  case "$mode" in repository | artifact) ;; *) return 1 ;; esac
+  if ns_is_scratch_path "$target"; then
+    return 3
+  fi
+  if [ "$mode" = artifact ]; then
+    top="$(cd -P "$target" 2>/dev/null && pwd)" || return 1
+    [ -d "$top" ] || return 1
+  else
+    top="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  fi
+  if ns_is_scratch_path "$top"; then
+    return 3
+  fi
   mkdir -p "$project/.nightshift" || return 1
+  ns_record_work_mode "$project" "$mode" || return 1
   tmp="$project/.nightshift/.work-target.$$"
   printf '%s\n' "$top" >"$tmp" || return 1
   mv "$tmp" "$project/.nightshift/work-target"

@@ -86,6 +86,61 @@ function Resolve-NSCanonicalPath {
     return [IO.Path]::GetFullPath($resolved.ProviderPath)
 }
 
+function Test-NSScratchPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $normalized = $Path.TrimEnd('\', '/').Replace('\', '/')
+    return [bool]($normalized -match '^/workspace/scratch(?:/|$)')
+}
+
+function Get-NSWorkMode {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $record = Join-Path $Workspace '.nightshift/work-mode'
+    if (-not (Test-Path -LiteralPath $record -PathType Leaf)) {
+        return 'repository'
+    }
+    $lines = [IO.File]::ReadAllLines($record)
+    if ($lines.Count -lt 1) {
+        throw 'work mode is unreadable'
+    }
+    $mode = $lines[0].Trim()
+    if ($mode -notin @('repository', 'artifact')) {
+        throw 'work mode is malformed'
+    }
+    return $mode
+}
+
+function Write-NSWorkMode {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][ValidateSet('repository', 'artifact')][string]$Mode
+    )
+    $ns = Join-Path $Workspace '.nightshift'
+    $null = New-Item -ItemType Directory -Path $ns -Force
+    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-mode') -Lines @($Mode)
+}
+
+function Get-NSProposedWorkMode {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $project = Resolve-NSCanonicalPath $Workspace
+    if (Test-NSScratchPath $project) {
+        throw 'disposable scratch workspaces are refused'
+    }
+    $top = Invoke-NSGit $project @('rev-parse', '--show-toplevel')
+    if (-not [string]::IsNullOrWhiteSpace($top)) {
+        return 'repository'
+    }
+    foreach ($child in Get-ChildItem -LiteralPath $project -Directory -Force -ErrorAction SilentlyContinue) {
+        if ($child.Name.StartsWith('.')) {
+            continue
+        }
+        $candidate = Invoke-NSGit $child.FullName @('rev-parse', '--show-toplevel')
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            return 'repository'
+        }
+    }
+    return 'artifact'
+}
+
 function Resolve-NSWorkspaceRoot {
     param([Parameter(Mandatory = $true)][string]$HostRoot)
 
@@ -195,6 +250,7 @@ function Resolve-NSWorkTarget {
     param([Parameter(Mandatory = $true)][string]$Workspace)
 
     $project = Resolve-NSCanonicalPath $Workspace
+    $mode = Get-NSWorkMode $project
     $record = Join-Path $project '.nightshift/work-target'
     if (Test-Path -LiteralPath $record -PathType Leaf) {
         $lines = [IO.File]::ReadAllLines($record)
@@ -205,11 +261,28 @@ function Resolve-NSWorkTarget {
         if (-not [IO.Path]::IsPathRooted($target)) {
             $target = Join-Path $project $target
         }
+        $folder = Resolve-NSCanonicalPath $target
+        if (Test-NSScratchPath $folder) {
+            throw 'work target is a disposable scratch workspace'
+        }
+        if ($mode -eq 'artifact') {
+            if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+                throw 'work target is not a directory'
+            }
+            return $folder
+        }
         $top = Invoke-NSGit $target @('rev-parse', '--show-toplevel')
         if ([string]::IsNullOrWhiteSpace($top)) {
             throw 'work target is not a Git repository'
         }
         return (Resolve-NSCanonicalPath $top)
+    }
+
+    if ($mode -eq 'artifact') {
+        if (Test-NSScratchPath $project) {
+            throw 'work target is a disposable scratch workspace'
+        }
+        return $project
     }
 
     $top = Invoke-NSGit $project @('rev-parse', '--show-toplevel')
@@ -241,15 +314,33 @@ function Resolve-NSWorkTarget {
 function Write-NSWorkTarget {
     param(
         [Parameter(Mandatory = $true)][string]$Workspace,
-        [Parameter(Mandatory = $true)][string]$Repository
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [ValidateSet('repository', 'artifact')][string]$Mode = 'repository'
     )
-    $top = Invoke-NSGit $Repository @('rev-parse', '--show-toplevel')
-    if ([string]::IsNullOrWhiteSpace($top)) {
-        throw 'work target is not a Git repository'
+    $top = $null
+    if ($Mode -eq 'artifact') {
+        $top = Resolve-NSCanonicalPath $Repository
+        if (-not (Test-Path -LiteralPath $top -PathType Container)) {
+            throw 'work target is not a directory'
+        }
+        if (Test-NSScratchPath $top) {
+            throw 'work target is a disposable scratch workspace'
+        }
+    }
+    else {
+        $gitTop = Invoke-NSGit $Repository @('rev-parse', '--show-toplevel')
+        if ([string]::IsNullOrWhiteSpace($gitTop)) {
+            throw 'work target is not a Git repository'
+        }
+        $top = Resolve-NSCanonicalPath $gitTop
+        if (Test-NSScratchPath $top) {
+            throw 'work target is a disposable scratch workspace'
+        }
     }
     $ns = Join-Path $Workspace '.nightshift'
     $null = New-Item -ItemType Directory -Path $ns -Force
-    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @((Resolve-NSCanonicalPath $top))
+    Write-NSWorkMode $Workspace $Mode
+    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @($top)
 }
 
 function Get-NSStateKind {

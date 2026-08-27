@@ -60,7 +60,8 @@ On native Windows:
 ```
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. The script uses the
-same workspace and work-target libraries as the hooks.
+same workspace, work-mode, and work-target libraries as the hooks. The report's `work mode`
+fact is `repository` or `artifact`.
 
 ## 2. Classify actions — do not execute them
 

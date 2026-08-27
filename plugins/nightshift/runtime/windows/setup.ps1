@@ -1,6 +1,7 @@
 param(
     [string]$Project = [Environment]::CurrentDirectory,
     [string]$WorkTarget = '',
+    [ValidateSet('repository', 'artifact')][string]$Mode = 'repository',
     [switch]$Receipts,
     [switch]$MigrateLegacy
 )
@@ -85,15 +86,19 @@ catch {
 $resolvedTarget = ''
 if (-not [string]::IsNullOrEmpty($WorkTarget)) {
     $resolvedTarget = Resolve-NSCanonicalPath $WorkTarget
-    $null = Write-NSWorkTarget $workspace $resolvedTarget
+    $null = Write-NSWorkTarget $workspace $resolvedTarget -Mode $Mode
 }
 elseif (Test-Path -LiteralPath (Join-Path $ns 'work-target') -PathType Leaf) {
     $resolvedTarget = Resolve-NSWorkTarget $workspace
 }
+elseif ($Mode -eq 'artifact') {
+    $resolvedTarget = $workspace
+    $null = Write-NSWorkTarget $workspace $resolvedTarget -Mode artifact
+}
 else {
     try {
         $resolvedTarget = Resolve-NSWorkTarget $workspace
-        $null = Write-NSWorkTarget $workspace $resolvedTarget
+        $null = Write-NSWorkTarget $workspace $resolvedTarget -Mode repository
     }
     catch {
         if ($_.Exception.Message -match 'several child repositories') {
@@ -178,6 +183,7 @@ if ($Receipts -or (Test-Path -LiteralPath $receiptRepo -PathType Container)) {
     taskRoot = $taskRoot
     workspace = $workspace
     workTarget = $resolvedTarget
+    workMode = $Mode
     created = $created.ToArray()
     receiptsCreated = $receiptsCreated
 } | ConvertTo-Json -Depth 5

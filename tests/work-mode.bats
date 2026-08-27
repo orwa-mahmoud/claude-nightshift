@@ -1,0 +1,120 @@
+load helpers
+
+LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
+START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
+STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+DOCTOR_SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
+ARCHIVE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
+SCHEDULE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
+DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
+DOC="$BATS_TEST_DIRNAME/../docs/how-it-works.md"
+VOCAB="$BATS_TEST_DIRNAME/../docs/vocabulary.md"
+HARDHAT="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/shared/hardhat-core.sh"
+WIN_HARDHAT="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/hardhat.ps1"
+PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
+
+call_lib() {
+  bash -c '. "$1"; '"$2"'' _ "$LIB" "$@"
+}
+
+@test "scratch paths are detected by prefix" {
+  run bash -c '. "$1"; ns_is_scratch_path /workspace/scratch' _ "$LIB"
+  [ "$status" -eq 0 ]
+  run bash -c '. "$1"; ns_is_scratch_path /workspace/scratch/tmp/proj' _ "$LIB"
+  [ "$status" -eq 0 ]
+  run bash -c '. "$1"; ns_is_scratch_path /Users/me/notes' _ "$LIB"
+  [ "$status" -eq 1 ]
+}
+
+@test "missing work-mode defaults to repository" {
+  p="$(new_project mode-default)"
+  run bash -c '. "$1"; ns_work_mode "$2"' _ "$LIB" "$p"
+  [ "$status" -eq 0 ]
+  [ "$output" = repository ]
+}
+
+@test "a non-git folder is proposed as artifact and persists without Git" {
+  w="$BATS_TEST_TMPDIR/notes-only"
+  mkdir -p "$w/research"
+  printf 'notes\n' >"$w/research/topic.md"
+  run bash -c '. "$1"; ns_propose_work_mode "$2"' _ "$LIB" "$w"
+  [ "$status" -eq 0 ]
+  [ "$output" = artifact ]
+
+  run bash -c '. "$1"; ns_record_work_target "$2" "$3" artifact' _ "$LIB" "$w" "$w"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$w/.nightshift/work-mode")" = artifact ]
+  expected="$(cd -P "$w" && pwd)"
+  [ "$(cat "$w/.nightshift/work-target")" = "$expected" ]
+
+  run bash -c '. "$1"; ns_work_mode "$2"' _ "$LIB" "$w"
+  [ "$output" = artifact ]
+  run bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$w"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
+}
+
+@test "repository persistence still requires Git and writes the mode" {
+  p="$(new_project mode-repo)"
+  run bash -c '. "$1"; ns_propose_work_mode "$2"' _ "$LIB" "$p"
+  [ "$output" = repository ]
+  run bash -c '. "$1"; ns_record_work_target "$2" "$3"' _ "$LIB" "$p" "$p"
+  [ "$status" -eq 0 ]
+  [ "$(cat "$p/.nightshift/work-mode")" = repository ]
+  run bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$p"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(git -C "$p" rev-parse --show-toplevel)" ]
+}
+
+@test "artifact record refuses a scratch path" {
+  run bash -c '. "$1"; ns_record_work_target /workspace/scratch /workspace/scratch artifact' _ "$LIB"
+  [ "$status" -eq 3 ]
+}
+
+@test "malformed work-mode fails closed" {
+  p="$(new_project mode-bad)"
+  printf 'cloud\n' >"$p/.nightshift/work-mode"
+  run bash -c '. "$1"; ns_work_mode "$2"' _ "$LIB" "$p"
+  [ "$status" -eq 1 ]
+  run bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$p"
+  [ "$status" -eq 1 ]
+}
+
+@test "Doctor reports work mode" {
+  p="$(new_project mode-doctor)"
+  bash -c '. "$1"; ns_record_work_target "$2" "$3"' _ "$LIB" "$p" "$p"
+  run bash "$DOCTOR" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'work mode repository'
+}
+
+@test "Setup Start Status Doctor Archive and Schedule name both modes" {
+  grep -qF 'work-mode' "$SETUP"
+  grep -qF 'ask before persisting' "$SETUP" || grep -qF 'asks before persisting' "$SETUP"
+  grep -qF 'artifact' "$SETUP"
+  grep -qF 'work-mode' "$START"
+  grep -qF 'artifact' "$START"
+  grep -qF 'work mode' "$STATUS" || grep -qF 'work-mode' "$STATUS"
+  grep -qF 'work mode' "$DOCTOR_SKILL" || grep -qF 'work-mode' "$DOCTOR_SKILL"
+  grep -qF 'artifact' "$ARCHIVE"
+  grep -qF 'work-mode' "$SCHEDULE" || grep -qF 'artifact' "$SCHEDULE"
+}
+
+@test "workspace docs describe artifact mode" {
+  grep -qF '### Persistent folder (artifact mode)' "$DOC"
+  grep -qF '.nightshift/work-mode' "$DOC"
+  grep -qF 'artifact' "$VOCAB"
+}
+
+@test "hardhat treats work-mode as a control file" {
+  grep -qF 'work-mode' "$HARDHAT"
+  grep -qF 'work-mode' "$WIN_HARDHAT"
+}
+
+@test "Windows helpers persist and resolve the same two modes" {
+  grep -qF 'function Get-NSWorkMode' "$PSM1"
+  grep -qF 'function Get-NSProposedWorkMode' "$PSM1"
+  grep -qF "ValidateSet('repository', 'artifact')" "$PSM1"
+  grep -qF 'Mode "$WORK_MODE"' "$SETUP"
+}

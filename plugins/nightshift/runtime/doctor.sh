@@ -91,11 +91,22 @@ if [ ! -d "$NS" ]; then
 fi
 
 TARGET=""
+if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
+  fact "work mode $MODE"
+else
+  MODE=""
+  warn "work mode is malformed; treating the site as unusable until Setup rewrites it"
+fi
 if TARGET="$(ns_work_target "$WORKSPACE" 2>/dev/null)"; then
   fact "work target $TARGET"
 else
+  rc=$?
   TARGET="$WORKSPACE"
-  warn "work target could not be resolved; treating workspace as the code root"
+  if [ "$rc" -eq 3 ]; then
+    warn "work target is a disposable scratch workspace"
+  else
+    warn "work target could not be resolved; treating workspace as the code root"
+  fi
 fi
 
 PUNCH="$NS/punch-list.md"

@@ -55,12 +55,17 @@ or `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIG
 on native Windows);
 Start never writes the marker.
 
-Read `$NS/work-target` before preflight. It is the absolute code repository selected by
-Setup. Keep every `$NS/` read and write in the bound directory, but run project
-inspection, edits, gates, Git operations, commits, and verification in that work target. Validate
-it with `git -C <target> rev-parse --show-toplevel`; if it is missing, use the workspace itself when
-it is a repository or its single immediate child repository, and persist that resolved path. If
-several child repositories make the choice ambiguous, refuse to arm until Setup records one.
+Read `$NS/work-mode` and `$NS/work-target` before preflight. A missing work-mode is
+repository — the historical default. `artifact` means the work target is a persistent folder, not
+a Git repository. Keep every `$NS/` read and write in the bound directory, but run project
+inspection, edits, gates, Git operations, commits, and verification in that work target when the
+mode is repository. In artifact mode, inspect and edit that folder and do not require Git.
+Validate with `ns_work_mode` / `ns_work_target` (native Windows: `Get-NSWorkMode` /
+`Resolve-NSWorkTarget` after Import-Module). Refuse to arm when the mode is malformed, the target
+is a disposable scratch path, or repository mode cannot resolve a Git repository. If the record is
+missing, use the workspace itself when it is a repository or its single immediate child
+repository, and persist that resolved path as repository mode. If several child repositories make
+the choice ambiguous, refuse to arm until Setup records one.
 
 **State map:** `punch-list.md` → owner-approved work active in this shift;
 `drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner

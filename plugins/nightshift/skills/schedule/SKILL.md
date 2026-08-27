@@ -33,6 +33,10 @@ the POSIX generator through Git Bash or WSL; the Task Scheduler generator is bun
 No `$NS/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
 to set up on Codex). Nothing below is meaningful without it.
 
+Read `$NS/work-mode`. Artifact mode is a persistent folder, not a Git repository; the scheduled
+agent still starts in that work target. A malformed mode or a scratch work target is a refuse —
+fix it with Setup before installing a job.
+
 ## 2. Is there work queued?
 
 A scheduled start works the punch list it finds and **promotes nothing** — parked work orders and

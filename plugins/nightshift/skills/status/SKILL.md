@@ -36,6 +36,9 @@ Read `$NS/` and print:
 
 - **Schema** — `$NS/state-version`: missing means legacy `0`, `1` is current. Report a
  newer or malformed marker and stop there; never rewrite it and never run migration from status.
+- **Work mode** — `$NS/work-mode` (`repository` or `artifact`; missing means repository) and the
+ resolved work target from Doctor's `work mode` / `work target` facts. Artifact mode is a
+ persistent folder, not a Git repository.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list
  is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on

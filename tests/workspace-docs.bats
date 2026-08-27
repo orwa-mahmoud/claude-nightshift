@@ -21,6 +21,7 @@ resolve_work_target() {
     'Parent with one repository (supported)' \
     'Git worktree (supported)' \
     'Parent with several repositories (selection required)' \
+    'Persistent folder (artifact mode)' \
     'Linked task root (explicit opt-in)'; do
     grep -qF "### $heading" "$DOC" || {
       echo "missing workspace example: $heading"

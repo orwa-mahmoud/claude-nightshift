@@ -58,7 +58,7 @@ The mechanical scaffold is also available without a model turn:
 
 ```powershell
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\setup.ps1" `
-  -Project (Get-Location) -WorkTarget C:\path\to\repository
+  -Project (Get-Location) -WorkTarget C:\path\to\repository -Mode repository
 ```
 
 Setup still asks before choosing gates, changing project permissions, migrating legacy state, or

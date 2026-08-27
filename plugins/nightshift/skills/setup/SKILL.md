@@ -38,10 +38,11 @@ Bash. Once the workspace and work target are resolved, the bundled mechanical sc
 
 ```powershell
 & "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\setup.ps1" `
- -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET"
+ -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET" -Mode "$WORK_MODE"
 ```
 
-It copies only absent files, writes state version 1 for a new site, persists the work target, and
+It copies only absent files, writes state version 1 for a new site, persists the work target and
+work mode (`-Mode repository` or `-Mode artifact`), and
 keeps `$NS/` private. The skill still owns every owner choice below; the script asks
 nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
 
@@ -71,17 +72,26 @@ product, so give them the shortest OpenAI-native route. Do not infer “temporar
 project is not a git repository — local non-git projects and the recommended parent-workspace
 layout remain valid. The explicit disposable scratch path is the stop signal.
 
-Resolve the code repository before stack detection:
+Detect the work mode, explain it, and ask before persisting it. Use
+`ns_propose_work_mode` (POSIX) or `Get-NSProposedWorkMode` after importing
+`Nightshift.psm1` (native Windows):
 
-- If the workspace itself is a Git repository, it is the work target.
-- Otherwise inspect its immediate, non-hidden child directories. If exactly one is a Git
- repository, that repository is the work target while `$NS/` stays in the opened parent.
-- If several child repositories exist and `$NS/work-target` does not already select one,
- show the choices and require an explicit target; never guess.
-- Persist the chosen repository's absolute Git top-level path, followed by one newline, in
- `$NS/work-target`. On later setup runs, validate and retain that
- target unless the owner explicitly changes it. Stack detection, Git checks, gates, commits, and
- verification operate in this work target—not necessarily in the workspace holding run state.
+- `repository` — the workspace is a Git repository, or exactly one immediate non-hidden child is.
+  several child repositories still mean repository mode; show the choices and require an explicit
+  target, never guess.
+- `artifact` — there is no Git repository here. The persistent folder itself is the work target
+  (research, docs, audits, planning). Say so plainly: gates, commits, and stack detection that
+  require Git do not apply; later artifact receipts cover completion.
+- scratch (`ns_propose_work_mode` status 2, or `Get-NSProposedWorkMode` throwing) — stop; create
+  nothing.
+
+Never persist a mode until the owner confirms. Then write `$NS/work-mode` as `repository` or
+`artifact` (one word, one newline) and `$NS/work-target` as the absolute canonical path of the
+chosen folder. On POSIX: `ns_record_work_target "$NIGHTSHIFT_WORKSPACE" "$WORK_TARGET" "$WORK_MODE"`.
+On later setup runs, validate and retain that mode and target unless the owner explicitly changes
+them. Repository mode: stack detection, Git checks, gates, commits, and verification operate in
+the work target. Artifact mode: inspection, edits, and verification operate in that folder without
+pretending it is a repository.
 
 ## 1. Scaffold `$NS/` (never clobber an existing shift)
 

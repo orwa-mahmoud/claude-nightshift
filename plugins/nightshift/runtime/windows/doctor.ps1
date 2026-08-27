@@ -102,6 +102,13 @@ if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
     exit 0
 }
 
+try {
+    Add-NSFact "work mode $(Get-NSWorkMode $workspace)"
+}
+catch {
+    Add-NSWarn 'work mode is malformed; treating the site as unusable until Setup rewrites it'
+}
+
 $target = $workspace
 try {
     $target = Resolve-NSWorkTarget $workspace
@@ -109,7 +116,12 @@ try {
 }
 catch {
     $target = $workspace
-    Add-NSWarn 'work target could not be resolved; treating workspace as the code root'
+    if ($_.Exception.Message -match 'scratch') {
+        Add-NSWarn 'work target is a disposable scratch workspace'
+    }
+    else {
+        Add-NSWarn 'work target could not be resolved; treating workspace as the code root'
+    }
 }
 
 $punch = Join-Path $ns 'punch-list.md'

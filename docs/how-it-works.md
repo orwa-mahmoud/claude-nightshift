@@ -282,9 +282,11 @@ contract around those failures; it does not patch either host's context engine.
 Nightshift resolves two locations and persists both decisions:
 
 - the **state workspace** owns `.nightshift/`;
-- the **work target** is the Git repository that receives stack detection, gates, commits, and
-  verification. Its canonical path is stored in `.nightshift/work-target`. A plugin or
-  marketplace manifest may sit at that root or under `plugins/<name>/`.
+- the **work target** is the folder that receives inspection, edits, and verification. In
+  **repository** mode it is a Git repository (stack detection, gates, commits). In **artifact**
+  mode it is a persistent non-Git folder. The path is stored in `.nightshift/work-target` and the
+  mode in `.nightshift/work-mode` (`repository` when that file is absent). A plugin or
+  marketplace manifest may sit at a repository work-target root or under `plugins/<name>/`.
 
 State resolution never searches parent or sibling folders. Work-target resolution accepts the
 opened repository or exactly one immediate, non-hidden child repository. Several candidates require
@@ -346,6 +348,22 @@ workspace/
 Setup shows the repository choices and writes the selected canonical top level to
 `.nightshift/work-target`. Start refuses to arm if that record is absent, invalid, or no longer a
 repository. Nightshift never selects the first directory silently.
+
+### Persistent folder (artifact mode)
+
+A local non-Git folder can be the work target when Setup proposes artifact mode and the owner
+confirms. Typical uses are research, documentation, audits, and planning workspaces:
+
+```text
+notes/                 ← state workspace and artifact work target
+├── research/
+└── .nightshift/       ← run state; work-mode is artifact
+```
+
+`$NS/work-mode` contains `artifact`. `$NS/work-target` is the folder's canonical path. Setup
+refuses `/workspace/scratch/` and any path under it — that ChatGPT workspace is disposable.
+Start, Status, Doctor, Archive, Schedule, and workspace links read the same mode record. Existing
+repository workspaces stay repository mode when `work-mode` is absent.
 
 ### Linked task root (explicit opt-in)
 

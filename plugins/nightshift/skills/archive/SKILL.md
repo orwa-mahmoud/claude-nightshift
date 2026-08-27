@@ -39,6 +39,9 @@ Read `$NS/state-version` first. Legacy (missing) and current (`1`) may be archiv
 A newer or malformed marker fails closed — file nothing, rewrite nothing, and never migrate.
 `state-version` itself stays live; it is not an archive record.
 
+In artifact mode the work target is a persistent folder, not a Git repository. File the same
+Nightshift records; do not require a work-target commit that cannot exist.
+
 ## Where it goes
 
 Everything lands in `$NS/archive/<YYYY-MM-DD>/` — today's date (`date +%Y-%m-%d` on POSIX, or
