@@ -16,6 +16,10 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF 'Hunt or Quality that start immediately' "$CHECKLIST"
   grep -qF 'native Windows' "$CHECKLIST"
   grep -qF 'PID plus UTC start time' "$CHECKLIST"
+  grep -qF 'runtime/write-receipt.sh' "$CHECKLIST"
+  grep -qF 'runtime/windows/write-receipt.ps1' "$CHECKLIST"
+  grep -qF 'reviewable commit' "$CHECKLIST"
+  grep -qF '$NS/receipts/' "$CHECKLIST"
 }
 
 @test "first-night checklist relative links resolve" {

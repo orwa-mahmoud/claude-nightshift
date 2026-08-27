@@ -3,7 +3,9 @@
 Use this once before leaving Nightshift unattended in a project.
 
 - **Start attended.** Run one small shift while watching it. Confirm the proposed gates pass, one
-  item becomes one reviewable commit, and the shift ends only after its box is ticked.
+  item becomes one reviewable commit in repository mode or one artifact receipt from
+  `runtime/write-receipt.sh` (native Windows: `runtime/windows/write-receipt.ps1`) in artifact
+  mode, and the shift ends only after its box is ticked.
   Hunt or Quality that start immediately write the same binding probe and arm the same watchman —
   watch that first run too, even if you never invoked Start.
 - **Choose permissions deliberately.** Pre-allow only what the work needs, or explicitly accept the
@@ -30,7 +32,8 @@ Use this once before leaving Nightshift unattended in a project.
   process lease fences its tool calls. See the
   [recovery handoff and upstream limitation](how-it-works.md#reopening-a-revived-thread).
 - **Leave pushing for morning.** Keep the default local-only commits, review the diff and receipts,
-  then push or open a pull request yourself.
+  then push or open a pull request yourself. In artifact mode there is no work-target git history:
+  review `$NS/receipts/` instead (Doctor names the latest file).
 
 The emergency stop is always available from the Nightshift workspace — the folder that
 contains `.nightshift/`, not a linked task root:
