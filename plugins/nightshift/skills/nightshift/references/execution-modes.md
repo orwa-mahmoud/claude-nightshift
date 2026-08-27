@@ -12,6 +12,9 @@ Automatic selection is not a generic brainstorm. Read every entry in `shifts/`, 
 work target. In repository mode that is tooling, tests, documentation, issue references available
 in the workspace, and recent git history. In artifact mode that is the persistent folder's files
 and any existing source manifests or reports; do not require a git history that cannot exist.
+An entry is applicable only when the work target can supply its discovery surface. Skip coverage,
+CI, dependency, and similar quality-debt entries when the folder has no tests, tooling, or
+manifests to inspect. Do not `git init` a notes folder to make them applicable.
 For each applicable entry record one sentence of evidence. Rank by:
 
 1. user or production impact;
