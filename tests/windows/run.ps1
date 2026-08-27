@@ -458,6 +458,10 @@ try {
     $applyProfileLogicRun = Invoke-TestScript $applyProfileLogic
     Assert-Equal 0 $applyProfileLogicRun.ExitCode `
         "apply-profile armed refuse: $($applyProfileLogicRun.Stdout) $($applyProfileLogicRun.Stderr)"
+    $exportSupportLogic = Join-Path $PSScriptRoot 'export-support-logic.ps1'
+    $exportSupportLogicRun = Invoke-TestScript $exportSupportLogic
+    Assert-Equal 0 $exportSupportLogicRun.ExitCode `
+        "export-support redaction: $($exportSupportLogicRun.Stdout) $($exportSupportLogicRun.Stderr)"
     $hardhatLogic = Join-Path $PSScriptRoot 'hardhat-logic.ps1'
     $hardhatLogicRun = Invoke-TestScript $hardhatLogic
     Assert-Equal 0 $hardhatLogicRun.ExitCode `

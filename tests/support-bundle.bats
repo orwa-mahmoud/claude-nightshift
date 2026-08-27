@@ -119,6 +119,27 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -F "$p" "$bundle"
 }
 
+LOGIC="$BATS_TEST_DIRNAME/windows/export-support-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-support.ps1"
+
+@test "Windows CI runs the portable export-support redaction suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'export-support-logic.ps1' "$RUN"
+  grep -qF 'supersecret' "$LOGIC"
+  grep -qF 'lease_mode: recovered' "$LOGIC"
+  grep -qF 'Write-NSAtomicLines -Path $tmp -Lines @($lines) -Private' "$WIN_EXPORT"
+  ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
+}
+
+@test "Windows export-support redaction logic passes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}
+
 @test "sanitizer omits secret lines and unresolved absolute paths" {
   run bash -c '. "$1"
     ns_secret_line "password=abc" && echo secret
