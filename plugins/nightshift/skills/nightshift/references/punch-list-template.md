@@ -59,7 +59,7 @@ item. Only the Items list changes.
 ## Gates
 
 <!-- Nightshift Setup fills this from your stack, or leaves it empty (no automated checks).
-     Item gate: runs every item, right before its commit — must be green to tick.
+     Item gate: runs every item, right before its commit or artifact receipt — must be green to tick.
      Site inspection: the heavier batch (coverage, dead code, Sonar), every N items or H hours. -->
 
 _None configured._

@@ -50,6 +50,10 @@ CAT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/gates
   grep -qiE 'propose|user decides|opt-in' "$CAT"
 }
 
+@test "the item gate runs before a commit or artifact receipt" {
+  grep -qF 'right before its commit or artifact receipt' "$CAT"
+}
+
 @test "is Sonar-ready and keeps coverage a tripwire" {
   grep -qi 'sonar' "$CAT"
   grep -qi 'tripwire' "$CAT"

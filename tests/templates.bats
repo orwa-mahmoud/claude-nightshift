@@ -25,6 +25,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 @test "the punch-list template carries the headings the gate and setup depend on" {
   grep -q '^## Items' "$REF/punch-list-template.md"
   grep -q '^## Gates' "$REF/punch-list-template.md"
+  grep -qF 'right before its commit or artifact receipt' "$REF/punch-list-template.md"
 }
 
 # The drafting table is where work waits, so it must show the item shape. It is never read by

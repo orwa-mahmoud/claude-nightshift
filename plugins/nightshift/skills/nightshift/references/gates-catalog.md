@@ -7,7 +7,7 @@ the shift runs without automated checks). Explicit user config always beats dete
 
 Two tiers, cheapest first:
 
-- **item gate** — runs ONCE per item, right before its commit; must be green to tick. Fast.
+- **item gate** — runs ONCE per item, right before its commit or artifact receipt; must be green to tick. Fast.
 - **site inspection** — the heavier batch at an interval (every N items or every H hours); coverage,
   dead-code, Sonar.
 
