@@ -303,7 +303,8 @@ independent of that history. The precise boundaries are in
 
 ## Before trusting an overnight run
 
-- Run the first shift attended in a trusted or scratch repository.
+- Run the first shift attended in a trusted git repository or a persistent folder — never a
+  disposable ChatGPT scratch workspace.
 - Review first is read-only. Hand-written or already queued work starts at `/nightshift:start`;
   **run directly** from Hunt or Quality is an immediate start order.
 - Configure permissions before leaving. A headless run cannot approve a tool prompt.

@@ -432,8 +432,9 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
   runs directly in another terminal.
 - **Permissions still matter:** an unattended run cannot click an approval prompt. Configure the
   required host permissions before leaving.
-- **First run attended:** use a trusted or scratch repository, observe stop and recovery behavior,
-  and review every local commit before relying on an overnight run.
+- **First run attended:** use a trusted git repository or a persistent folder (never a disposable
+  ChatGPT scratch workspace), observe stop and recovery behavior, and review every local commit or
+  artifact receipt before relying on an overnight run.
 
 Continue with the [first-night safety checklist](first-night-checklist.md), the
 [owner knobs](knobs.md), or the [command reference](commands.md).
