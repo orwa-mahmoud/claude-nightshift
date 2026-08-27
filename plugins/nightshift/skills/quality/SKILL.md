@@ -61,7 +61,8 @@ Detect the stack from the gates catalog (monorepo-aware) when the work mode is r
 including a plugin or marketplace manifest at the work-target root or under `plugins/<name>/`,
 and inspect repository-owned tooling and evidence. In artifact mode inspect the persistent
 folder's files and any existing manifests or reports; do not require git history or stack
-detection that needs a repository. Then apply the discovery rules from every relevant quality
+detection that needs a repository. Skip quality-debt entries whose discovery surface is
+absent. Do not `git init` a notes folder to make them applicable. Then apply the discovery rules from every relevant quality
 entry. Never install a tool
 merely to manufacture findings. In review-first mode use report-only commands: no fix flags and no
 writes. If `$NS/` does not exist, review-first may report, but any run-direct request must
