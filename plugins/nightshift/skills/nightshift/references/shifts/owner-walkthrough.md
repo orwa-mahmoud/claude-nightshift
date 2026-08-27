@@ -26,14 +26,14 @@ licensing decisions remain outside the coding-work authorization.
     authorized that exact action.
   - Establish the continuation record before implementation: use the single `Status: building`
     entry in opportunity-map.md. Preserve the owner objective in Scope, derive observable
-    Acceptance from it and the repository, and record Current phase, Completed, Decisions,
+    Acceptance from it and the work target, and record Current phase, Completed, Decisions,
     Rejected, Next, and Verify remaining. If a building entry already exists for this objective,
     resume its exact Next action before exploring again. Never open a second building entry.
-  - Each cycle: inspect current repository evidence and the continuation record, choose the
+  - Each cycle: inspect current work-target evidence and the continuation record, choose the
     strongest coherent unit that advances the objective and fits the remaining time, implement it
     end-to-end, run the item gate, commit separately, then refresh the continuation record and
     reassess. Prefer completing one reviewable path over starting several partial ones.
-  - Verification comes from the objective, repository-owned tests and tooling, and the configured
+  - Verification comes from the objective, work-target tests and tooling, and the configured
     item gate. Never weaken a test, suppress a finding, or redefine acceptance merely to claim
     progress. The item gate must be green at every commit.
   - Keep the continuation record current at meaningful boundaries: after design, a coherent

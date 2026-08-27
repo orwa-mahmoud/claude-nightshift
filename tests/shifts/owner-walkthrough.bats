@@ -33,6 +33,8 @@ START="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/start/SKILL.md"
 @test "owner walkthrough works in coherent verified units without publishing" {
   grep -qi 'strongest coherent unit' "$E"
   grep -qi 'item gate must be green at every commit' "$E"
+  grep -qi 'inspect current work-target evidence' "$E"
+  grep -qi 'work-target tests and tooling' "$E"
   grep -qi 'push, open a PR, deploy, publish' "$E"
   grep -qi 'morning handoff' "$E"
 }

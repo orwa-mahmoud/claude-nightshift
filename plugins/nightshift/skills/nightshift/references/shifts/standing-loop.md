@@ -21,7 +21,7 @@ or a substantial feature, but never merges its own branch and never leaves a hal
     URLs plus observations in product-research.md. Never send private code, secrets, customer data,
     unpublished plans, or proprietary text to a search service; never copy a competitor's wording,
     assets, or implementation. If browsing is unavailable, say so in the record and continue from
-    repository evidence rather than pretending research happened.
+    work-target evidence rather than pretending research happened.
   - Maintain opportunity-map.md. Rank each opportunity by user value, evidence/confidence,
     differentiation, effort, reversibility, and regression risk. Mark it candidate, building,
     shipped, rejected, or parked, with the evidence behind the disposition.
