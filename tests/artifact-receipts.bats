@@ -1,6 +1,7 @@
 load helpers
 
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+STATE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/state.sh"
 WRITE="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/write-receipt.sh"
 WRITE_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/write-receipt.ps1"
 WRITE_LOGIC="$BATS_TEST_DIRNAME/windows/write-receipt-logic.ps1"
@@ -140,6 +141,31 @@ new_artifact() {
   ! printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-old.md'
 }
 
+@test "latest receipt prefers uniqueness suffix over C-locale name order" {
+  a="$(new_artifact latest-suffix)"
+  mkdir -p "$a/.nightshift/receipts"
+  printf 'first\n' >"$a/.nightshift/receipts/20260101T000000Z-item.md"
+  printf 'second\n' >"$a/.nightshift/receipts/20260101T000000Z-item-1.md"
+  touch -r "$a/.nightshift/receipts/20260101T000000Z-item.md" \
+    "$a/.nightshift/receipts/20260101T000000Z-item-1.md"
+  latest="$(bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a")"
+  [ "$(basename "$latest")" = '20260101T000000Z-item-1.md' ]
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-item-1.md'
+  ! printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-item.md'
+}
+
+@test "latest receipt prefers mtime over a later-looking stamp" {
+  a="$(new_artifact latest-mtime)"
+  mkdir -p "$a/.nightshift/receipts"
+  printf 'stale name\n' >"$a/.nightshift/receipts/20261231T235959Z-new.md"
+  sleep 1
+  printf 'written later\n' >"$a/.nightshift/receipts/20260101T000000Z-old.md"
+  latest="$(bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a")"
+  [ "$(basename "$latest")" = '20260101T000000Z-old.md' ]
+}
+
 @test "Doctor warns when artifact ticks have no receipts" {
   a="$(new_artifact ticks-no-receipts)"
   punch_open "$a"
@@ -227,6 +253,8 @@ new_artifact() {
   grep -qF 'function Get-NSReceiptsDir' "$PSM1"
   grep -qF 'function Get-NSReceiptsCount' "$PSM1"
   grep -qF 'function Get-NSLatestReceipt' "$PSM1"
+  grep -qF 'LastWriteTimeUtc.Ticks' "$PSM1"
+  grep -qF '${path%.md}-0.md' "$STATE"
   grep -qF 'function Get-NSReceiptsFingerprint' "$PSM1"
   grep -qF 'function Get-NSProgressToken' "$PSM1"
   grep -qF 'Get-NSReceiptsCount' "$DOCTOR_PS1"

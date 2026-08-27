@@ -431,14 +431,37 @@ ns_receipts_count() {
 }
 
 # Newest completion receipt path, or status 1 when none exist.
-# Filenames start with a UTC stamp, so a C-locale sort is chronological.
+# Primary key is mtime. Same-second uniqueness suffixes (`stamp-slug-n.md`)
+# sort before `stamp-slug.md` in C locale (`-` < `.`), so a name-only sort
+# can name the first write as latest. Tie-break maps `.md` → `-0.md` so the
+# unsuffixed sibling sorts first and `-n` wins.
+# The sort-row helper stays outside $(...) — a `case` `)` would close the substitution.
+ns_latest_receipt_sort_row() {
+  local path="$1" m key
+  m="$(ns_mtime "$path")" || return 0
+  case "$m" in
+    '' | *[!0-9]*) return 0 ;;
+  esac
+  case "$path" in
+    *.md) key="${path%.md}-0.md" ;;
+    *) key="$path" ;;
+  esac
+  printf '%020d\t%s\t%s\n' "$m" "$key" "$path"
+}
+
 ns_latest_receipt() {
-  local dir out
+  local dir out tab
   dir="$(ns_receipts_dir "$1")"
   [ -d "$dir" ] || return 1
-  out="$(find "$dir" -type f ! -name '.*' -print 2>/dev/null | LC_ALL=C sort | tail -n 1)"
+  out="$(
+    find "$dir" -type f ! -name '.*' -print 2>/dev/null | while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      ns_latest_receipt_sort_row "$path"
+    done | LC_ALL=C sort | tail -n 1
+  )"
   [ -n "$out" ] || return 1
-  printf '%s' "$out"
+  tab="$(printf '\t')"
+  printf '%s' "${out##*"$tab"}"
 }
 
 # Stable stall token: none when the directory is empty, otherwise a cksum of every receipt.

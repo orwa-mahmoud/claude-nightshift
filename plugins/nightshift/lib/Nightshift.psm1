@@ -383,12 +383,26 @@ function Get-NSLatestReceipt {
         return $null
     }
     $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
-        Where-Object { -not $_.Name.StartsWith('.') } |
-        Sort-Object { $_.Name })
+        Where-Object { -not $_.Name.StartsWith('.') })
     if ($files.Count -eq 0) {
         return $null
     }
-    return $files[-1].FullName
+    # LastWriteTime first. Same-second uniqueness suffixes (`stamp-slug-n.md`)
+    # sort before `stamp-slug.md` by name (`-` < `.`); map `.md` → `-0.md` so
+    # the unsuffixed sibling sorts first and `-n` wins the tie.
+    $latest = @($files | Sort-Object @{
+            Expression = { $_.LastWriteTimeUtc.Ticks }
+        }, @{
+            Expression = {
+                if ($_.Name -like '*.md') {
+                    $_.Name.Substring(0, $_.Name.Length - 3) + '-0.md'
+                }
+                else {
+                    $_.Name
+                }
+            }
+        })[-1]
+    return $latest.FullName
 }
 
 function Get-NSReceiptsFingerprint {

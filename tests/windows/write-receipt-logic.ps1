@@ -157,6 +157,32 @@ try {
     Expect-True ($refused.ExitCode -eq 3) "repository mode exits 3 (got $($refused.ExitCode) $($refused.Stderr))"
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $repo '.nightshift/receipts'))) `
         'repository refuse writes no receipts directory'
+
+    $mtimeCase = Join-Path $root 'mtime-notes'
+    $mtimeNs = Join-Path $mtimeCase '.nightshift'
+    $mtimeRecv = Join-Path $mtimeNs 'receipts'
+    $null = New-Item -ItemType Directory -Path $mtimeRecv -Force
+    [IO.File]::WriteAllText((Join-Path $mtimeNs 'work-mode'), "artifact`n")
+    $first = Join-Path $mtimeRecv '20260101T000000Z-item.md'
+    $second = Join-Path $mtimeRecv '20260101T000000Z-item-1.md'
+    [IO.File]::WriteAllText($first, "first`n")
+    [IO.File]::WriteAllText($second, "second`n")
+    $same = (Get-Item -LiteralPath $first).LastWriteTimeUtc
+    (Get-Item -LiteralPath $second).LastWriteTimeUtc = $same
+    Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $mtimeCase))) -eq '20260101T000000Z-item-1.md') `
+        'same-mtime uniqueness suffix is latest, not C-locale last'
+
+    $staleName = Join-Path $mtimeRecv '20261231T235959Z-new.md'
+    $laterWrite = Join-Path $mtimeRecv '20260101T000000Z-old.md'
+    [IO.File]::WriteAllText($staleName, "stale name`n")
+    [IO.File]::WriteAllText($laterWrite, "written later`n")
+    $now = [DateTime]::UtcNow
+    (Get-Item -LiteralPath $staleName).LastWriteTimeUtc = $now.AddHours(-1)
+    (Get-Item -LiteralPath $laterWrite).LastWriteTimeUtc = $now
+    (Get-Item -LiteralPath $first).LastWriteTimeUtc = $now.AddHours(-2)
+    (Get-Item -LiteralPath $second).LastWriteTimeUtc = $now.AddHours(-2)
+    Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $mtimeCase))) -eq '20260101T000000Z-old.md') `
+        'mtime beats a later-looking stamp'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
