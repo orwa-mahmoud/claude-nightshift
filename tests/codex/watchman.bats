@@ -246,6 +246,7 @@ STUB
   rm "$P/.nightshift/rules.json"
   run "$WATCHMAN" --project "$P"
   [ "$(reason)" = "unreadable-rules" ]
+  printf '%s' "$output" | grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex'
 }
 
 @test "an unsupported Codex identity stands down without invoking Codex" {

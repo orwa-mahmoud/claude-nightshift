@@ -441,7 +441,7 @@ if ($IntervalMinutes -lt 0) {
     $rawInterval = Get-NSRule $workspace 'watchMinutes' $override
     if ($rawInterval -notmatch '^[0-9]+$') {
         Write-NSReason $ns 'unreadable-rules' 'watchMinutes'
-        throw 'watchman: watchMinutes is missing or is not a whole number'
+        throw 'watchman: watchMinutes missing or not whole minutes - .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)'
     }
     $IntervalMinutes = [int]$rawInterval
 }
@@ -456,8 +456,11 @@ $notify = Get-NSRule $workspace 'notifyCommand' ([string]$env:NIGHTSHIFT_NOTIFY_
 $downNotified = $false
 if ([string]::IsNullOrEmpty($retrySpacing) -or [string]::IsNullOrEmpty($revivalPrompt) `
     -or [string]::IsNullOrEmpty($freshPrompt)) {
-    Write-NSReason $ns 'unreadable-rules' 'recovery prompt or retry spacing'
-    throw 'watchman: rules.json is missing recovery settings'
+    $missing = if ([string]::IsNullOrEmpty($retrySpacing)) { 'watchRetrySeconds' }
+        elseif ([string]::IsNullOrEmpty($revivalPrompt)) { 'revivalPrompt' }
+        else { 'freshRevivalPrompt' }
+    Write-NSReason $ns 'unreadable-rules' $missing
+    throw "watchman: $missing missing - .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
 }
 $retryValues = New-Object Collections.Generic.List[int]
 foreach ($value in ($retrySpacing -split '\s+')) {

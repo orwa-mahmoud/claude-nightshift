@@ -962,4 +962,5 @@ STUB
   run env NIGHTSHIFT_WATCH_SLEEP=0 \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
   [ "$(reason)" = "unreadable-rules" ]
+  printf '%s' "$output" | grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex'
 }
