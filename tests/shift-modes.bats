@@ -23,6 +23,8 @@ MODES="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/exe
   grep -qF '/nightshift:hunt' "$DOC"
   grep -qF 'Hunt Automatic for four hours' "$DOC"
   grep -qF 'Quality-debt entries are skipped' "$DOC"
+  grep -qF 'GitHub issue hunt is skipped' "$DOC"
+  grep -qF 'most recently written' "$DOC"
 }
 
 @test "how-it-works links the shift-modes walkthroughs" {

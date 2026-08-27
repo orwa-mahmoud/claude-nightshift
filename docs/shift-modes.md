@@ -7,7 +7,7 @@ project you want changed — a Git repository or a persistent folder, never a Ch
 workspace.
 
 Morning review is local: work-target commits in repository mode, or files under
-`.nightshift/receipts/` in artifact mode (Doctor names the latest filename). Status, the shift
+`.nightshift/receipts/` in artifact mode (Doctor names the most recently written filename). Status, the shift
 log, and the parking lot sit beside those. Ticks are self-reported; they do not prove the work.
 
 ## Guided + Review first
@@ -44,6 +44,7 @@ Codex: ask **“Hunt Automatic for four hours, review first.”**
 
 In artifact mode the scan uses the folder's files and manifests; it does not require git history.
 Quality-debt entries are skipped when the folder has no tests, tooling, or manifests to inspect.
+The GitHub issue hunt is skipped in artifact mode.
 The clock starts only after approval.
 
 ## Automatic + Run directly
