@@ -381,7 +381,7 @@ Cited reports in that folder follow `cited-research.md` and
 `runtime/check-report.sh` (native Windows: `runtime/windows/check-report.ps1`). Hunt's SEO audit,
 documentation writing, and research-synthesis entries inherit that contract. Automatic Hunt skips
 quality-debt entries the folder cannot support and skips the GitHub issue hunt in artifact mode;
-imported drafts stay on the drafting table.
+imported drafts stay on the drafting table. It also skips the defect hunt in artifact mode.
 
 ### Linked task root (explicit opt-in)
 

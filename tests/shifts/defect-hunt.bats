@@ -1,6 +1,9 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/defect-hunt.md"
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
+HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
+SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "defect hunt deduplicates every finding against the snag log" {
   grep -qi 'snag-log.md' "$E"
@@ -29,4 +32,7 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qF 'Do not `git init` a notes folder' "$E"
   grep -qi 'Never select defect hunt when work mode is artifact' "$HUNT"
   grep -qi 'Skip the defect hunt when work mode is artifact' "$MODES"
+  grep -qi 'skips the defect hunt in artifact mode' "$COMMANDS"
+  grep -qi 'skips the defect hunt in artifact mode' "$HOW"
+  grep -qF 'The defect hunt is skipped in artifact mode' "$SHIFT_MODES"
 }

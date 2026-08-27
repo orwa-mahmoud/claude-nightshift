@@ -35,6 +35,7 @@ owner rather than work-target discovery.
 
 Automatic mode also skips the GitHub issue hunt in artifact mode. Imported drafts stay on the
 drafting table until the work target is a matching git repository.
+Automatic mode also skips the defect hunt in artifact mode.
 
 When the task root and Nightshift workspace differ, setup can create an explicit local link after
 showing both absolute paths and receiving confirmation. The offline equivalent is:
