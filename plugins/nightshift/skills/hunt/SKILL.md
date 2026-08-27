@@ -62,6 +62,7 @@ drafting-table entries created by the Import issues skill (canonical Source URL 
 and move a selection with the same qualified helper plus `--promote` / `-Promote` — a cut, never a copy. It
 does not replace defect hunt or product evolution, and it never searches GitHub or writes back to
 it. Never select it when work mode is artifact.
+Never select defect hunt when work mode is artifact.
 
 ## 2. Ask when execution starts
 
