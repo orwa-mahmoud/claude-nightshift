@@ -374,6 +374,10 @@ treats a new receipt like a commit; Doctor reports `artifact receipts N`; Archiv
 into the dated folder and leaves the live files in place. Repository mode still requires a
 work-target git commit.
 
+Cited reports in that folder follow `cited-research.md` and
+`runtime/check-report.sh` (native Windows: `runtime/windows/check-report.ps1`). Hunt's SEO audit,
+documentation writing, and research-synthesis entries inherit that contract.
+
 ### Linked task root (explicit opt-in)
 
 If the host task and state workspace must be different folders, create one explicit link:

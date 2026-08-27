@@ -52,6 +52,7 @@ EOF
   grep -qF 'runtime/check-report.sh' "$COMMANDS"
   grep -qF 'runtime\windows\check-report.ps1' "$COMMANDS"
   grep -qF 'runtime\windows\check-report.ps1' "$BATS_TEST_DIRNAME/../docs/windows.md"
+  grep -qF 'runtime/check-report.sh' "$BATS_TEST_DIRNAME/../docs/how-it-works.md"
 }
 
 @test "the contract forbids fabrication and private material on the wire" {
