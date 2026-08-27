@@ -124,6 +124,7 @@ PY
   grep -qF 'Before creating or changing any file' "$SETUP"
   grep -qF 'create no `$NS/` directory' "$SETUP"
   grep -qF 'Open your project in Codex' "$SETUP"
+  grep -qF 'persistent local folder' "$SETUP"
   grep -qF 'Do not mention Claude Code' "$SETUP"
 }
 

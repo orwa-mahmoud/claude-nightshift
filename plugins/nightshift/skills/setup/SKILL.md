@@ -64,7 +64,7 @@ or other files.** Tell the user directly:
 > Nightshift needs a persistent software project workspace. This ChatGPT conversation is using a
 > temporary workspace, so files created here will not affect your repository.
 >
-> Open your project in Codex, or start Codex connected to its GitHub repository. Then mention
+> Open your project in Codex (a Git repository or a persistent local folder), or start Codex connected to its GitHub repository. Then mention
 > Nightshift and say: “Set up Nightshift in this project.”
 
 Do not mention Claude Code in this ChatGPT-specific redirect: the user is already in an OpenAI

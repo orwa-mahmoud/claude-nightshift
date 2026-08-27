@@ -29,6 +29,7 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
 
 @test "first-run overnight guidance names persistent folders" {
   grep -qF 'persistent folder' "$README"
+  grep -qF 'persistent local folder' "$README"
   grep -qF 'ChatGPT scratch' "$README"
   how="$BATS_TEST_DIRNAME/../docs/how-it-works.md"
   grep -qF 'First run attended' "$how"

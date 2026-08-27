@@ -27,10 +27,10 @@ codex plugin marketplace add orwa-mahmoud/nightshift
 codex plugin add nightshift@nightshift
 ```
 
-Use Nightshift with the project you want it to change open in Codex, or with Codex connected to
-its GitHub repository. If invoked from a normal ChatGPT conversation backed by
-`/workspace/scratch/`, setup stops before writing anything and points the user to Codex—the
-scratch files would not affect the repository.
+Use Nightshift with the project you want it to change open in Codex — a Git repository or a
+persistent local folder — or with Codex connected to its GitHub repository. If invoked from a
+normal ChatGPT conversation backed by `/workspace/scratch/`, setup stops before writing anything
+and points the user to Codex—the scratch files would not survive.
 
 The punch-list gate, guards, skills, and crash revival are live-verified on Codex. A killed session
 is resumed into its recorded conversation when `.shift-session` holds a resumable identity; a
