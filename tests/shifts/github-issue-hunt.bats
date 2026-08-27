@@ -9,6 +9,8 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qi 'If none exist' "$E"
   grep -qi 'point at Import issues and stop' "$E"
   grep -qi 'Never search GitHub' "$E"
+  grep -qi 'Never select this entry in artifact mode' "$E"
+  grep -qF 'Do not `git init` a notes folder' "$E"
 }
 
 @test "guided preview and direct ranking stay inside the imported set" {
@@ -42,5 +44,6 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qF 'GitHub issue-hunt' "$HUNT"
   grep -qF -- '--list-proposed' "$HUNT"
   grep -qi 'does not replace defect hunt or product' "$HUNT"
+  grep -qi 'Never select it when work mode is artifact' "$HUNT"
   grep -qi 'Quality does not import, search, or work GitHub issues' "$QUALITY"
 }
