@@ -241,6 +241,21 @@ elif json_is_object "$RULES"; then
     '' | *[!0-9]*) warn "watchMinutes missing or not a whole number"; act confirm "restore watchMinutes from the shipped template (10, or 0 to disarm)" ;;
     *) fact "watchMinutes $wm" ;;
   esac
+  retry="$(rule "$WORKSPACE" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
+  resume="$(ns_expand_injected_paths "$WORKSPACE" "$(rule "$WORKSPACE" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")")"
+  fresh="$(ns_expand_injected_paths "$WORKSPACE" "$(rule "$WORKSPACE" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")")"
+  if [ -z "$retry" ]; then
+    warn "watchRetrySeconds is empty — watchman will refuse to arm"
+    act confirm "restore watchRetrySeconds from the shipped template"
+  fi
+  if [ -z "$resume" ]; then
+    warn "revivalPrompt is empty — watchman will refuse to arm"
+    act confirm "restore revivalPrompt from the shipped template"
+  fi
+  if [ -z "$fresh" ]; then
+    warn "freshRevivalPrompt is empty — watchman will refuse to arm"
+    act confirm "restore freshRevivalPrompt from the shipped template"
+  fi
   for tool in AskUserQuestion request_user_input; do
     tool_state="$(json_tool_rule_state "$RULES" "$tool")"
     case "$tool_state" in

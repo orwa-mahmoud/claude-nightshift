@@ -51,6 +51,26 @@ doctor() {
   printf '%s' "$output" | grep -q 'Actions (Doctor does not perform these)'
 }
 
+@test "doctor warns when watchman recovery keys are empty" {
+  p="$(new_project)"
+  python3 -c '
+import json,sys
+p=sys.argv[1]
+with open(p) as f: d=json.load(f)
+d["watchRetrySeconds"]=""
+d["revivalPrompt"]=""
+d["freshRevivalPrompt"]=""
+with open(p,"w") as f: json.dump(d,f)
+' "$p/.nightshift/rules.json"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'watchRetrySeconds is empty'
+  printf '%s' "$output" | grep -q 'revivalPrompt is empty'
+  printf '%s' "$output" | grep -q 'freshRevivalPrompt is empty'
+  printf '%s' "$output" | grep -q 'watchman will refuse to arm'
+  printf '%s' "$output" | grep -q 'restore revivalPrompt from the shipped template'
+}
+
 @test "Doctor reports lease ownership without printing its capability" {
   p="$(new_project)"
   punch_open "$p"

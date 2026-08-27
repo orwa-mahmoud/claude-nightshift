@@ -256,6 +256,21 @@ else {
         else {
             Add-NSFact "watchMinutes $wm"
         }
+        $retrySpacing = Get-NSRule $workspace 'watchRetrySeconds' ([string]$env:NIGHTSHIFT_WATCH_RETRY)
+        $revivalPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'revivalPrompt' ([string]$env:NIGHTSHIFT_REVIVAL_PROMPT))
+        $freshPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'freshRevivalPrompt' ([string]$env:NIGHTSHIFT_FRESH_PROMPT))
+        if ([string]::IsNullOrEmpty($retrySpacing)) {
+            Add-NSWarn 'watchRetrySeconds is empty - watchman will refuse to arm'
+            Add-NSAct confirm 'restore watchRetrySeconds from the shipped template'
+        }
+        if ([string]::IsNullOrEmpty($revivalPrompt)) {
+            Add-NSWarn 'revivalPrompt is empty - watchman will refuse to arm'
+            Add-NSAct confirm 'restore revivalPrompt from the shipped template'
+        }
+        if ([string]::IsNullOrEmpty($freshPrompt)) {
+            Add-NSWarn 'freshRevivalPrompt is empty - watchman will refuse to arm'
+            Add-NSAct confirm 'restore freshRevivalPrompt from the shipped template'
+        }
         $toolDeny = $null
         if ($null -ne $rules.PSObject.Properties['toolDeny']) {
             $toolDeny = $rules.toolDeny

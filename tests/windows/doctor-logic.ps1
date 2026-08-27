@@ -119,6 +119,17 @@ try {
     Expect-True ($stop.ExitCode -eq 0) "unarmed STOP exits 0 (got $($stop.ExitCode) $($stop.Stderr))"
     Expect-True ($stop.Stdout -match 'STOP leftover') 'unarmed STOP is reported as leftover'
     Expect-True ($stop.Stdout -match '\[confirm\].*stale STOP') 'unarmed STOP is a confirm action'
+
+    $rulesPath = Join-Path $ns 'rules.json'
+    $rules = Get-Content -LiteralPath $rulesPath -Raw | ConvertFrom-Json
+    $rules.revivalPrompt = ''
+    $rules | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $rulesPath -Encoding utf8
+    $emptyPrompt = Invoke-Doctor $root
+    Expect-True ($emptyPrompt.ExitCode -eq 0) "empty revivalPrompt exits 0 (got $($emptyPrompt.ExitCode) $($emptyPrompt.Stderr))"
+    Expect-True ($emptyPrompt.Stdout -match 'revivalPrompt is empty') `
+        'empty revivalPrompt is a warning'
+    Expect-True ($emptyPrompt.Stdout -match 'watchman will refuse to arm') `
+        'empty revivalPrompt names the watchman refuse'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
