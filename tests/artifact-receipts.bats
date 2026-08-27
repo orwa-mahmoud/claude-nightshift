@@ -196,6 +196,7 @@ new_artifact() {
   grep -qF 'runtime/write-receipt.sh' "$NIGHTSHIFT"
   grep -qF 'runtime\windows\write-receipt.ps1' "$NIGHTSHIFT"
   grep -qF 'do not `git init` the notes folder' "$NIGHTSHIFT"
+  grep -qF 'when Git is installed' "$NIGHTSHIFT"
   grep -qF 'runtime/write-receipt.sh' "$START"
   grep -qF 'runtime/write-receipt.sh' "$SETUP"
   grep -qF 'runtime\windows\write-receipt.ps1' "$SETUP"

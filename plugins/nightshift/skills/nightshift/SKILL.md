@@ -57,6 +57,7 @@ every item; never cache it.** If you ever notice the contract or an item was alt
 from git before continuing. In repository mode that is the work-target history, or
 `git -C "$NS"` when the owner opted into a local receipts repo. In artifact mode restore only
 from that receipts repo when it exists; do not `git init` the notes folder to invent history.
+On native Windows use `git -C` against `$NS` when Git is installed — the same receipts repo.
 If `$NS/punch-list.md` has no git history, park the conflict and keep the on-disk file.
 
 ## One item at a time
