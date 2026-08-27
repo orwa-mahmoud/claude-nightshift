@@ -183,6 +183,19 @@ try {
     (Get-Item -LiteralPath $second).LastWriteTimeUtc = $now.AddHours(-2)
     Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $mtimeCase))) -eq '20260101T000000Z-old.md') `
         'mtime beats a later-looking stamp'
+
+    $hiddenCase = Join-Path $root 'hidden-notes'
+    $hiddenNs = Join-Path $hiddenCase '.nightshift'
+    $hiddenRecv = Join-Path $hiddenNs 'receipts'
+    $null = New-Item -ItemType Directory -Path $hiddenRecv -Force
+    [IO.File]::WriteAllText((Join-Path $hiddenNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $hiddenRecv '.not-a-receipt'), "dot`n")
+    Expect-True ($null -eq (Get-NSLatestReceipt $hiddenCase)) 'hidden-only receipts are not latest'
+    Expect-True ((Get-NSReceiptsCount $hiddenCase) -eq 0) 'hidden-only receipts count as zero'
+    [IO.File]::WriteAllText((Join-Path $hiddenRecv '20260101T000000Z-real.md'), "ok`n")
+    Expect-True ((Get-NSReceiptsCount $hiddenCase) -eq 1) 'a real receipt counts beside a hidden file'
+    Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $hiddenCase))) -eq '20260101T000000Z-real.md') `
+        'latest ignores a hidden sibling'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

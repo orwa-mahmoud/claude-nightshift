@@ -166,6 +166,34 @@ new_artifact() {
   [ "$(basename "$latest")" = '20260101T000000Z-old.md' ]
 }
 
+@test "latest receipt ignores hidden files in the receipts directory" {
+  a="$(new_artifact latest-hidden)"
+  mkdir -p "$a/.nightshift/receipts"
+  printf 'dot\n' >"$a/.nightshift/receipts/.not-a-receipt"
+  printf 'ok\n' >"$a/.nightshift/receipts/20260101T000000Z-real.md"
+  latest="$(bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a")"
+  [ "$(basename "$latest")" = '20260101T000000Z-real.md' ]
+  [ "$(bash -c '. "$1"; ns_receipts_count "$2"' _ "$LIB" "$a")" = 1 ]
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 1'
+  printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-real.md'
+}
+
+@test "latest receipt is absent when only hidden files exist" {
+  a="$(new_artifact latest-hidden-only)"
+  mkdir -p "$a/.nightshift/receipts"
+  printf 'dot\n' >"$a/.nightshift/receipts/.not-a-receipt"
+  if bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a"; then
+    false
+  fi
+  [ "$(bash -c '. "$1"; ns_receipts_count "$2"' _ "$LIB" "$a")" = 0 ]
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 0'
+  ! printf '%s' "$output" | grep -qF 'latest artifact receipt'
+}
+
 @test "Doctor warns when artifact ticks have no receipts" {
   a="$(new_artifact ticks-no-receipts)"
   punch_open "$a"
