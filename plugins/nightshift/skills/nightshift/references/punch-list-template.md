@@ -68,6 +68,6 @@ _None configured._
 
 <!-- Empty until you promote work here from drafting-table.md — while this is empty the gate stays
      inert. One top-level open checkbox per task (a dash, a space, then a bracketed space), each
-     with its own sub-bullets, a Verify line, and a Commit line. Tick to a bracketed x when done.
+     with its own sub-bullets, a Verify line, and a Commit line (repository) or receipt (artifact). Tick to a bracketed x when done.
      drafting-table.md carries the exact shape. Keep the illustration out of this file: any
      bracketed-space checkbox here, even in a comment, counts as an open item. -->
