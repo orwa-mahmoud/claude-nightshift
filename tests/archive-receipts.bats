@@ -141,6 +141,7 @@ new_artifact() {
   grep -qF 'runtime\windows\archive-receipts.ps1' "$ARCHIVE_SKILL"
   grep -qF 'leave the live copies' "$ARCHIVE_SKILL"
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$ARCHIVE_SKILL"
+  grep -qF 'A receipts path that is not a usable directory is a refuse, not an empty skip' "$ARCHIVE_SKILL"
   grep -qF 'Never delete live receipts' "$ARCHIVE_SKILL"
   grep -qF 'Never call `archive-receipts.sh`' "$ARCHIVE_SKILL"
   grep -qF 'runtime/archive-receipts.sh' "$COMMANDS"
