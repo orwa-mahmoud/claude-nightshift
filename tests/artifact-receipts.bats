@@ -293,6 +293,8 @@ new_artifact() {
   grep -qF 'latest artifact receipt' "$DOCTOR_SKILL"
   grep -qF 'most recently written' "$DOCTOR_SKILL"
   grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_SKILL"
+  grep -qF 'archive/<YYYY-MM-DD>/receipts/' "$DOCTOR_SKILL"
+  grep -qF 'do not replace the live files Doctor counts' "$DOCTOR_SKILL"
   grep -qF 'artifact receipt' "$TEMPLATE"
   grep -qF 'runtime/write-receipt.sh' "$DOC"
   grep -qF 'runtime/archive-receipts.sh' "$DOC"

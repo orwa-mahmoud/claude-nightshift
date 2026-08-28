@@ -66,6 +66,7 @@ fact is `repository` or `artifact`. In artifact mode the report also includes
 also reports `latest artifact receipt` with the filename only of the most recently written receipt (no directory path). When ticked
 items exist and the receipts directory is empty, Doctor warns
 `artifact mode has ticked items but no receipts`.
+Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Doctor counts.
 
 ## 2. Classify actions — do not execute them
 
