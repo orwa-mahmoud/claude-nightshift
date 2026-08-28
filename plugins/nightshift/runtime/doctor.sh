@@ -327,10 +327,15 @@ else
 fi
 
 HOST_REC="none"
-SID="$(sed -n 1p "$NS/.shift-session" 2>/dev/null || true)"
-TPATH="$(sed -n 2p "$NS/.shift-session" 2>/dev/null || true)"
-SPID="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
-if [ -f "$NS/.shift-session" ]; then
+SID=""
+TPATH=""
+SPID=""
+if [ -L "$NS/.shift-session" ]; then
+  warn "shift-session path is not a usable file"
+elif [ -f "$NS/.shift-session" ]; then
+  SID="$(sed -n 1p "$NS/.shift-session" 2>/dev/null || true)"
+  TPATH="$(sed -n 2p "$NS/.shift-session" 2>/dev/null || true)"
+  SPID="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
   HOST_REC="$(ns_session_host "$NS")"
   fact "recorded host $HOST_REC"
   if [ -n "$SID" ]; then

@@ -285,6 +285,19 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'session-end path is not a usable file' "$STATUS"
 }
 
+@test "Doctor warns when the shift-session path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'planted-sid\n/tmp/planted.jsonl\n99999\nstart\nplanted-host\n' >"$p/.nightshift/session-plant"
+  ln -s session-plant "$p/.nightshift/.shift-session"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'shift-session path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'recorded host planted-host'
+  ! printf '%s' "$output" | grep -qF 'session id is present'
+  ! printf '%s' "$output" | grep -qF 'no .shift-session yet'
+}
+
 @test "the drafting-table item-shape example is not a staged draft" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"

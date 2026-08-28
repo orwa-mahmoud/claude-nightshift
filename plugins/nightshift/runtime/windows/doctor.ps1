@@ -377,7 +377,10 @@ $tpath = ''
 $spid = ''
 $sstart = ''
 $sessionPath = Join-Path $ns '.shift-session'
-if (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
+if (Test-NSReparsePoint $sessionPath) {
+    Add-NSWarn 'shift-session path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
     try {
         $sessionLines = [IO.File]::ReadAllLines($sessionPath)
         if ($sessionLines.Count -gt 0) { $sid = [string]$sessionLines[0] }
