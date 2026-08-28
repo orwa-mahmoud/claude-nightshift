@@ -287,6 +287,7 @@ new_artifact() {
   grep -qF 'runtime/write-receipt.sh' "$START"
   grep -qF 'runtime/write-receipt.sh' "$SETUP"
   grep -qF 'runtime\windows\write-receipt.ps1' "$SETUP"
+  grep -qF '$NS/receipts/' "$SETUP"
   grep -qF 'artifact receipts N' "$STATUS"
   grep -qF 'latest artifact receipt' "$STATUS"
   grep -qF 'most recently written' "$STATUS"

@@ -84,6 +84,7 @@ Detect the work mode, explain it, and ask before persisting it. Use
   require Git do not apply; complete each item with
   `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh"` (native Windows:
   `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1"`).
+  Completion in that folder is `$NS/receipts/`, not a git log.
 - scratch (`ns_propose_work_mode` status 2, or `Get-NSProposedWorkMode` throwing) — stop; create
   nothing.
 
