@@ -89,6 +89,8 @@ deadline_passed() { ns_gate_deadline_passed; }
 whistle() {
   [ -n "$NOTIFY" ] || return 0
   # Exclusive create: of two sessions releasing at once, exactly one owns the whistle.
+  # A planted symlink is not a prior notify — replace it rather than follow it.
+  [ -L "$NOTIFIED" ] && rm -f "$NOTIFIED"
   (set -C; : >"$NOTIFIED") 2>/dev/null || return 0
   NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
 }

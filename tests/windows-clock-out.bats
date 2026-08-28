@@ -36,3 +36,9 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/codex/clock-out-gate.sh"
   grep -qF '[ ! -L "$STALL" ]' "$CORE"
   grep -qF '[ ! -L "$STALL" ]' "$CODEX"
 }
+
+@test "Windows notified skip matches POSIX symlink fail-closed" {
+  grep -qF '[ -L "$NOTIFIED" ]' "$CORE"
+  grep -qF '[ -L "$NOTIFIED" ]' "$CODEX"
+  grep -qF 'Test-NSReparsePoint $notified' "$HELPER"
+}

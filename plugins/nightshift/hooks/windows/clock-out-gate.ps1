@@ -94,6 +94,9 @@ function Invoke-NSWhistle {
     if ([string]::IsNullOrEmpty($notify)) {
         return
     }
+    if (Test-NSReparsePoint $notified) {
+        Remove-Item -LiteralPath $notified -Force -ErrorAction SilentlyContinue
+    }
     $stream = $null
     try {
         $stream = [IO.File]::Open($notified, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)

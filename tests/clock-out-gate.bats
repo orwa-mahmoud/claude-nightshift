@@ -44,6 +44,20 @@ load helpers
   [ ! -L "$p/.nightshift/.ended" ]
 }
 
+@test "morning whistle replaces a symlink notified marker" {
+  p="$(new_project)"
+  punch_done "$p"
+  printf 'plant\n' >"$p/.nightshift/notified-plant"
+  ln -s notified-plant "$p/.nightshift/.notified"
+  wl="$BATS_TEST_TMPDIR/notified-plant.log"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  is_release
+  [ -f "$p/.nightshift/.notified" ]
+  [ ! -L "$p/.nightshift/.notified" ]
+  grep -q 'shift done: 2/2' "$wl"
+  grep -qF 'plant' "$p/.nightshift/notified-plant"
+}
+
 @test "stop-work order releases even with open boxes" {
   p="$(new_project)"
   punch_open "$p"
