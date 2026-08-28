@@ -55,8 +55,10 @@ stop_cmd() { # <project>
   p="$(new_project)"
   punch_open "$p"
 
+  # Keep the shell (no exec): verification matches watchman.sh in ps args when
+  # .watchman has no start-time line. After exec, Linux shows only "sleep".
   wm="$BATS_TEST_TMPDIR/watchman.sh"
-  printf '#!/bin/sh\nexec sleep 300\n' >"$wm"
+  printf '#!/bin/sh\nsleep 300\n' >"$wm"
   chmod +x "$wm"
   "$wm" &
   wpid=$!
