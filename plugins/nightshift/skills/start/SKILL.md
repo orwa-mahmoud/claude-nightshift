@@ -70,7 +70,7 @@ instead of a work-target commit. Cited reports in that folder still follow
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`). Validate with `ns_work_mode` / `ns_work_target` (native Windows: `Get-NSWorkMode` /
 `Resolve-NSWorkTarget` after Import-Module). Refuse to arm when the mode is malformed, the target
-is a disposable scratch path, or repository mode cannot resolve a Git repository. In artifact mode, refuse to arm when `$NS/receipts` exists but is not a usable directory. If the record is
+is a disposable scratch path, or repository mode cannot resolve a Git repository. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to arm and send the owner to Setup; do not `git init` a notes folder. In artifact mode, refuse to arm when `$NS/receipts` exists but is not a usable directory. If the record is
 missing, use the workspace itself when it is a repository or its single immediate child
 repository, and persist that resolved path as repository mode. Skip a symlink or reparse child; it is not a nested checkout. If several child repositories make
 the choice ambiguous, refuse to arm until Setup records one.
