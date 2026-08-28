@@ -272,6 +272,17 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'stall path is not a usable file' "$STATUS"
 }
 
+@test "Doctor warns when the session-end path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/session-end-plant"
+  ln -s session-end-plant "$p/.nightshift/.session-end"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'session-end path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'clean session-end marker is present'
+}
+
 @test "the drafting-table item-shape example is not a staged draft" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"

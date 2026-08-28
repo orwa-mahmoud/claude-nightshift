@@ -68,5 +68,9 @@ if (Test-NSPathEntry $leasePath) {
 $reason = if ($null -eq $payload.PSObject.Properties['reason']) { 'unknown' } else { [string]$payload.reason }
 $reason = ($reason -replace '[\x00-\x1f]', '').Trim()
 $line = '{0} · clean session end ({1}){2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $reason, [Environment]::NewLine
-[IO.File]::WriteAllText((Join-Path $ns '.session-end'), $line, (New-Object Text.UTF8Encoding($false)))
+$sessionEnd = Join-Path $ns '.session-end'
+if (Test-NSReparsePoint $sessionEnd) {
+    Remove-Item -LiteralPath $sessionEnd -Force -ErrorAction SilentlyContinue
+}
+[IO.File]::WriteAllText($sessionEnd, $line, (New-Object Text.UTF8Encoding($false)))
 exit 0

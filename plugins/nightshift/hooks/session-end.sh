@@ -66,5 +66,6 @@ else
   REASON="${REASON:-unknown}"
 fi
 
+[ -L "$NS/.session-end" ] && rm -f "$NS/.session-end"
 printf '%s · clean session end (%s)\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$REASON" >"$NS/.session-end"
 exit 0

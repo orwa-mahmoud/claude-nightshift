@@ -54,6 +54,11 @@ function Test-NSRealEnded {
     return ((Test-Path -LiteralPath $path -PathType Leaf) -and -not (Test-NSReparsePoint $path))
 }
 
+function Test-NSRealSessionEnd {
+    $path = Join-Path $ns '.session-end'
+    return ((Test-Path -LiteralPath $path -PathType Leaf) -and -not (Test-NSReparsePoint $path))
+}
+
 function Get-NSTranscript {
     $recorded = Get-NSSessionValue 'Transcript'
     if (-not [string]::IsNullOrEmpty($recorded) -and (Test-Path -LiteralPath $recorded -PathType Leaf)) {
@@ -415,7 +420,7 @@ function Get-NSHoldReason {
     if (Test-NSDeadlinePassed) {
         return 'deadline passed'
     }
-    if ($HostName -eq 'claude' -and (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)) {
+    if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {
         return 'clean session end'
     }
     $verdict = Get-NSSiteVerdict
@@ -567,7 +572,7 @@ try {
             continue
         }
 
-        if ($HostName -eq 'claude' -and (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)) {
+        if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {
             Write-NSReason $ns 'clean-session-end'
             Write-NSLogLine 'watchman: clean session end - the owner closed it; standing down'
             exit 0

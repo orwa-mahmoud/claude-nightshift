@@ -79,6 +79,15 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   [ "$(calls)" -eq 0 ]
 }
 
+@test "a symlink session-end marker does not stand the watchman down" {
+  echo 'plant' >"$P/.nightshift/session-end-plant"
+  ln -s session-end-plant "$P/.nightshift/.session-end"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(reason)" != "clean-session-end" ]
+  ! grep -q 'the owner closed it' "$P/.nightshift/shift-log.md"
+}
+
 @test "a quiet site with open boxes is resumed, then clocked out" {
   run watch --agent "bash $BIN/tick.sh" --max-wakes 5
   [ "$status" -eq 0 ]
@@ -157,12 +166,25 @@ STUB
   grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
   grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
   ! grep -qF ' - clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  grep -qF '[ -L "$NS/.session-end" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
+  grep -qF 'Test-NSReparsePoint $sessionEnd' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
 }
 
 @test "session-end hook writes the marker only during an active shift" {
   p="$(new_project)"
   punch_open "$p"
   printf '{"reason":"exit"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
+}
+
+@test "session-end hook replaces a symlink marker with a regular file" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'plant\n' >"$p/.nightshift/session-end-plant"
+  ln -s session-end-plant "$p/.nightshift/.session-end"
+  printf '{"reason":"exit"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  [ -f "$p/.nightshift/.session-end" ]
+  [ ! -L "$p/.nightshift/.session-end" ]
   grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
 }
 

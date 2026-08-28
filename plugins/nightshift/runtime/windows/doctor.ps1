@@ -191,7 +191,14 @@ elseif (Test-Path -LiteralPath $endedPath -PathType Leaf) {
     $ended = 1
 }
 $stop = [int](Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf)
-$sessionEnd = [int](Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)
+$sessionEndPath = Join-Path $ns '.session-end'
+$sessionEnd = 0
+if (Test-NSReparsePoint $sessionEndPath) {
+    Add-NSWarn 'session-end path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $sessionEndPath -PathType Leaf) {
+    $sessionEnd = 1
+}
 $stall = ''
 $stallPath = Join-Path $ns '.stall'
 if (Test-NSReparsePoint $stallPath) {

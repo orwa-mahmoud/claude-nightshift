@@ -31,3 +31,8 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
   grep -qF '[ ! -L "$NS/.ended" ]' "$CODEX"
   grep -qF 'function Test-NSRealEnded' "$HELPER"
 }
+
+@test "watchmen skip a symlink session-end marker" {
+  grep -qF '[ ! -L "$NS/.session-end" ]' "$CLAUDE"
+  grep -qF 'function Test-NSRealSessionEnd' "$HELPER"
+}

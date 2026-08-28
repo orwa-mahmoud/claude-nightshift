@@ -169,7 +169,11 @@ fi
 STOP=0
 [ -f "$NS/STOP" ] && STOP=1
 SESSION_END=0
-[ -f "$NS/.session-end" ] && SESSION_END=1
+if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then
+  SESSION_END=1
+elif [ -L "$NS/.session-end" ]; then
+  warn "session-end path is not a usable file"
+fi
 STALL=""
 if [ -L "$NS/.stall" ]; then
   warn "stall path is not a usable file"

@@ -379,7 +379,7 @@ hold_reason() {
   if { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } || [ ! -f "$PUNCH" ]; then printf 'shift ended'; return; fi
   if [ "$(open_boxes)" -eq 0 ]; then printf 'all boxes ticked'; return; fi
   if deadline_passed; then printf 'deadline passed'; return; fi
-  if [ -f "$NS/.session-end" ]; then printf 'clean session end'; return; fi
+  if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then printf 'clean session end'; return; fi
   case "$(site_verdict)" in
     alive) printf 'session activity' ;;
     esc) printf 'owner Esc' ;;
@@ -439,7 +439,7 @@ while :; do
     [ "$clock_rc" -eq 2 ] && exit 7
     continue
   fi
-  if [ -f "$NS/.session-end" ]; then
+  if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then
     note clean-session-end
     log_line "watchman: clean session end — the owner closed it; standing down (start re-arms)"
     exit 0
