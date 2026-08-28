@@ -484,4 +484,6 @@ EOF
   grep -qF -- '--preflight' "$s"
   grep -qi 'installs nothing' "$s"
   grep -qF -- '--preflight' "$BATS_TEST_DIRNAME/../docs/commands.md"
+  grep -qF 'work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm' \
+    "$BATS_TEST_DIRNAME/../docs/commands.md"
 }

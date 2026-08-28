@@ -173,7 +173,7 @@ plugins/nightshift/runtime/schedule.sh --project . --remove      # the command t
 Run it from a terminal, or copy the single file anywhere. It refuses a second entry for a project
 that already has one, and identifies projects by path rather than folder name, so two checkouts
 called `api` never collide. It cannot queue your work for you, though — that part has to be in the
-punch list already.
+punch list already. Preflight also fails `work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm` when the mode file is missing and Setup would propose artifact.
 
 Native Windows uses the token-free PowerShell generator:
 
