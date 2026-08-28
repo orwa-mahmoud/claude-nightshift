@@ -113,6 +113,8 @@ call_lib() {
   grep -qF 'Skip a symlink or reparse child; it is not a nested checkout.' "$START"
   grep -qF 'Skip a symlink or reparse child; it is not a nested checkout.' "$DOC"
   grep -qF 'work mode' "$STATUS" || grep -qF 'work-mode' "$STATUS"
+  grep -qF 'work mode is unset; Setup would propose artifact' "$STATUS"
+  grep -qF 'work mode' "$DOCTOR_SKILL" || grep -qF 'work-mode' "$DOCTOR_SKILL"
   grep -qF 'work mode' "$DOCTOR_SKILL" || grep -qF 'work-mode' "$DOCTOR_SKILL"
   grep -qF 'work mode is unset; Setup would propose artifact' "$DOCTOR"
   grep -qF 'work mode is unset; Setup would propose artifact' "$WIN_DOCTOR"
