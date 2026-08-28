@@ -51,7 +51,7 @@ history.
 
 **5. Verification.** The item gate must be green at every commit in repository mode, or every
 artifact receipt in artifact mode — state which commands prove this entry meets its definition of
-done.
+done. Artifact-mode completion is `$NS/receipts/`, not a git log.
 
 **6. Supported stacks.** Which projects this makes sense on, and how it detects them. An entry that
 assumes vitest should say so rather than failing quietly on a Go repo. An entry that can run in
