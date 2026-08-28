@@ -164,6 +164,7 @@ STUB
   grep -qF -- '-Promote' "$s"
   grep -qi 'cannot answer a prompt' "$s"     # headless permissions
   grep -qi 'install nothing' "$s"            # generator, never a daemon
+  grep -qF 'exists but is not a usable directory' "$s"
 
   perms="$(awk '/^## 3\./ { capture=1; next } /^## 4\./ { exit } capture' "$s")"
   printf '%s\n' "$perms" | grep -qF -- "--agent 'codex exec -s danger-full-access'"
@@ -279,6 +280,33 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'watchRetrySeconds is empty' "$WIN"
   grep -qF 'revivalPrompt is empty' "$WIN"
   grep -qF 'freshRevivalPrompt is empty' "$WIN"
+}
+
+@test "--preflight fails when artifact receipts path is unusable" {
+  cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
+  printf 'artifact\n' >"$P/.nightshift/work-mode"
+  printf '%s\n' "$(cd -P "$P" && pwd)" >"$P/.nightshift/work-target"
+  printf 'not-a-dir\n' >"$P/.nightshift/receipts"
+  run "$SCHED" --project "$P" --preflight
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts path is not a usable directory'
+  printf '%s' "$output" | grep -qF 'a scheduled start will refuse to arm'
+}
+
+@test "generate refuses when artifact receipts path is unusable" {
+  printf 'artifact\n' >"$P/.nightshift/work-mode"
+  printf '%s\n' "$(cd -P "$P" && pwd)" >"$P/.nightshift/work-target"
+  printf 'not-a-dir\n' >"$P/.nightshift/receipts"
+  run "$SCHED" --project "$P" --at 04:05
+  [ "$status" -eq 1 ]
+  printf '%s' "$output$stderr" | grep -qF 'artifact receipts path is not a usable directory'
+}
+
+@test "Windows schedule names an unusable artifact receipts path" {
+  grep -qF 'a scheduled start will refuse to arm' "$SCHED"
+  grep -qF 'a scheduled start will refuse to arm' "$WIN"
+  grep -qF 'Test-NSUsableReceiptsDir' "$WIN"
+  grep -qF 'ns_receipts_usable_dir' "$SCHED"
 }
 
 @test "--preflight fails closed on an empty punch list" {

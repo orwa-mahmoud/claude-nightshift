@@ -100,6 +100,7 @@ call_lib() {
   grep -qF 'work mode' "$DOCTOR_SKILL" || grep -qF 'work-mode' "$DOCTOR_SKILL"
   grep -qF 'artifact' "$ARCHIVE"
   grep -qF 'work-mode' "$SCHEDULE" || grep -qF 'artifact' "$SCHEDULE"
+  grep -qF 'exists but is not a usable directory' "$SCHEDULE"
 }
 
 @test "workspace docs describe artifact mode" {

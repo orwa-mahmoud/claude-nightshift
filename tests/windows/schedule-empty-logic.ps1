@@ -80,6 +80,23 @@ try {
         'generate names drafting-table items after the rule'
     Expect-True ($generate.Stdout -match 'Scheduled start for') `
         'generate still prints the registration command after the empty-list note'
+
+    $artifact = Join-Path $root 'notes'
+    $artifactNs = Join-Path $artifact '.nightshift'
+    $null = New-Item -ItemType Directory -Path $artifactNs -Force
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $artifactNs 'rules.json')
+    [IO.File]::WriteAllText((Join-Path $artifactNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $artifactNs 'work-target'), "$artifact`n")
+    [IO.File]::WriteAllText((Join-Path $artifactNs 'punch-list.md'), "## Items`n- [ ] **work.**`n")
+    [IO.File]::WriteAllText((Join-Path $artifactNs 'receipts'), "not-a-dir`n")
+    $unusable = Invoke-Schedule @('-Project', $artifact, '-Preflight')
+    Expect-True ($unusable.ExitCode -eq 1) "unusable receipts preflight exits 1 (got $($unusable.ExitCode) $($unusable.Stderr))"
+    Expect-True ($unusable.Stdout -match 'artifact receipts path is not a usable directory') `
+        'preflight fails when receipts path is unusable'
+    Expect-True ($unusable.Stdout -match 'a scheduled start will refuse to arm') `
+        'preflight names the scheduled-start refuse'
+    $unusableGen = Invoke-Schedule @('-Project', $artifact, '-At', '04:05')
+    Expect-True ($unusableGen.ExitCode -eq 1) "unusable receipts generate exits 1 (got $($unusableGen.ExitCode) $($unusableGen.Stderr))"
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

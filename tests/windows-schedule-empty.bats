@@ -11,6 +11,8 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
   grep -qF 'Parked Hunt work orders: 1' "$LOGIC"
   grep -qF 'Drafting-table items: 1' "$LOGIC"
   grep -qF 'Note: the punch list has no open items' "$HELPER"
+  grep -qF 'a scheduled start will refuse to arm' "$HELPER"
+  grep -qF 'a scheduled start will refuse to arm' "$LOGIC"
   grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex' "$HELPER"
 }
 

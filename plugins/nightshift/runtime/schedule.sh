@@ -138,6 +138,24 @@ show_registered() {
   fi
 }
 
+# Artifact notes-folder nights cannot land receipts through a planted path.
+# Return: 0 ok · 1 unusable receipts path · 2 malformed work-mode
+check_artifact_receipts() {
+  local mode recv
+  if mode="$(ns_work_mode "$PROJECT" 2>/dev/null)"; then
+    if [ "$mode" = artifact ]; then
+      recv="$(ns_receipts_dir "$PROJECT")"
+      if [ -e "$recv" ] || [ -L "$recv" ]; then
+        if ! ns_receipts_usable_dir "$PROJECT" >/dev/null; then
+          return 1
+        fi
+      fi
+    fi
+    return 0
+  fi
+  return 2
+}
+
 if [ "$MODE" = "list" ]; then
   if registered; then
     printf 'Registered for %s:\n' "$PROJECT"
@@ -181,6 +199,15 @@ if [ "$MODE" = "preflight" ]; then
     pf "Work:      $target"
   else
     pf "Work:      unresolved (workspace itself will be the cwd)"
+  fi
+  check_artifact_receipts
+  _recv_rc=$?
+  if [ "$_recv_rc" -eq 1 ]; then
+    pf "FAIL artifact receipts path is not a usable directory - a scheduled start will refuse to arm"
+    fail=1
+  elif [ "$_recv_rc" -eq 2 ]; then
+    pf "FAIL work-mode is malformed"
+    fail=1
   fi
 
   RULES="$PROJECT/.nightshift/rules.json"
@@ -351,6 +378,16 @@ if registered; then
   show_registered
   printf '\nTwo entries would put two agents on one punch list. Use --remove first to replace it.\n'
   exit 3
+fi
+
+check_artifact_receipts
+_recv_rc=$?
+if [ "$_recv_rc" -eq 1 ]; then
+  printf 'schedule: artifact receipts path is not a usable directory - a scheduled start will refuse to arm\n' >&2
+  exit 1
+elif [ "$_recv_rc" -eq 2 ]; then
+  printf 'schedule: work-mode is malformed\n' >&2
+  exit 1
 fi
 
 # The punch list is the shift: a scheduled start works what it finds and promotes nothing, so an

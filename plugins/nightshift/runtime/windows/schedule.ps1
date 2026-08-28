@@ -15,6 +15,24 @@ $ErrorActionPreference = 'Stop'
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
+# 0 ok · 1 unusable receipts path · 2 malformed work-mode
+function Test-NSScheduleArtifactReceipts {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    try {
+        $mode = Get-NSWorkMode $Workspace
+    }
+    catch {
+        return 2
+    }
+    if ($mode -eq 'artifact') {
+        $recv = Get-NSReceiptsDir $Workspace
+        if ((Test-NSPathEntry $recv) -and -not (Test-NSUsableReceiptsDir $Workspace)) {
+            return 1
+        }
+    }
+    return 0
+}
+
 function Escape-NSSingleQuoted {
     param([Parameter(Mandatory = $true)][string]$Value)
     return $Value.Replace("'", "''")
@@ -182,6 +200,15 @@ if ($Preflight) {
     catch {
         'Work:      unresolved (workspace itself will be the working directory)'
     }
+    $recvRc = Test-NSScheduleArtifactReceipts $workspace
+    if ($recvRc -eq 1) {
+        $failures.Add('artifact receipts path is not a usable directory')
+        'FAIL artifact receipts path is not a usable directory - a scheduled start will refuse to arm'
+    }
+    elseif ($recvRc -eq 2) {
+        $failures.Add('work-mode is malformed')
+        'FAIL work-mode is malformed'
+    }
     $rules = Get-NSRulesObject $workspace
     if ($null -eq $rules) {
         $failures.Add('rules.json is unreadable or is not a JSON object')
@@ -308,6 +335,14 @@ if ($null -ne (Get-NSTask $taskName)) {
     ''
     'Two entries would put two agents on one punch list. Remove the existing task first to replace it.'
     exit 3
+}
+
+$recvRc = Test-NSScheduleArtifactReceipts $workspace
+if ($recvRc -eq 1) {
+    throw 'schedule: artifact receipts path is not a usable directory - a scheduled start will refuse to arm'
+}
+if ($recvRc -eq 2) {
+    throw 'schedule: work-mode is malformed'
 }
 
 if ($AsJson) {
