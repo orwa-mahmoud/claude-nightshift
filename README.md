@@ -88,7 +88,7 @@ Before leaving any run unattended, use the concise
    repairs.
 5. Review the local commit or `$NS/receipts/` (Doctor names the most recently written file). Archive copies
    those files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
-   into the dated folder and leaves the live copies in place. Push only if this is a git repository.
+   into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder. Push only if this is a git repository.
 
 If the host task and the workspace holding `.nightshift/` are different folders, use the explicit
 link described under [Workspaces and repositories](docs/how-it-works.md#workspaces-and-repositories);
