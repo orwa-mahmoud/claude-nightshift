@@ -55,6 +55,10 @@ if ((Test-Path -LiteralPath $src) -and (Test-NSReparsePoint $src)) {
     Write-NSArchiveReceiptsError 'archive-receipts: refuse to write through a symlink receipts path'
     exit 2
 }
+if ((Test-Path -LiteralPath $src) -and -not (Test-Path -LiteralPath $src -PathType Container)) {
+    Write-NSArchiveReceiptsError 'archive-receipts: receipts path is not a directory'
+    exit 2
+}
 foreach ($p in @((Join-Path $ns 'archive'), (Join-Path $ns "archive/$Date"), $dest)) {
     if (Test-Path -LiteralPath $p) {
         $item = Get-Item -LiteralPath $p -Force

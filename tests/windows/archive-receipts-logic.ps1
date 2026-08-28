@@ -175,6 +175,18 @@ try {
     Expect-True ($srcRefused.ExitCode -eq 2) "symlink receipts dir exits 2 (got $($srcRefused.ExitCode) $($srcRefused.Stderr))"
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $srcLinkedNs 'archive/2026-08-28/receipts'))) `
         'does not copy through a reparse receipts path'
+
+    $fileSrc = Join-Path $root 'file-src-notes'
+    $fileSrcNs = Join-Path $fileSrc '.nightshift'
+    $null = New-Item -ItemType Directory -Path $fileSrcNs -Force
+    [IO.File]::WriteAllText((Join-Path $fileSrcNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $fileSrcNs 'receipts'), "not-a-dir`n")
+    $fileRefused = Invoke-ArchiveReceipts $fileSrc @('-Date', '2026-08-28')
+    Expect-True ($fileRefused.ExitCode -eq 2) "file receipts path exits 2 (got $($fileRefused.ExitCode) $($fileRefused.Stderr))"
+    Expect-True ((Get-Content -LiteralPath (Join-Path $fileSrcNs 'receipts') -Raw) -match 'not-a-dir') `
+        'does not replace a file receipts path'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $fileSrcNs 'archive/2026-08-28/receipts'))) `
+        'file receipts path creates no archive folder'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
