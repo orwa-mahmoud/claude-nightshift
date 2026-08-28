@@ -73,6 +73,8 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   [ "$(sed -n 1p "$P/.nightshift/.shift-session")" = "origin-ide" ]
   grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"
   grep -q 'agent --resume="minted-cli-worker"' "$P/.nightshift/parking-lot.md"
+  grep -q 'run this in a terminal' "$P/.nightshift/parking-lot.md"
+  grep -q 'ask Nightshift to stop' "$P/.nightshift/parking-lot.md"
 }
 
 @test "a second wake resumes the stored CLI worker instead of minting again" {

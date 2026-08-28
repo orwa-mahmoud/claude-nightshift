@@ -211,7 +211,7 @@ notice_revival() {
   cmd="$(ns_cursor_resume_command "$NS" "$PROJECT")" || return 0
   log_line "watchman: revived in a CLI worker — $cmd"
   [ -d "$NS" ] || return 0
-  printf -- '- [notice] %s — the shift session died and the watchman revived it in a CLI worker. Attach: %s\n' \
+  printf -- '- [notice] %s — the shift session died and the watchman revived it in a CLI worker. To see it, run this in a terminal: %s. To stop it, ask Nightshift to stop.\n' \
     "$(ts)" "$cmd" >>"$LOT"
 }
 

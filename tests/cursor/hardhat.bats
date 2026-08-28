@@ -64,6 +64,22 @@ is_cursor_deny() {
   printf '%s' "$output" | grep -q 'agent --resume='
   printf '%s' "$output" | grep -q 'live-cli-worker'
   printf '%s' "$output" | grep -q -- "--workspace"
+  printf '%s' "$output" | grep -q 'terminal'
+  printf '%s' "$output" | grep -q 'ask Nightshift to stop'
+}
+
+@test "origin tab can still run the stop helper while a worker is live" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'origin-ide\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  printf 'live-cli-worker\n' >"$p/.nightshift/.shift-worker"
+  plugin="$BATS_TEST_DIRNAME/../../plugins/nightshift"
+  jq -nc --arg p "$p" --arg cmd "bash $plugin/runtime/stop-shift.sh --project $p" \
+    '{tool_name:"Shell",conversation_id:"origin-ide",transcript_path:"",cwd:$p,tool_input:{command:$cmd}}' \
+    >"$BATS_TEST_TMPDIR/origin-stop-helper.json"
+  run env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh" <"$BATS_TEST_TMPDIR/origin-stop-helper.json"
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
 }
 
 @test "another conversation stays free while a CLI worker is recorded" {

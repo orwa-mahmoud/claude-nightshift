@@ -713,5 +713,11 @@ ns_cursor_resume_command() { # <ns> <workspace>
 ns_cursor_pointer_message() { # <ns> <workspace>
   local cmd
   cmd="$(ns_cursor_resume_command "$1" "$2")" || return 1
-  printf 'BLOCKED: this shift continued in a recovered CLI session. Attach with: %s' "$cmd"
+  printf 'BLOCKED: this shift session died and continued in a recovered CLI session. To see it, run this in a terminal: %s. To stop it from this chat, ask Nightshift to stop.' "$cmd"
+}
+
+# Owner asking this tab to end the shift — not ordinary work on the dead thread.
+ns_cursor_stop_request() { # <prompt>
+  printf '%s' "${1:-}" | grep -qiE \
+    'ask[[:space:]]+nightshift[[:space:]]+to[[:space:]]+stop|[[:space:]/]nightshift[[:space:]]+stop|/nightshift:stop|stop[[:space:]]+the[[:space:]]+shift'
 }

@@ -21,6 +21,9 @@ PUNCH="$NS/punch-list.md"
 [ "$(ns_open_boxes "$PUNCH")" -gt 0 ] || exit 0
 
 if ns_cursor_stale_origin "$NS" "$SID"; then
+  if ns_cursor_stop_request "${CURSOR_PROMPT:-}"; then
+    exit 0
+  fi
   cursor_emit_prompt_block "$(ns_cursor_pointer_message "$NS" "$PROJECT_DIR")"
   exit 0
 fi

@@ -757,7 +757,7 @@ try {
                     "- [notice] $stamp - the shift session died and the watchman revived it. One thread: claude --resume $sessionId · cursor://anthropic.claude-code/open?session=$sessionId · vscode://anthropic.claude-code/open?session=$sessionId"
                 }
                 elseif ($HostName -eq 'cursor' -and -not [string]::IsNullOrEmpty($cursorWorker)) {
-                    "- [notice] $stamp - the shift session died and the watchman revived it in a CLI worker. Attach: agent --resume=`"$cursorWorker`" --workspace `"$workspace`""
+                    "- [notice] $stamp - the shift session died and the watchman revived it in a CLI worker. To see it, run this in a terminal: agent --resume=`"$cursorWorker`" --workspace `"$workspace`". To stop it, ask Nightshift to stop."
                 }
                 else {
                     "- [notice] $stamp - the shift session died and the watchman revived it (details in shift-log.md)."

@@ -36,6 +36,7 @@ cursor_read_input() {
     CURSOR_STOP_STATUS="$(printf '%s' "$CURSOR_RAW" | jq -r '.status // empty' 2>/dev/null || true)"
     CURSOR_SESSION_END_REASON="$(printf '%s' "$CURSOR_RAW" | jq -r '.reason // empty' 2>/dev/null || true)"
     CURSOR_TOOL_FILEPATH="$(printf '%s' "$CURSOR_RAW" | jq -r '.tool_input.file_path // .tool_input.path // empty' 2>/dev/null || true)"
+    CURSOR_PROMPT="$(printf '%s' "$CURSOR_RAW" | jq -r '.prompt // empty' 2>/dev/null || true)"
   else
     CURSOR_SESSION_ID="$(printf '%s' "$CURSOR_RAW" | sed -n 's/.*"conversation_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
     [ -n "$CURSOR_SESSION_ID" ] || CURSOR_SESSION_ID="$(printf '%s' "$CURSOR_RAW" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
@@ -46,11 +47,13 @@ cursor_read_input() {
     CURSOR_STOP_STATUS="$(printf '%s' "$CURSOR_RAW" | sed -n 's/.*"status"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
     CURSOR_SESSION_END_REASON="$(printf '%s' "$CURSOR_RAW" | sed -n 's/.*"reason"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
     CURSOR_TOOL_FILEPATH="$(printf '%s' "$CURSOR_RAW" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+    CURSOR_PROMPT="$(printf '%s' "$CURSOR_RAW" | sed -n 's/.*"prompt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   fi
   [ -n "$CURSOR_TOOL_CMD" ] || CURSOR_TOOL_CMD="$CURSOR_RAW"
   [ -n "$CURSOR_TRANSCRIPT_PATH" ] || CURSOR_TRANSCRIPT_PATH="${CURSOR_TRANSCRIPT_PATH_ENV:-}"
   export CURSOR_RAW CURSOR_SESSION_ID CURSOR_TRANSCRIPT_PATH CURSOR_TOOL_NAME \
-    CURSOR_TOOL_CMD CURSOR_CWD CURSOR_STOP_STATUS CURSOR_SESSION_END_REASON CURSOR_TOOL_FILEPATH
+    CURSOR_TOOL_CMD CURSOR_CWD CURSOR_STOP_STATUS CURSOR_SESSION_END_REASON \
+    CURSOR_TOOL_FILEPATH CURSOR_PROMPT
 }
 
 cursor_input_mentions_tool() {
