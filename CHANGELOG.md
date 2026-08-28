@@ -3,6 +3,20 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.16.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.15.0...v0.16.0) (2026-08-28)
+
+
+### Features
+
+* **cursor:** first-class Cursor plugin ([a718ce6](https://github.com/orwa-mahmoud/nightshift/commit/a718ce6dc8aa4e90fd23ac1e19c490c0c0ffce79))
+* expose remaining owner knobs in rules.json ([cac9368](https://github.com/orwa-mahmoud/nightshift/commit/cac936894788f92a5db8a8f8bc28cf301d771121))
+
+
+### Bug Fixes
+
+* **cursor:** pass hook argv through to cursor_read_input ([237f84f](https://github.com/orwa-mahmoud/nightshift/commit/237f84fccae9388dcfaf59ee8a717c4e26349486))
+* **cursor:** pin Stop interrupt to the live aborted payload ([c4f3344](https://github.com/orwa-mahmoud/nightshift/commit/c4f33449bf10d67e6f942e5eaae934a72f7ce955))
+
 ## [0.15.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.14.5...v0.15.0) (2026-08-28)
 
 
