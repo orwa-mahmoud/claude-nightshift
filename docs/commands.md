@@ -99,7 +99,8 @@ Native Windows:
 plugins\nightshift\runtime\windows\write-receipt.ps1 -Project . -Item 'title' -Verify 'checks' -Output .\out.md
 ```
 
-Copy live artifact receipts into today's dated archive folder (leaves the live copies in place):
+Copy live artifact receipts into today's dated archive folder (leaves the live copies in place).
+Missing or empty receipts create no dated receipts folder.
 
 ```bash
 plugins/nightshift/runtime/archive-receipts.sh --project .
