@@ -44,6 +44,7 @@ Read `$NS/` and print:
  When Doctor warns `artifact mode has ticked items but no receipts`, say so — ticked boxes without
  a receipt are not reviewable completion.
  Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Status reports.
+ Missing or empty receipts create no dated receipts folder.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list
  is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on

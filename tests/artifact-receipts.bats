@@ -291,6 +291,7 @@ new_artifact() {
   grep -qF 'artifact mode has ticked items but no receipts' "$STATUS"
   grep -qF 'archive/<YYYY-MM-DD>/receipts/' "$STATUS"
   grep -qF 'do not replace the live files Status reports' "$STATUS"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$STATUS"
   grep -qF 'artifact receipts N' "$DOCTOR_SKILL"
   grep -qF 'latest artifact receipt' "$DOCTOR_SKILL"
   grep -qF 'most recently written' "$DOCTOR_SKILL"
