@@ -44,7 +44,8 @@ Nightshift records; do not require a work-target commit that cannot exist. Copy 
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/archive-receipts.sh" --project "$NIGHTSHIFT_WORKSPACE"`
 (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`).
 The helper writes `$NS/archive/<YYYY-MM-DD>/receipts/` when those files exist, and leave the live copies in
-place so stall progress still sees them. Never delete live receipts as part of Archive.
+place so stall progress still sees them. Missing or empty receipts create no dated receipts folder.
+Never delete live receipts as part of Archive.
 
 ## Where it goes
 
