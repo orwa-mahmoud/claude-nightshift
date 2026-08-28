@@ -60,7 +60,8 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 
 PROJECT="$PWD"
 INTERVAL_MIN="${NIGHTSHIFT_WATCH:-}"
-AGENT="${NIGHTSHIFT_WATCH_AGENT:-}"
+# Resolved from rules watchAgent (env override) after the project is known.
+AGENT=""
 MAX_WAKES=0
 
 usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
@@ -103,6 +104,9 @@ case "$INTERVAL_MIN" in
     ;;
 esac
 [ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
+
+# Empty watchAgent keeps Codex's default resume/fresh ladder; non-empty is owner verbatim.
+[ -n "$AGENT" ] || AGENT="$(rule "$PROJECT" watchAgent "${NIGHTSHIFT_WATCH_AGENT:-}")"
 
 RETRY_SPACING="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
 PROMPT_RESUME="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")")"

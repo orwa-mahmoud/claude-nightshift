@@ -86,8 +86,11 @@ whistle() {
 # with commit.gpgsign=true globally would otherwise lose every receipt to a key prompt that
 # nothing is there to answer at 3am.
 receipts_commit() {
-  local err
+  local err auto
   [ -d "$NS/.git" ] || return 0
+  # Owner opt-in. Default off — a receipts git alone does not authorize headless commits.
+  auto="$(rule "$PROJECT_DIR" receiptsAutoCommit "${NIGHTSHIFT_RECEIPTS_AUTO_COMMIT:-}")"
+  case "$auto" in true | TRUE | 1 | yes | YES) ;; *) return 0 ;; esac
   git -C "$NS" add -A >/dev/null 2>&1 || true
   err="$(git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
     -c commit.gpgsign=false commit -q -m "$1" 2>&1)" && return 0

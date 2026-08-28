@@ -79,6 +79,14 @@
       "pattern": "^([0-9]+( [0-9]+)*)?$",
       "description": "Space-separated seconds between revival attempts in one wake, e.g. \"30 120\"."
     },
+    "watchAgent": {
+      "type": "string",
+      "description": "Optional owner revival command. Empty keeps the host default resume ladder. A non-empty value is used verbatim on every revival attempt (no resume/--continue/fresh ladder)."
+    },
+    "receiptsAutoCommit": {
+      "type": "boolean",
+      "description": "When true, clock-out and Archive commit the local receipts repo ($NS/.git) with the headless nightshift identity. Default false: even if Setup created that repo, the owner commits it. Missing or unreadable is treated as false."
+    },
     "notifyCommand": {
       "type": "string",
       "description": "Unrestricted owner-provided shell run at shift-end or unrecoverable outage. Empty is silent."

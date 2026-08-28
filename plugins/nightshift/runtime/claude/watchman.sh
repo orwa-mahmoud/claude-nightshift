@@ -82,9 +82,10 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 
 PROJECT="$PWD"
 INTERVAL_MIN="${NIGHTSHIFT_WATCH:-}" # resolved from the rules file once the project is known
-AGENT="${NIGHTSHIFT_WATCH_AGENT:-claude --continue -p}"
+# Owner agent starts empty; after the project is known, rules watchAgent (env override) decides.
+# Empty = host default resume ladder. Non-empty = verbatim on every rung.
+AGENT=""
 AGENT_IS_DEFAULT=1
-[ -z "${NIGHTSHIFT_WATCH_AGENT:-}" ] || AGENT_IS_DEFAULT=0
 MAX_WAKES=0
 
 usage() {
@@ -136,6 +137,17 @@ case "$INTERVAL_MIN" in
 esac
 [ "$INTERVAL_MIN" -gt 0 ] || exit 0 # 0 = disabled, by design
 RETRY_SPACING="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
+# watchAgent: empty (shipped) keeps the resume ladder; non-empty is used verbatim every attempt.
+# Env NIGHTSHIFT_WATCH_AGENT overrides the file for the session. --agent on the CLI wins first.
+# A missing key reads as empty. Do not overwrite a CLI --agent that already cleared the default.
+if [ "$AGENT_IS_DEFAULT" -eq 1 ]; then
+  AGENT="$(rule "$PROJECT" watchAgent "${NIGHTSHIFT_WATCH_AGENT:-}")"
+  if [ -n "$AGENT" ]; then
+    AGENT_IS_DEFAULT=0
+  else
+    AGENT="claude --continue -p"
+  fi
+fi
 NOTIFY="$(rule "$PROJECT" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")" # empty = silent, a configured value
 PUNCH="$NS/punch-list.md"
 PIDFILE="$NS/.watchman"

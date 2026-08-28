@@ -26,7 +26,7 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugins/nightshift/hooks/cursor/lib-io.sh
 . "$_here/lib-io.sh"
 
-cursor_read_input
+cursor_read_input "$@"
 SID="$CURSOR_SESSION_ID"
 TPATH="$CURSOR_TRANSCRIPT_PATH"
 
@@ -86,8 +86,11 @@ whistle() {
 # with commit.gpgsign=true globally would otherwise lose every receipt to a key prompt that
 # nothing is there to answer at 3am.
 receipts_commit() {
-  local err
+  local err auto
   [ -d "$NS/.git" ] || return 0
+  # Owner opt-in. Default off — a receipts git alone does not authorize headless commits.
+  auto="$(rule "$PROJECT_DIR" receiptsAutoCommit "${NIGHTSHIFT_RECEIPTS_AUTO_COMMIT:-}")"
+  case "$auto" in true | TRUE | 1 | yes | YES) ;; *) return 0 ;; esac
   git -C "$NS" add -A >/dev/null 2>&1 || true
   err="$(git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
     -c commit.gpgsign=false commit -q -m "$1" 2>&1)" && return 0
@@ -139,8 +142,9 @@ honor_stop() {
 # including the one that just wrote the list while planning.
 if [ ! -f "$NS/.shift-armed" ]; then cursor_emit_release; exit 0; fi
 
-# Owner interrupt — official Cursor stop.status "aborted" (docs: cursor.com/docs/hooks).
-# Allow stop; do not re-inject the contract. "error" is not owner-stop.
+# Owner interrupt — live Stop button sends status "aborted" (Cursor 3.17.21).
+# Same meaning as Claude Esc: release, do not reinject, do not clock out.
+# "error" is not owner-stop.
 if [ "${CURSOR_STOP_STATUS:-}" = "aborted" ]; then
   cursor_emit_release
   exit 0

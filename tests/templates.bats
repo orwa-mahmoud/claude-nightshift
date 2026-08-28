@@ -100,6 +100,8 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF 'never describe the repo as recommended; the default is no' "$s"
   grep -qF '`$NS/rules.json` as-is' "$s"
   grep -qF 'removes all of nightshift, rules' "$s"
+  grep -qF 'does **not** turn on headless auto-commit' "$s"
+  grep -qF 'receiptsAutoCommit' "$s"
 }
 
 # Three answers, and exactly one of them arms the gate. A survey that writes to the punch list
