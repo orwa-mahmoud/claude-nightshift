@@ -11,7 +11,8 @@ $codes = @(
     'completed', 'owner-stop', 'stale-pid', 'invalid-session', 'exhausted-retry',
     'unknown-wedge', 'revived', 'stand-down', 'wrong-host', 'deadline',
     'clean-session-end', 'esc-standby', 'silent-standby', 'non-resumable-session',
-    'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable'
+    'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable',
+    'clock-out-failed'
 )
 
 foreach ($code in $codes) {

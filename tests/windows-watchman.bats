@@ -56,3 +56,19 @@ PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF '[ -L "$PIDFILE" ]' "$CODEX"
   grep -qF 'Test-NSReparsePoint $pidFile' "$HELPER"
 }
+
+@test "watchmen bound terminal clock-out to one attempt" {
+  grep -qF 'clock-out attempt 1/1' "$CLAUDE"
+  grep -qF 'clock-out attempt 1/1' "$CODEX"
+  grep -qF 'clock-out attempt 1/1' "$HELPER"
+  grep -qF 'note clock-out-failed' "$CLAUDE"
+  grep -qF 'note clock-out-failed' "$CODEX"
+  grep -qF "Write-NSReason \$ns 'clock-out-failed'" "$HELPER"
+  grep -qF 'ns_lease_restore_interactive' "$OWNERSHIP"
+  grep -qF 'function Restore-NSLeaseInteractive' "$PSM1"
+  grep -qF 'Restore-NSLeaseInteractive $ns' "$HELPER"
+  grep -qF 'Release-NSLease $ns' "$HELPER"
+  grep -qF 'ns_lease_release' "$OWNERSHIP"
+  ! grep -q 'retrying next wake' "$CLAUDE"
+  ! grep -q 'retrying next wake' "$CODEX"
+}

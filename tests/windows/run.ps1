@@ -990,6 +990,92 @@ exit 0
         $launcherReason
     )[0]) 'detached watchman records why it stood down'
 
+    Write-Host 'Checking bounded terminal clock-out'
+    $clockFailWorkspace = Join-Path $root 'clock-out fail workspace'
+    $null = Initialize-TestWorkspace $clockFailWorkspace
+    Set-TestPunch $clockFailWorkspace $false
+    [IO.File]::WriteAllText((Join-Path $clockFailWorkspace '.nightshift/.shift-armed'), '')
+    $clockFailSession = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    $clockFailBind = Invoke-Hardhat $clockFailWorkspace $clockFailSession 'Bash' @{
+        command = "`$null = 'nightshift-binding-probe'"
+    }
+    Assert-Equal 0 $clockFailBind.ExitCode 'clock-out fail fixture binds'
+    $clockFailReceipt = Join-Path $root 'clock-out fail receipt.txt'
+    $clockFailStub = Join-Path $root 'clock-out fail stub.ps1'
+    @'
+param([string]$Prompt)
+Add-Content -LiteralPath $env:NIGHTSHIFT_TEST_AGENT_RECEIPT -Value 'called'
+exit 1
+'@ | Set-Content -LiteralPath $clockFailStub -Encoding UTF8
+    $clockFailWatch = Invoke-TestScript $watchman `
+        @('-Project', $clockFailWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockFailStub) `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockFailReceipt }
+    Assert-Equal 0 $clockFailWatch.ExitCode "failed clock-out stands down: $($clockFailWatch.Stderr)"
+    Assert-True (Test-Path -LiteralPath $clockFailReceipt) 'failed clock-out spawned once'
+    Assert-Equal 1 @([IO.File]::ReadAllLines($clockFailReceipt)).Count 'failed clock-out does not retry'
+    $clockFailReason = [IO.File]::ReadAllLines((Join-Path $clockFailWorkspace '.nightshift/.watch-reason'))[0]
+    Assert-Equal 'clock-out-failed' $clockFailReason 'failed clock-out records clock-out-failed'
+    $clockFailLease = [IO.File]::ReadAllLines((Join-Path $clockFailWorkspace '.nightshift/.shift-lease'))
+    Assert-True ([string]::IsNullOrEmpty($clockFailLease[3])) 'failed clock-out restores an interactive lease'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $clockFailWorkspace '.nightshift/.ended'))) `
+        'failed clock-out does not write .ended'
+
+    $clockOkWorkspace = Join-Path $root 'clock-out ok workspace'
+    $null = Initialize-TestWorkspace $clockOkWorkspace
+    Set-TestPunch $clockOkWorkspace $false
+    [IO.File]::WriteAllText((Join-Path $clockOkWorkspace '.nightshift/.shift-armed'), '')
+    $clockOkSession = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+    $clockOkBind = Invoke-Hardhat $clockOkWorkspace $clockOkSession 'Bash' @{
+        command = "`$null = 'nightshift-binding-probe'"
+    }
+    Assert-Equal 0 $clockOkBind.ExitCode 'successful clock-out fixture binds'
+    $clockOkReceipt = Join-Path $root 'clock-out ok receipt.txt'
+    $clockOkStub = Join-Path $root 'clock-out ok stub.ps1'
+    @'
+param([string]$Prompt)
+Add-Content -LiteralPath $env:NIGHTSHIFT_TEST_AGENT_RECEIPT -Value 'called'
+$ns = Join-Path $env:CODEX_PROJECT_DIR '.nightshift'
+[IO.File]::WriteAllText((Join-Path $ns '.ended'), '')
+Remove-Item -LiteralPath (Join-Path $ns '.shift-armed') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $ns '.shift-lease') -Force -ErrorAction SilentlyContinue
+exit 0
+'@ | Set-Content -LiteralPath $clockOkStub -Encoding UTF8
+    $clockOkWatch = Invoke-TestScript $watchman `
+        @('-Project', $clockOkWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockOkStub) `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockOkReceipt }
+    Assert-Equal 0 $clockOkWatch.ExitCode "successful clock-out exits 0: $($clockOkWatch.Stderr)"
+    Assert-Equal 1 @([IO.File]::ReadAllLines($clockOkReceipt)).Count 'successful clock-out spawns once'
+    Assert-True (Test-Path -LiteralPath (Join-Path $clockOkWorkspace '.nightshift/.ended')) `
+        'successful clock-out writes .ended'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $clockOkWorkspace '.nightshift/.shift-armed'))) `
+        'successful clock-out disarms the site'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $clockOkWorkspace '.nightshift/.shift-lease'))) `
+        'successful clock-out releases the lease'
+
+    $clockDeadlineWorkspace = Join-Path $root 'clock-out deadline workspace'
+    $null = Initialize-TestWorkspace $clockDeadlineWorkspace
+    Set-TestPunch $clockDeadlineWorkspace $true
+    [IO.File]::WriteAllText((Join-Path $clockDeadlineWorkspace '.nightshift/.shift-armed'), '')
+    [IO.File]::WriteAllText((Join-Path $clockDeadlineWorkspace '.nightshift/deadline'), '1')
+    $clockDeadlineSession = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+    $clockDeadlineBind = Invoke-Hardhat $clockDeadlineWorkspace $clockDeadlineSession 'Bash' @{
+        command = "`$null = 'nightshift-binding-probe'"
+    }
+    Assert-Equal 0 $clockDeadlineBind.ExitCode 'deadline clock-out fixture binds'
+    $clockDeadlineReceipt = Join-Path $root 'clock-out deadline receipt.txt'
+    $clockDeadlineWatch = Invoke-TestScript $watchman `
+        @('-Project', $clockDeadlineWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockFailStub) `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockDeadlineReceipt }
+    Assert-Equal 0 $clockDeadlineWatch.ExitCode "deadline failed clock-out stands down: $($clockDeadlineWatch.Stderr)"
+    Assert-Equal 1 @([IO.File]::ReadAllLines($clockDeadlineReceipt)).Count 'deadline failed clock-out does not retry'
+    $clockDeadlineReason = [IO.File]::ReadAllLines((Join-Path $clockDeadlineWorkspace '.nightshift/.watch-reason'))[0]
+    Assert-Equal 'clock-out-failed' $clockDeadlineReason 'deadline failed clock-out records clock-out-failed'
+    $clockDeadlineLease = [IO.File]::ReadAllLines((Join-Path $clockDeadlineWorkspace '.nightshift/.shift-lease'))
+    Assert-True ([string]::IsNullOrEmpty($clockDeadlineLease[3])) 'deadline failed clock-out restores an interactive lease'
+    $clockDeadlineTool = Invoke-Hardhat $clockDeadlineWorkspace $clockDeadlineSession 'Bash' @{ command = 'Get-Location' }
+    Assert-True ([string]::IsNullOrWhiteSpace($clockDeadlineTool.Stdout)) `
+        'recorded session can operate after a failed deadline clock-out'
+
     $brokenLauncherWorkspace = Join-Path $root 'broken launcher workspace'
     $null = Initialize-TestWorkspace $brokenLauncherWorkspace
     Set-TestPunch $brokenLauncherWorkspace $true

@@ -55,6 +55,7 @@ function Invoke-Doctor {
 
 $root = Join-Path ([IO.Path]::GetTempPath()) ("ns-doctor-logic-" + [guid]::NewGuid().ToString('N'))
 $notes = $null
+$clockout = $null
 $linkNotes = $null
 $targetLink = $null
 $otherTarget = $null
@@ -140,6 +141,23 @@ try {
     Expect-True ($emptyPrompt.Stdout -match 'watchman will refuse to arm') `
         'empty revivalPrompt names the watchman refuse'
 
+    $clockout = $root + '-clockout'
+    $clockNs = Join-Path $clockout '.nightshift'
+    $null = New-Item -ItemType Directory -Path $clockNs -Force
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $clockNs 'rules.json')
+    [IO.File]::WriteAllText((Join-Path $clockNs 'punch-list.md'),
+        "## Items`n- [ ] **1.**`n")
+    [IO.File]::WriteAllText((Join-Path $clockNs '.shift-armed'), '')
+    [IO.File]::WriteAllText((Join-Path $clockNs '.watch-reason'), "clock-out-failed`n`n")
+    [IO.File]::WriteAllText((Join-Path $clockNs '.shift-lease'), "shift-session`ncodex`n2`n`n`n`n")
+    $clockDoctor = Invoke-Doctor $clockout
+    Expect-True ($clockDoctor.ExitCode -eq 0) `
+        "clock-out-failed doctor exits 0 (got $($clockDoctor.ExitCode) $($clockDoctor.Stderr))"
+    Expect-True ($clockDoctor.Stdout -match 'terminal clock-out failed without releasing the shift') `
+        'Doctor names a failed terminal clock-out'
+    Expect-True ($clockDoctor.Stdout -match 'process lease restored to the interactive shift; the recorded conversation can operate') `
+        'Doctor says the recorded conversation can operate after restore'
+
     $notes = $root + '-notes'
     $null = New-Item -ItemType Directory -Path (Join-Path $notes '.nightshift') -Force
     Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $notes '.nightshift/rules.json')
@@ -224,6 +242,9 @@ finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
     if ($null -ne $notes) {
         Remove-Item -LiteralPath $notes -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $clockout) {
+        Remove-Item -LiteralPath $clockout -Recurse -Force -ErrorAction SilentlyContinue
     }
     if ($null -ne $linkNotes) {
         Remove-Item -LiteralPath $linkNotes -Recurse -Force -ErrorAction SilentlyContinue

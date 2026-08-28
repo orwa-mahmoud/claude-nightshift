@@ -313,6 +313,34 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'watchman pidfile path is not a usable file' "$STATUS"
 }
 
+@test "Doctor names a failed terminal clock-out and the restored interactive lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'clock-out-failed\n\n' >"$p/.nightshift/.watch-reason"
+  printf 'shift-session\nclaude\n2\n\n\n\n' >"$p/.nightshift/.shift-lease"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'terminal clock-out failed without releasing the shift'
+  printf '%s' "$output" | grep -qF 'process lease restored to the interactive shift; the recorded conversation can operate'
+  grep -qF 'terminal clock-out failed without releasing the shift' "$SKILL"
+  grep -qF 'terminal clock-out failed without releasing the shift' "$STATUS"
+}
+
+@test "Doctor does not tell the owner to reopen while a recovery worker is alive" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'clock-out-failed\n\n' >"$p/.nightshift/.watch-reason"
+  printf 'shift-session\n\n%s\n\nclaude\n' "$$" >"$p/.nightshift/.shift-session"
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'shift-session\nclaude\n2\nnonce1\n%s\n%s\n' "$$" "$start" >"$p/.nightshift/.shift-lease"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'terminal clock-out failed without releasing the shift'
+  printf '%s' "$output" | grep -qF 'recovery worker is alive; the recorded conversation cannot reclaim yet'
+  printf '%s' "$output" | grep -qF 'reopening the recorded conversation stays blocked'
+  ! printf '%s' "$output" | grep -qF 'the recorded conversation can operate'
+}
+
 @test "the drafting-table item-shape example is not a staged draft" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"

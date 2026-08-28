@@ -192,6 +192,7 @@ PY
 @test "stop panic commands use the bound Nightshift directory, not the working directory" {
   grep -qF 'touch "$NS/STOP"' "$STOP"
   grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$STOP"
+  grep -qF 'failed clock-out left a recovery nonce' "$STOP"
   ! grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$STOP"
   ! grep -qF 'touch .nightshift/STOP' "$STOP"
 }

@@ -66,6 +66,32 @@ load helpers
   is_release
 }
 
+@test "panic STOP releases a leftover recovery nonce" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
+  bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" the-shift claude' \
+    nightshift "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh" "$p" >/dev/null
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-lease" ]
+}
+
+@test "the recorded session can clock out after a restored interactive lease" {
+  p="$(new_project)"
+  punch_done "$p"
+  printf 'test-shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
+  bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" test-shift-session claude; ns_lease_restore_interactive "$2/.nightshift"' \
+    nightshift "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh" "$p"
+  [ -z "$(sed -n 4p "$p/.nightshift/.shift-lease")" ]
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-lease" ]
+}
+
 @test "quitting time releases, writes STOP and a shift-log line" {
   p="$(new_project)"
   punch_open "$p"

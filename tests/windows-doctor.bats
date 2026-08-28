@@ -45,6 +45,7 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
   grep -qF 'work target could not be resolved; treating workspace as the code root' "$HELPER"
   grep -qF 'watchman pidfile path is not a usable file' "$HELPER"
   grep -qF 'Test-NSReparsePoint $watchmanPath' "$HELPER"
+  grep -qF 'terminal clock-out failed without releasing the shift' "$HELPER"
 }
 
 @test "Windows Doctor leftover and staged-work logic passes when pwsh is present" {
