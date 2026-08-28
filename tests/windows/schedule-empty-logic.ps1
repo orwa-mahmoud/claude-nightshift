@@ -2,6 +2,9 @@
 # Run on macOS or Windows: pwsh -File tests/windows/schedule-empty-logic.ps1
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $helper = Join-Path $repository 'plugins/nightshift/runtime/windows/schedule.ps1'
@@ -22,13 +25,20 @@ function Invoke-Schedule {
     $argList = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $helper) + $Arguments
     $stdout = [Collections.Generic.List[string]]::new()
     $stderr = [Collections.Generic.List[string]]::new()
-    foreach ($item in @(& $hostExecutable @argList 2>&1)) {
-        if ($item -is [Management.Automation.ErrorRecord]) {
-            $stderr.Add([string]$item)
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        foreach ($item in @(& $hostExecutable @argList 2>&1)) {
+            if ($item -is [Management.Automation.ErrorRecord]) {
+                $stderr.Add([string]$item)
+            }
+            else {
+                $stdout.Add([string]$item)
+            }
         }
-        else {
-            $stdout.Add([string]$item)
-        }
+    }
+    finally {
+        $ErrorActionPreference = $previousEap
     }
     return [pscustomobject]@{
         ExitCode = [int]$LASTEXITCODE

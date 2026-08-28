@@ -1781,7 +1781,8 @@ function Test-NSTrustedShiftControl {
         }
     }
     $normalized = $normalized -replace "^'", '' -replace "'$", '' -replace '^"', '' -replace '"$', ''
-    $tokens = [regex]::Matches($normalized, '(?:[^\s"]+|"[^"]*"|''[^'']*'')') | ForEach-Object { $_.Value.Trim("'`"") }
+    # @() keeps a single regex hit as a one-element array; StrictMode rejects .Count on a bare string.
+    $tokens = @([regex]::Matches($normalized, '(?:[^\s"]+|"[^"]*"|''[^'']*'')') | ForEach-Object { $_.Value.Trim("'`"") })
     if ($tokens.Count -lt 3) { return $false }
     $idx = 0
     if ($tokens[0] -in @('powershell', 'powershell.exe', 'pwsh', 'pwsh.exe', 'bash') -and $tokens.Count -ge 4) {

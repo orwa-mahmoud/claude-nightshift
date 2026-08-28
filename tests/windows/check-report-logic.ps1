@@ -2,6 +2,9 @@
 # Run on macOS or Windows: pwsh -File tests/windows/check-report-logic.ps1
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $helper = Join-Path $repository 'plugins/nightshift/runtime/windows/check-report.ps1'
@@ -28,13 +31,20 @@ function Invoke-CheckReport {
     ) + $Extra
     $stdout = [Collections.Generic.List[string]]::new()
     $stderr = [Collections.Generic.List[string]]::new()
-    foreach ($item in @(& $hostExecutable @argList 2>&1)) {
-        if ($item -is [Management.Automation.ErrorRecord]) {
-            $stderr.Add([string]$item)
+    $previousEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        foreach ($item in @(& $hostExecutable @argList 2>&1)) {
+            if ($item -is [Management.Automation.ErrorRecord]) {
+                $stderr.Add([string]$item)
+            }
+            else {
+                $stdout.Add([string]$item)
+            }
         }
-        else {
-            $stdout.Add([string]$item)
-        }
+    }
+    finally {
+        $ErrorActionPreference = $previousEap
     }
     $code = $LASTEXITCODE
     if ($null -eq $code) {
