@@ -176,7 +176,7 @@ function Resolve-NSWorkspaceRoot {
 }
 
 # Windows PowerShell 5.1 turns redirected native stderr into ErrorRecords. With
-# $ErrorActionPreference=Stop, `git ... 2>$null` then aborts — including CRLF
+# $ErrorActionPreference=Stop, `git ... 2>$null` then aborts - including CRLF
 # warnings and "unknown revision 'HEAD'" on an unborn branch.
 function Invoke-NSGitCommand {
     param(
@@ -412,7 +412,7 @@ function Get-NSLatestReceipt {
         return $null
     }
     # LastWriteTime first. Same-second uniqueness suffixes (`stamp-slug-n.md`)
-    # sort before `stamp-slug.md` by name (`-` < `.`); map `.md` → `-0.md` so
+    # sort before `stamp-slug.md` by name (`-` < `.`); map `.md` -> `-0.md` so
     # the unsuffixed sibling sorts first and `-n` wins the tie.
     $latest = @($files | Sort-Object @{
             Expression = { $_.LastWriteTimeUtc.Ticks }
@@ -1603,7 +1603,7 @@ function Get-NSControlStartRefuseReason {
     if ($raw -notmatch '^[0-9]+$') { return '' }
     $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     if ($now -lt [long]$raw) { return '' }
-    return "paused shift deadline has expired — write a new UNIX epoch to $NightshiftDir/deadline, or run Reset then Start; refusing to invent a time budget"
+    return "paused shift deadline has expired - write a new UNIX epoch to $NightshiftDir/deadline, or run Reset then Start; refusing to invent a time budget"
 }
 
 function Stop-NSWatchman {
@@ -1708,7 +1708,7 @@ function Reset-NSShift {
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'STOP')
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'deadline')
     Remove-NSPath (Join-Path $ctx.NightshiftDir '.watch-reason')
-    Write-NSControlLog $ctx.NightshiftDir 'reset by owner — runtime markers and deadline cleared'
+    Write-NSControlLog $ctx.NightshiftDir 'reset by owner - runtime markers and deadline cleared'
     Write-Output "reset $($ctx.NightshiftDir)"
     Write-Output 'deadline removed'
 }
@@ -2111,14 +2111,14 @@ function Get-NSReasonLabel {
         'unknown-wedge' { return 'session looks wedged without a verified error signature' }
         'revived' { return 'session revived into its own conversation' }
         'stand-down' { return 'watchman stood down' }
-        'wrong-host' { return 'watchman stood down — shift belongs to another host' }
+        'wrong-host' { return 'watchman stood down - shift belongs to another host' }
         'deadline' { return 'quitting time passed' }
         'clean-session-end' { return 'owner closed the session' }
-        'esc-standby' { return 'standing by — owner interrupt in the transcript' }
-        'silent-standby' { return 'standing by — session alive and quiet' }
+        'esc-standby' { return 'standing by - owner interrupt in the transcript' }
+        'silent-standby' { return 'standing by - session alive and quiet' }
         'non-resumable-session' { return 'recorded Codex identity cannot be resumed' }
         'unreadable-rules' { return 'rules file missing or incomplete' }
-        'fresh-fallback' { return 'fresh session — punch list is the handover' }
+        'fresh-fallback' { return 'fresh session - punch list is the handover' }
         'unsupported-state' { return 'workspace state-version is unsupported' }
         'process-evidence-unavailable' { return 'process evidence is unavailable' }
         'clock-out-failed' { return 'terminal clock-out failed without releasing the shift' }

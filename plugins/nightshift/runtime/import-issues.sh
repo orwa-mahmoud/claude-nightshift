@@ -204,7 +204,9 @@ already_known() {
     grep -F -q "$url" "$f" && return 0
   done
   for dated in "$NS/archive"/*; do
-    [ -d "$dated" ] && [ ! -L "$dated" ] || continue
+    if [ ! -d "$dated" ] || [ -L "$dated" ]; then
+      continue
+    fi
     for f in "$dated"/*.md; do
       [ -e "$f" ] || continue
       [ -L "$f" ] && continue

@@ -114,7 +114,9 @@ while IFS= read -r line || [ -n "$line" ]; do
   status="$(printf '%s' "$line" | awk -F'\t' '{print $1}')"
   sid="$(printf '%s' "$line" | awk -F'\t' '{print $3}')"
   locator="$(printf '%s' "$line" | awk -F'\t' '{print $4}')"
-  [ -n "$status" ] && [ -n "$sid" ] && [ -n "$locator" ] || fail "malformed manifest line"
+  if [ -z "$status" ] || [ -z "$sid" ] || [ -z "$locator" ]; then
+    fail "malformed manifest line"
+  fi
   case "$sid" in
     S[0-9]*) ;;
     *) fail "manifest id must look like S1: $sid" ;;
