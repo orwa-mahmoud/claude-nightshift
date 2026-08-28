@@ -14,6 +14,7 @@ in the workspace, and recent git history. In artifact mode that is the persisten
 and any existing source manifests or reports; do not require a git history that cannot exist.
 Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory.
 If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder.
+Refuse to compose, cut, or arm when work-mode is malformed.
 An entry is applicable only when the work target can supply its discovery surface. Skip coverage,
 CI, dependency, and similar quality-debt entries when the folder has no tests, tooling, or
 manifests to inspect. Skip the GitHub issue hunt when work mode is artifact or no proposed
