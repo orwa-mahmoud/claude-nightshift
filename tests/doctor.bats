@@ -309,6 +309,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'watchman pidfile path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'no live watchman pid file'
+  grep -qF 'watchman pidfile path is not a usable file' "$SKILL"
+  grep -qF 'watchman pidfile path is not a usable file' "$STATUS"
 }
 
 @test "the drafting-table item-shape example is not a staged draft" {
