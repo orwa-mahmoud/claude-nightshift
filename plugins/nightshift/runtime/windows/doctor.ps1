@@ -111,6 +111,7 @@ try {
         try {
             if ((Get-NSProposedWorkMode $workspace) -eq 'artifact') {
                 Add-NSWarn 'work mode is unset; Setup would propose artifact'
+                Add-NSAct confirm 'persist the proposed artifact mode with Setup; Doctor does not write work-mode'
             }
         }
         catch {

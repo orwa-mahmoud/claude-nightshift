@@ -73,6 +73,8 @@ try {
         'empty punch list names leftover contract'
     Expect-True ($leftover.Stdout -notmatch 'work mode is unset; Setup would propose artifact') `
         'a git workspace does not warn that Setup would propose artifact'
+    Expect-True ($leftover.Stdout -notmatch 'persist the proposed artifact mode with Setup; Doctor does not write work-mode') `
+        'a git workspace does not offer to persist artifact mode'
     Expect-True ($leftover.Stdout -match 'empty punch list will inherit the current contract') `
         'unarmed empty list warns that the contract is inherited'
     Expect-True ($leftover.Stdout -match '\[confirm\].*review punch-list.md contract') `
@@ -143,6 +145,8 @@ try {
     Expect-True ($unset.ExitCode -eq 0) "unset notes doctor exits 0 (got $($unset.ExitCode) $($unset.Stderr))"
     Expect-True ($unset.Stdout -match 'work mode is unset; Setup would propose artifact') `
         'an unset notes folder warns that Setup would propose artifact'
+    Expect-True ($unset.Stdout -match 'persist the proposed artifact mode with Setup; Doctor does not write work-mode') `
+        'an unset notes folder offers Setup as a confirm action'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

@@ -98,6 +98,7 @@ if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
     proposed="$(ns_propose_work_mode "$WORKSPACE" 2>/dev/null)" || proposed=""
     if [ "$proposed" = artifact ]; then
       warn "work mode is unset; Setup would propose artifact"
+      act confirm "persist the proposed artifact mode with Setup; Doctor does not write work-mode"
     fi
   fi
   if [ "$MODE" = artifact ]; then

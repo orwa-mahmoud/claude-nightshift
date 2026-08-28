@@ -89,6 +89,7 @@ call_lib() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode repository'
   ! printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'
+  ! printf '%s' "$output" | grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode'
 }
 
 @test "Doctor warns when an unset mode would be proposed as artifact" {
@@ -100,6 +101,7 @@ call_lib() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode repository'
   printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'
+  printf '%s' "$output" | grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode'
 }
 
 @test "Setup Start Status Doctor Archive and Schedule name both modes" {
@@ -120,6 +122,9 @@ call_lib() {
   grep -qF 'work mode is unset; Setup would propose artifact' "$DOCTOR"
   grep -qF 'work mode is unset; Setup would propose artifact' "$WIN_DOCTOR"
   grep -qF 'work mode is unset; Setup would propose artifact' "$DOCTOR_SKILL"
+  grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode' "$DOCTOR"
+  grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode' "$WIN_DOCTOR"
+  grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode' "$DOCTOR_SKILL"
   grep -qF 'artifact' "$ARCHIVE"
   grep -qF 'work-mode' "$SCHEDULE" || grep -qF 'artifact' "$SCHEDULE"
   grep -qF 'exists but is not a usable directory' "$SCHEDULE"

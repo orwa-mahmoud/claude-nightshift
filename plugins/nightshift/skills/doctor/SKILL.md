@@ -61,7 +61,7 @@ On native Windows:
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. The script uses the
 same workspace, work-mode, and work-target libraries as the hooks. The report's `work mode`
-fact is `repository` or `artifact`. When `$NS/work-mode` is missing and Setup would propose artifact, Doctor warns `work mode is unset; Setup would propose artifact`. In artifact mode the report also includes
+fact is `repository` or `artifact`. When `$NS/work-mode` is missing and Setup would propose artifact, Doctor warns `work mode is unset; Setup would propose artifact` and offers `persist the proposed artifact mode with Setup; Doctor does not write work-mode`. In artifact mode the report also includes
 `artifact receipts N` for files under `$NS/receipts/`. When at least one receipt exists, Doctor
 also reports `latest artifact receipt` with the filename only of the most recently written receipt (no directory path). When ticked
 items exist and the receipts directory is empty, Doctor warns
