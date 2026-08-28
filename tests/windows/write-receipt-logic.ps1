@@ -198,6 +198,25 @@ try {
     Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $hiddenCase))) -eq '20260101T000000Z-real.md') `
         'latest ignores a hidden sibling'
 
+    $nestedCase = Join-Path $root 'nested-notes'
+    $nestedNs = Join-Path $nestedCase '.nightshift'
+    $nestedRecv = Join-Path $nestedNs 'receipts'
+    $nestedSub = Join-Path $nestedRecv 'nested'
+    $null = New-Item -ItemType Directory -Path $nestedSub -Force
+    [IO.File]::WriteAllText((Join-Path $nestedNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $nestedRecv '20260101T000000Z-real.md'), "ok`n")
+    $fpFlat = Get-NSReceiptsFingerprint $nestedCase
+    [IO.File]::WriteAllText((Join-Path $nestedSub '20260101T000000Z-nested.md'), "nested`n")
+    Expect-True ((Get-NSReceiptsCount $nestedCase) -eq 1) 'nested receipt is not counted'
+    Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $nestedCase))) -eq '20260101T000000Z-real.md') `
+        'nested receipt is not latest'
+    Expect-True ((Get-NSReceiptsFingerprint $nestedCase) -eq $fpFlat) 'nested receipt is not in the stall fingerprint'
+
+    Remove-Item -LiteralPath (Join-Path $nestedRecv '20260101T000000Z-real.md') -Force
+    Expect-True ((Get-NSReceiptsCount $nestedCase) -eq 0) 'nested-only receipts count as zero'
+    Expect-True ($null -eq (Get-NSLatestReceipt $nestedCase)) 'nested-only receipts are not latest'
+    Expect-True ((Get-NSReceiptsFingerprint $nestedCase) -eq 'none') 'nested-only receipts have no stall fingerprint'
+
     $symlinkCase = Join-Path $root 'symlink-notes'
     $symlinkNs = Join-Path $symlinkCase '.nightshift'
     $symlinkRecv = Join-Path $symlinkNs 'receipts'

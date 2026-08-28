@@ -365,6 +365,8 @@ new_artifact() {
   grep -qF 'latest ignores a hidden sibling' "$WRITE_LOGIC"
   grep -qF 'symlink receipt is not counted' "$WRITE_LOGIC"
   grep -qF 'symlink receipt is not latest' "$WRITE_LOGIC"
+  grep -qF 'nested receipt is not counted' "$WRITE_LOGIC"
+  grep -qF 'nested receipt is not latest' "$WRITE_LOGIC"
   grep -qF 'artifact mode has ticked items but no receipts' "$WRITE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
