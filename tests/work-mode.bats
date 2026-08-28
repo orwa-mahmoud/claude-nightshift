@@ -114,6 +114,7 @@ call_lib() {
   grep -qF 'Setup would propose artifact, refuse to arm and send the owner to Setup' "$START"
   grep -qF 'do not `git init` a notes folder.' "$START"
   grep -qF 'Skip a symlink or reparse child; it is not a nested checkout.' "$SETUP"
+  grep -qF 'Never `git init` a notes folder to change an artifact proposal into repository mode.' "$SETUP"
   grep -qF 'Skip a symlink or reparse child; it is not a nested checkout.' "$START"
   grep -qF 'Skip a symlink or reparse child; it is not a nested checkout.' "$DOC"
   grep -qF 'work mode' "$STATUS" || grep -qF 'work-mode' "$STATUS"

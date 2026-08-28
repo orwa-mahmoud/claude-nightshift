@@ -89,7 +89,7 @@ Detect the work mode, explain it, and ask before persisting it. Use
 - scratch (`ns_propose_work_mode` status 2, or `Get-NSProposedWorkMode` throwing) — stop; create
   nothing.
 
-Never persist a mode until the owner confirms. Then write `$NS/work-mode` as `repository` or
+Never persist a mode until the owner confirms. Never `git init` a notes folder to change an artifact proposal into repository mode. Then write `$NS/work-mode` as `repository` or
 `artifact` (one word, one newline) and `$NS/work-target` as the absolute canonical path of the
 chosen folder. On POSIX: `ns_record_work_target "$NIGHTSHIFT_WORKSPACE" "$WORK_TARGET" "$WORK_MODE"`.
 On later setup runs, validate and retain that mode and target unless the owner explicitly changes
