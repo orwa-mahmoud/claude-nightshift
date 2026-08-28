@@ -108,6 +108,8 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   receipts_init "$p"
+  jq '.receiptsAutoCommit = true' "$p/.nightshift/rules.json" >"$p/.nightshift/rules.tmp"
+  mv "$p/.nightshift/rules.tmp" "$p/.nightshift/rules.json"
   wl="$BATS_TEST_TMPDIR/qt.log"
   echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline"
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
@@ -121,6 +123,8 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   receipts_init "$p"
+  jq '.receiptsAutoCommit = true' "$p/.nightshift/rules.json" >"$p/.nightshift/rules.tmp"
+  mv "$p/.nightshift/rules.tmp" "$p/.nightshift/rules.json"
   wl="$BATS_TEST_TMPDIR/st.log"
   nc="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=2
