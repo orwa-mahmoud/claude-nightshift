@@ -1,12 +1,12 @@
 # Cursor stop payload capture
 
 Official schema (https://cursor.com/docs/hooks): `status` is
-`completed` | `aborted` | `error`, plus common fields `conversation_id` /
-`session_id`.
+`completed` | `aborted` | `error`.
 
-`stop-aborted.json` and siblings match that schema. A live Stop-button file was
-not written during the first Cursor plugin shift (host denied `.cursor/` capture
-paths). Observed behavior: pressing Stop reinjected the clock-out contract.
+Live Stop-button (Cursor 3.17.21, 2026-08-28): stdin JSON with
+`hook_event_name` `stop` and `status` `aborted`. Same tell as the docs.
+That is the owner interrupt — release, do not reinject, do not clock out
+(Claude Escape equivalent). A natural turn end sends `completed`.
 
-To replace fixtures with a real payload later: install a one-shot `stop` hook that
-writes stdin to this directory, press Stop once, and commit the file.
+`stop-aborted.json` is that live shape with fixture ids and no private
+fields. Re-capture only if a later Cursor build sends a different tell.

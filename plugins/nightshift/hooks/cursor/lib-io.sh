@@ -14,7 +14,19 @@
 #   CURSOR_SESSION_ID  CURSOR_TRANSCRIPT_PATH  CURSOR_TOOL_NAME  CURSOR_TOOL_CMD
 #   CURSOR_CWD         CURSOR_STOP_STATUS      CURSOR_SESSION_END_REASON  CURSOR_RAW
 cursor_read_input() {
-  if [ -t 0 ]; then CURSOR_RAW=""; else CURSOR_RAW="$(cat)"; fi
+  # Hooks receive JSON on stdin. The tty short-circuit is only for a manual harness run
+  # (so `cat` does not hang). Cursor has also been observed to deliver an empty stdin on
+  # stop while still setting CURSOR_PROJECT_DIR — fall back to $1 / HOOK_INPUT when needed.
+  CURSOR_RAW=""
+  if [ ! -t 0 ]; then
+    CURSOR_RAW="$(cat)"
+  fi
+  if [ -z "$CURSOR_RAW" ] && [ -n "${1:-}" ]; then
+    CURSOR_RAW="$1"
+  fi
+  if [ -z "$CURSOR_RAW" ]; then
+    CURSOR_RAW="${CURSOR_HOOK_INPUT:-${HOOK_INPUT:-}}"
+  fi
   if command -v jq >/dev/null 2>&1; then
     CURSOR_SESSION_ID="$(printf '%s' "$CURSOR_RAW" | jq -r '.conversation_id // .session_id // empty' 2>/dev/null || true)"
     CURSOR_TRANSCRIPT_PATH="$(printf '%s' "$CURSOR_RAW" | jq -r '.transcript_path // empty' 2>/dev/null || true)"

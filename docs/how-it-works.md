@@ -272,9 +272,10 @@ capabilities ship as native skills and hook wiring from one package; Nightshift 
 nothing.
 
 Cursor is a third native front door (`.cursor-plugin`, shared skills, Cursor-shaped hooks). It
-shares the same `.nightshift/` site. Clock-out reads Cursor's official `stop.status`
-(`completed` | `aborted` | `error`): owner interrupt (`aborted`) allows stop without reinjecting
-the contract; agent completion with open boxes keeps the gate; `error` is not owner-stop.
+shares the same `.nightshift/` site. Clock-out reads Cursor's `stop.status` (`completed` | `aborted` | `error`). A live
+Stop-button payload sends `aborted` — same owner interrupt as Claude Escape: the gate
+releases, the punch list stays, the shift stays armed. Agent completion with open boxes
+keeps the gate; `error` is not owner-stop.
 `sessionEnd` reasons `aborted` and `user_close` record a clean-close marker. Cursor does not yet
 arm a watchman — recovery after a dead Cursor chat is manual until resume-of-this-chat is proven.
 Do not arm the Claude or Codex watchman from a Cursor session. Install locally under

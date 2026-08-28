@@ -71,4 +71,5 @@ cursor_gate() {
   [ "$aborted" = "aborted" ]
   [ "$completed" = "completed" ]
   [ "$aborted" != "$completed" ]
+  [ "$(jq -r '.hook_event_name' "$FIXTURES/stop-aborted.json")" = "stop" ]
 }
