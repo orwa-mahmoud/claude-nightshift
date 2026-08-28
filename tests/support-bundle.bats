@@ -51,6 +51,17 @@ bundle_mode() {
   ! grep -q 'DO NOT STOP' "$bundle"
 }
 
+@test "export does not report a symlink ended marker as clocked out" {
+  p="$(new_project)"
+  : >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'ended: unusable' "$bundle"
+  ! grep -qF 'ended: yes' "$bundle"
+}
+
 @test "support reports lease state but omits the ownership capability" {
   p="$(new_project)"
   printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
@@ -129,6 +140,9 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   grep -qF 'supersecret' "$LOGIC"
   grep -qF 'lease_mode: recovered' "$LOGIC"
   grep -qF 'Write-NSAtomicLines -Path $tmp -Lines @($lines) -Private' "$WIN_EXPORT"
+  grep -qF '[ -L "$NS/.ended" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $endedPath' "$WIN_EXPORT"
+  grep -qF 'symlink ended marker is unusable' "$LOGIC"
   ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
 }
 

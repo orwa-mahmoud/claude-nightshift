@@ -172,7 +172,17 @@ else {
 $null = $lines.Add('')
 $null = $lines.Add('== markers ==')
 $null = $lines.Add(('armed: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf) { 'yes' } else { 'no' })))
-$null = $lines.Add(('ended: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) { 'yes' } else { 'no' })))
+$endedPath = Join-Path $ns '.ended'
+$endedLabel = if (Test-NSReparsePoint $endedPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $endedPath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("ended: $endedLabel")
 $null = $lines.Add(('stop: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) { 'yes' } else { 'no' })))
 $null = $lines.Add(('session_end: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf) { 'yes' } else { 'no' })))
 $null = $lines.Add(('session_record: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-session') -PathType Leaf) { 'present' } else { 'absent' })))

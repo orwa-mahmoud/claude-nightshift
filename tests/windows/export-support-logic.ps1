@@ -8,6 +8,7 @@ $helper = Join-Path $repository 'plugins/nightshift/runtime/windows/export-suppo
 $template = Join-Path $repository 'plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json'
 $hostExecutable = (Get-Process -Id $PID).Path
 $failures = New-Object 'System.Collections.Generic.List[string]'
+$onWin32 = [Environment]::OSVersion.Platform -eq 'Win32NT'
 
 function Expect-True {
     param([bool]$Condition, [string]$Message)
@@ -135,6 +136,35 @@ try {
         Expect-True (-not $text.Contains($homeSecret)) "bundle omits $homeSecret"
     }
     Expect-True (-not $text.Contains($root)) "bundle omits the raw workspace path $root"
+
+    $plant = Join-Path $ns 'ended-plant'
+    [IO.File]::WriteAllText($plant, "plant`n")
+    $endedLink = Join-Path $ns '.ended'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $endedLink -Target $plant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink ended marker (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $endedLink) {
+        $linked = Invoke-ExportSupport $root
+        Expect-True ($linked.ExitCode -eq 0) `
+            "symlink ended export exits 0 (got $($linked.ExitCode) $($linked.Stderr))"
+        $linkedLine = ($linked.Stdout -split "`n" | Where-Object { $_ -match '^Support bundle: ' } | Select-Object -First 1)
+        $linkedBundle = if ($linkedLine) { $linkedLine.Substring('Support bundle: '.Length).Trim() } else { '' }
+        Expect-True ((-not [string]::IsNullOrEmpty($linkedBundle)) -and (Test-Path -LiteralPath $linkedBundle -PathType Leaf)) `
+            "symlink ended bundle exists: $linkedBundle"
+        if (-not [string]::IsNullOrEmpty($linkedBundle) -and (Test-Path -LiteralPath $linkedBundle -PathType Leaf)) {
+            $linkedText = [IO.File]::ReadAllText($linkedBundle)
+            Expect-True ($linkedText.Contains('ended: unusable')) 'symlink ended marker is unusable'
+            Expect-True (-not $linkedText.Contains('ended: yes')) 'symlink ended marker is not clocked out'
+        }
+    }
 }
 finally {
     if ($null -eq $oldLeak) {

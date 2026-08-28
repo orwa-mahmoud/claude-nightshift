@@ -154,7 +154,11 @@ dest="$outdir/${stamp}.txt"
   fi
   printf '\n== markers ==\n'
   printf 'armed: %s\n' "$( [ -f "$NS/.shift-armed" ] && printf yes || printf no )"
-  printf 'ended: %s\n' "$( [ -f "$NS/.ended" ] && printf yes || printf no )"
+  if [ -L "$NS/.ended" ]; then
+    printf 'ended: unusable\n'
+  else
+    printf 'ended: %s\n' "$( [ -f "$NS/.ended" ] && printf yes || printf no )"
+  fi
   printf 'stop: %s\n' "$( [ -f "$NS/STOP" ] && printf yes || printf no )"
   printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
   printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
