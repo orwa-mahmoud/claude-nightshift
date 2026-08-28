@@ -51,6 +51,24 @@ bundle_mode() {
   ! grep -q 'DO NOT STOP' "$bundle"
 }
 
+@test "export reads plugin name without jq" {
+  grep -qF 'PLUGIN_NAME="$(sed -n' "$EXPORT"
+  p="$(new_project)"
+  nojq="$BATS_TEST_TMPDIR/export-nojq"
+  mkdir -p "$nojq"
+  for t in bash sh sed date mkdir uname cat tr chmod python3 git awk grep head tail cut basename dirname mktemp stat cksum find sort hostname id ps rm mv cp ln touch wc xargs sleep shasum sha256sum cmp tee env true false getconf lsof; do
+    command -v "$t" >/dev/null 2>&1 && ln -sf "$(command -v "$t")" "$nojq/$t"
+  done
+  run env PATH="$nojq" bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  [ -f "$bundle" ]
+  grep -qF 'name: nightshift' "$bundle"
+  ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/.claude-plugin/plugin.json" | sed -n 1p)"
+  grep -qF "version: $ver" "$bundle"
+}
+
 @test "export does not report a symlink ended marker as clocked out" {
   p="$(new_project)"
   : >"$p/.nightshift/ended-plant"

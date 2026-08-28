@@ -66,6 +66,8 @@ if [ -f "$PLUGIN_JSON" ]; then
   else
     PLUGIN_VER="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PLUGIN_JSON" | sed -n 1p)"
     PLUGIN_VER="${PLUGIN_VER:-unknown}"
+    PLUGIN_NAME="$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PLUGIN_JSON" | sed -n 1p)"
+    PLUGIN_NAME="${PLUGIN_NAME:-nightshift}"
   fi
 fi
 
