@@ -138,6 +138,32 @@ show_registered() {
   fi
 }
 
+# Artifact notes-folder nights cannot land receipts through a planted path.
+# Missing work-mode still reads as repository; a folder Setup would propose as
+# artifact must not get a printed job that Start will refuse.
+# Return: 0 ok · 1 unusable receipts path · 2 malformed work-mode · 3 unset artifact proposal
+check_artifact_receipts() {
+  local mode recv proposed
+  if mode="$(ns_work_mode "$PROJECT" 2>/dev/null)"; then
+    if [ ! -s "$PROJECT/.nightshift/work-mode" ]; then
+      proposed="$(ns_propose_work_mode "$PROJECT" 2>/dev/null)" || proposed=""
+      if [ "$proposed" = artifact ]; then
+        return 3
+      fi
+    fi
+    if [ "$mode" = artifact ]; then
+      recv="$(ns_receipts_dir "$PROJECT")"
+      if [ -e "$recv" ] || [ -L "$recv" ]; then
+        if ! ns_receipts_usable_dir "$PROJECT" >/dev/null; then
+          return 1
+        fi
+      fi
+    fi
+    return 0
+  fi
+  return 2
+}
+
 if [ "$MODE" = "list" ]; then
   if registered; then
     printf 'Registered for %s:\n' "$PROJECT"
@@ -181,6 +207,20 @@ if [ "$MODE" = "preflight" ]; then
     pf "Work:      $target"
   else
     pf "Work:      unresolved (workspace itself will be the cwd)"
+    pf "FAIL work target could not be resolved - a scheduled start will refuse to arm"
+    fail=1
+  fi
+  check_artifact_receipts
+  _recv_rc=$?
+  if [ "$_recv_rc" -eq 1 ]; then
+    pf "FAIL artifact receipts path is not a usable directory - a scheduled start will refuse to arm"
+    fail=1
+  elif [ "$_recv_rc" -eq 2 ]; then
+    pf "FAIL work-mode is malformed"
+    fail=1
+  elif [ "$_recv_rc" -eq 3 ]; then
+    pf "FAIL work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm"
+    fail=1
   fi
 
   RULES="$PROJECT/.nightshift/rules.json"
@@ -191,7 +231,26 @@ if [ "$MODE" = "preflight" ]; then
     wm="$(rule "$PROJECT" watchMinutes "")"
     case "$wm" in
       '' | *[!0-9]*) pf "FAIL watchMinutes missing or not a whole number"; fail=1 ;;
-      *) pf "OK   rules.json (watchMinutes $wm)" ;;
+      *)
+        pf "OK   rules.json (watchMinutes $wm)"
+        if [ "$wm" -gt 0 ]; then
+          retry="$(rule "$PROJECT" watchRetrySeconds "${NIGHTSHIFT_WATCH_RETRY:-}")"
+          resume="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" revivalPrompt "${NIGHTSHIFT_REVIVAL_PROMPT:-}")")"
+          fresh="$(ns_expand_injected_paths "$PROJECT" "$(rule "$PROJECT" freshRevivalPrompt "${NIGHTSHIFT_FRESH_PROMPT:-}")")"
+          if [ -z "$retry" ]; then
+            pf "FAIL watchRetrySeconds is empty — watchman will refuse to arm"
+            fail=1
+          fi
+          if [ -z "$resume" ]; then
+            pf "FAIL revivalPrompt is empty — watchman will refuse to arm"
+            fail=1
+          fi
+          if [ -z "$fresh" ]; then
+            pf "FAIL freshRevivalPrompt is empty — watchman will refuse to arm"
+            fail=1
+          fi
+        fi
+        ;;
     esac
   else
     pf "FAIL rules.json is unreadable or not a JSON object"
@@ -202,6 +261,14 @@ if [ "$MODE" = "preflight" ]; then
   if [ "$open" -eq 0 ]; then
     pf "FAIL punch list has no open items — a scheduled start promotes nothing"
     fail=1
+    orders="$(ns_open_boxes_file "$PROJECT/.nightshift/work-orders.md")"
+    if [ "$orders" -gt 0 ]; then
+      pf "NOTE $orders parked Hunt work order(s) — start will not promote them"
+    fi
+    drafts="$(ns_open_drafts "$PROJECT/.nightshift/drafting-table.md")"
+    if [ "$drafts" -gt 0 ]; then
+      pf "NOTE $drafts drafting-table item(s) — start will not promote them"
+    fi
   else
     pf "OK   punch list has $open open item(s)"
   fi
@@ -326,11 +393,37 @@ if registered; then
   exit 3
 fi
 
+check_artifact_receipts
+_recv_rc=$?
+if [ "$_recv_rc" -eq 1 ]; then
+  printf 'schedule: artifact receipts path is not a usable directory - a scheduled start will refuse to arm\n' >&2
+  exit 1
+elif [ "$_recv_rc" -eq 2 ]; then
+  printf 'schedule: work-mode is malformed\n' >&2
+  exit 1
+elif [ "$_recv_rc" -eq 3 ]; then
+  printf 'schedule: work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm\n' >&2
+  exit 1
+fi
+if ! ns_work_target "$PROJECT" >/dev/null 2>&1; then
+  printf 'schedule: work target could not be resolved - a scheduled start will refuse to arm\n' >&2
+  exit 1
+fi
+
 # The punch list is the shift: a scheduled start works what it finds and promotes nothing, so an
 # empty list at %s means the run does nothing at all.
 if [ "$(ns_open_boxes "$PROJECT/.nightshift/punch-list.md")" -eq 0 ]; then
   printf 'Note: the punch list has no open items. A scheduled start works the list it finds and\n'
-  printf 'promotes nothing, so queue the work before %s or the run will find nothing to do.\n\n' "$AT"
+  printf 'promotes nothing, so queue the work before %s or the run will find nothing to do.\n' "$AT"
+  orders="$(ns_open_boxes_file "$PROJECT/.nightshift/work-orders.md")"
+  if [ "$orders" -gt 0 ]; then
+    printf 'Parked Hunt work orders: %s (start will not promote them).\n' "$orders"
+  fi
+  drafts="$(ns_open_drafts "$PROJECT/.nightshift/drafting-table.md")"
+  if [ "$drafts" -gt 0 ]; then
+    printf 'Drafting-table items: %s (start will not promote them).\n' "$drafts"
+  fi
+  printf '\n'
 fi
 
 printf 'Scheduled start for %s at %s\n\n' "$PROJECT" "$AT"

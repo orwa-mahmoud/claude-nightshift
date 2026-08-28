@@ -2,6 +2,8 @@ load helpers
 
 ROOT="$BATS_TEST_DIRNAME/.."
 DOC="$ROOT/docs/how-it-works.md"
+VOCAB="$ROOT/docs/vocabulary.md"
+COMMANDS="$ROOT/docs/commands.md"
 LIB="$ROOT/plugins/nightshift/lib/lib.sh"
 LINKER="$ROOT/plugins/nightshift/runtime/link-workspace.sh"
 
@@ -19,6 +21,7 @@ resolve_work_target() {
     'Parent with one repository (supported)' \
     'Git worktree (supported)' \
     'Parent with several repositories (selection required)' \
+    'Persistent folder (artifact mode)' \
     'Linked task root (explicit opt-in)'; do
     grep -qF "### $heading" "$DOC" || {
       echo "missing workspace example: $heading"
@@ -27,8 +30,29 @@ resolve_work_target() {
   done
 
   grep -qF '.nightshift/work-target' "$DOC"
+  grep -qF 'plugins/<name>/' "$DOC"
+  grep -qF '.nightshift/deadline' "$DOC"
+  grep -qF 'UNIX epoch' "$DOC"
+  grep -qF '.nightshift/archive/<YYYY-MM-DD>/' "$DOC"
+  grep -qF '.nightshift/archive/<YYYY-MM-DD>/' "$COMMANDS"
+  grep -qF '.nightshift/archive/<YYYY-MM-DD>/' "$VOCAB"
+  grep -qF '**archive**' "$VOCAB"
+  grep -qF 'live receipts stay' "$VOCAB"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$VOCAB"
+  grep -qF 'UNIX epoch seconds' "$VOCAB"
+  grep -qF '.nightshift/work-target' "$VOCAB"
+  grep -qF '**state workspace**' "$VOCAB"
+  grep -qF '**doctor**' "$VOCAB"
+  grep -qF 'never repairs' "$VOCAB"
+  grep -qF 'expected commit identity' "$VOCAB"
+  grep -qF 'Hunt consumes them only in repository mode' "$VOCAB"
   grep -qF 'Start refuses to arm' "$DOC"
   grep -qF 'Nightshift never selects the first directory silently' "$DOC"
+}
+
+@test "workspace docs name the headless receipts identity" {
+  grep -qF 'nightshift@localhost' "$DOC"
+  grep -qF 'commit.gpgsign=false' "$DOC"
 }
 
 @test "workspace docs state the link trust boundary" {

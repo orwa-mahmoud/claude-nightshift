@@ -30,7 +30,7 @@ esac
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 
-if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$NS/.ended" ] \
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } \
   || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
   exit 0
 fi
@@ -43,7 +43,7 @@ if command -v jq >/dev/null 2>&1; then
 else
   SID="$(printf '%s' "$INPUT" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
-if [ -f "$NS/.shift-session" ]; then
+if [ -f "$NS/.shift-session" ] && [ ! -L "$NS/.shift-session" ]; then
   REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
   [ -n "$REC" ] && [ "$SID" != "$REC" ] && exit 0
 fi
@@ -66,5 +66,6 @@ else
   REASON="${REASON:-unknown}"
 fi
 
+[ -L "$NS/.session-end" ] && rm -f "$NS/.session-end"
 printf '%s · clean session end (%s)\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$REASON" >"$NS/.session-end"
 exit 0

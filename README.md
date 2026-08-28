@@ -27,10 +27,10 @@ codex plugin marketplace add orwa-mahmoud/nightshift
 codex plugin add nightshift@nightshift
 ```
 
-Use Nightshift with the project you want it to change open in Codex, or with Codex connected to
-its GitHub repository. If invoked from a normal ChatGPT conversation backed by
-`/workspace/scratch/`, setup stops before writing anything and points the user to Codex—the
-scratch files would not affect the repository.
+Use Nightshift with the project you want it to change open in Codex — a Git repository or a
+persistent local folder — or with Codex connected to its GitHub repository. If invoked from a
+normal ChatGPT conversation backed by `/workspace/scratch/`, setup stops before writing anything
+and points the user to Codex—the scratch files would not survive.
 
 The punch-list gate, guards, skills, and crash revival are live-verified on Codex. A killed session
 is resumed into its recorded conversation when `.shift-session` holds a resumable identity; a
@@ -72,6 +72,8 @@ Before leaving any run unattended, use the concise
 | Check status | Ask: **“Show shift status.”** | `/nightshift:status` |
 | Diagnose | Ask Nightshift to diagnose the site | `/nightshift:doctor` |
 | Stop the shift | Ask Nightshift to stop | `/nightshift:stop` |
+| Reset runtime | Ask Nightshift to reset | `/nightshift:reset` |
+| Remove project state | Ask Nightshift to purge this project's Nightshift data | `/nightshift:purge` |
 
 1. Set up Nightshift and accept only the proposed gates you want.
 2. In `.nightshift/punch-list.md`, add one small, concrete task under `## Items`:
@@ -80,13 +82,15 @@ Before leaving any run unattended, use the concise
    - [ ] **1. <clear task title>.**
      - <exactly what must change>
      - Verify: <commands that prove it is done>
-     - Commit: `<type: concise message>`
+     - Commit: `<type: concise message>` (repository) or an artifact receipt (notes folder)
    ```
 
 3. Start the shift.
 4. Check status later. If the site looks wrong, diagnose it first; Doctor reports and never
    repairs.
-5. Review the local commit, then push it yourself.
+5. Review the local commit or `$NS/receipts/` (Doctor names the most recently written file). Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts. Archive copies
+   those files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
+   into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder. Push only if this is a git repository.
 
 If the host task and the workspace holding `.nightshift/` are different folders, use the explicit
 link described under [Workspaces and repositories](docs/how-it-works.md#workspaces-and-repositories);
@@ -170,8 +174,11 @@ Nightshift moves the contract outside the conversation so the list and decisions
   consistent; they are not prerequisites for headless recovery or lease enforcement.
 - **The handoff is inspectable.** Local commits, timestamps, decisions, snags, and recovery events
   remain in plain files.
-- **The owner can always stop it.** Use the host command or `touch .nightshift/STOP`; unfinished
-  boxes remain open.
+- **The owner can always stop it.** Use the host command or
+  `runtime/stop-shift.sh --project /absolute/task/root` (native Windows: `stop-shift.ps1 -Project`)
+  to pause immediately even when the model is stuck. `touch .nightshift/STOP` in the
+  folder that contains `.nightshift/` (not beside `.nightshift-link`) is the panic marker and
+  waits for the next Stop event; unfinished boxes remain open.
 
 Read [How Nightshift works](docs/how-it-works.md) for recovery evidence, host differences,
 workspace layouts, mechanical guarantees, and limits.
@@ -191,7 +198,7 @@ clocks out only once every box is ticked.
 - **Your allowance is about to reset and you have no backlog ready.** Ask Hunt for the product
   evolution shift: it studies the product, its history, user needs, and relevant standards; ranks
   opportunities by evidence, value, effort, reversibility, and risk; then builds the strongest
-  complete improvements on an isolated branch. During a long build, the active opportunity records
+  complete improvements on an isolated branch or in the persistent folder. During a long build, the active opportunity records
   completed work, rejected paths, the exact next action, and verification still due.
 - **The API is failing and you are about to leave.** The watchman keeps checking and resumes the
   recorded conversation when the host can prove it died and the identity is resumable. The
@@ -233,13 +240,15 @@ Named GitHub issues can be copied onto the drafting table with `/nightshift:impo
 URLs or `owner/repo` plus numbers only. Nightshift never searches GitHub and never writes back.
 
 You do not have to invent the night's work. `/nightshift:hunt` reads the catalog and can either let
-you choose the work (**Guided**) or inspect the repository and rank the strongest applicable work
+you choose the work (**Guided**) or inspect the work target and rank the strongest applicable work
 for the time available (**Automatic**). Then choose when execution begins:
 
 | | **Review first** | **Run directly** |
 |---|---|---|
 | **Guided** | Pick one or more shifts, inspect the assembled order, then approve or park it. | Pick the shifts and let Nightshift discover, implement, and verify their work without another pause. |
 | **Automatic** | Set the hours; Nightshift scans and ranks the work, but waits for approval before the clock starts. | Set the hours and leave; Nightshift starts the clock, selects the highest-value applicable work, and keeps shipping until quitting time. |
+
+Copyable owner requests for each cell are in [Shift modes](docs/shift-modes.md).
 
 Every combination becomes one ordered work order, one deadline where required, and one set of
 receipts. Review-first discovery is read-only and arms nothing until approval. Run directly is
@@ -293,6 +302,7 @@ independent of that history. The precise boundaries are in
 - [**Remote environments**](docs/remote-environments.md) — local, Remote SSH, devcontainer, and
   split-runtime evidence.
 - [**First-night safety checklist**](docs/first-night-checklist.md) — what to verify before leaving.
+- [**Shift modes**](docs/shift-modes.md) — copyable Guided/Automatic × Review first/Run directly walkthroughs.
 - [**Command reference**](docs/commands.md) — every command, natural-language Codex equivalents,
   and offline paths that need no session.
 - [**Troubleshooting**](docs/troubleshooting.md) — read-only diagnosis before changing files.
@@ -302,7 +312,8 @@ independent of that history. The precise boundaries are in
 
 ## Before trusting an overnight run
 
-- Run the first shift attended in a trusted or scratch repository.
+- Run the first shift attended in a trusted git repository or a persistent folder — never a
+  disposable ChatGPT scratch workspace.
 - Review first is read-only. Hand-written or already queued work starts at `/nightshift:start`;
   **run directly** from Hunt or Quality is an immediate start order.
 - Configure permissions before leaving. A headless run cannot approve a tool prompt.
@@ -313,10 +324,13 @@ independent of that history. The precise boundaries are in
 - Guards are owner-configured pattern rules, not a security sandbox.
 - Completion beats cost by default: a stuck finite shift is held and flagged rather than silently
   ended. Bound it with a deadline, `NIGHTSHIFT_STALL_MAX`, or both when cost matters more.
-- The stall guard treats ticks and commits as progress, so failed-attempt commits can look alive;
+- The stall guard treats ticks, commits, and artifact receipts as progress, so failed-attempt commits can look alive;
   the item gate and deadline remain the backstop.
-- Stop the shift at any time with the host command, `touch .nightshift/STOP` on POSIX, or
-  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell.
+- Stop the shift at any time with the host command, `runtime/stop-shift.sh --project /absolute/task/root`
+  on POSIX, or `runtime/windows/stop-shift.ps1 -Project` in native Windows PowerShell.
+  `touch .nightshift/STOP` on POSIX, or
+  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell, still writes the
+  panic marker in the folder that contains `.nightshift/`, not beside `.nightshift-link`.
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 

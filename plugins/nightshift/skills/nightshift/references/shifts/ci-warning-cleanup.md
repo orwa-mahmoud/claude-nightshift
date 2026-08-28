@@ -10,9 +10,11 @@ debt).
 Supported wherever the project's own CI or item-gate commands print warnings or deprecations
 (compiler, test runner, bundler, linter in report mode). Skip warnings that exist only on a
 host this repository does not run.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 ```text
 - [ ] **CI warning cleanup — fix repository-owned warnings and deprecations at the cause.**
+  - Never select this entry when work mode is artifact.
   - Discovery: run the project's CI-equivalent or item-gate commands in the configuration this
     repository already uses. Capture the warning/deprecation lines, dedupe against snag-log.md
     (ALL seen — fixed and rejected), and split **repository-owned** (this repo's code, scripts,

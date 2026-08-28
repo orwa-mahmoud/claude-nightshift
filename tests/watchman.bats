@@ -43,6 +43,12 @@ watch() { # watch [extra watchman args...] — fast defaults
 
 calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
 
+recorded_read() {
+  jq -nc --arg sid "$2" \
+    '{tool_name:"Read",session_id:$sid,transcript_path:"",tool_input:{file_path:"README.md"}}' |
+    CLAUDE_PROJECT_DIR="$1" bash "$HOOKS/hardhat.sh"
+}
+
 @test "interval 0 is the disabled spelling: exits at once, arms nothing" {
   run "$WATCHMAN" --project "$P" --interval 0
   [ "$status" -eq 0 ]
@@ -54,6 +60,16 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   run watch --max-wakes 1
   [ "$status" -eq 1 ]
   printf '%s' "$output" | grep -q 'already watching'
+}
+
+@test "a symlink watchman pidfile does not block a new watchman" {
+  printf '%s\n' "$$" >"$P/.nightshift/watchman-plant"
+  ln -s watchman-plant "$P/.nightshift/.watchman"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ ! -L "$P/.nightshift/.watchman" ]
+  [ "$(sed -n 1p "$P/.nightshift/watchman-plant")" = "$$" ]
+  ! printf '%s' "$output" | grep -q 'already watching'
 }
 
 @test "a stop-work order stands it down" {
@@ -77,6 +93,15 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   [ "$status" -eq 0 ]
   grep -q 'the owner closed it' "$P/.nightshift/shift-log.md"
   [ "$(calls)" -eq 0 ]
+}
+
+@test "a symlink session-end marker does not stand the watchman down" {
+  echo 'plant' >"$P/.nightshift/session-end-plant"
+  ln -s session-end-plant "$P/.nightshift/.session-end"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(reason)" != "clean-session-end" ]
+  ! grep -q 'the owner closed it' "$P/.nightshift/shift-log.md"
 }
 
 @test "a quiet site with open boxes is resumed, then clocked out" {
@@ -124,19 +149,75 @@ STUB
 
 @test "all boxes ticked without .ended spawns exactly one clock-out" {
   printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  : >"$P/.nightshift/.shift-armed"
   run watch --agent "bash $BIN/tick.sh" --max-wakes 3
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 1 ]
+  [ -f "$P/.nightshift/.ended" ]
+  [ ! -L "$P/.nightshift/.ended" ]
+  [ ! -f "$P/.nightshift/.shift-armed" ]
+  [ ! -f "$P/.nightshift/.shift-lease" ]
 }
 
-@test "a failed terminal clock-out keeps the watchman retrying with the lease fenced" {
+@test "a failed terminal clock-out stands down after one attempt" {
   printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
-  run watch --agent "bash $BIN/fail.sh" --max-wakes 2
-  [ "$status" -eq 7 ]
-  [ "$(calls)" -eq 2 ]
-  [ -f "$P/.nightshift/.shift-lease" ]
+  printf 'shift-session\n/tmp/t.jsonl\n%s\n\nclaude\n' "$$" >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
   [ ! -f "$P/.nightshift/.ended" ]
-  grep -q 'clock-out returned without releasing' "$P/.nightshift/shift-log.md"
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
+  grep -qF 'clock-out attempt 1/1' "$P/.nightshift/shift-log.md"
+  grep -q 'standing down' "$P/.nightshift/shift-log.md"
+  [ -z "$(sed -n 4p "$P/.nightshift/.shift-lease")" ]
+}
+
+@test "default watchman config cannot loop a failed terminal clock-out" {
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh"
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
+}
+
+@test "a failed terminal clock-out lets the recorded session operate again" {
+  printf '## Items\n- [ ] **1.**\n' >"$P/.nightshift/punch-list.md"
+  printf '%s' "$(( $(date +%s) - 60 ))" >"$P/.nightshift/deadline"
+  : >"$P/.nightshift/.shift-armed"
+  printf 'shift-session\n/tmp/t.jsonl\n%s\n\nclaude\n' "$$" >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  [ -z "$(sed -n 4p "$P/.nightshift/.shift-lease")" ]
+  run recorded_read "$P" shift-session
+  is_allow
+}
+
+@test "failed clock-out with every box ticked cannot loop across wakes" {
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  : >"$P/.nightshift/.shift-armed"
+  printf 'test-shift-session\n/tmp/t.jsonl\n%s\n\nclaude\n' "$$" >"$P/.nightshift/.shift-session"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh"
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  [ ! -f "$P/.nightshift/.ended" ]
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
+  [ -z "$(sed -n 4p "$P/.nightshift/.shift-lease")" ]
+  [ "$(sed -n 1p "$P/.nightshift/.shift-lease")" = "test-shift-session" ]
+  run gate "$P"
+  is_release
+  [ -f "$P/.nightshift/.ended" ]
+}
+
+@test "quitting time with a dead site and a failed clock-out is bounded" {
+  printf '%s' "$(( $(date +%s) - 60 ))" >"$P/.nightshift/deadline"
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  [ ! -f "$P/.nightshift/.ended" ]
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
 }
 
 @test "quitting time with a dead site spawns the clock-out and stands down" {
@@ -153,10 +234,30 @@ STUB
   printf '%s' "$output" | grep -q -- '--interval needs a value'
 }
 
+@test "Windows session-end marker matches POSIX wording" {
+  grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
+  grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  ! grep -qF ' - clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  grep -qF '[ -L "$NS/.session-end" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
+  grep -qF 'Test-NSReparsePoint $sessionEnd' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  grep -qF '[ ! -L "$NS/.shift-session" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
+}
+
 @test "session-end hook writes the marker only during an active shift" {
   p="$(new_project)"
   punch_open "$p"
   printf '{"reason":"exit"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
+}
+
+@test "session-end hook replaces a symlink marker with a regular file" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'plant\n' >"$p/.nightshift/session-end-plant"
+  ln -s session-end-plant "$p/.nightshift/.session-end"
+  printf '{"reason":"exit"}' | CLAUDE_PROJECT_DIR="$p" bash "$SESSION_END"
+  [ -f "$p/.nightshift/.session-end" ]
+  [ ! -L "$p/.nightshift/.session-end" ]
   grep -q 'clean session end (exit)' "$p/.nightshift/.session-end"
 }
 
@@ -889,6 +990,13 @@ reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
   [ "$(reason)" = "wrong-host" ]
 }
 
+@test "a symlink shift-session does not record a foreign host" {
+  printf 'sid\n/tmp/t.jsonl\n99999\nstart\ncodex\n' >"$P/.nightshift/session-plant"
+  ln -s session-plant "$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 1
+  [ "$(reason)" != "wrong-host" ]
+}
+
 @test "Esc standby records esc-standby without transcript content" {
   T="$BATS_TEST_TMPDIR/transcripts"
   mkdir -p "$T"
@@ -956,4 +1064,5 @@ STUB
   run env NIGHTSHIFT_WATCH_SLEEP=0 \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
   [ "$(reason)" = "unreadable-rules" ]
+  printf '%s' "$output" | grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex'
 }

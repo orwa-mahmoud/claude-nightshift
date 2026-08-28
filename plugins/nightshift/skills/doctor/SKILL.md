@@ -1,6 +1,6 @@
 ---
 name: doctor
-description: Read-only Nightshift diagnosis — workspace, rules, markers, session, process lease, watchman, and classified next actions. Use when a shift looks wrong, recovery is unclear, or the owner asks what Nightshift sees. Never repairs by being invoked.
+description: Read-only Nightshift diagnosis — workspace, rules, markers, session, process lease, watchman, deadline, and classified next actions. Use when a shift looks wrong, recovery is unclear, or the owner asks what Nightshift sees. Never repairs by being invoked.
 ---
 
 Diagnose the host-opened project **without changing anything**. Doctor is deeper than status: it
@@ -43,6 +43,10 @@ workspaces; never run it because Doctor was invoked. On native Windows, offer
 instead. Future versions are `[blocked]` — never
 downgrade.
 
+Report `$NS/deadline` as `deadline=none` when the file is missing, remaining seconds when it is a
+UNIX epoch, or a warning when it is not integer seconds. When the deadline path is a symlink, Doctor warns `deadline path is not a usable file` and does not report remaining time. When `.ended` is a symlink, Doctor warns `ended path is not a usable file` and does not report that the gate clocked the shift out. When `.stall` is a symlink, Doctor warns `stall path is not a usable file` and does not report a stall count. When `.session-end` is a symlink, Doctor warns `session-end path is not a usable file` and does not report a clean session-end marker. When `.shift-session` is a symlink, Doctor warns `shift-session path is not a usable file` and does not report a recorded session. When `.watchman` is a symlink, Doctor warns `watchman pidfile path is not a usable file` and does not report a watchman pid. When Doctor warns `terminal clock-out failed without releasing the shift`, say whether the recorded conversation can operate or whether a recovery worker still holds the lease; do not tell the owner to reopen a conversation that would stay blocked. Watchmen compare epoch seconds; do not
+rewrite the file.
+
 ## 1. Run the inspector
 
 ```bash
@@ -56,7 +60,15 @@ On native Windows:
 ```
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions. The script uses the
-same workspace and work-target libraries as the hooks.
+same workspace, work-mode, and work-target libraries as the hooks. The report's `work mode`
+fact is `repository` or `artifact`. When `$NS/work-mode` is missing and Setup would propose artifact, Doctor warns `work mode is unset; Setup would propose artifact` and offers `persist the proposed artifact mode with Setup; Doctor does not write work-mode`. When work-mode is unreadable, Doctor warns `work mode is malformed; treating the site as unusable until Setup rewrites it`. When the work target cannot be resolved, Doctor warns `work target could not be resolved; treating workspace as the code root`. In artifact mode the report also includes
+`artifact receipts N` for files under `$NS/receipts/`. When at least one receipt exists, Doctor
+also reports `latest artifact receipt` with the filename only of the most recently written receipt (no directory path). When ticked
+items exist and the receipts directory is empty, Doctor warns
+`artifact mode has ticked items but no receipts`.
+When `$NS/receipts` exists but is not a usable directory, Doctor warns `artifact receipts path is not a usable directory` and offers `replace the unusable receipts path with a real directory so write-receipt can land; Doctor does not rewrite it`. Doctor does not also warn empty ticks for that path.
+Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Doctor counts.
+Missing or empty receipts create no dated receipts folder.
 
 ## 2. Classify actions — do not execute them
 
@@ -70,7 +82,10 @@ The report tags every suggestion:
  write the parking lot or ask—the Doctor invocation remains byte-identical.
 - `[blocked]` — Nightshift cannot fix this here (non-resumable Codex id, malformed process lease,
  missing host binary, unverified wedge). Say so. Never guess a session id or print/edit a lease
- capability.
+ capability. For a stuck conversation or a fenced recorded session, name
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/stop-shift.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ (native Windows: `stop-shift.ps1 -Project`) — that pauses immediately without waiting for a Stop
+ event. Do not run it from Doctor.
 
 Invoking Doctor alone must leave the tree byte-identical. Never perform a repair merely because
 Doctor was invoked.

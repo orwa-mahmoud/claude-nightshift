@@ -33,12 +33,63 @@ load helpers
   [ ! -f "$p/.nightshift/.shift-armed" ]
 }
 
+@test "clock-out replaces a symlink ended marker with a regular file" {
+  p="$(new_project)"
+  punch_done "$p"
+  printf 'plant\n' >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -L "$p/.nightshift/.ended" ]
+}
+
+@test "morning whistle replaces a symlink notified marker" {
+  p="$(new_project)"
+  punch_done "$p"
+  printf 'plant\n' >"$p/.nightshift/notified-plant"
+  ln -s notified-plant "$p/.nightshift/.notified"
+  wl="$BATS_TEST_TMPDIR/notified-plant.log"
+  run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
+  is_release
+  [ -f "$p/.nightshift/.notified" ]
+  [ ! -L "$p/.nightshift/.notified" ]
+  grep -q 'shift done: 2/2' "$wl"
+  grep -qF 'plant' "$p/.nightshift/notified-plant"
+}
+
 @test "stop-work order releases even with open boxes" {
   p="$(new_project)"
   punch_open "$p"
   : >"$p/.nightshift/STOP"
   run gate "$p"
   is_release
+}
+
+@test "panic STOP releases a leftover recovery nonce" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
+  bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" the-shift claude' \
+    nightshift "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh" "$p" >/dev/null
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-lease" ]
+}
+
+@test "the recorded session can clock out after a restored interactive lease" {
+  p="$(new_project)"
+  punch_done "$p"
+  printf 'test-shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
+  bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" test-shift-session claude; ns_lease_restore_interactive "$2/.nightshift"' \
+    nightshift "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh" "$p"
+  [ -z "$(sed -n 4p "$p/.nightshift/.shift-lease")" ]
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-lease" ]
 }
 
 @test "quitting time releases, writes STOP and a shift-log line" {
@@ -119,6 +170,16 @@ load helpers
   [ ! -f "$p/.nightshift/STOP" ]
 }
 
+@test "a symlink deadline never ends the shift by accident" {
+  p="$(new_project)"
+  punch_open "$p"
+  echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline-plant"
+  ln -s deadline-plant "$p/.nightshift/deadline"
+  run gate "$p"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/STOP" ]
+}
+
 @test "a stalled shift is held by default: block stands, no STOP, warning logged" {
   p="$(new_project)"
   punch_open "$p"
@@ -152,6 +213,23 @@ load helpers
   grep -q 'stalled — auto-ended' "$p/.nightshift/shift-log.md"
 }
 
+@test "a symlink stall does not auto-end the shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=2
+  is_block "$output"
+  fp="$(sed -n 1p "$p/.nightshift/.stall")"
+  printf '%s\n99\n' "$fp" >"$p/.nightshift/stall-plant"
+  rm -f "$p/.nightshift/.stall"
+  ln -s stall-plant "$p/.nightshift/.stall"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=2
+  is_block "$output"
+  [ -f "$p/.nightshift/.stall" ]
+  [ ! -L "$p/.nightshift/.stall" ]
+  [ "$(sed -n 2p "$p/.nightshift/.stall")" = "1" ]
+  [ ! -f "$p/.nightshift/STOP" ]
+}
+
 @test "a ticked box resets the stall counter" {
   p="$(new_project)"
   printf '## Items\n- [ ] **1.**\n- [ ] **2.**\n' >"$p/.nightshift/punch-list.md"
@@ -172,6 +250,37 @@ load helpers
   run gate "$p"
   is_block "$output"
   [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "1" ]
+}
+
+@test "an artifact receipt resets the stall counter" {
+  p="$(new_project art-stall)"
+  printf 'artifact\n' >"$p/.nightshift/work-mode"
+  punch_open "$p"
+  run gate "$p"
+  run gate "$p"
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "2" ]
+  printf 'ok\n' >"$p/note.md"
+  run bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/write-receipt.sh" \
+    --project "$p" --item 'x' --verify 'ok' --output "$p/note.md"
+  [ "$status" -eq 0 ]
+  run gate "$p"
+  is_block "$output"
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "1" ]
+}
+
+@test "a symlink work-mode does not treat receipts as stall progress" {
+  p="$(new_project mode-link-stall)"
+  printf 'artifact\n' >"$p/.nightshift/mode-plant"
+  ln -s mode-plant "$p/.nightshift/work-mode"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=10 NIGHTSHIFT_STALL_WARN=1
+  run gate "$p" NIGHTSHIFT_STALL_MAX=10 NIGHTSHIFT_STALL_WARN=1
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "2" ]
+  mkdir -p "$p/.nightshift/receipts"
+  printf 'planted\n' >"$p/.nightshift/receipts/20260101T000000Z-plant.md"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=10 NIGHTSHIFT_STALL_WARN=1
+  is_block "$output"
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "3" ]
 }
 
 @test "workspace layout: a commit in the repo below still counts as progress" {

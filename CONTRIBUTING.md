@@ -17,6 +17,9 @@ recovery, hook, platform, or public-run work with the relevant files and checks.
   bash 3.2 — no bashisms newer than 3.2, no GNU-only flags (`xargs -d`, `sed -i`
   without a suffix, etc.). Where a GNU tool has no portable equivalent, try it
   and fall back to the BSD form, as the deadline parser does.
+- **PowerShell must stay portable.** Native Windows hooks and helpers run under
+  Windows PowerShell 5.1 and PowerShell 7. Avoid syntax and APIs that exist on
+  only one of those runtimes.
 - **Test both gate outcomes.** If your change touches the stop-gate, include the
   transcript of an actual blocked stop and an actual permitted one in the PR
   description. The tests in `tests/` must pass.
@@ -46,7 +49,10 @@ claude plugin validate . --strict    # manifest + marketplace validation
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
 on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps the system Bash
-3.2 first on `PATH`.
+3.2 first on `PATH`. A `windows-native` job runs `tests/windows/run.ps1` under Windows PowerShell
+5.1 and PowerShell 7. A `remote-ssh` job crosses an ephemeral OpenSSH connection; a `devcontainer`
+job starts the checked-in fixture. Both compare sanitized receipts — they do not load an
+authenticated host session.
 
 ## Releasing
 

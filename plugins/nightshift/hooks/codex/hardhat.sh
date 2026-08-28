@@ -71,7 +71,7 @@ LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 # that is what stands these rules down.
 if ! ns_hardhat_active; then
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
+    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$ENDED" ] && [ ! -L "$ENDED" ]; } \
       || ! ns_lease_nonce_matches "$NS" codex "$LEASE_NONCE" "$LEASE_GENERATION"; then
       deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
     fi
@@ -85,13 +85,20 @@ if ns_hardhat_payload_targets_lease "$TOOL" "$CODEX_RAW" "$LEASE_COMMAND"; then
   deny "BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset."
 fi
 
+if ns_hardhat_is_command_tool "$TOOL"; then
+  NS_PLUGIN_ROOT="$(cd -P "$_here/../.." >/dev/null 2>&1 && pwd -P)" || NS_PLUGIN_ROOT=""
+  if [ -n "$NS_PLUGIN_ROOT" ] && ns_hardhat_trusted_shift_control "$CMD" "$NS_PLUGIN_ROOT" "$PROJECT_DIR"; then
+    exit 0
+  fi
+fi
+
 # Codex offers no interactive process ancestry this hook can vouch for, so the initial pid and
 # start-time lines stay empty. Watchman children carry a unique lease nonce and generation.
 ns_shift_unbound codex hardhat
 own_rc=$?
 [ "$own_rc" -eq 1 ] && exit 0
 [ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   case "$TOOL" in
     Bash | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
       ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
@@ -136,7 +143,7 @@ if ns_hardhat_payload_targets_rules "$TOOL" "$CODEX_RAW" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 if ns_hardhat_payload_targets_control "$TOOL" "$CODEX_RAW" "$CMD"; then
-  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, or work-target, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
+  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
 if [ "$TOOL" = "request_user_input" ] \

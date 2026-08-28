@@ -17,8 +17,9 @@ a second agent runtime.
 - **Network shares and filesystems without Windows ACLs or hard links are unsupported for an
   active shift.** Atomic session claims and private lease files fail closed there.
 
-Installing Git for Windows is optional for Claude Code itself, but Nightshift's work-target,
-commit, and receipt behavior requires native Git. If Git Bash is installed, Claude Code may choose
+Installing Git for Windows is optional for Claude Code itself. Repository mode's work-target,
+commit, and local receipts-repository snapshot require native Git. Artifact mode records
+completion receipts without a work-target commit. If Git Bash is installed, Claude Code may choose
 it as the hook shell. The bundled launcher is written to detect Windows and transfer the hook to
 PowerShell. That Git Bash transfer is not yet a CI-verified claim; prefer a native PowerShell host
 session until it is.
@@ -27,8 +28,9 @@ session until it is.
 
 The native path uses the same on-disk contract and marker names as macOS and Linux:
 
-- setup copies only absent templates, writes `state-version`, records the selected Git work
-  target, and can create the optional local-only receipts repository;
+- setup copies only absent templates, writes `state-version`, records work-mode and the selected
+  work target (a Git repository or a persistent folder), and can create the optional local-only
+  receipts repository;
 - PreToolUse binds one session, creates and enforces the process lease, protects `rules.json` and
   lease state, applies exact `toolDeny` keys, and enforces configured command and commit guards;
 - Stop honors `STOP` first, releases completed or expired shifts, records stalls, commits optional
@@ -58,13 +60,33 @@ The mechanical scaffold is also available without a model turn:
 
 ```powershell
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\setup.ps1" `
-  -Project (Get-Location) -WorkTarget C:\path\to\repository
+  -Project (Get-Location) -WorkTarget C:\path\to\repository -Mode repository
 ```
 
 Setup still asks before choosing gates, changing project permissions, migrating legacy state, or
 creating a receipts repository. The script itself asks nothing.
 
-The panic stop from a project terminal is:
+When the opened folder is not the Nightshift workspace, the same plugin-root helper writes the
+explicit link after the owner confirms both absolute paths:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\link-workspace.ps1" `
+  -HostRoot C:\path\to\task -Workspace C:\path\to\workspace
+```
+
+The immediate pause from any folder, with an explicit project path, is:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\stop-shift.ps1" `
+  -Project C:\path\to\task
+```
+
+Reset drops the deadline afterward (`reset-shift.ps1`). Purge deletes only that project's
+`.nightshift/` after `-ConfirmPath` matches the canonical directory
+(`purge-workspace.ps1`). None of them uninstall the plugin.
+
+The panic stop from the Nightshift workspace — the folder that contains `.nightshift/`,
+not a linked task root — waits for the next Stop event:
 
 ```powershell
 New-Item -ItemType File -Force .nightshift\STOP
@@ -79,13 +101,18 @@ Generate and inspect a task without registering it:
   -Project C:\path\to\workspace -Preflight
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
   -Project C:\path\to\workspace -At 04:05
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+  -Project C:\path\to\workspace -List
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+  -Project C:\path\to\workspace -Remove
 ```
 
 The generator prints one PowerShell registration command and the complete XML. The action invokes
 `powershell.exe` with an encoded command, preserves paths containing spaces, writes output to
 `.nightshift\scheduled.log`, and registers nothing itself. The deterministic `Nightshift-*` task
 name lives in Task Scheduler's existing root folder, so first registration needs no separate folder
-creation.
+creation. Preflight also fails `work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm` when the mode file is missing and Setup would propose artifact.
+It also fails `work target could not be resolved - a scheduled start will refuse to arm` when the recorded work target cannot be read.
 
 The generated task uses the current user's interactive token. It can start a missed run when that
 user is next logged in, but it does not wake or power on the machine and does not survive a logout
@@ -95,14 +122,34 @@ Windows trust boundary is intentional.
 ## Doctor and other helpers
 
 The same plugin-root PowerShell helpers cover Doctor, archive retention, import-issues, rule
-profiles, and a local support bundle:
+profiles, a local support bundle, and artifact-mode completion receipts:
 
 ```powershell
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\doctor.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project C:\path\to\workspace
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\retain-history.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project C:\path\to\workspace -ListProposed
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project C:\path\to\workspace -List
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\export-support.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\write-receipt.ps1" -Project C:\path\to\workspace -Item 'title' -Verify 'checks' -Output C:\path\to\file.md
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1" -Project C:\path\to\workspace
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\check-report.ps1" -Project C:\path\to\workspace -Report C:\path\to\report.md -Manifest C:\path\to\sources.tsv -Output C:\path\to\report.md
 ```
+
+Missing or empty receipts create no dated receipts folder.
+
+In artifact mode Doctor reports `artifact receipts N` and, when any exist, `latest artifact receipt`
+with the filename only of the most recently written receipt. It warns `artifact mode has ticked items but no receipts` when ticks exist
+without a receipt; write the receipt with `write-receipt.ps1` rather than a work-target commit.
+It warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts.
+Automatic Hunt and Quality skip quality-debt entries the folder cannot support.
+The GitHub issue hunt is skipped in artifact mode.
+The defect hunt is skipped in artifact mode.
+Documentation drift is skipped in artifact mode.
+TODO and FIXME debt is skipped in artifact mode.
+Coverage hunt is skipped in artifact mode.
+Tooling quality-debt entries are skipped in artifact mode.
+Do not `git init` a notes folder.
 
 ## Process evidence and recovery
 
@@ -124,9 +171,15 @@ thread to inspect or interact with it; the process lease already fences stale ob
 PowerShell parses `rules.json` exactly with `ConvertFrom-Json`. `forbiddenCommands` and
 `neverCommitPatterns` run through .NET regular expressions. Nightshift translates the common POSIX
 classes used by existing rules (`[[:space:]]`, `[[:digit:]]`, `[[:alnum:]]`, and related classes)
-and fails closed on any class it cannot map. `neverCommitPatterns` is case-insensitive, matching
+and fails closed on any class it cannot map. An invalid command or commit pattern fails closed
+and names `NIGHTSHIFT_FORBIDDEN_COMMANDS` or `NIGHTSHIFT_NEVER_COMMIT_PATTERNS`; fix it in
+session settings. `neverCommitPatterns` is case-insensitive, matching
 the POSIX `grep -qiE` guard. Implicitly staging commits (`-a`, `--all`, or a pathspec after `--`)
-inspect `git diff HEAD`, the same content those commits would write.
+inspect `git diff HEAD`, the same content those commits would write. `expectedEmail` compares
+`git config user.email` in the target repository. A command-line override (`-c user.email=`,
+`--author`, `GIT_AUTHOR_EMAIL`, or `$env:GIT_AUTHOR_EMAIL`) is denied because the guard cannot
+verify it. `protectedDirs` matches the paths Git would write; backslashes in those Git paths are
+normalized to `/` before comparing.
 
 Session and lease files are written in one directory, claimed atomically, and protected with a
 non-inherited ACL for the current user and Local System before capability content is written.
@@ -145,7 +198,8 @@ PowerShell 7. It uses local host fixtures—no account or model subscription—t
 
 - setup and paths containing spaces;
 - workspace links and persisted work targets;
-- Doctor, migrate-state, retain-history, apply-profile, and export-support helpers;
+- Doctor, migrate-state, retain-history, import-issues, apply-profile, and export-support helpers;
+- artifact-mode write-receipt and archive-receipts helpers;
 - PID/start-time evidence;
 - atomic session and lease ownership;
 - command, rules-file, and lease-file denials;

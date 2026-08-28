@@ -4,11 +4,16 @@ Everything is named after construction-site work — learn one term, guess the r
 
 | Term | File / mechanism | Meaning |
 |---|---|---|
-| **punch list** | `.nightshift/punch-list.md` | construction's final acceptance list — the job isn't done until every item is cleared and signed off |
+| **punch list** | `.nightshift/punch-list.md` | construction's final acceptance list — the job isn't done until every item is cleared and signed off; the Shift contract above Items survives Archive and binds the next cut |
+| **state workspace** | `.nightshift/` | the folder that owns run state — punch list, rules, receipts; may sit beside or above the work target |
+| **work target** | `.nightshift/work-target` | the folder that receives inspection and verification — a Git repository in repository mode, a persistent non-Git folder in artifact mode |
+| **work mode** | `.nightshift/work-mode` | `repository` or `artifact`; missing means repository |
 | **clock-out gate** | Stop hook + `.shift-armed` | the bound session can't clock out while the armed punch list has open Items |
-| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns; denied, not discouraged |
+| **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns, and expected commit identity; denied, not discouraged |
 | **process lease** | `.nightshift/.shift-lease` | transient ownership of the active shift process — each watchman recovery advances its generation, admitting the recovered worker and fencing stale processes on the same conversation without locking other tabs |
-| **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit |
+| **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit or artifact receipt |
+| **artifact receipt** | `.nightshift/receipts/` | durable completion record in artifact mode — item, outputs, verification, identity hashes; replaces a work-target commit. A path that is not a usable directory is a refuse, not an empty night. |
+| **archive** | `.nightshift/archive/<YYYY-MM-DD>/` | dated filing of shipped items, the journal, handled snags, and copied artifact receipts; live receipts stay in `.nightshift/receipts/`. Missing or empty receipts create no dated receipts folder. |
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
 | **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
 | **hunt** | Nightshift Hunt | writes a ready-made walkthrough as a work order; cuts it into the punch list only on your word |
@@ -19,9 +24,10 @@ Everything is named after construction-site work — learn one term, guess the r
 | **parking lot** | `.nightshift/parking-lot.md` | decisions for the human — parked with a default chosen, the run continues |
 | **park, don't ask** | `toolDeny` question entries | during a shift the host's ask tool is denied with the configured message — the question is parked with a default chosen; an empty native entry allows ask-and-wait instead |
 | **quality survey** | Nightshift Quality | the optional debt audit — review findings first or choose a direct run that fixes them |
+| **doctor** | `/nightshift:doctor` | read-only diagnosis — facts, warnings, classified next actions; invoking it never repairs |
 | **drafting table** | `.nightshift/drafting-table.md` | where items are drawn before they're contracted |
-| **issue import** | Nightshift Import issues | copies selected GitHub issues onto the drafting table as quoted source; never searches, never writes back to GitHub |
-| **quitting time** | `.nightshift/deadline` | past the deadline, the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
+| **issue import** | Nightshift Import issues | copies selected GitHub issues onto the drafting table as quoted source; never searches, never writes back to GitHub; Hunt consumes them only in repository mode |
+| **quitting time** | `.nightshift/deadline` | UNIX epoch seconds; past that instant the next stop attempt clocks the shift out and starts nothing new — a whistle, not an axe: it bounds the night without killing work mid-item |
 | **red-tag** | stall guard | a stuck run is flagged in the shift log and held open by default; `NIGHTSHIFT_STALL_MAX=N` clocks it out after N stuck attempts instead |
 | **stop-work order** | `.nightshift/STOP` | Nightshift Stop — or the platform-native terminal command that creates this file — ends the shift at the agent's next stop attempt; the site rules stay armed until it actually stops |
 | **morning whistle** | `NIGHTSHIFT_NOTIFY_CMD` | optional shift-end ping (ntfy / Pushover / `say`) |

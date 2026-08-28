@@ -5,6 +5,7 @@ that the current code and tests define from comments that require an owner's pro
 
 Supported on repositories where these markers live in tracked, human-authored source or tests.
 Generated files, vendored code, dependencies, build output, and archived receipts are excluded.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make markers commitable.
 
 ```text
 - [ ] **TODO and FIXME debt — resolve actionable comments and stage ambiguous decisions.**
@@ -12,6 +13,7 @@ Generated files, vendored code, dependencies, build output, and archived receipt
     markers. Exclude generated, vendored, dependency, build, and archive paths. Dedupe against
     snag-log.md (ALL seen — fixed and rejected), then inventory the marker, path, and nearby
     contract for each finding.
+  - Never select this entry when work mode is artifact.
   - Classify each finding before editing. Actionable means existing behaviour, tests, issue links,
     or an explicit comment defines the required result. Ambiguous means product intent, UX,
     compatibility, or scope still needs an owner decision.

@@ -7,6 +7,9 @@ CODEX_HOOKS="$HOOKS/codex"
   grep -qF 'shared/gate-core.sh' "$HOOKS/clock-out-gate.sh"
   grep -qF '../shared/gate-core.sh' "$HOOKS/codex/clock-out-gate.sh"
   [ -f "$HOOKS/shared/gate-core.sh" ]
+  grep -qF 'ns_gate_progress_token' "$HOOKS/shared/gate-core.sh"
+  grep -qF 'ns_gate_progress_token' "$HOOKS/clock-out-gate.sh"
+  grep -qF 'ns_gate_progress_token' "$HOOKS/codex/clock-out-gate.sh"
 }
 
 @test "both hardhat wrappers source one shared active-shift core" {
@@ -19,7 +22,7 @@ CODEX_HOOKS="$HOOKS/codex"
 @test "command, tool-deny, and scrub decisions live in the shared core" {
   for fn in ns_hardhat_command_reason ns_hardhat_tool_deny_reason \
     ns_hardhat_required_tool_deny_reason ns_hardhat_scrub ns_hardhat_rules_has \
-    ns_hardhat_is_command_tool; do
+    ns_hardhat_is_command_tool ns_hardhat_trusted_shift_control; do
     grep -qF "$fn" "$HOOKS/shared/hardhat-core.sh" || { echo "missing $fn"; return 1; }
   done
   grep -qF 'ns_hardhat_command_reason' "$HOOKS/hardhat.sh"

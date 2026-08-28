@@ -1,6 +1,7 @@
 # Portable PowerShell probe for Windows hardhat command guards.
 # Run on macOS or Windows before pushing: pwsh -File tests/windows/hardhat-logic.ps1
-# It does not replace windows-native CI (ACLs, mutexes, dispatchers).
+# It does not replace windows-native CI (ACLs, mutexes, dispatchers), and Windows CI
+# also runs it via tests/windows/run.ps1.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
@@ -64,19 +65,34 @@ try {
         -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
     Expect-True ($addDeleted -match 'protected directory') "git add -A deletion: $addDeleted"
 
+    $gitDirAdd = Get-NSCommandDenyReason -Command 'git --git-dir=C:\elsewhere\.git add x' `
+        -Scrubbed 'git --git-dir=C:\elsewhere\.git add x' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories 'ai_docs' `
+        -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($gitDirAdd -match 'protected-directory guard cannot verify') "git-dir add: $gitDirAdd"
+
+    $workTreeCommit = Get-NSCommandDenyReason -Command 'git --work-tree=C:\elsewhere commit -am x' `
+        -Scrubbed 'git --work-tree=C:\elsewhere commit -am MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories 'ai_docs' `
+        -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($workTreeCommit -match 'protected-directory guard cannot verify') "work-tree commit: $workTreeCommit"
+
+    [IO.File]::WriteAllText((Join-Path $root 'secret.txt'), "placeholder`n")
+    $null = & git add -- secret.txt
+    $null = & git commit --quiet -m secret-seed
     [IO.File]::WriteAllText((Join-Path $root 'secret.txt'), "SECRET_KEY=abc`n")
     $null = & git add -- secret.txt
     $commitStaged = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
-    Expect-True ($commitStaged -match 'neverCommitPatterns') "staged never-commit: $commitStaged"
+    Expect-True ($commitStaged -match 'never-commit pattern') "staged never-commit: $commitStaged"
 
     $null = & git reset --quiet HEAD -- secret.txt
     $commitAm = Get-NSCommandDenyReason -Command 'git commit -am x' -Scrubbed 'git commit -am MSG' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
     Expect-True ($commitAm -notmatch 'cannot verify') "git commit -am is modeled: $commitAm"
-    Expect-True ($commitAm -match 'neverCommitPatterns') "git commit -am never-commit: $commitAm"
+    Expect-True ($commitAm -match 'never-commit pattern') "git commit -am never-commit: $commitAm"
 
     Remove-Item -LiteralPath (Join-Path $root 'secret.txt') -Force
     $commitClean = Get-NSCommandDenyReason -Command 'git commit -am x' -Scrubbed 'git commit -am MSG' `
@@ -87,7 +103,49 @@ try {
     $push = Get-NSCommandDenyReason -Command 'git push origin HEAD' -Scrubbed 'git push origin HEAD' `
         -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
         -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands 'git .*push'
-    Expect-True ($push -match 'forbidden') "forbidden push: $push"
+    Expect-True ($push -match 'forbidden list') "forbidden push: $push"
+    Expect-True ($push -match 'parking-lot.md') "forbidden push names parking lot: $push"
+
+    $badForbidden = Get-NSCommandDenyReason -Command 'git status' -Scrubbed 'git status' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands '[[:punct:]]'
+    Expect-True ($badForbidden -match 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression') `
+        "invalid forbidden pattern: $badForbidden"
+    Expect-True ($badForbidden -match 'Fix the pattern in your session settings') `
+        "invalid forbidden pattern names session settings: $badForbidden"
+
+    $wrongEmail = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'owner@nope.io' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($wrongEmail -match "committer identity \('dev@example.com'\) is not the expected 'owner@nope.io'") `
+        "wrong expectedEmail: $wrongEmail"
+    Expect-True ($wrongEmail -match 'Fix git config user.email') "wrong expectedEmail names git config: $wrongEmail"
+
+    $rightEmail = Get-NSCommandDenyReason -Command 'git commit -m x' -Scrubbed 'git commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ([string]::IsNullOrWhiteSpace($rightEmail)) "expected identity is allowed: $rightEmail"
+
+    $overrideEmail = Get-NSCommandDenyReason -Command 'git -c user.email=other@example.com commit -m x' `
+        -Scrubbed 'git -c user.email=other@example.com commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($overrideEmail -match "repository's configured identity") `
+        "command-line identity override: $overrideEmail"
+
+    $gitDirCommit = Get-NSCommandDenyReason -Command 'git --git-dir=C:\elsewhere\.git commit -m x' `
+        -Scrubbed 'git --git-dir=C:\elsewhere\.git commit -m MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail 'dev@example.com' -NeverCommitPatterns '' -ForbiddenCommands ''
+    Expect-True ($gitDirCommit -match 'configured commit guards cannot verify') `
+        "git-dir commit under expectedEmail: $gitDirCommit"
+
+    $workTreeNever = Get-NSCommandDenyReason -Command 'git --work-tree=C:\elsewhere commit -am x' `
+        -Scrubbed 'git --work-tree=C:\elsewhere commit -am MSG' `
+        -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+        -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
+    Expect-True ($workTreeNever -match 'configured commit guards cannot verify') `
+        "work-tree commit under never-commit: $workTreeNever"
 }
 finally {
     Set-Location $repository

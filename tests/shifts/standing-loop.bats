@@ -1,4 +1,5 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/standing-loop.md"
+T="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/product-research-template.md"
 
 @test "product evolution ends only at the deadline, never by convergence" {
   grep -qi 'deadline is the ONLY thing' "$E"
@@ -15,12 +16,19 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'dated source' "$E"
   grep -qi 'private code' "$E"
   grep -qi "copy a competitor's" "$E"
+  grep -qi 'work-target evidence' "$E"
+  grep -qi 'work-target evidence' "$T"
 }
 
 @test "product evolution permits substantial work without external publication" {
   grep -qi 'substantial' "$E"
   grep -qi 'push, open a PR, deploy, publish' "$E"
   grep -qi 'dedicated nightshift branch' "$E"
+  grep -qF 'nightshift/<short-purpose>-<YYYY-MM-DD>' "$E"
+  grep -qF 'isolated-branch' "$E"
+  grep -qF 'do not `git init` the folder' "$E"
+  grep -qi 'artifact receipt' "$E"
+  grep -qF '$NS/receipts/' "$E"
 }
 
 @test "product evolution leaves an evidence-backed morning handoff" {

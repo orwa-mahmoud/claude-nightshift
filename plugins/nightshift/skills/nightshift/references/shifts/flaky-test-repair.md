@@ -7,9 +7,11 @@ causes, and leaves an evidence-backed record when the failure cannot be reproduc
 Use only when the project already has a test command and evidence of instability: repeated local
 failure, CI history, or a named suspect test. Supported on any stack whose existing test runner can
 repeat a test or suite. Do not add a new flake service or test framework.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 ```text
 - [ ] **Flaky-test repair — reproduce unstable tests and fix their demonstrated causes.**
+  - Never select this entry when work mode is artifact.
   - Discovery: collect tests with existing flake evidence from CI logs, failure artifacts, or an
     owner-provided list. Dedupe against snag-log.md (ALL seen — fixed and rejected). Before work,
     declare a repetition budget for each suspect using the project's existing runner.

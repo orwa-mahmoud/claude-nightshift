@@ -15,6 +15,34 @@ $ErrorActionPreference = 'Stop'
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
+# 0 ok  -  1 unusable receipts path  -  2 malformed work-mode  -  3 unset artifact proposal
+function Test-NSScheduleArtifactReceipts {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    try {
+        $mode = Get-NSWorkMode $Workspace
+    }
+    catch {
+        return 2
+    }
+    $modeRecord = Join-Path $Workspace '.nightshift/work-mode'
+    if (-not (Test-Path -LiteralPath $modeRecord -PathType Leaf)) {
+        try {
+            if ((Get-NSProposedWorkMode $Workspace) -eq 'artifact') {
+                return 3
+            }
+        }
+        catch {
+        }
+    }
+    if ($mode -eq 'artifact') {
+        $recv = Get-NSReceiptsDir $Workspace
+        if ((Test-NSPathEntry $recv) -and -not (Test-NSUsableReceiptsDir $Workspace)) {
+            return 1
+        }
+    }
+    return 0
+}
+
 function Escape-NSSingleQuoted {
     param([Parameter(Mandatory = $true)][string]$Value)
     return $Value.Replace("'", "''")
@@ -52,7 +80,7 @@ $hostPath = Resolve-NSCanonicalPath $Project
 $workspace = Resolve-NSWorkspaceRoot $hostPath
 $ns = Join-Path $workspace '.nightshift'
 if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
-    throw "schedule: no .nightshift at $workspace - run Setup first"
+    throw "schedule: no .nightshift at $workspace - run Setup first (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
 }
 $stateKind = Get-NSStateKind $workspace
 if ($stateKind -in @('malformed', 'future')) {
@@ -181,6 +209,21 @@ if ($Preflight) {
     }
     catch {
         'Work:      unresolved (workspace itself will be the working directory)'
+        $failures.Add('work target could not be resolved')
+        'FAIL work target could not be resolved - a scheduled start will refuse to arm'
+    }
+    $recvRc = Test-NSScheduleArtifactReceipts $workspace
+    if ($recvRc -eq 1) {
+        $failures.Add('artifact receipts path is not a usable directory')
+        'FAIL artifact receipts path is not a usable directory - a scheduled start will refuse to arm'
+    }
+    elseif ($recvRc -eq 2) {
+        $failures.Add('work-mode is malformed')
+        'FAIL work-mode is malformed'
+    }
+    elseif ($recvRc -eq 3) {
+        $failures.Add('work mode is unset; Setup would propose artifact')
+        'FAIL work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
     }
     $rules = Get-NSRulesObject $workspace
     if ($null -eq $rules) {
@@ -195,12 +238,37 @@ if ($Preflight) {
         }
         else {
             "OK   rules.json (watchMinutes $watch)"
+            if ([int]$watch -gt 0) {
+                $retrySpacing = Get-NSRule $workspace 'watchRetrySeconds' ([string]$env:NIGHTSHIFT_WATCH_RETRY)
+                $revivalPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'revivalPrompt' ([string]$env:NIGHTSHIFT_REVIVAL_PROMPT))
+                $freshPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'freshRevivalPrompt' ([string]$env:NIGHTSHIFT_FRESH_PROMPT))
+                if ([string]::IsNullOrEmpty($retrySpacing)) {
+                    $failures.Add('watchRetrySeconds is empty')
+                    'FAIL watchRetrySeconds is empty - watchman will refuse to arm'
+                }
+                if ([string]::IsNullOrEmpty($revivalPrompt)) {
+                    $failures.Add('revivalPrompt is empty')
+                    'FAIL revivalPrompt is empty - watchman will refuse to arm'
+                }
+                if ([string]::IsNullOrEmpty($freshPrompt)) {
+                    $failures.Add('freshRevivalPrompt is empty')
+                    'FAIL freshRevivalPrompt is empty - watchman will refuse to arm'
+                }
+            }
         }
     }
     $counts = Get-NSBoxCounts (Join-Path $ns 'punch-list.md')
     if ($counts.Open -eq 0) {
         $failures.Add('punch list has no open items')
         'FAIL punch list has no open items - a scheduled start promotes nothing'
+        $orders = Get-NSOpenBoxesInFile (Join-Path $ns 'work-orders.md')
+        if ($orders -gt 0) {
+            "NOTE $orders parked Hunt work order(s) - start will not promote them"
+        }
+        $drafts = Get-NSOpenDrafts (Join-Path $ns 'drafting-table.md')
+        if ($drafts -gt 0) {
+            "NOTE $drafts drafting-table item(s) - start will not promote them"
+        }
     }
     else {
         "OK   punch list has $($counts.Open) open item(s)"
@@ -285,6 +353,23 @@ if ($null -ne (Get-NSTask $taskName)) {
     exit 3
 }
 
+$recvRc = Test-NSScheduleArtifactReceipts $workspace
+if ($recvRc -eq 1) {
+    throw 'schedule: artifact receipts path is not a usable directory - a scheduled start will refuse to arm'
+}
+if ($recvRc -eq 2) {
+    throw 'schedule: work-mode is malformed'
+}
+if ($recvRc -eq 3) {
+    throw 'schedule: work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
+}
+try {
+    $null = Resolve-NSWorkTarget $workspace
+}
+catch {
+    throw 'schedule: work target could not be resolved - a scheduled start will refuse to arm'
+}
+
 if ($AsJson) {
     [pscustomobject]@{
         project = $workspace
@@ -297,6 +382,21 @@ if ($AsJson) {
         log = $log
     } | ConvertTo-Json -Depth 5
     exit 0
+}
+
+$counts = Get-NSBoxCounts (Join-Path $ns 'punch-list.md')
+if ($counts.Open -eq 0) {
+    'Note: the punch list has no open items. A scheduled start works the list it finds and'
+    "promotes nothing, so queue the work before $timeText or the run will find nothing to do."
+    $orders = Get-NSOpenBoxesInFile (Join-Path $ns 'work-orders.md')
+    if ($orders -gt 0) {
+        "Parked Hunt work orders: $orders (start will not promote them)."
+    }
+    $drafts = Get-NSOpenDrafts (Join-Path $ns 'drafting-table.md')
+    if ($drafts -gt 0) {
+        "Drafting-table items: $drafts (start will not promote them)."
+    }
+    ''
 }
 
 "Scheduled start for $workspace at $timeText"

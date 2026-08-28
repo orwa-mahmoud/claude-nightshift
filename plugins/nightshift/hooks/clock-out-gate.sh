@@ -8,7 +8,7 @@
 #   4. otherwise       — block, re-injecting the contract
 #
 # Stall guard: consecutive stop attempts with no progress are counted (progress = a tick or a
-# commit). By default a stalled shift is HELD — every 3 stuck attempts a stall warning lands
+# commit in repository mode, or a tick or an artifact receipt in artifact mode). By default a stalled shift is HELD — every 3 stuck attempts a stall warning lands
 # in the shift log and the gate keeps blocking; only STOP, done, or the deadline release.
 # Owner opt-in: stallMax N in the rules file auto-ends the shift (write STOP, log, release)
 # after N stuck attempts — the file is guarded during a shift, so only a human chooses that.
@@ -81,17 +81,16 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 open_boxes() { ns_gate_open_boxes; }
 ticked_boxes() { ns_gate_ticked_boxes; }
 
-# The code repo is what makes a commit visible as progress, and the recommended layout puts it
-# one level below the project dir rather than at it. Where several repos sit there, no single
-# HEAD describes the shift — so fingerprint all of them, and a commit in any one still counts.
-project_head() { ns_gate_project_head; }
-
+# Stall progress is a tick plus either work-target HEAD (repository mode) or the artifact
+# receipts fingerprint (artifact mode). ns_gate_progress_token chooses.
 deadline_passed() { ns_gate_deadline_passed; }
 
 # Morning whistle — fires at most once per shift; $1 is the summary line.
 whistle() {
   [ -n "$NOTIFY" ] || return 0
   # Exclusive create: of two sessions releasing at once, exactly one owns the whistle.
+  # A planted symlink is not a prior notify — replace it rather than follow it.
+  [ -L "$NOTIFIED" ] && rm -f "$NOTIFIED"
   (set -C; : >"$NOTIFIED") 2>/dev/null || return 0
   NIGHTSHIFT_SUMMARY="$1" sh -c "$NOTIFY" nightshift "$1" >/dev/null 2>&1 || true
 }
@@ -121,7 +120,10 @@ release_lease() {
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
 end_shift() {
-  [ -d "$NS" ] && : >"$ENDED"
+  if [ -d "$NS" ]; then
+    [ -L "$ENDED" ] && rm -f "$ENDED"
+    : >"$ENDED"
+  fi
   # The shift is over, so the site stops being on shift: without this the guards would still apply
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
@@ -173,7 +175,7 @@ if [ "$own_rc" -eq 2 ]; then
   printf '{"decision":"block","reason":"%s"}\n' "$(printf '%s' "$NS_SHIFT_FAIL" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
   exit 0
 fi
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" "$(ns_claude_session_host "${TPATH:-}")" || true
 fi
 ns_shift_ownership claude "$CURRENT_PID" "$CURRENT_START" gate
@@ -216,14 +218,14 @@ if [ -f "$DEADLINE" ] && deadline_passed; then
 fi
 
 # Stall guard — consecutive stop attempts with no progress. Progress = a box ticked OR a
-# commit landed, captured in the fingerprint; either resets the counter. Held by default:
+# commit (repository) / artifact receipt (artifact mode), captured in the fingerprint; either resets the counter. Held by default:
 # warn in the shift log every STALL_WARN stuck attempts and keep blocking. Auto-end only on
 # the owner's NIGHTSHIFT_STALL_MAX=N opt-in.
 if [ "$STALL_OK" -eq 1 ]; then
-  FP="$TICKED:$(project_head)"
+  FP="$TICKED:$(ns_gate_progress_token)"
   prev_fp=""
   prev_n=0
-  if [ -f "$STALL" ]; then
+  if [ -f "$STALL" ] && [ ! -L "$STALL" ]; then
     prev_fp="$(sed -n '1p' "$STALL")"
     prev_n="$(sed -n '2p' "$STALL")"
     prev_n="${prev_n:-0}"
@@ -244,6 +246,7 @@ if [ "$STALL_OK" -eq 1 ]; then
     log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
     attempts=0
   fi
+  [ -L "$STALL" ] && rm -f "$STALL"
   printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 else
   log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"

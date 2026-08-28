@@ -38,7 +38,13 @@ not activate hooks: Start, or a Hunt or Quality path that starts immediately, cr
 `.shift-armed` after preflight. The clock-out gate and owner rules are active only while that marker
 exists, open Items remain, and the shift has not ended.
 
-Immediately after arming, Start makes a harmless host-shell probe—Bash on POSIX, PowerShell on
+Archive files ticked items and never resets the leftover Shift contract or Gates. An empty
+`## Items` section still binds the next Hunt or Start cut — review those sections before
+composing a new campaign. Status and Doctor report the leftover; Archive writes a Notes reminder
+when a campaign is fully filed.
+
+Immediately after arming, Start — and Hunt or Quality when they start immediately — make a
+harmless host-shell probe—Bash on POSIX, PowerShell on
 native Windows—that records `.shift-session` before item work and creates `.shift-lease` for that
 process. Passive reads, searches, and MCP calls cannot
 make that first claim. The complete session record appears atomically; if two Start probes race,
@@ -72,6 +78,8 @@ an owner-specific denylist that host permissions alone do not express.
 
 Hooks enforce command and stop boundaries. They do not prove that the work behind a checked box is
 good. Verification belongs in each item's gate, and a human still reviews the resulting commits.
+Doctor (`/nightshift:doctor` on Claude Code, or ask Nightshift to diagnose on Codex) prints what
+Nightshift resolved — facts, warnings, and classified next actions — and never repairs.
 
 ## Questions, stalls, and deadlines
 
@@ -92,13 +100,16 @@ for morning review; publishing, destructive changes, and owner policy remain out
 explicitly authorized.
 
 Review-first Hunt and Quality runs scan or draft only and arm nothing until the owner approves.
+Copyable owner requests for each combination are in [Shift modes](shift-modes.md).
 Run-direct paths perform the same Start preflight before arming.
 
 A no-progress stop attempt is logged as a stall while the finite contract remains open. Owners who
-prefer a hard retry cap can set `NIGHTSHIFT_STALL_MAX=N`. Open-ended shifts require a deadline;
-Start refuses to arm one without it. Finite shifts may also use one as a cap.
+prefer a hard retry cap can set `NIGHTSHIFT_STALL_MAX=N`. Open-ended shifts require a deadline
+in `.nightshift/deadline` as UNIX epoch seconds; Start refuses to arm one without it. Finite
+shifts may also use one as a cap.
 
-The stall guard reads checked items and commits as progress. A deadline is therefore the final
+The stall guard reads checked items and commits as progress in repository mode, and checked
+items and artifact receipts in artifact mode. A deadline is therefore the final
 cost boundary when failed attempts could otherwise keep producing commits. Without a deadline or
 stall cap, a finite shift can remain held and retry until the owner intervenes.
 
@@ -111,7 +122,7 @@ periodically. The default cadence is ten minutes and is owner-configurable.
 Both watchmen act only on a shift recorded for their own host and require positive evidence before
 reviving a dead session. When a resumable identity exists, they target that conversation first;
 the host-specific continuation and fresh-session fallbacks below cover failed resume attempts or a
-missing identity. They never revive merely because a repository “looks stuck”: builds, syncs, logs,
+missing identity. They never revive merely because a workspace “looks stuck”: builds, syncs, logs,
 and all other project-file activity do not vote on session life. They stand down for a completed
 shift, a stop-work order, quitting time, or a shift owned by the other host.
 
@@ -209,7 +220,25 @@ Claude session exit is different: it tells the watchman to stand down until Star
 headless run has no Escape. On Claude Code, Escape in the shift transcript also tells the watchman
 to stand by. Codex exposes no equivalent owner-interrupt signal; closing an interactive Codex
 session with open Items leaves the armed shift to its watchman. To end the shift itself on either
-host, use the host command or create the portable stop-work order:
+host, use the host Stop command or the terminal helper in the folder you opened:
+
+```bash
+plugins/nightshift/runtime/stop-shift.sh --project /absolute/task/root
+```
+
+Native Windows PowerShell:
+
+```powershell
+plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
+```
+
+That writes `STOP`, kills only a verified watchman, removes `.shift-armed`, and releases the
+lease immediately. Hooks stay installed and become inert. The deadline and punch list stay. Reset
+(`reset-shift.sh` / `reset-shift.ps1`) also drops the deadline. Purge deletes that project's
+`.nightshift/` after an exact `--confirm-path`. None of them uninstall the plugin.
+
+The panic form in the folder that contains `.nightshift/` (not beside `.nightshift-link`) still
+works, but it waits for the next Stop event:
 
 ```bash
 touch .nightshift/STOP
@@ -218,19 +247,19 @@ touch .nightshift/STOP
 Native Windows PowerShell uses
 `New-Item -ItemType File -Force .nightshift\STOP`.
 
-The order is applied at the agent's next stop attempt so the guards are not stripped from work that
-is still running. It then releases the gate, records the ending, and snapshots receipts when the
-optional receipts repository is enabled. Open boxes remain open, preserving the exact stopping
-point.
+Open boxes remain open, preserving the exact stopping point. Start resumes a paused Stop. An
+expired preserved deadline is not silently replaced; write a new UNIX epoch or run Reset first.
 
 ## Receipts
 
 Nightshift leaves timestamps, per-item commits, cycle logs, parked decisions, and snag
 dispositions under `.nightshift/`. The folder is ignored by the project repository. Setup can
 optionally version it in a separate local-only Git repository. That repository is off by default;
-Nightshift gives it no remote and never pushes it.
+Nightshift gives it no remote and never pushes it. Clock-out and Archive commit it with `git -C`,
+identity `nightshift@localhost`, and `commit.gpgsign=false` so a global signing requirement cannot
+stall a headless snapshot.
 
-Archiving moves finished work into `.nightshift/archive/<date>/` while keeping the current working
+Archiving moves finished work into `.nightshift/archive/<YYYY-MM-DD>/` while keeping the current working
 files small.
 
 ## Different strengths on each host
@@ -270,11 +299,14 @@ contract around those failures; it does not patch either host's context engine.
 Nightshift resolves two locations and persists both decisions:
 
 - the **state workspace** owns `.nightshift/`;
-- the **work target** is the Git repository that receives stack detection, gates, commits, and
-  verification. Its canonical path is stored in `.nightshift/work-target`.
+- the **work target** is the folder that receives inspection, edits, and verification. In
+  **repository** mode it is a Git repository (stack detection, gates, commits). In **artifact**
+  mode it is a persistent non-Git folder. The path is stored in `.nightshift/work-target` and the
+  mode in `.nightshift/work-mode` (`repository` when that file is absent). A plugin or
+  marketplace manifest may sit at a repository work-target root or under `plugins/<name>/`.
 
 State resolution never searches parent or sibling folders. Work-target resolution accepts the
-opened repository or exactly one immediate, non-hidden child repository. Several candidates require
+opened repository or exactly one immediate, non-hidden child repository. Skip a symlink or reparse child; it is not a nested checkout. Several candidates require
 an explicit choice.
 
 ### Repository root (supported)
@@ -334,6 +366,43 @@ Setup shows the repository choices and writes the selected canonical top level t
 `.nightshift/work-target`. Start refuses to arm if that record is absent, invalid, or no longer a
 repository. Nightshift never selects the first directory silently.
 
+### Persistent folder (artifact mode)
+
+A local non-Git folder can be the work target when Setup proposes artifact mode and the owner
+confirms. Typical uses are research, documentation, audits, and planning workspaces:
+
+```text
+notes/                 ← state workspace and artifact work target
+├── research/
+└── .nightshift/       ← run state; work-mode is artifact
+```
+
+`$NS/work-mode` contains `artifact`. `$NS/work-target` is the folder's canonical path. Setup
+refuses `/workspace/scratch/` and any path under it — that ChatGPT workspace is disposable.
+Start, Status, Doctor, Archive, Schedule, and workspace links read the same mode record. Existing
+repository workspaces stay repository mode when `work-mode` is absent.
+
+Completion in artifact mode is a file under `$NS/receipts/`, written by
+`runtime/write-receipt.sh` (native Windows: `runtime/windows/write-receipt.ps1`). The receipt
+records the item, output paths, verification, optional decisions and sources, timestamps, and
+file identity (bytes, SHA-256, mtime). Missing or empty outputs are refused. The stall guard
+treats a new receipt like a commit; Doctor reports `artifact receipts N` and, when any exist,
+`latest artifact receipt` with the filename only of the most recently written receipt, and warns when ticked items have no receipts;
+it warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt; Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts;
+Archive copies receipts with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
+into the dated folder and leaves the live files in place. Missing or empty receipts create no dated receipts folder. Repository mode still requires a
+work-target git commit.
+
+Cited reports in that folder follow `cited-research.md` and
+`runtime/check-report.sh` (native Windows: `runtime/windows/check-report.ps1`). Hunt's SEO audit,
+documentation writing, and research-synthesis entries inherit that contract. Automatic Hunt skips
+quality-debt entries the folder cannot support and skips the GitHub issue hunt in artifact mode;
+imported drafts stay on the drafting table. It also skips the defect hunt in artifact mode.
+It also skips documentation drift in artifact mode.
+It also skips TODO and FIXME debt in artifact mode.
+It also skips coverage hunt in artifact mode.
+It also skips tooling quality-debt entries in artifact mode.
+
 ### Linked task root (explicit opt-in)
 
 If the host task and state workspace must be different folders, create one explicit link:
@@ -376,7 +445,7 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
   item is good.
 - **Completion beats cost by default:** a stuck finite shift remains held and flagged. Add a
   deadline or `NIGHTSHIFT_STALL_MAX` when a cost boundary matters more than indefinite retry.
-- **Progress is approximate:** the stall guard treats ticks and commits as progress, so a failed
+- **Progress is approximate:** the stall guard treats ticks, commits, and artifact receipts as progress, so a failed
   attempt committed by the agent can look alive. Item checks and the deadline remain the backstop.
 - **No built-in push block:** pushing is allowed unless the owner adds it to the shift rules.
 - **Guards are not a sandbox:** shell-command rules match command text. The pattern rules prevent
@@ -387,8 +456,10 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
   runs directly in another terminal.
 - **Permissions still matter:** an unattended run cannot click an approval prompt. Configure the
   required host permissions before leaving.
-- **First run attended:** use a trusted or scratch repository, observe stop and recovery behavior,
-  and review every local commit before relying on an overnight run.
+- **First run attended:** use a trusted git repository or a persistent folder (never a disposable
+  ChatGPT scratch workspace), observe stop and recovery behavior, and review every local commit or
+  artifact receipt before relying on an overnight run.
 
-Continue with the [first-night safety checklist](first-night-checklist.md), the
+Continue with the [first-night safety checklist](first-night-checklist.md),
+[Shift modes](shift-modes.md), the
 [owner knobs](knobs.md), or the [command reference](commands.md).

@@ -40,7 +40,7 @@ body:
     attributes:
       label: Host version
       description: "`claude --version` or `codex --version`, plus OS."
-      placeholder: "e.g. claude 2.x / macOS 15"
+      placeholder: "e.g. claude 2.x / macOS 15, or pwsh 7 / Windows 11"
     validations:
       required: true
   - type: dropdown
@@ -79,6 +79,8 @@ body:
         - label: "deadline"
         - label: ".watchman (pid file)"
         - label: ".nightshift-link (task root pointed at another workspace)"
+        - label: "work-mode is artifact"
+        - label: "receipts/ had completion files (do not paste them)"
   - type: dropdown
     id: recovery
     attributes:

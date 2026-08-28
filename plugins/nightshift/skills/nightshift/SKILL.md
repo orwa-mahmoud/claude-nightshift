@@ -28,6 +28,12 @@ short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpe
 Never search or guess.
 The shell's working directory persists between Bash calls, so never rely on a bare path.
 
+Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
+it from the absolute path attached to this skill (`skills/nightshift/SKILL.md`). Substitute that
+absolute path below; never search for the plugin.
+On native Windows, resolve the same plugin root from `$env:CLAUDE_PLUGIN_ROOT` or `$env:PLUGIN_ROOT`.
+
 If `$NS/` doesn't exist yet, tell the user to run Setup, then Start.
 Give the host-native spelling: `/nightshift:setup` and `/nightshift:start` on Claude Code, or ask
 Nightshift to set up and start on Codex. Those skills own scaffolding and preflight; this skill
@@ -48,7 +54,11 @@ preserve the user's repository. A non-git project outside that explicit scratch 
 whole shift: **never edit, trim, or reword it, and never delete an item** — not even to end the
 shift. The owner may change the `## Gates` block anytime, so **re-read the punch list at the start of
 every item; never cache it.** If you ever notice the contract or an item was altered, restore it
-from git before continuing, then carry on.
+from git before continuing. In repository mode that is the work-target history, or
+`git -C "$NS"` when the owner opted into a local receipts repo. In artifact mode restore only
+from that receipts repo when it exists; do not `git init` the notes folder to invent history.
+On native Windows use `git -C` against `$NS` when Git is installed — the same receipts repo.
+If `$NS/punch-list.md` has no git history, park the conflict and keep the on-disk file.
 
 ## One item at a time
 
@@ -58,11 +68,20 @@ Top to bottom, one item, no batching:
 2. **Build** it fully — production-ready, no stubs, no "documented for later". If you can do it now,
   do it now. Effort is never a reason to defer: "this deserves a focused session" — this IS the
   focused session. Only correctness justifies narrowing an item.
-3. **Gate** — run the item gate (the `## Gates` commands) right before the commit. It must be green.
-  No suppressions without a written reason beside them.
-4. **Commit** — one conventional commit, local by default: the owner reviews and pushes. Push
-  yourself only when the punch list explicitly says to.
+3. **Gate** — run the item gate (the `## Gates` commands) right before the commit or artifact
+  receipt. It must be green. No suppressions without a written reason beside them.
+4. **Receipt** — repository mode: one conventional commit in the work target, local by default.
+  Artifact mode: one completion receipt in `$NS/receipts/` via
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh"` (native Windows:
+  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1"`), recording the item, outputs,
+  verification, and sources. Never tick without that receipt. Push yourself only when the punch
+  list explicitly says to.
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is complete.
+
+Cited research, SEO audits, sourced documentation, and research synthesis follow
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md`. Verify those reports with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`) before the commit or artifact receipt.
 
 Then the next item. Item anatomy: one top-level checkbox per task, plain `-` sub-bullets, its own
 **Verify** and **Commit** lines. Promote owner-approved work from
@@ -105,7 +124,7 @@ at its declared condition:
  stop even with time on the clock.
 - **Product evolution (standing loop)** — understand the product, research its space, rank an
  evidence-backed opportunity map, and build the strongest complete improvements that fit the
- clock on an isolated branch. Lint and tests verify the work; they do not choose the roadmap.
+ clock on an isolated branch or, in artifact mode, inside the persistent folder. Lint and tests verify the work; they do not choose the roadmap.
  Small fixes through substantial features are valid, but the shift never merges itself and never
  leaves a half-built production path. The single `building` opportunity is the continuation
  record: read it first on resume and keep its completed work, rejected paths, exact next action,
@@ -132,6 +151,7 @@ item. Do not loop. The gate's stall warning is the backstop, not the plan.
 
 You may stop only when every box is `- [x]`, or the owner issues a stop-work order
 (`$NS/STOP`). If a shift must end mid-work, clock out orderly: a
-`wip:` commit plus one handover line in `$NS/shift-log.md`, then
+`wip:` commit (repository mode) or an artifact receipt (artifact mode)
+plus one handover line in `$NS/shift-log.md`, then
 stop. History is append-only on shift — no `reset --hard`,
 `rebase`, `amend`, or force operations; the night's receipts must survive to morning.

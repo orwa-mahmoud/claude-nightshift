@@ -47,6 +47,9 @@ ns_record_workspace_link() {
   case "$target" in /*) ;; *) return 1 ;; esac
   canonical="$(cd -P "$target" 2>/dev/null && pwd)" || return 1
   [ -d "$canonical/.nightshift" ] || return 1
+  if ns_is_scratch_path "$host" || ns_is_scratch_path "$canonical"; then
+    return 1
+  fi
   tmp="$host/.nightshift-link.$$"
   printf '%s\n' "$canonical" >"$tmp" || return 1
   mv "$tmp" "$host/.nightshift-link" || return 1
@@ -134,4 +137,83 @@ ns_expand_injected_paths() {
       printf "%s", s
     }
   '
+}
+
+# ns_is_scratch_path <absolute-path>
+# ChatGPT disposable workspaces live under /workspace/scratch/. Local non-git folders are not
+# scratch merely because they lack Git.
+ns_is_scratch_path() {
+  local p="${1%/}"
+  p="${p//\\//}"
+  case "$p" in
+    /workspace/scratch | /workspace/scratch/*) return 0 ;;
+  esac
+  return 1
+}
+
+# ns_work_mode <workspace>
+# Print repository or artifact. A missing record is repository — the historical default.
+# Return 1 when the record exists and is not one of those two words.
+ns_work_mode() {
+  local record="$1/.nightshift/work-mode" mode=""
+  if [ -L "$record" ]; then
+    return 1
+  fi
+  if [ ! -s "$record" ]; then
+    printf 'repository'
+    return 0
+  fi
+  IFS= read -r mode <"$record" || true
+  case "$mode" in
+    repository | artifact)
+      printf '%s' "$mode"
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+# ns_record_work_mode <workspace> <repository|artifact>
+ns_record_work_mode() {
+  local project="$1" mode="$2" tmp
+  case "$mode" in repository | artifact) ;; *) return 1 ;; esac
+  mkdir -p "$project/.nightshift" || return 1
+  tmp="$project/.nightshift/.work-mode.$$"
+  printf '%s\n' "$mode" >"$tmp" || return 1
+  mv "$tmp" "$project/.nightshift/work-mode"
+}
+
+# ns_propose_work_mode <workspace>
+# Detect the mode Setup should offer. Does not persist. 0 prints repository or artifact;
+# 2 is a disposable scratch path; 1 is undecidable.
+ns_propose_work_mode() {
+  local project="$1" child base top found=""
+  if ns_is_scratch_path "$project"; then
+    return 2
+  fi
+  project="$(cd -P "$project" 2>/dev/null && pwd)" || return 1
+  if ns_is_scratch_path "$project"; then
+    return 2
+  fi
+  if git -C "$project" rev-parse --show-toplevel >/dev/null 2>&1; then
+    printf 'repository'
+    return 0
+  fi
+  for child in "$project"/*/; do
+    base="${child%/}"; base="${base##*/}"
+    case "$base" in .*) continue ;; esac
+    [ -L "${child%/}" ] && continue
+    top="$(git -C "$child" rev-parse --show-toplevel 2>/dev/null)" || continue
+    if [ -n "$found" ] && [ "$found" != "$top" ]; then
+      printf 'repository'
+      return 0
+    fi
+    found="$top"
+  done
+  if [ -n "$found" ]; then
+    printf 'repository'
+    return 0
+  fi
+  printf 'artifact'
+  return 0
 }

@@ -83,7 +83,7 @@ case "$TOOL" in Bash | PowerShell) LEASE_COMMAND="$SCRUBBED" ;; esac
 # that is what stands these rules down.
 if ! ns_hardhat_active; then
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
+    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$ENDED" ] && [ ! -L "$ENDED" ]; } \
       || ! ns_lease_nonce_matches "$NS" claude "$LEASE_NONCE" "$LEASE_GENERATION"; then
       deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
     fi
@@ -95,6 +95,15 @@ fi
 # protection applies even to helper conversations; all of their ordinary project work stays free.
 if ns_hardhat_payload_targets_lease "$TOOL" "$INPUT" "$LEASE_COMMAND"; then
   deny "BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset."
+fi
+
+# Owner emergency helpers may run from the bound or fenced conversation. Exact plugin
+# binaries only; this is not a bypass of lease or control files.
+if ns_hardhat_is_command_tool "$TOOL"; then
+  NS_PLUGIN_ROOT="$(cd -P "$_here/.." >/dev/null 2>&1 && pwd -P)" || NS_PLUGIN_ROOT=""
+  if [ -n "$NS_PLUGIN_ROOT" ] && ns_hardhat_trusted_shift_control "$CMD" "$NS_PLUGIN_ROOT" "$PROJECT_DIR"; then
+    exit 0
+  fi
 fi
 
 # The conversation record preserves continuity; the lease names the process generation allowed
@@ -110,7 +119,7 @@ own_rc=$?
 [ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
 # Only the original binding-tool set may make the first claim; the catch-all matcher must not
 # let a passive helper Read, search, or MCP call steal the shift.
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   case "$TOOL" in
     Bash | AskUserQuestion | Edit | Write | MultiEdit | NotebookEdit)
       ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" "$(ns_claude_session_host "${TPATH:-}")" || true
@@ -155,7 +164,7 @@ if ns_hardhat_payload_targets_rules "$TOOL" "$INPUT" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 if ns_hardhat_payload_targets_control "$TOOL" "$INPUT" "$CMD"; then
-  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, or work-target, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
+  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
 if [ "$TOOL" = "AskUserQuestion" ] \

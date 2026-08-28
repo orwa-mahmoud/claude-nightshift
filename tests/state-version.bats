@@ -260,6 +260,26 @@ codex_ask() {
   grep -qF 'never run it because Doctor was invoked' "$DOCTOR_SKILL"
 }
 
+LOGIC="$BATS_TEST_DIRNAME/windows/migrate-state-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable migrate-state armed-refuse suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'migrate-state-logic.ps1' "$RUN"
+  grep -qF 'refuse to migrate while the shift is armed' "$LOGIC"
+  grep -qF 'state-version is now 1' "$LOGIC"
+  grep -qF 'Invoke-NSMigrateState' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
+}
+
+@test "Windows migrate-state writes version 1 when unarmed and refuses when armed" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}
+
 @test "schedule generate and preflight fail closed on a future marker" {
   p="$(new_project)"
   printf '3\n' >"$p/.nightshift/state-version"

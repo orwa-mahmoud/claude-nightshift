@@ -148,7 +148,10 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { printf '%s · %s\n' "$(ts)" "$1" >>"$NS/shift-log.md"; }
 
 # One watchman per site. A stale pidfile (dead pid) is taken over silently.
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+# A planted symlink is not a live owner — replace it rather than follow it.
+if [ -L "$PIDFILE" ]; then
+  rm -f "$PIDFILE"
+elif [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
   printf 'watchman: already watching (pid %s)\n' "$(cat "$PIDFILE")" >&2
   exit 1
 fi
@@ -161,6 +164,7 @@ open_boxes() { ns_open_boxes "$PUNCH"; }
 
 deadline_passed() {
   local dl
+  [ -L "$NS/deadline" ] && return 1
   [ -f "$NS/deadline" ] || return 1
   dl="$(tr -d '[:space:]' <"$NS/deadline" 2>/dev/null || true)"
   [ -n "$dl" ] || return 1
@@ -171,10 +175,10 @@ deadline_passed() {
 # The hooks write the shift's identity at first work: session id, transcript path, and the
 # claude ancestor's pid + start time. Read fresh each use — the record appears after the
 # watchman was armed.
-shift_session_id() { sed -n 1p "$NS/.shift-session" 2>/dev/null; }
-shift_transcript() { sed -n 2p "$NS/.shift-session" 2>/dev/null; }
-shift_pid() { sed -n 3p "$NS/.shift-session" 2>/dev/null; }
-shift_pid_start() { sed -n 4p "$NS/.shift-session" 2>/dev/null; }
+shift_session_id() { [ -L "$NS/.shift-session" ] && return; sed -n 1p "$NS/.shift-session" 2>/dev/null; }
+shift_transcript() { [ -L "$NS/.shift-session" ] && return; sed -n 2p "$NS/.shift-session" 2>/dev/null; }
+shift_pid() { [ -L "$NS/.shift-session" ] && return; sed -n 3p "$NS/.shift-session" 2>/dev/null; }
+shift_pid_start() { [ -L "$NS/.shift-session" ] && return; sed -n 4p "$NS/.shift-session" 2>/dev/null; }
 
 # Attempts of a wake walk a chain of rungs on the default agent: the recorded conversation
 # first, --continue next (and first when nothing was recorded), a fresh session last — each a
@@ -375,10 +379,10 @@ site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead | unavaila
 # still warranted.
 hold_reason() {
   if [ -f "$NS/STOP" ]; then printf 'stop-work order'; return; fi
-  if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then printf 'shift ended'; return; fi
+  if { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } || [ ! -f "$PUNCH" ]; then printf 'shift ended'; return; fi
   if [ "$(open_boxes)" -eq 0 ]; then printf 'all boxes ticked'; return; fi
   if deadline_passed; then printf 'deadline passed'; return; fi
-  if [ -f "$NS/.session-end" ]; then printf 'clean session end'; return; fi
+  if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then printf 'clean session end'; return; fi
   case "$(site_verdict)" in
     alive) printf 'session activity' ;;
     esc) printf 'owner Esc' ;;
@@ -402,7 +406,7 @@ while :; do
   wake=$((wake + 1))
 
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
-  if [ -f "$NS/.ended" ]; then note completed; exit 0; fi
+  if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
   # This watchman revives Claude sessions. A record naming another host belongs to that host's
   # watchman: resuming it here would spawn claude against a shift another agent is working.
@@ -413,32 +417,32 @@ while :; do
     exit 0
   fi
   if [ "$(open_boxes)" -eq 0 ]; then
-    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
+    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out (attempt 1/1)"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    ns_watchman_clockout_pending "$NS" "$SENTINEL"
     clock_rc=$?
     if [ "$clock_rc" -eq 0 ]; then
       note completed
       exit 0
     fi
-    log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
-    [ "$clock_rc" -eq 2 ] && exit 7
-    continue
+    note clock-out-failed
+    log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+    exit 0
   fi
   if deadline_passed; then
-    log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
+    log_line "watchman: quitting time passed with the site dead — spawning the clock-out (attempt 1/1)"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    ns_watchman_clockout_pending "$NS" "$SENTINEL"
     clock_rc=$?
     if [ "$clock_rc" -eq 0 ]; then
       note deadline
       exit 0
     fi
-    log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
-    [ "$clock_rc" -eq 2 ] && exit 7
-    continue
+    note clock-out-failed
+    log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+    exit 0
   fi
-  if [ -f "$NS/.session-end" ]; then
+  if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then
     note clean-session-end
     log_line "watchman: clean session end — the owner closed it; standing down (start re-arms)"
     exit 0

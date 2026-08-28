@@ -33,6 +33,12 @@ the POSIX generator through Git Bash or WSL; the Task Scheduler generator is bun
 No `$NS/` — stop and point at Setup (`/nightshift:setup` on Claude Code, or ask Nightshift
 to set up on Codex). Nothing below is meaningful without it.
 
+Read `$NS/work-mode`. Artifact mode is a persistent folder, not a Git repository; the scheduled
+agent still starts in that work target. A malformed mode or a scratch work target is a refuse —
+fix it with Setup before installing a job. In artifact mode, refuse to print or install a job when `$NS/receipts` exists but is not a usable directory.
+If `$NS/work-mode` is missing and Setup would propose artifact, refuse to print or install a job; a scheduled start will refuse to arm.
+If the work target cannot be resolved, refuse to print or install a job; a scheduled start will refuse to arm.
+
 ## 2. Is there work queued?
 
 A scheduled start works the punch list it finds and **promotes nothing** — parked work orders and
@@ -43,9 +49,13 @@ Count the open `- [ ]` in `$NS/punch-list.md`:
 
 - **Items present** — say what they are in one line and carry on.
 - **None** — say so plainly and offer the ways to fix it: compose a shift now with
- Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), promote
- something from `$NS/drafting-table.md`, or write an item by hand. Then re-check. Never
- schedule an empty list without saying it will do nothing.
+ Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), cut an
+ ordinary draft from `$NS/drafting-table.md`, cut a `Status: proposed` import with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --promote …`
+ (on native Windows,
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`),
+ or write an item by hand. Then re-check. Never schedule an empty list without saying it
+ will do nothing.
 
 A parked work order is not queued work. If one exists, say so: it must be moved into the punch list
 before the scheduled time, because start will not promote it.
@@ -56,7 +66,8 @@ A scheduled run is headless and cannot answer a prompt. On Claude Code, if neith
 `$TASK_ROOT/.claude/settings.local.json` nor `$TASK_ROOT/.claude/settings.json` grants
 frictionless permissions, warn
 once. On Codex the grant travels in the command itself — the generator's
-`--agent 'codex exec -s danger-full-access'` carries it — so a Codex entry generated
+`--agent 'codex exec -s danger-full-access'` (POSIX) or
+`-Agent 'codex exec -s danger-full-access'` (native Windows) carries it — so a Codex entry generated
 without that agent will stall on the
 first tool that asks. Setup offers the fix.
 
@@ -92,12 +103,16 @@ Native Windows:
 & "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
  -Project "$NIGHTSHIFT_WORKSPACE" -At <HH:MM>
 # Codex projects add: -Agent 'codex exec -s danger-full-access'
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+ -Project "$NIGHTSHIFT_WORKSPACE" -List
+& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1" `
+ -Project "$NIGHTSHIFT_WORKSPACE" -Remove
 ```
 
-`--preflight` checks the agent binary, permissions, resolved workspace, rules, queued work,
+`--preflight` / `-Preflight` checks the agent binary, permissions, resolved workspace, rules, queued work,
 generated paths, and scheduler syntax for Claude Code and Codex. It installs nothing, writes
-nothing under LaunchAgents, and does not enable, start, or register an entry. `--list` shows what
-is already registered for this project; `--remove` prints the command that unregisters it. The
+nothing under LaunchAgents, and does not enable, start, or register an entry. `--list` / `-List` shows what
+is already registered for this project; `--remove` / `-Remove` prints the command that unregisters it. The
 generator refuses to hand over a second entry where one exists — two scheduled starts on one punch
 list is two agents on one shift.
 

@@ -25,19 +25,23 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
 @test "the punch-list template carries the headings the gate and setup depend on" {
   grep -q '^## Items' "$REF/punch-list-template.md"
   grep -q '^## Gates' "$REF/punch-list-template.md"
+  grep -qF 'right before its commit or artifact receipt' "$REF/punch-list-template.md"
 }
 
 # The drafting table is where work waits, so it must show the item shape. It is never read by
 # the gate — only the punch list is — which is exactly why proposals land there first.
 @test "the drafting table and catalog entries do show the item shape" {
   [ "$(grep -cE "$OPEN_BOX" "$REF/drafting-table-template.md" || true)" -gt 0 ]
+  grep -qF 'runtime/write-receipt.sh' "$REF/drafting-table-template.md"
+  grep -qF 'runtime\windows\write-receipt.ps1' "$REF/drafting-table-template.md"
+  grep -qF 'Commit line (repository) or receipt (artifact)' "$REF/punch-list-template.md"
   for f in "$REF"/shifts/*.md; do
     [ "$(grep -cE "$OPEN_BOX" "$f" || true)" -gt 0 ] || { echo "no item shape: $f"; return 1; }
   done
 }
 
 @test "every template setup copies is present" {
-  for t in punch-list drafting-table parking-lot snag-log product-research opportunity-map; do
+  for t in punch-list drafting-table parking-lot snag-log product-research opportunity-map work-orders; do
     [ -f "$REF/$t-template.md" ] || { echo "missing $t-template.md"; return 1; }
     grep -qF "$t-template.md" "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md" \
       || { echo "setup does not scaffold $t-template.md"; return 1; }
@@ -68,6 +72,8 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   done
   jq -e '.toolDeny.AskUserQuestion | length > 0' "$t" >/dev/null
   jq -e '.toolDeny.request_user_input | length > 0' "$t" >/dev/null
+  jq -r '.freshRevivalPrompt' "$t" | grep -qF 'commit or artifact receipt'
+  jq -r '.clockOutMessage' "$t" | grep -qF '.nightshift/receipts/'
 }
 
 # Updates offer their improvements; they never overwrite the owner's words.
@@ -79,6 +85,11 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qF 'touch a value the owner already has' "$s"
   grep -qF "wording wins every conflict" "$s"
   grep -qF 'open boxes is never touched' "$s"
+  grep -qF 'leftover campaign text' "$s"
+  grep -qF 'restore the template contract' "$s"
+  grep -qF 'Never rewrite without an explicit yes' "$s"
+  grep -qF 'PSObject.Properties.Name' "$s"
+  grep -qF 'ConvertFrom-Json' "$s"
 }
 
 # The contracts the setup conversation must not drift on: the receipts repo is never
@@ -100,6 +111,17 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   grep -qi 'ignore' "$q"
   grep -qi 'never write to the punch list on anything but an explicit' "$q"
   grep -qi 'or neither happens' "$q"
+}
+
+@test "quality cut goes through work-orders.md the same way Hunt does" {
+  q="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  grep -qF '$NS/work-orders.md' "$q"
+  grep -qi 'never write the punch list first' "$q"
+  grep -qi 'never clobber orders already' "$q"
+}
+
+@test "command reference says Quality fix now goes through a Hunt work order" {
+  grep -qF 'appends a Hunt work order' "$BATS_TEST_DIRNAME/../docs/commands.md"
 }
 
 @test "quality covers the full catalog and shares hunt execution modes" {

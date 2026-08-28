@@ -7,7 +7,7 @@ the shift runs without automated checks). Explicit user config always beats dete
 
 Two tiers, cheapest first:
 
-- **item gate** — runs ONCE per item, right before its commit; must be green to tick. Fast.
+- **item gate** — runs ONCE per item, right before its commit or artifact receipt; must be green to tick. Fast.
 - **site inspection** — the heavier batch at an interval (every N items or every H hours); coverage,
   dead-code, Sonar.
 
@@ -20,6 +20,7 @@ Two tiers, cheapest first:
 | `go.mod` | `go vet` + `go test ./...` | `go test -race`, coverage |
 | `Cargo.toml` | `cargo clippy` + `cargo test` | coverage (`tarpaulin`) |
 | `Chart.yaml` / kustomize | `helm template \| kubeconform` (changed charts) | full catalog render |
+| `.claude-plugin/` or `.codex-plugin/` at the work-target root **or** `plugins/<name>/` | `bats -r tests/` when tests exist; tracked `*.sh` through `shellcheck -x`; `claude plugin validate . --strict` | repeat the item gate |
 | `Makefile` (fallback) | `make lint test` if those targets exist | — |
 | nothing detected | — | — |
 

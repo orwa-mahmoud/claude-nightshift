@@ -19,7 +19,8 @@
 #
 # The sandbox grant is danger-full-access because the workspace-write sandbox protects .git —
 # a revived session could edit but never commit (verified live: "Git cannot create
-# .git/index.lock"), and one commit per item IS the contract. The fence around that access is
+# .git/index.lock"), and one commit per item IS the contract in repository mode.
+# Artifact mode writes a receipt instead. The fence around that access is
 # nightshift's own guards: the hardhat denies what the owner forbade, in every mode — the same
 # trade Claude Code makes with bypassPermissions.
 #
@@ -119,7 +120,9 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 
 # One watchman per site — either host's. A stale pidfile from a dead holder is taken over.
 PIDFILE="$NS/.watchman"
-if [ -f "$PIDFILE" ]; then
+if [ -L "$PIDFILE" ]; then
+  rm -f "$PIDFILE"
+elif [ -f "$PIDFILE" ]; then
   oldpid="$(sed -n 1p "$PIDFILE" 2>/dev/null)"
   if [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null; then
     printf 'watchman: already watching (pid %s)\n' "$oldpid" >&2
@@ -129,10 +132,10 @@ fi
 printf '%s\n' "$$" >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
-sid()        { sed -n 1p "$NS/.shift-session" 2>/dev/null; }
-rollout()    { sed -n 2p "$NS/.shift-session" 2>/dev/null; }
-rec_pid()    { sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]'; }
-rec_start()  { sed -n 4p "$NS/.shift-session" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
+sid()        { [ -L "$NS/.shift-session" ] && return; sed -n 1p "$NS/.shift-session" 2>/dev/null; }
+rollout()    { [ -L "$NS/.shift-session" ] && return; sed -n 2p "$NS/.shift-session" 2>/dev/null; }
+rec_pid()    { [ -L "$NS/.shift-session" ] && return; sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]'; }
+rec_start()  { [ -L "$NS/.shift-session" ] && return; sed -n 4p "$NS/.shift-session" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
 open_boxes() { ns_open_boxes "$PUNCH"; }
 
 # The recorded pid counts only as the exact recorded process: pid + start time, a pair that pid
@@ -223,7 +226,7 @@ while :; do
   wake=$((wake + 1))
 
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
-  if [ -f "$NS/.ended" ]; then note completed; exit 0; fi
+  if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
 
   # Another host's shift is another watchman's business: resuming it from here would spawn
@@ -236,32 +239,32 @@ while :; do
   fi
 
   if [ "$(open_boxes)" -eq 0 ]; then
-    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
+    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out (attempt 1/1)"
     spawn 1 || true
-    ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+    ns_watchman_clockout_pending "$NS" "$TICK"
     clock_rc=$?
     if [ "$clock_rc" -eq 0 ]; then
       note completed
       exit 0
     fi
-    log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
-    [ "$clock_rc" -eq 2 ] && exit 7
-    continue
+    note clock-out-failed
+    log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+    exit 0
   fi
-  if [ -f "$NS/deadline" ]; then
+  if [ -f "$NS/deadline" ] && [ ! -L "$NS/deadline" ]; then
     dl="$(tr -d '[:space:]' <"$NS/deadline" 2>/dev/null)"
     if printf '%s' "$dl" | grep -qE '^[0-9]+$' && [ "$(date +%s)" -ge "$dl" ]; then
-      log_line "watchman: past the deadline with the session gone — spawning the clock-out"
+      log_line "watchman: past the deadline with the session gone — spawning the clock-out (attempt 1/1)"
       spawn 1 || true
-      ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+      ns_watchman_clockout_pending "$NS" "$TICK"
       clock_rc=$?
       if [ "$clock_rc" -eq 0 ]; then
         note deadline
         exit 0
       fi
-      log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
-      [ "$clock_rc" -eq 2 ] && exit 7
-      continue
+      note clock-out-failed
+      log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+      exit 0
     fi
   fi
 

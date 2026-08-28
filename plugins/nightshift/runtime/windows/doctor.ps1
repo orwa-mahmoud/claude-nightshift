@@ -102,6 +102,39 @@ if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
     exit 0
 }
 
+$unusableRecv = $false
+try {
+    $reportedMode = Get-NSWorkMode $workspace
+    Add-NSFact "work mode $reportedMode"
+    $modeRecord = Join-Path $ns 'work-mode'
+    if (-not (Test-Path -LiteralPath $modeRecord -PathType Leaf)) {
+        try {
+            if ((Get-NSProposedWorkMode $workspace) -eq 'artifact') {
+                Add-NSWarn 'work mode is unset; Setup would propose artifact'
+                Add-NSAct confirm 'persist the proposed artifact mode with Setup; Doctor does not write work-mode'
+            }
+        }
+        catch {
+        }
+    }
+    if ($reportedMode -eq 'artifact') {
+        Add-NSFact "artifact receipts $(Get-NSReceiptsCount $workspace)"
+        $latest = Get-NSLatestReceipt $workspace
+        if (-not [string]::IsNullOrEmpty($latest)) {
+            Add-NSFact "latest artifact receipt $([IO.Path]::GetFileName($latest))"
+        }
+        $recv = Get-NSReceiptsDir $workspace
+        if ((Test-NSPathEntry $recv) -and -not (Test-NSUsableReceiptsDir $workspace)) {
+            $unusableRecv = $true
+            Add-NSWarn 'artifact receipts path is not a usable directory'
+            Add-NSAct confirm 'replace the unusable receipts path with a real directory so write-receipt can land; Doctor does not rewrite it'
+        }
+    }
+}
+catch {
+    Add-NSWarn 'work mode is malformed; treating the site as unusable until Setup rewrites it'
+}
+
 $target = $workspace
 try {
     $target = Resolve-NSWorkTarget $workspace
@@ -109,7 +142,12 @@ try {
 }
 catch {
     $target = $workspace
-    Add-NSWarn 'work target could not be resolved; treating workspace as the code root'
+    if ($_.Exception.Message -match 'scratch') {
+        Add-NSWarn 'work target is a disposable scratch workspace'
+    }
+    else {
+        Add-NSWarn 'work target could not be resolved; treating workspace as the code root'
+    }
 }
 
 $punch = Join-Path $ns 'punch-list.md'
@@ -125,13 +163,48 @@ else {
     Add-NSWarn 'punch-list.md is missing'
 }
 
+try {
+    if ((Get-NSWorkMode $workspace) -eq 'artifact' -and $ticked -gt 0 -and (Get-NSReceiptsCount $workspace) -eq 0 -and -not $unusableRecv) {
+        Add-NSWarn 'artifact mode has ticked items but no receipts'
+        Add-NSAct confirm "complete ticked items with $(Join-Path $here 'write-receipt.ps1') or untick them; Doctor does not rewrite the punch list"
+    }
+}
+catch {
+}
+
+$orders = Get-NSOpenBoxesInFile (Join-Path $ns 'work-orders.md')
+if ($orders -gt 0) {
+    Add-NSFact "pending Hunt work orders=$orders"
+}
+$drafts = Get-NSOpenDrafts (Join-Path $ns 'drafting-table.md')
+if ($drafts -gt 0) {
+    Add-NSFact "staged drafting-table items=$drafts"
+}
+
 $armed = [int](Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf)
-$ended = [int](Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf)
+$endedPath = Join-Path $ns '.ended'
+$ended = 0
+if (Test-NSReparsePoint $endedPath) {
+    Add-NSWarn 'ended path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $endedPath -PathType Leaf) {
+    $ended = 1
+}
 $stop = [int](Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf)
-$sessionEnd = [int](Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)
+$sessionEndPath = Join-Path $ns '.session-end'
+$sessionEnd = 0
+if (Test-NSReparsePoint $sessionEndPath) {
+    Add-NSWarn 'session-end path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $sessionEndPath -PathType Leaf) {
+    $sessionEnd = 1
+}
 $stall = ''
 $stallPath = Join-Path $ns '.stall'
-if (Test-Path -LiteralPath $stallPath -PathType Leaf) {
+if (Test-NSReparsePoint $stallPath) {
+    Add-NSWarn 'stall path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $stallPath -PathType Leaf) {
     try {
         $stall = (([IO.File]::ReadAllText($stallPath)) -replace '\s', '')
     }
@@ -172,17 +245,61 @@ if ($stop -eq 1) { Add-NSFact 'STOP is present' }
 if ($sessionEnd -eq 1) { Add-NSFact 'clean session-end marker is present' }
 if (-not [string]::IsNullOrEmpty($stall)) { Add-NSFact "stall count $stall" }
 
+$deadlinePath = Join-Path $ns 'deadline'
+if (Test-NSReparsePoint $deadlinePath) {
+    Add-NSWarn 'deadline path is not a usable file'
+}
+elseif (-not (Test-Path -LiteralPath $deadlinePath -PathType Leaf)) {
+    Add-NSFact 'deadline=none'
+}
+else {
+    $dlRaw = ''
+    try {
+        $dlRaw = ([IO.File]::ReadAllText($deadlinePath)).Trim()
+    }
+    catch {
+        $dlRaw = ''
+    }
+    if ($dlRaw -match '^[0-9]+$') {
+        $now = Get-NSUnixTime
+        $dl = [long]$dlRaw
+        if ($now -ge $dl) {
+            Add-NSFact "deadline=$dlRaw remaining=0s (elapsed)"
+        }
+        else {
+            $rem = $dl - $now
+            Add-NSFact "deadline=$dlRaw remaining=${rem}s"
+        }
+    }
+    else {
+        Add-NSWarn 'deadline is not a UNIX epoch - watchmen compare integer seconds'
+    }
+}
+
 if ($armed -eq 1 -and $open -eq 0 -and $ended -eq 0) {
     Add-NSWarn 'armed with no open boxes and no .ended - clock-out may still be due'
     Add-NSAct confirm 'ask Nightshift for status, or start so the watchman can spawn the clock-out'
 }
 if ($stop -eq 1 -and $armed -eq 1) {
     Add-NSWarn 'stop-work order is pending until the next stop attempt'
-    Add-NSAct confirm 'leave STOP in place until the working session ends; do not delete it mid-run'
+    Add-NSAct confirm "run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath to disarm immediately; a bare STOP file waits for the next Stop event; do not delete STOP by hand"
 }
 if ($stop -eq 1 -and $armed -eq 0) {
     Add-NSWarn 'STOP leftover while no shift is armed - start will clear it'
     Add-NSAct confirm 'run start when you want a new shift, which clears stale STOP'
+}
+if ((Test-Path -LiteralPath $punch -PathType Leaf) -and $open -eq 0) {
+    Add-NSFact 'punch list has no open items - leftover Shift contract and Gates still bind the next Hunt or Start cut'
+    if ($armed -eq 0) {
+        Add-NSWarn 'empty punch list will inherit the current contract'
+        Add-NSAct confirm 'review punch-list.md contract and Gates before composing a new campaign; Archive files ticked items but never resets them'
+    }
+}
+if ($orders -gt 0 -and $armed -eq 0) {
+    Add-NSAct confirm 'start to promote a parked Hunt order, or hunt to compose a new one'
+}
+if ($drafts -gt 0 -and $armed -eq 0) {
+    Add-NSAct confirm 'promote agreed drafting-table items into punch-list.md, or start to be offered them'
 }
 
 $rulesPath = Join-Path $ns 'rules.json'
@@ -205,6 +322,21 @@ else {
         }
         else {
             Add-NSFact "watchMinutes $wm"
+        }
+        $retrySpacing = Get-NSRule $workspace 'watchRetrySeconds' ([string]$env:NIGHTSHIFT_WATCH_RETRY)
+        $revivalPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'revivalPrompt' ([string]$env:NIGHTSHIFT_REVIVAL_PROMPT))
+        $freshPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'freshRevivalPrompt' ([string]$env:NIGHTSHIFT_FRESH_PROMPT))
+        if ([string]::IsNullOrEmpty($retrySpacing)) {
+            Add-NSWarn 'watchRetrySeconds is empty - watchman will refuse to arm'
+            Add-NSAct confirm 'restore watchRetrySeconds from the shipped template'
+        }
+        if ([string]::IsNullOrEmpty($revivalPrompt)) {
+            Add-NSWarn 'revivalPrompt is empty - watchman will refuse to arm'
+            Add-NSAct confirm 'restore revivalPrompt from the shipped template'
+        }
+        if ([string]::IsNullOrEmpty($freshPrompt)) {
+            Add-NSWarn 'freshRevivalPrompt is empty - watchman will refuse to arm'
+            Add-NSAct confirm 'restore freshRevivalPrompt from the shipped template'
         }
         $toolDeny = $null
         if ($null -ne $rules.PSObject.Properties['toolDeny']) {
@@ -243,13 +375,18 @@ $hostRec = 'none'
 $sid = ''
 $tpath = ''
 $spid = ''
+$sstart = ''
 $sessionPath = Join-Path $ns '.shift-session'
-if (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
+if (Test-NSReparsePoint $sessionPath) {
+    Add-NSWarn 'shift-session path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
     try {
         $sessionLines = [IO.File]::ReadAllLines($sessionPath)
         if ($sessionLines.Count -gt 0) { $sid = [string]$sessionLines[0] }
         if ($sessionLines.Count -gt 1) { $tpath = [string]$sessionLines[1] }
         if ($sessionLines.Count -gt 2) { $spid = ([string]$sessionLines[2] -replace '\s', '') }
+        if ($sessionLines.Count -gt 3) { $sstart = [string]$sessionLines[3] }
         if ($sessionLines.Count -gt 4 -and -not [string]::IsNullOrEmpty(([string]$sessionLines[4]).Trim())) {
             $hostRec = ([string]$sessionLines[4]).Trim()
         }
@@ -277,7 +414,7 @@ if (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
         Add-NSAct confirm 'let the next tool call record identity, or accept a fresh-session fallback'
     }
     if ($spid -match '^[0-9]+$') {
-        $liveness = Test-NSRecordedProcess $spid
+        $liveness = Test-NSRecordedProcess $spid $sstart
         if ($liveness -eq 'Alive') {
             Add-NSFact "recorded pid $spid is alive"
         }
@@ -310,7 +447,7 @@ if (Test-NSPathEntry $leasePath) {
         }
         if ($hostRec -ne 'none' -and [string]$lease.HostName -ne $hostRec) {
             Add-NSWarn "process lease host $($lease.HostName) disagrees with recorded session host $hostRec"
-            Add-NSAct blocked 'issue STOP from a separate session, then run Start again; do not rewrite the lease by hand'
+            Add-NSAct blocked "run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath, then Start again; do not rewrite the lease by hand"
         }
         if (-not [string]::IsNullOrEmpty([string]$lease.ProcessId)) {
             $holder = Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)
@@ -321,11 +458,35 @@ if (Test-NSPathEntry $leasePath) {
                 Add-NSFact "lease holder pid $($lease.ProcessId) is not confirmed alive"
             }
         }
+        $rcodeEarly = Get-NSReasonCode $ns
+        $noncePresent = -not [string]::IsNullOrEmpty([string]$lease.Nonce)
+        $holderAlive = -not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
+            -and ((Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)) -eq 'Alive')
+        if ($rcodeEarly -eq 'clock-out-failed') {
+            Add-NSWarn 'terminal clock-out failed without releasing the shift'
+            if ($noncePresent) {
+                if ($holderAlive) {
+                    Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
+                    Add-NSAct confirm "wait until the recovery worker exits, or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; reopening the recorded conversation stays blocked while that worker holds the lease"
+                }
+                else {
+                    Add-NSFact "recovery worker is not confirmed alive after a failed clock-out; run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath, then Start"
+                }
+            }
+            else {
+                Add-NSFact 'process lease restored to the interactive shift; the recorded conversation can operate'
+                Add-NSAct confirm "reopen the recorded conversation to continue or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; Start re-arms after Stop"
+            }
+        }
+        elseif ($noncePresent -and $holderAlive) {
+            Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
+            Add-NSAct confirm "wait until the recovery worker exits, or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; reopening the recorded conversation stays blocked while that worker holds the lease"
+        }
     }
     else {
         $leaseState = 'malformed'
         Add-NSWarn 'process lease is malformed - ownership cannot be proven'
-        Add-NSAct blocked 'issue STOP from a separate session, then run Start again; never guess or edit .shift-lease'
+        Add-NSAct blocked "run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath, then Start again; never guess or edit .shift-lease"
     }
 }
 elseif ($armed -eq 1 -and -not [string]::IsNullOrEmpty($sid)) {
@@ -333,18 +494,26 @@ elseif ($armed -eq 1 -and -not [string]::IsNullOrEmpty($sid)) {
 }
 
 $wpid = ''
+$wstart = ''
+$watchmanUnusable = $false
 $watchmanPath = Join-Path $ns '.watchman'
-if (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
+if (Test-NSReparsePoint $watchmanPath) {
+    Add-NSWarn 'watchman pidfile path is not a usable file'
+    $watchmanUnusable = $true
+}
+elseif (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
     try {
-        $wpid = (([IO.File]::ReadAllLines($watchmanPath) | Select-Object -First 1) -as [string])
-        $wpid = ($wpid -replace '\s', '')
+        $watchLines = [IO.File]::ReadAllLines($watchmanPath)
+        $wpid = if ($watchLines.Count -gt 0) { ([string]$watchLines[0] -replace '\s', '') } else { '' }
+        $wstart = if ($watchLines.Count -gt 1) { [string]$watchLines[1] } else { '' }
     }
     catch {
         $wpid = ''
+        $wstart = ''
     }
 }
 if ($wpid -match '^[0-9]+$') {
-    $watchLive = Test-NSRecordedProcess $wpid
+    $watchLive = Test-NSRecordedProcess $wpid $wstart
     if ($watchLive -eq 'Alive') {
         Add-NSFact "watchman pid $wpid is alive"
     }
@@ -359,7 +528,9 @@ if ($wpid -match '^[0-9]+$') {
     }
 }
 else {
-    Add-NSFact 'no live watchman pid file'
+    if (-not $watchmanUnusable) {
+        Add-NSFact 'no live watchman pid file'
+    }
 }
 
 $rcode = Get-NSReasonCode $ns
@@ -367,7 +538,7 @@ if (-not [string]::IsNullOrEmpty($rcode)) {
     Add-NSFact "watchman reason $rcode ($(Get-NSReasonLabel $rcode))"
 }
 
-if ($armed -eq 1 -and $open -gt 0 -and [string]::IsNullOrEmpty($wpid)) {
+if ($armed -eq 1 -and $open -gt 0 -and [string]::IsNullOrEmpty($wpid) -and -not $watchmanUnusable) {
     Add-NSWarn 'shift is armed with open boxes and no watchman'
     Add-NSAct confirm 're-run start so the host watchman is armed, or work the list in the live session'
 }

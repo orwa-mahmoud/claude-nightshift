@@ -416,6 +416,7 @@ try {
     $applyRun = Invoke-TestScript $applyProfile @('-Project', $workspace, '-List')
     Assert-Equal 0 $applyRun.ExitCode "apply-profile list: $($applyRun.Stderr)"
     Assert-True $applyRun.Stdout.Contains('not a subscription') 'apply-profile lists local copies'
+    Assert-True $applyRun.Stdout.Contains('isolated-branch') 'apply-profile lists the isolated-branch profile'
     $exportRun = Invoke-TestScript $exportSupport @('-Project', $workspace)
     Assert-Equal 0 $exportRun.ExitCode "export-support: $($exportRun.Stderr)"
     Assert-True $exportRun.Stdout.Contains('Support bundle:') 'export-support prints the bundle path'
@@ -425,6 +426,70 @@ try {
     $expectedPunch = 'Read ' + ($workspace.TrimEnd('\', '/') + '/.nightshift/punch-list.md')
     Assert-Equal $expectedPunch $expanded 'injection qualifies a bare .nightshift path'
     Assert-True $importIssues.EndsWith('import-issues.ps1') 'import-issues helper is bundled'
+    $importLogic = Join-Path $PSScriptRoot 'import-issues-logic.ps1'
+    $importLogicRun = Invoke-TestScript $importLogic
+    Assert-Equal 0 $importLogicRun.ExitCode `
+        "import-issues list/promote: $($importLogicRun.Stdout) $($importLogicRun.Stderr)"
+    $doctorLogic = Join-Path $PSScriptRoot 'doctor-logic.ps1'
+    $doctorLogicRun = Invoke-TestScript $doctorLogic
+    Assert-Equal 0 $doctorLogicRun.ExitCode `
+        "doctor leftover/staged counts: $($doctorLogicRun.Stdout) $($doctorLogicRun.Stderr)"
+    $scheduleEmptyLogic = Join-Path $PSScriptRoot 'schedule-empty-logic.ps1'
+    $scheduleEmptyLogicRun = Invoke-TestScript $scheduleEmptyLogic
+    Assert-Equal 0 $scheduleEmptyLogicRun.ExitCode `
+        "schedule empty-list notes: $($scheduleEmptyLogicRun.Stdout) $($scheduleEmptyLogicRun.Stderr)"
+    $boxCountsLogic = Join-Path $PSScriptRoot 'box-counts-logic.ps1'
+    $boxCountsLogicRun = Invoke-TestScript $boxCountsLogic
+    Assert-Equal 0 $boxCountsLogicRun.ExitCode `
+        "box counts heading scope: $($boxCountsLogicRun.Stdout) $($boxCountsLogicRun.Stderr)"
+    $workModeLogic = Join-Path $PSScriptRoot 'work-mode-logic.ps1'
+    $workModeLogicRun = Invoke-TestScript $workModeLogic
+    Assert-Equal 0 $workModeLogicRun.ExitCode `
+        "work-mode discovery skips: $($workModeLogicRun.Stdout) $($workModeLogicRun.Stderr)"
+    $codexIdentityLogic = Join-Path $PSScriptRoot 'codex-identity-logic.ps1'
+    $codexIdentityLogicRun = Invoke-TestScript $codexIdentityLogic
+    Assert-Equal 0 $codexIdentityLogicRun.ExitCode `
+        "Codex identity kinds: $($codexIdentityLogicRun.Stdout) $($codexIdentityLogicRun.Stderr)"
+    $reasonLabelLogic = Join-Path $PSScriptRoot 'reason-label-logic.ps1'
+    $reasonLabelLogicRun = Invoke-TestScript $reasonLabelLogic
+    Assert-Equal 0 $reasonLabelLogicRun.ExitCode `
+        "watchman reason labels: $($reasonLabelLogicRun.Stdout) $($reasonLabelLogicRun.Stderr)"
+    $migrateStateLogic = Join-Path $PSScriptRoot 'migrate-state-logic.ps1'
+    $migrateStateLogicRun = Invoke-TestScript $migrateStateLogic
+    Assert-Equal 0 $migrateStateLogicRun.ExitCode `
+        "migrate-state armed refuse: $($migrateStateLogicRun.Stdout) $($migrateStateLogicRun.Stderr)"
+    $applyProfileLogic = Join-Path $PSScriptRoot 'apply-profile-logic.ps1'
+    $applyProfileLogicRun = Invoke-TestScript $applyProfileLogic
+    Assert-Equal 0 $applyProfileLogicRun.ExitCode `
+        "apply-profile armed refuse: $($applyProfileLogicRun.Stdout) $($applyProfileLogicRun.Stderr)"
+    $exportSupportLogic = Join-Path $PSScriptRoot 'export-support-logic.ps1'
+    $exportSupportLogicRun = Invoke-TestScript $exportSupportLogic
+    Assert-Equal 0 $exportSupportLogicRun.ExitCode `
+        "export-support redaction: $($exportSupportLogicRun.Stdout) $($exportSupportLogicRun.Stderr)"
+    $writeReceiptLogic = Join-Path $PSScriptRoot 'write-receipt-logic.ps1'
+    $writeReceiptLogicRun = Invoke-TestScript $writeReceiptLogic
+    Assert-Equal 0 $writeReceiptLogicRun.ExitCode `
+        "write-receipt artifact mode: $($writeReceiptLogicRun.Stdout) $($writeReceiptLogicRun.Stderr)"
+    $archiveReceiptsLogic = Join-Path $PSScriptRoot 'archive-receipts-logic.ps1'
+    $archiveReceiptsLogicRun = Invoke-TestScript $archiveReceiptsLogic
+    Assert-Equal 0 $archiveReceiptsLogicRun.ExitCode `
+        "archive-receipts copy: $($archiveReceiptsLogicRun.Stdout) $($archiveReceiptsLogicRun.Stderr)"
+    $checkReportLogic = Join-Path $PSScriptRoot 'check-report-logic.ps1'
+    $checkReportLogicRun = Invoke-TestScript $checkReportLogic
+    Assert-Equal 0 $checkReportLogicRun.ExitCode `
+        "check-report cited research: $($checkReportLogicRun.Stdout) $($checkReportLogicRun.Stderr)"
+    $retainHistoryLogic = Join-Path $PSScriptRoot 'retain-history-logic.ps1'
+    $retainHistoryLogicRun = Invoke-TestScript $retainHistoryLogic
+    Assert-Equal 0 $retainHistoryLogicRun.ExitCode `
+        "retain-history apply: $($retainHistoryLogicRun.Stdout) $($retainHistoryLogicRun.Stderr)"
+    $hardhatLogic = Join-Path $PSScriptRoot 'hardhat-logic.ps1'
+    $hardhatLogicRun = Invoke-TestScript $hardhatLogic
+    Assert-Equal 0 $hardhatLogicRun.ExitCode `
+        "hardhat expectedEmail: $($hardhatLogicRun.Stdout) $($hardhatLogicRun.Stderr)"
+    $controlLogic = Join-Path $PSScriptRoot 'control-logic.ps1'
+    $controlLogicRun = Invoke-TestScript $controlLogic
+    Assert-Equal 0 $controlLogicRun.ExitCode `
+        "control stop/reset/purge: $($controlLogicRun.Stdout) $($controlLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost
@@ -577,9 +642,37 @@ try {
     }
     Assert-True ($addDeleted.Stdout -match 'protected directory') 'git add -A sees a staged protected deletion'
 
+    $gitDirAdd = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git --git-dir=C:\elsewhere\.git add x' } @{
+        NIGHTSHIFT_PROTECTED_DIRS = 'ai_docs'
+    }
+    Assert-True ($gitDirAdd.Stdout -match 'protected-directory guard cannot verify') `
+        'a --git-dir add is unverifiable under protectedDirs'
+
     $forbidden = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git push origin HEAD' } `
         @{ NIGHTSHIFT_FORBIDDEN_COMMANDS = 'git .*push' }
-    Assert-True ($forbidden.Stdout -match 'forbiddenCommands') 'PowerShell commands honor forbiddenCommands'
+    Assert-True ($forbidden.Stdout -match 'forbidden list') 'PowerShell commands honor the forbidden list'
+    Assert-True ($forbidden.Stdout -match 'parking-lot.md') 'a forbidden command names the parking lot'
+
+    $wrongEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'owner@nope.io'
+    }
+    Assert-True ($wrongEmail.Stdout -match 'committer identity') 'wrong expectedEmail is denied'
+    Assert-True ($wrongEmail.Stdout -match 'Fix git config user.email') 'wrong expectedEmail names git config'
+    $rightEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
+    }
+    Assert-True ([string]::IsNullOrWhiteSpace($rightEmail.Stdout)) 'the expected identity is allowed'
+    $overrideEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git -c user.email=other@example.com commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
+    }
+    Assert-True ($overrideEmail.Stdout -match 'configured identity') `
+        "a command-line identity override is denied ($(Format-HookResult $overrideEmail))"
+
+    $gitDirCommit = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git --git-dir=C:\elsewhere\.git commit -m x' } @{
+        NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
+    }
+    Assert-True ($gitDirCommit.Stdout -match 'configured commit guards cannot verify') `
+        'a --git-dir commit is unverifiable under expectedEmail'
 
     $secretFile = Join-Path $workTarget 'secret.txt'
     [IO.File]::WriteAllText($secretFile, "SECRET_KEY=abc`n")
@@ -587,14 +680,14 @@ try {
     $neverUpper = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -m x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
     }
-    Assert-True ($neverUpper.Stdout -match 'neverCommitPatterns') 'neverCommitPatterns is case-insensitive'
+    Assert-True ($neverUpper.Stdout -match 'never-commit pattern') 'never-commit pattern matching is case-insensitive'
 
     $null = & git -C $workTarget reset --quiet HEAD -- secret.txt
     $amSecret = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
     }
     Assert-True ($amSecret.Stdout -notmatch 'implicitly') "implicit staging inspects the real diff ($(Format-HookResult $amSecret))"
-    Assert-True ($amSecret.Stdout -match 'neverCommitPatterns') "git commit -am still sees working-tree secrets ($(Format-HookResult $amSecret))"
+    Assert-True ($amSecret.Stdout -match 'never-commit pattern') "git commit -am still sees working-tree secrets ($(Format-HookResult $amSecret))"
     Remove-Item -LiteralPath $secretFile -Force
     $amClean = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git commit -am x' } @{
         NIGHTSHIFT_NEVER_COMMIT_PATTERNS = 'secret_key'
@@ -604,8 +697,10 @@ try {
     $unmapped = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git status' } @{
         NIGHTSHIFT_FORBIDDEN_COMMANDS = '[[:punct:]]'
     }
-    Assert-True ($unmapped.Stdout -match 'not a valid regular expression') `
+    Assert-True ($unmapped.Stdout -match 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression') `
         'unmapped POSIX classes fail closed'
+    Assert-True ($unmapped.Stdout -match 'Fix the pattern in your session settings') `
+        'an invalid forbidden pattern names session settings'
 
     $helper = Invoke-Hardhat $workspace '33333333-3333-3333-3333-333333333333' 'WebSearch' @{ query = 'ordinary helper work' }
     Assert-True ([string]::IsNullOrWhiteSpace($helper.Stdout)) 'an unrelated conversation remains unrestricted'
@@ -810,9 +905,12 @@ exit 0
     $recoveryAcl = Get-Acl -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/.shift-lease')
     Assert-True $recoveryAcl.AreAccessRulesProtected 'lease takeover preserves the private ACL'
 
+    $postRecoveryLease = Read-NSLease (Join-Path $recoveryWorkspace '.nightshift')
+    Assert-True ($null -ne $postRecoveryLease -and -not [string]::IsNullOrEmpty($postRecoveryLease.Nonce)) `
+        "recovery leaves a nonce lease before fencing ($(if ($null -eq $postRecoveryLease) { 'missing' } else { $postRecoveryLease.Nonce }))"
     $staleTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' }
-    Assert-True ($staleTool.Stdout -match 'continued in a recovered process') `
-        'the pre-recovery process is fenced after lease takeover'
+    Assert-True ($staleTool.Stdout -match 'recovered process|being recovered') `
+        "the pre-recovery process is fenced after lease takeover ($(Format-HookResult $staleTool))"
     $recoveredTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' } @{
         NIGHTSHIFT_REVIVAL = '1'
         NIGHTSHIFT_LEASE_GENERATION = $receiptLines[2]
@@ -898,6 +996,96 @@ exit 0
     Assert-Equal 'owner-stop' ([IO.File]::ReadAllLines(
         $launcherReason
     )[0]) 'detached watchman records why it stood down'
+
+    Write-Host 'Checking bounded terminal clock-out'
+    $clockFailWorkspace = Join-Path $root 'clock-out fail workspace'
+    $null = Initialize-TestWorkspace $clockFailWorkspace
+    # Bind while the punch list still has open work - hardhat is inert when every box is ticked.
+    Set-TestPunch $clockFailWorkspace $true
+    [IO.File]::WriteAllText((Join-Path $clockFailWorkspace '.nightshift/.shift-armed'), '')
+    $clockFailSession = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+    $clockFailBind = Invoke-Hardhat $clockFailWorkspace $clockFailSession 'Bash' @{
+        command = "`$null = 'nightshift-binding-probe'"
+    }
+    Assert-Equal 0 $clockFailBind.ExitCode 'clock-out fail fixture binds'
+    Set-TestPunch $clockFailWorkspace $false
+    $clockFailReceipt = Join-Path $root 'clock-out fail receipt.txt'
+    $clockFailStub = Join-Path $root 'clock-out fail stub.ps1'
+    @'
+param([string]$Prompt)
+Add-Content -LiteralPath $env:NIGHTSHIFT_TEST_AGENT_RECEIPT -Value 'called'
+exit 1
+'@ | Set-Content -LiteralPath $clockFailStub -Encoding UTF8
+    $clockFailWatch = Invoke-TestScript $watchman `
+        @('-Project', $clockFailWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockFailStub) `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockFailReceipt }
+    Assert-Equal 0 $clockFailWatch.ExitCode "failed clock-out stands down: $($clockFailWatch.Stderr)"
+    Assert-True (Test-Path -LiteralPath $clockFailReceipt) `
+        "failed clock-out spawned once ($(Format-HookResult $clockFailWatch))"
+    Assert-Equal 1 @([IO.File]::ReadAllLines($clockFailReceipt)).Count 'failed clock-out does not retry'
+    $clockFailReason = [IO.File]::ReadAllLines((Join-Path $clockFailWorkspace '.nightshift/.watch-reason'))[0]
+    Assert-Equal 'clock-out-failed' $clockFailReason 'failed clock-out records clock-out-failed'
+    $clockFailLease = [IO.File]::ReadAllLines((Join-Path $clockFailWorkspace '.nightshift/.shift-lease'))
+    Assert-True ([string]::IsNullOrEmpty($clockFailLease[3])) 'failed clock-out restores an interactive lease'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $clockFailWorkspace '.nightshift/.ended'))) `
+        'failed clock-out does not write .ended'
+
+    $clockOkWorkspace = Join-Path $root 'clock-out ok workspace'
+    $null = Initialize-TestWorkspace $clockOkWorkspace
+    Set-TestPunch $clockOkWorkspace $true
+    [IO.File]::WriteAllText((Join-Path $clockOkWorkspace '.nightshift/.shift-armed'), '')
+    $clockOkSession = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
+    $clockOkBind = Invoke-Hardhat $clockOkWorkspace $clockOkSession 'Bash' @{
+        command = "`$null = 'nightshift-binding-probe'"
+    }
+    Assert-Equal 0 $clockOkBind.ExitCode 'successful clock-out fixture binds'
+    Set-TestPunch $clockOkWorkspace $false
+    $clockOkReceipt = Join-Path $root 'clock-out ok receipt.txt'
+    $clockOkStub = Join-Path $root 'clock-out ok stub.ps1'
+    @'
+param([string]$Prompt)
+Add-Content -LiteralPath $env:NIGHTSHIFT_TEST_AGENT_RECEIPT -Value 'called'
+$ns = Join-Path $env:CODEX_PROJECT_DIR '.nightshift'
+[IO.File]::WriteAllText((Join-Path $ns '.ended'), '')
+Remove-Item -LiteralPath (Join-Path $ns '.shift-armed') -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath (Join-Path $ns '.shift-lease') -Force -ErrorAction SilentlyContinue
+exit 0
+'@ | Set-Content -LiteralPath $clockOkStub -Encoding UTF8
+    $clockOkWatch = Invoke-TestScript $watchman `
+        @('-Project', $clockOkWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockOkStub) `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockOkReceipt }
+    Assert-Equal 0 $clockOkWatch.ExitCode "successful clock-out exits 0: $($clockOkWatch.Stderr)"
+    Assert-Equal 1 @([IO.File]::ReadAllLines($clockOkReceipt)).Count 'successful clock-out spawns once'
+    Assert-True (Test-Path -LiteralPath (Join-Path $clockOkWorkspace '.nightshift/.ended')) `
+        'successful clock-out writes .ended'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $clockOkWorkspace '.nightshift/.shift-armed'))) `
+        'successful clock-out disarms the site'
+    Assert-True (-not (Test-Path -LiteralPath (Join-Path $clockOkWorkspace '.nightshift/.shift-lease'))) `
+        'successful clock-out releases the lease'
+
+    $clockDeadlineWorkspace = Join-Path $root 'clock-out deadline workspace'
+    $null = Initialize-TestWorkspace $clockDeadlineWorkspace
+    Set-TestPunch $clockDeadlineWorkspace $true
+    [IO.File]::WriteAllText((Join-Path $clockDeadlineWorkspace '.nightshift/.shift-armed'), '')
+    [IO.File]::WriteAllText((Join-Path $clockDeadlineWorkspace '.nightshift/deadline'), '1')
+    $clockDeadlineSession = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
+    $clockDeadlineBind = Invoke-Hardhat $clockDeadlineWorkspace $clockDeadlineSession 'Bash' @{
+        command = "`$null = 'nightshift-binding-probe'"
+    }
+    Assert-Equal 0 $clockDeadlineBind.ExitCode 'deadline clock-out fixture binds'
+    $clockDeadlineReceipt = Join-Path $root 'clock-out deadline receipt.txt'
+    $clockDeadlineWatch = Invoke-TestScript $watchman `
+        @('-Project', $clockDeadlineWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockFailStub) `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockDeadlineReceipt }
+    Assert-Equal 0 $clockDeadlineWatch.ExitCode "deadline failed clock-out stands down: $($clockDeadlineWatch.Stderr)"
+    Assert-Equal 1 @([IO.File]::ReadAllLines($clockDeadlineReceipt)).Count 'deadline failed clock-out does not retry'
+    $clockDeadlineReason = [IO.File]::ReadAllLines((Join-Path $clockDeadlineWorkspace '.nightshift/.watch-reason'))[0]
+    Assert-Equal 'clock-out-failed' $clockDeadlineReason 'deadline failed clock-out records clock-out-failed'
+    $clockDeadlineLease = [IO.File]::ReadAllLines((Join-Path $clockDeadlineWorkspace '.nightshift/.shift-lease'))
+    Assert-True ([string]::IsNullOrEmpty($clockDeadlineLease[3])) 'deadline failed clock-out restores an interactive lease'
+    $clockDeadlineTool = Invoke-Hardhat $clockDeadlineWorkspace $clockDeadlineSession 'Bash' @{ command = 'Get-Location' }
+    Assert-True ([string]::IsNullOrWhiteSpace($clockDeadlineTool.Stdout)) `
+        'recorded session can operate after a failed deadline clock-out'
 
     $brokenLauncherWorkspace = Join-Path $root 'broken launcher workspace'
     $null = Initialize-TestWorkspace $brokenLauncherWorkspace

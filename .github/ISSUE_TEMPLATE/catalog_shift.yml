@@ -15,8 +15,8 @@ body:
         Discuss ideas on [#21](https://github.com/orwa-mahmoud/nightshift/issues/21). Open a pull
         request that references `#21` when you implement one.
 
-        A shift is a contract handed to an agent that will work **unattended, on a stranger's
-        repository, while they sleep.** Every line below is followed literally. Narrow is better
+        A shift is a contract handed to an agent that will work **unattended, on a stranger's workspace, while they sleep.** Every line below is followed literally. Narrow is better
+        than broad.
         than broad.
   - type: input
     id: name
@@ -60,14 +60,14 @@ body:
     id: verification
     attributes:
       label: Verification
-      description: Commands that must be green at every commit for this entry's work.
+      description: Commands that must be green at every commit or artifact receipt for this entry's work. Artifact-mode completion is `.nightshift/receipts/`, not a git log.
     validations:
       required: true
   - type: textarea
     id: stacks
     attributes:
       label: Supported stacks
-      description: Which projects this makes sense on, and how it detects them. An entry that assumes vitest should say so rather than failing quietly on a Go repo.
+      description: Which projects this makes sense on, and how it detects them. An entry that assumes vitest should say so rather than failing quietly on a Go repo. An entry that can run in artifact mode should say so and must not require a git history that cannot exist. An entry that cannot run in artifact mode must say Never select this entry in artifact mode. Do not `git init` a notes folder to make a commit-only entry fit.
     validations:
       required: true
   - type: checkboxes

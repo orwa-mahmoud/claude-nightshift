@@ -78,6 +78,9 @@ lease_mode() {
   printf 'malformed\n' >"$p/.nightshift/.shift-lease"
   : >"$p/.nightshift/.shift-lease.tmp.leftover"
 
+  grep -qF 'do not run the stale-lease reset' "$START_SKILL"
+  grep -qF 'terminal clock-out failed without releasing the shift' "$START_SKILL"
+
   run bash -c '. "$1"; ns_lease_reset_stale "$2/.nightshift"' nightshift "$LIB" "$p"
   [ "$status" -eq 0 ]
   [ ! -e "$p/.nightshift/.shift-lease" ]
@@ -173,6 +176,46 @@ lease_mode() {
 
   run claude_read "$p" shift-session \
     NIGHTSHIFT_REVIVAL=1 NIGHTSHIFT_LEASE_GENERATION="$generation" NIGHTSHIFT_LEASE_NONCE="$nonce"
+  is_allow
+}
+
+@test "a live recovery worker keeps the recorded conversation fenced" {
+  p="$(new_project)"
+  punch_open "$p"
+  claude_bind "$p" shift-session
+  claim="$(take_lease "$p" shift-session claude)"
+  generation="${claim%% *}"
+  nonce="${claim#* }"
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  bash -c '. "$1"; ns_lease_attach_process "$2/.nightshift" claude "$3" "$4" "$5" "$6"' \
+    nightshift "$LIB" "$p" "$nonce" "$generation" "$$" "$start"
+  run claude_read "$p" shift-session
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "being recovered in another process"
+  printf '%s' "$output" | grep -q "stays blocked"
+  run claude_read "$p" helper-session
+  is_allow
+}
+
+@test "a dead clock-out child restores an interactive lease the recorded session can use" {
+  p="$(new_project)"
+  punch_open "$p"
+  claude_bind "$p" shift-session
+  claim="$(take_lease "$p" shift-session claude)"
+  generation="${claim%% *}"
+  nonce="${claim#* }"
+  (exit 0) &
+  dead=$!
+  wait "$dead"
+  bash -c '. "$1"; ns_lease_attach_process "$2/.nightshift" claude "$3" "$4" "$5" "$6"' \
+    nightshift "$LIB" "$p" "$nonce" "$generation" "$dead" "never"
+  bash -c '. "$1"; ns_lease_restore_interactive "$2/.nightshift"' \
+    nightshift "$LIB" "$p"
+  [ -z "$(sed -n 4p "$p/.nightshift/.shift-lease")" ]
+  [ "$(sed -n 1p "$p/.nightshift/.shift-lease")" = "shift-session" ]
+  run claude_read "$p" shift-session
+  is_allow
+  run claude_read "$p" helper-session
   is_allow
 }
 

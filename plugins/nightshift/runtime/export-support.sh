@@ -66,6 +66,8 @@ if [ -f "$PLUGIN_JSON" ]; then
   else
     PLUGIN_VER="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PLUGIN_JSON" | sed -n 1p)"
     PLUGIN_VER="${PLUGIN_VER:-unknown}"
+    PLUGIN_NAME="$(sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PLUGIN_JSON" | sed -n 1p)"
+    PLUGIN_NAME="${PLUGIN_NAME:-nightshift}"
   fi
 fi
 
@@ -153,16 +155,36 @@ dest="$outdir/${stamp}.txt"
     printf 'work_target: unresolved\n'
   fi
   printf '\n== markers ==\n'
-  printf 'armed: %s\n' "$( [ -f "$NS/.shift-armed" ] && printf yes || printf no )"
-  printf 'ended: %s\n' "$( [ -f "$NS/.ended" ] && printf yes || printf no )"
+  if [ -L "$NS/.shift-armed" ]; then
+    printf 'armed: unusable\n'
+  else
+    printf 'armed: %s\n' "$( [ -f "$NS/.shift-armed" ] && printf yes || printf no )"
+  fi
+  if [ -L "$NS/.ended" ]; then
+    printf 'ended: unusable\n'
+  else
+    printf 'ended: %s\n' "$( [ -f "$NS/.ended" ] && printf yes || printf no )"
+  fi
   printf 'stop: %s\n' "$( [ -f "$NS/STOP" ] && printf yes || printf no )"
-  printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
-  printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
+  if [ -L "$NS/.session-end" ]; then
+    printf 'session_end: unusable\n'
+  else
+    printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
+  fi
+  if [ -L "$NS/.shift-session" ]; then
+    printf 'session_record: unusable\n'
+  else
+    printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
+  fi
   printf 'process_lease: %s\n' "$LEASE_STATE"
   [ -z "$LEASE_HOST" ] || printf 'lease_host: %s\n' "$LEASE_HOST"
   [ -z "$LEASE_GENERATION" ] || printf 'lease_generation: %s\n' "$LEASE_GENERATION"
   [ -z "$LEASE_MODE" ] || printf 'lease_mode: %s\n' "$LEASE_MODE"
-  printf 'watchman_pidfile: %s\n' "$( [ -f "$NS/.watchman" ] && printf present || printf absent )"
+  if [ -L "$NS/.watchman" ]; then
+    printf 'watchman_pidfile: unusable\n'
+  else
+    printf 'watchman_pidfile: %s\n' "$( [ -f "$NS/.watchman" ] && printf present || printf absent )"
+  fi
   printf '\n== rules ==\n'
   printf 'validity: %s\n' "$RULES_STATE"
   printf 'keys: %s\n' "${RULES_KEYS:-}"

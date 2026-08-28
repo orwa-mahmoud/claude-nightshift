@@ -6,7 +6,7 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
 
 @test "shipped profiles are version 1 and use only schema keys" {
   schema="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/nightshift-rules.schema.json"
-  for name in balanced no-push strict-secrets; do
+  for name in balanced no-push strict-secrets isolated-branch; do
     f="$PROFILES/$name.json"
     [ -f "$f" ]
     jq -e --arg n "$name" '.name == $n and .version == 1 and .risk and .use and (.rules|type=="object")' "$f" >/dev/null
@@ -23,6 +23,7 @@ SETUP="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   run bash "$APPLY" --project "$p" --list
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'no-push'
+  printf '%s' "$output" | grep -q 'isolated-branch'
   printf '%s' "$output" | grep -q 'not a subscription'
   run bash "$APPLY" --project "$p" --profile no-push --mode fill
   [ "$status" -eq 0 ]
@@ -78,6 +79,8 @@ with open(p,"w") as f: json.dump(d,f)
   p="$(new_project)"
   run bash "$APPLY" --project "$p" --profile not-a-profile --mode fill
   [ "$status" -eq 1 ]
+  run bash "$APPLY" --project "$p" --profile '../nightshift-rules-template' --mode fill
+  [ "$status" -eq 1 ]
   : >"$p/.nightshift/.shift-armed"
   run bash "$APPLY" --project "$p" --profile no-push --mode fill --apply
   [ "$status" -eq 2 ]
@@ -88,4 +91,30 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -E 'curl|wget|http' "$APPLY" "$PROFILES"/*.json
   grep -qF 'apply-profile.sh' "$SETUP"
   grep -qF 'one-time local copy' "$SETUP"
+  grep -qF 'Refuse `--apply` / `-Apply` while armed' "$SETUP"
+  grep -qF 'every version-1 JSON file' "$SETUP"
+  grep -qF 'every version-1 JSON file' "$BATS_TEST_DIRNAME/../docs/knobs.md"
+}
+
+@test "Windows apply-profile usage errors name native flags" {
+  ps1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/apply-profile.ps1"
+  grep -qF -- '-Mode must be replace or fill' "$ps1"
+  ! grep -qF '--mode must be' "$ps1"
+}
+
+LOGIC="$BATS_TEST_DIRNAME/windows/apply-profile-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable apply-profile armed-refuse suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'apply-profile-logic.ps1' "$RUN"
+  grep -qF 'refuse to write rules while the shift is armed' "$LOGIC"
+}
+
+@test "Windows apply-profile refuses Apply when armed if pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
 }

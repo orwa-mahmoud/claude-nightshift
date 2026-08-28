@@ -84,6 +84,23 @@ ns_count_boxes() { # $1 = punch list, $2 = ERE for the box state
 ns_open_boxes()   { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
 ns_ticked_boxes() { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[xX]\]'; }
 
+# Work orders have no ## Items heading. Count every top-level open box in the file.
+ns_open_boxes_file() {
+  local n
+  n="$(grep -cE '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]' "$1" 2>/dev/null || true)"
+  printf '%s' "${n:-0}"
+}
+
+# Drafting table: the fenced item-shape example sits above the first --- rule.
+ns_open_drafts() {
+  [ -f "$1" ] || { printf '0'; return 0; }
+  awk '
+    /^---[[:space:]]*$/ { seen=1; next }
+    seen && /^[[:space:]]*-[[:space:]]*\[[[:space:]]\]/ { n++ }
+    END { print n+0 }
+  ' "$1"
+}
+
 # Watchman reason codes — one token, no transcript. Written to .nightshift/.watch-reason
 # (line 1 = code, line 2 = optional non-sensitive detail). Status and Doctor render the same
 # labels. Adding a code here is the contract; callers must not invent ad-hoc strings.
@@ -97,16 +114,17 @@ ns_reason_label() {
     unknown-wedge) printf 'session looks wedged without a verified error signature' ;;
     revived) printf 'session revived into its own conversation' ;;
     stand-down) printf 'watchman stood down' ;;
-    wrong-host) printf 'watchman stood down — shift belongs to another host' ;;
+    wrong-host) printf 'watchman stood down - shift belongs to another host' ;;
     deadline) printf 'quitting time passed' ;;
     clean-session-end) printf 'owner closed the session' ;;
-    esc-standby) printf 'standing by — owner interrupt in the transcript' ;;
-    silent-standby) printf 'standing by — session alive and quiet' ;;
+    esc-standby) printf 'standing by - owner interrupt in the transcript' ;;
+    silent-standby) printf 'standing by - session alive and quiet' ;;
     non-resumable-session) printf 'recorded Codex identity cannot be resumed' ;;
     unreadable-rules) printf 'rules file missing or incomplete' ;;
-    fresh-fallback) printf 'fresh session — punch list is the handover' ;;
+    fresh-fallback) printf 'fresh session - punch list is the handover' ;;
     unsupported-state) printf 'workspace state-version is unsupported' ;;
     process-evidence-unavailable) printf 'process evidence is unavailable' ;;
+    clock-out-failed) printf 'terminal clock-out failed without releasing the shift' ;;
     *) printf 'unknown watchman outcome' ;;
   esac
 }
@@ -115,7 +133,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable) ;;
+    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable|clock-out-failed) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
@@ -346,7 +364,9 @@ ns_retention_eligible() {
       archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) rel="${rel%/}" ;;
       *) continue ;;
     esac
-    [ -d "$ns/$rel" ] || continue
+    if [ ! -d "$ns/$rel" ] || [ -L "$ns/$rel" ]; then
+      continue
+    fi
     path="$(ns_under_nightshift "$ws" "$rel")" || continue
     ns_archive_has_open_work "$path" && continue
     age="$(ns_age_days "$path")" || continue
@@ -384,4 +404,100 @@ ns_retention_apply() {
   done <<EOF
 $(ns_retention_eligible "$ws")
 EOF
+}
+
+# Artifact completion receipts live in .nightshift/receipts/. They replace a work-target
+# git commit only while work-mode is artifact. Repository mode still requires a real commit.
+
+ns_receipts_dir() {
+  printf '%s' "$1/.nightshift/receipts"
+}
+
+# Real receipts directory only. A symlink here would let count, latest, and
+# fingerprint follow files outside .nightshift/.
+ns_receipts_usable_dir() {
+  local dir
+  dir="$(ns_receipts_dir "$1")"
+  [ -d "$dir" ] && [ ! -L "$dir" ] || return 1
+  printf '%s' "$dir"
+}
+
+ns_file_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" 2>/dev/null | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" 2>/dev/null | awk '{print $1}'
+  else
+    return 1
+  fi
+}
+
+ns_receipts_count() {
+  local dir n
+  dir="$(ns_receipts_usable_dir "$1")" || {
+    printf '0'
+    return 0
+  }
+  n="$(find "$dir" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
+  printf '%s' "${n:-0}"
+}
+
+# Newest completion receipt path, or status 1 when none exist.
+# Primary key is mtime. Same-second uniqueness suffixes (`stamp-slug-n.md`)
+# sort before `stamp-slug.md` in C locale (`-` < `.`), so a name-only sort
+# can name the first write as latest. Tie-break maps `.md` → `-0.md` so the
+# unsuffixed sibling sorts first and `-n` wins.
+# The sort-row helper stays outside $(...) — a `case` `)` would close the substitution.
+ns_latest_receipt_sort_row() {
+  local path="$1" m key
+  m="$(ns_mtime "$path")" || return 0
+  case "$m" in
+    '' | *[!0-9]*) return 0 ;;
+  esac
+  case "$path" in
+    *.md) key="${path%.md}-0.md" ;;
+    *) key="$path" ;;
+  esac
+  printf '%020d\t%s\t%s\n' "$m" "$key" "$path"
+}
+
+ns_latest_receipt() {
+  local dir out tab
+  dir="$(ns_receipts_usable_dir "$1")" || return 1
+  out="$(
+    find "$dir" -maxdepth 1 -type f ! -name '.*' -print 2>/dev/null | while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      ns_latest_receipt_sort_row "$path"
+    done | LC_ALL=C sort | tail -n 1
+  )"
+  [ -n "$out" ] || return 1
+  tab="$(printf '\t')"
+  printf '%s' "${out##*"$tab"}"
+}
+
+# Stable stall token: none when the directory is empty, otherwise a cksum of every receipt.
+ns_receipts_fingerprint() {
+  local dir out
+  dir="$(ns_receipts_usable_dir "$1")" || {
+    printf 'none'
+    return 0
+  }
+  out="$(find "$dir" -maxdepth 1 -type f ! -name '.*' -print 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
+    cksum "$f" 2>/dev/null
+  done)"
+  if [ -z "$out" ]; then
+    printf 'none'
+    return 0
+  fi
+  printf '%s\n' "$out" | cksum | awk '{print $1"-"$2}'
+}
+
+ns_receipt_slug() {
+  local s
+  s="$(printf '%s' "$1" | tr -cs 'A-Za-z0-9' '-' | tr '[:upper:]' '[:lower:]')"
+  s="${s#-}"
+  s="${s%-}"
+  s="$(printf '%s' "$s" | cut -c1-40)"
+  [ -n "$s" ] || s=item
+  printf '%s' "$s"
 }

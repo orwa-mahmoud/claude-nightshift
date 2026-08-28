@@ -81,6 +81,22 @@ load helpers
   is_deny "$output"
 }
 
+@test "a --git-dir add is denied when a protected directory is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --git-dir=/somewhere/else/.git add x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'protected-directory guard cannot verify'
+}
+
+@test "a --work-tree commit is denied when a protected directory is configured" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git --work-tree=/somewhere/else commit -am x" NIGHTSHIFT_PROTECTED_DIRS="ai_docs"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'protected-directory guard cannot verify'
+}
+
 @test "protected-dir check is skipped when unset" {
   p="$(new_project)"
   punch_open "$p"
@@ -215,11 +231,29 @@ load helpers
   is_allow
 }
 
+@test "a symlink ended marker keeps the site rules armed" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+}
+
 @test "forbidden-commands pattern denies during an active shift" {
   p="$(new_project)"
   punch_open "$p"
   run hardhat_bash "$p" "docker system prune -af" NIGHTSHIFT_FORBIDDEN_COMMANDS='rm -rf|docker|kubectl'
   is_deny "$output"
+}
+
+@test "an invalid forbidden-command pattern names the session repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git status" NIGHTSHIFT_FORBIDDEN_COMMANDS='(unclosed'
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression'
+  printf '%s' "$output" | grep -qF 'Fix the pattern in your session settings.'
 }
 
 @test "forbidden-commands rule is shift-scoped: inert once every box is ticked" {
@@ -387,6 +421,33 @@ load helpers
 
 # The no-push recipe in docs/knobs.md is `git .*push` so that config injection cannot slip between the
 # words. This pins the recipe itself.
+@test "the isolated-branch recipe denies default-branch checkout, merge, and push" {
+  p="$(new_project)"
+  punch_open "$p"
+  recipe="$(jq -r '.rules.forbiddenCommands' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/profiles/isolated-branch.json")"
+  run hardhat_bash "$p" "git checkout main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git switch master" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git checkout origin/main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git merge feature" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git -C /tmp checkout main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git -c protocol.file.allow=always merge feature" \
+    NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git -c http.proxy=x push origin main" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_deny "$output"
+  run hardhat_bash "$p" "git checkout -b nightshift/product-evolution-2026-08-27" \
+    NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_allow
+  run hardhat_bash "$p" "git commit -m 'merge and push later'" NIGHTSHIFT_FORBIDDEN_COMMANDS="$recipe"
+  is_allow
+}
+
 @test "the no-push recipe catches git -c k=v push" {
   p="$(new_project)"
   punch_open "$p"
@@ -406,6 +467,18 @@ load helpers
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
   jq -nc '{tool_name:"Bash",session_id:"second-tab",transcript_path:"/tmp/b.jsonl",tool_input:{command:"echo hi"}}' |
     CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
+}
+
+@test "a symlink shift-session does not block the first working session" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'planted-tab\n/tmp/plant.jsonl\n99999\nstart\nclaude\n' >"$p/.nightshift/session-plant"
+  ln -s session-plant "$p/.nightshift/.shift-session"
+  jq -nc '{tool_name:"Bash",session_id:"first-tab",transcript_path:"/tmp/a.jsonl",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ -f "$p/.nightshift/.shift-session" ]
+  [ ! -L "$p/.nightshift/.shift-session" ]
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
 }
 

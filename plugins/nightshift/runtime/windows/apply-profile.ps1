@@ -50,18 +50,18 @@ if ($List) {
 }
 
 if ($Mode -notin @('replace', 'fill')) {
-    [Console]::Error.WriteLine('apply-profile: --mode must be replace or fill')
+    [Console]::Error.WriteLine('apply-profile: -Mode must be replace or fill')
     exit 1
 }
-if ($Profile -notin @('balanced', 'no-push', 'strict-secrets')) {
+if ([string]::IsNullOrEmpty($Profile) -or $Profile -notmatch '^[A-Za-z0-9_-]+$') {
     [Console]::Error.WriteLine("apply-profile: unknown profile $Profile")
     exit 1
 }
 
 $src = Join-Path $profilesDir "$Profile.json"
 if (-not (Test-Path -LiteralPath $src -PathType Leaf)) {
-    [Console]::Error.WriteLine('apply-profile: missing profile file')
-    exit 2
+    [Console]::Error.WriteLine("apply-profile: unknown profile $Profile")
+    exit 1
 }
 
 try {

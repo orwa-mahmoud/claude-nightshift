@@ -18,8 +18,12 @@ short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpe
 `--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
 Never search or guess. The shell's working directory persists
 between Bash calls, so never use a bare path. If `$NS/` does not
-exist, stop and point to Setup first (`/nightshift:setup` on Claude Code, or ask Nightshift to set
-up on Codex).
+exist yet, tell the user to run Setup, then return.
+
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary known plans never become work orders.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 `${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
@@ -40,8 +44,8 @@ Offer two first-class modes:
 
 - **Guided** — show one offer line per entry, with its ending marked. The owner may choose more
  than one.
-- **Automatic** — ask for hours, inspect the project, determine which entries apply, deduplicate
- their findings, and rank them using `execution-modes.md`. Show evidence only in review-first
+- **Automatic** — ask for hours, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
+ their findings, and rank them using `execution-modes.md`. Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Refuse to compose, cut, or arm when the work target cannot be resolved. Show evidence only in review-first
  mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
 the whistle. Respect every entry's compatibility restrictions when composing a combination; never
@@ -57,7 +61,12 @@ drafting-table entries created by the Import issues skill (canonical Source URL 
 (on native Windows, `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -ListProposed`)
 and move a selection with the same qualified helper plus `--promote` / `-Promote` — a cut, never a copy. It
 does not replace defect hunt or product evolution, and it never searches GitHub or writes back to
-it.
+it. Never select it when work mode is artifact.
+Never select defect hunt when work mode is artifact.
+Never select documentation drift when work mode is artifact.
+Never select TODO and FIXME debt when work mode is artifact.
+Never select coverage hunt when work mode is artifact.
+Never select tooling quality-debt entries when work mode is artifact.
 
 ## 2. Ask when execution starts
 
@@ -98,7 +107,7 @@ Never edit the entry's own contract to fit it; the owner's words become their ow
 ```
 
 The entry's rules stay above it untouched. They enforce the shift contract — assert behaviour
-rather than counts, gate green at every commit, never silence instead of fixing — and owner text
+rather than counts, gate green at every commit or artifact receipt, never silence instead of fixing — and owner text
 adds constraints rather than replacing them.
 
 ## 5. Review or cut
@@ -132,16 +141,33 @@ After review-first approval, ask **start now, or park it for later?** Run-direct
 and always starts now; choosing it was already explicit authorization.
 
 On **now** — start the shift yourself, here, without making the owner type another command. Follow
-the Start skill exactly: clear the stale markers, **move** the item out of
-`$NS/work-orders.md` and
-under `## Items` in the punch list (a cut, never a copy — it must not exist in two places), write
-`$NS/deadline` from the recorded hours, **arm the gate** with
+the Start skill exactly: clear the stale markers, **cut** the whole `## Work order` section
+out of `$NS/work-orders.md` (heading, hours, and item — do not leave an empty
+order heading behind), put only the item under `## Items` in the punch list (a cut, never a
+copy — it must not exist in two places), write
+`$NS/deadline` as a UNIX epoch from the recorded hours (`date +%s` plus
+hours*3600 on POSIX, or `Get-NSUnixTime` plus hours*3600 after
+`Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force` on native
+Windows), **arm the gate** with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
-Windows PowerShell, log the start, arm the watchman. The
-marker is what starts the shift — without it the list is written and nothing is holding it. From
+Windows PowerShell, log the start, run the binding probe
+(`: nightshift-binding-probe` on POSIX, `$null = 'nightshift-binding-probe'`
+on native Windows), classify Codex `$NS/.shift-session` line 1 with
+`ns_codex_identity_kind` from `$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh` (native
+Windows: `Get-NSCodexIdentityKind` after
+`Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force`) before arming the watchman or beginning
+item work, and arm the watchman as the Start skill requires. Unsupported or
+malformed identities refuse as Start requires — never resume them. Claude Code uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh`; Codex uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; native Windows uses
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
+`-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`).
+The marker is what starts the shift — without it the list is written and nothing is holding it. From
 that second the gate holds this session until the list is done, a stop-work order lands, or the
-whistle blows.
+whistle blows. An empty `## Items` section still keeps the Shift contract and Gates; they bind
+the cut item. Record leftover campaign rules in `$NS/parking-lot.md` when they are not this
+order's.
 
 On **later** — the order stays parked in `$NS/work-orders.md` with its hours, costing nothing. It arms
 nothing and the gate stays inert. Start (`/nightshift:start` on Claude Code, or ask Nightshift to

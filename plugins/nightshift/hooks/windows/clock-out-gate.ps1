@@ -94,6 +94,9 @@ function Invoke-NSWhistle {
     if ([string]::IsNullOrEmpty($notify)) {
         return
     }
+    if (Test-NSReparsePoint $notified) {
+        Remove-Item -LiteralPath $notified -Force -ErrorAction SilentlyContinue
+    }
     $stream = $null
     try {
         $stream = [IO.File]::Open($notified, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
@@ -121,6 +124,9 @@ function Invoke-NSWhistle {
 function Complete-NSShift {
     param([Parameter(Mandatory = $true)][string]$Summary)
     if (Test-Path -LiteralPath $ns -PathType Container) {
+        if (Test-NSReparsePoint $ended) {
+            Remove-Item -LiteralPath $ended -Force -ErrorAction SilentlyContinue
+        }
         [IO.File]::WriteAllText($ended, '', $utf8)
     }
     Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue
@@ -131,6 +137,9 @@ function Complete-NSShift {
 
 function Test-NSDeadlinePassed {
     if (-not (Test-Path -LiteralPath $deadline -PathType Leaf)) {
+        return $false
+    }
+    if (Test-NSReparsePoint $deadline) {
         return $false
     }
     try {
@@ -148,19 +157,6 @@ function Test-NSDeadlinePassed {
     catch {
         return $false
     }
-}
-
-function Get-NSProjectHead {
-    try {
-        $target = Resolve-NSWorkTarget $workspace
-        $head = Invoke-NSGit $target @('rev-parse', 'HEAD')
-        if (-not [string]::IsNullOrWhiteSpace($head)) {
-            return $head
-        }
-    }
-    catch {
-    }
-    return 'nohead'
 }
 
 $raw = Get-NSStdinText -Piped $HookJson
@@ -307,10 +303,10 @@ try {
     }
 
     if ($stallReady) {
-        $fingerprint = "$($counts.Ticked):$(Get-NSProjectHead)"
+        $fingerprint = "$($counts.Ticked):$(Get-NSProgressToken $workspace)"
         $previousFingerprint = ''
         $previousAttempts = 0
-        if (Test-Path -LiteralPath $stall -PathType Leaf) {
+        if ((Test-Path -LiteralPath $stall -PathType Leaf) -and -not (Test-NSReparsePoint $stall)) {
             try {
                 $lines = [IO.File]::ReadAllLines($stall)
                 if ($lines.Count -gt 0) {
@@ -334,10 +330,13 @@ try {
             Write-NSLogLine "stall warning - $attempts attempts no progress, $($counts.Ticked)/$($counts.Total) done; keeping shift open"
             $attempts = 0
         }
+        if (Test-NSReparsePoint $stall) {
+            Remove-Item -LiteralPath $stall -Force -ErrorAction SilentlyContinue
+        }
         $null = Write-NSAtomicLines -Path $stall -Lines @($fingerprint, [string]$attempts)
     }
     else {
-        Write-NSLogLine 'stall guard down - stallMax/stallWarnEvery unreadable; run Setup again'
+        Write-NSLogLine 'stall guard down - stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)'
     }
 }
 finally {
@@ -349,4 +348,4 @@ finally {
 if (-not [string]::IsNullOrEmpty($gateMessage)) {
     Write-Block $gateMessage
 }
-Write-Block 'DO NOT STOP - the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item''s gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: clockOutMessage is unreadable; run Setup again.)'
+Write-Block 'DO NOT STOP - the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item''s gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage - unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)'

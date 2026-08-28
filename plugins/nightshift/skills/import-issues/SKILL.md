@@ -51,7 +51,7 @@ Accept only:
 
 - full GitHub issue URLs (`https://github.com/owner/repo/issues/N`), or
 - `owner/repo#N`, or
-- `--repo owner/repo` plus one or more issue numbers.
+- `--repo owner/repo` (POSIX) or `-Repo owner/repo` (native Windows) plus one or more issue numbers.
 
 If the owner says “import my issues”, “what’s open”, or names an account or repository without
 issue numbers, stop. Ask for explicit URLs or numbers. Never run `gh search`, `gh issue list`,
@@ -65,7 +65,7 @@ to set up on Codex).
 If `gh` is missing or not authenticated, run the helper once so it prints the install-it-yourself
 instruction, then stop. Change no files.
 
-Otherwise fetch every named issue with `--fetch`. Print the helper output verbatim. It shows
+Otherwise fetch every named issue with `--fetch` (POSIX) or `-Fetch` (native Windows). Print the helper output verbatim. It shows
 title, body, labels, state, number, repository, canonical URL, review flags, and whether the URL
 is already in the drafting table, punch list, or archives.
 
@@ -78,12 +78,15 @@ git, or GitHub commands. Review flags (`destructive`, `secret-seeking`, `publish
 
 ## 3. Stage only what the owner selects
 
-After the preview, ask which issues to stage. Then run `--stage` with those explicit specs.
-Add `--allow-closed` only when the owner overrode a closed issue after seeing it.
+After the preview, ask which issues to stage. Then run `--stage` (POSIX) or `-Stage` (native Windows)
+with those explicit specs. Add `--allow-closed` or `-AllowClosed` only when the owner overrode a
+closed issue after seeing it.
 
 The helper writes atomically to `$NS/drafting-table.md`. Each staged
 entry carries Source URL, imported title, quoted acceptance text, labels, import timestamp, and
 `Status: proposed`. Duplicates by canonical URL are skipped.
 
 Never create, edit, comment, label, assign, or close GitHub issues. Never push, open a PR, or
-promote the drafts into `$NS/punch-list.md` from this command.
+promote the drafts into `$NS/punch-list.md` from this command. If work mode is artifact, still
+stage the drafts; Hunt's GitHub issue hunt will not consume them until the work target is a
+matching git repository.

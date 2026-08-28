@@ -171,16 +171,66 @@ else {
 }
 $null = $lines.Add('')
 $null = $lines.Add('== markers ==')
-$null = $lines.Add(('armed: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf) { 'yes' } else { 'no' })))
-$null = $lines.Add(('ended: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) { 'yes' } else { 'no' })))
+$armedPath = Join-Path $ns '.shift-armed'
+$armedLabel = if (Test-NSReparsePoint $armedPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $armedPath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("armed: $armedLabel")
+$endedPath = Join-Path $ns '.ended'
+$endedLabel = if (Test-NSReparsePoint $endedPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $endedPath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("ended: $endedLabel")
 $null = $lines.Add(('stop: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) { 'yes' } else { 'no' })))
-$null = $lines.Add(('session_end: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf) { 'yes' } else { 'no' })))
-$null = $lines.Add(('session_record: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-session') -PathType Leaf) { 'present' } else { 'absent' })))
+$sessionEndPath = Join-Path $ns '.session-end'
+$sessionEndLabel = if (Test-NSReparsePoint $sessionEndPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $sessionEndPath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("session_end: $sessionEndLabel")
+$sessionPath = Join-Path $ns '.shift-session'
+$sessionRecordLabel = if (Test-NSReparsePoint $sessionPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
+    'present'
+}
+else {
+    'absent'
+}
+$null = $lines.Add("session_record: $sessionRecordLabel")
 $null = $lines.Add("process_lease: $leaseState")
 if (-not [string]::IsNullOrEmpty($leaseHost)) { $lines.Add("lease_host: $leaseHost") }
 if (-not [string]::IsNullOrEmpty($leaseGeneration)) { $lines.Add("lease_generation: $leaseGeneration") }
 if (-not [string]::IsNullOrEmpty($leaseMode)) { $lines.Add("lease_mode: $leaseMode") }
-$null = $lines.Add(('watchman_pidfile: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.watchman') -PathType Leaf) { 'present' } else { 'absent' })))
+$watchmanPath = Join-Path $ns '.watchman'
+$watchmanPidfileLabel = if (Test-NSReparsePoint $watchmanPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
+    'present'
+}
+else {
+    'absent'
+}
+$null = $lines.Add("watchman_pidfile: $watchmanPidfileLabel")
 $null = $lines.Add('')
 $null = $lines.Add('== rules ==')
 $null = $lines.Add("validity: $rulesState")

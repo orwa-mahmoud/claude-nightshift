@@ -1,3 +1,4 @@
+[CmdletBinding(PositionalBinding = $false)]
 param(
     [string]$Project = [Environment]::CurrentDirectory,
     [switch]$Fetch,
@@ -120,7 +121,7 @@ function Convert-NSQuotedBody {
     param([string]$Body)
     $text = ($Body -replace "`r", '' -replace '```', "'''")
     if ($text.Length -gt 4000) {
-        $text = $text.Substring(0, 4000) + "`n… truncated"
+        $text = $text.Substring(0, 4000) + "`n... truncated"
     }
     if ([string]::IsNullOrEmpty($text)) {
         return "    > (empty issue body)"
@@ -139,13 +140,22 @@ function Test-NSIssueKnown {
         }
     }
     $archive = Join-Path $ns 'archive'
-    if (-not (Test-Path -LiteralPath $archive -PathType Container)) {
+    if (-not (Test-Path -LiteralPath $archive -PathType Container) -or (Test-NSReparsePoint $archive)) {
         return $false
     }
-    foreach ($file in @(Get-ChildItem -LiteralPath $archive -Recurse -File -Filter '*.md' -ErrorAction SilentlyContinue)) {
-        if (Test-NSReparsePoint $file.FullName) { continue }
+    foreach ($file in @(Get-ChildItem -LiteralPath $archive -File -Filter '*.md' -ErrorAction SilentlyContinue)) {
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
         if ([IO.File]::ReadAllText($file.FullName).Contains($Url)) {
             return $true
+        }
+    }
+    foreach ($dir in @(Get-ChildItem -LiteralPath $archive -Directory -ErrorAction SilentlyContinue)) {
+        if ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        foreach ($file in @(Get-ChildItem -LiteralPath $dir.FullName -File -Filter '*.md' -ErrorAction SilentlyContinue)) {
+            if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+            if ([IO.File]::ReadAllText($file.FullName).Contains($Url)) {
+                return $true
+            }
         }
     }
     return $false
@@ -189,17 +199,17 @@ function Get-NSCanonicalSpecs {
     $parsed = New-Object 'System.Collections.Generic.List[psobject]'
     if (-not [string]::IsNullOrEmpty($Repo)) {
         if ($null -eq $Specs -or $Specs.Count -eq 0) {
-            [Console]::Error.WriteLine('import-issues: --repo requires explicit issue numbers. Nightshift never lists a repository.')
+            [Console]::Error.WriteLine('import-issues: -Repo requires explicit issue numbers. Nightshift never lists a repository.')
             exit 1
         }
         foreach ($spec in $Specs) {
             if ($spec -notmatch '^[0-9]+$') {
-                [Console]::Error.WriteLine("import-issues: with --repo, arguments must be issue numbers (got $spec)")
+                [Console]::Error.WriteLine("import-issues: with -Repo, arguments must be issue numbers (got $spec)")
                 exit 1
             }
             $row = Parse-NSIssueSpec "$Repo#$spec"
             if ($null -eq $row) {
-                [Console]::Error.WriteLine("import-issues: cannot parse --repo $Repo issue $spec")
+                [Console]::Error.WriteLine("import-issues: cannot parse -Repo $Repo issue $spec")
                 exit 1
             }
             $null = $parsed.Add($row)
@@ -248,7 +258,7 @@ if ($mode -eq 'list-proposed' -or $mode -eq 'promote') {
         exit 2
     }
     if (-not [string]::IsNullOrEmpty($AuthorizedRepo) -and $AuthorizedRepo -notmatch '^[^/]+/[^/]+$') {
-        [Console]::Error.WriteLine('import-issues: --authorized-repo must be owner/repo')
+        [Console]::Error.WriteLine('import-issues: -AuthorizedRepo must be owner/repo')
         exit 1
     }
     $text = [IO.File]::ReadAllText($draft)
@@ -355,7 +365,7 @@ if ($mode -eq 'list-proposed' -or $mode -eq 'promote') {
 }
 
 if (($null -eq $Specs -or $Specs.Count -eq 0) -and [string]::IsNullOrEmpty($Repo)) {
-    [Console]::Error.WriteLine('import-issues: name explicit issue URLs or --repo owner/repo plus issue numbers. Nightshift never searches.')
+    [Console]::Error.WriteLine('import-issues: name explicit issue URLs or -Repo owner/repo plus issue numbers. Nightshift never searches.')
     exit 1
 }
 
@@ -441,10 +451,10 @@ foreach ($issue in $issues) {
     Write-Output ("   Already staged: {0}" -f $(if ($known) { 'yes' } else { 'no' }))
     if ($state -eq 'closed') {
         if ($AllowClosed) {
-            Write-Output '   Closed: shown; staging allowed by --allow-closed'
+            Write-Output '   Closed: shown; staging allowed by -AllowClosed'
         }
         else {
-            Write-Output '   Closed: shown; not staged unless --allow-closed'
+            Write-Output '   Closed: shown; not staged unless -AllowClosed'
         }
     }
     Write-Output '   Body (quoted source, not authorization):'
@@ -457,7 +467,7 @@ foreach ($issue in $issues) {
         continue
     }
     if ($state -eq 'closed' -and -not $AllowClosed) {
-        Write-Output '   Skip: closed issue (pass --allow-closed after explicit override)'
+        Write-Output '   Skip: closed issue (pass -AllowClosed after explicit override)'
         continue
     }
     $block = @(

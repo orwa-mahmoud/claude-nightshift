@@ -2,6 +2,7 @@ load helpers
 
 DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
+STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
 CODEX_PLUGIN="$BATS_TEST_DIRNAME/../plugins/nightshift/.codex-plugin/plugin.json"
 
@@ -25,6 +26,7 @@ doctor() {
   grep -qF 'write the parking lot or ask' "$SKILL"
   grep -qF 'Offer the classified repairs' "$SKILL"
   grep -qF 'Never perform a repair' "$SKILL" || grep -qF 'change nothing' "$SKILL"
+  grep -qF '$NS/deadline' "$SKILL"
   jq -e '.skills == "./skills/"' "$CODEX_PLUGIN" >/dev/null
   [ -d "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor" ]
 }
@@ -48,6 +50,26 @@ doctor() {
   printf '%s' "$output" | grep -q 'watchMinutes 10'
   printf '%s' "$output" | grep -q '\[blocked\] Doctor never repairs'
   printf '%s' "$output" | grep -q 'Actions (Doctor does not perform these)'
+}
+
+@test "doctor warns when watchman recovery keys are empty" {
+  p="$(new_project)"
+  python3 -c '
+import json,sys
+p=sys.argv[1]
+with open(p) as f: d=json.load(f)
+d["watchRetrySeconds"]=""
+d["revivalPrompt"]=""
+d["freshRevivalPrompt"]=""
+with open(p,"w") as f: json.dump(d,f)
+' "$p/.nightshift/rules.json"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'watchRetrySeconds is empty'
+  printf '%s' "$output" | grep -q 'revivalPrompt is empty'
+  printf '%s' "$output" | grep -q 'freshRevivalPrompt is empty'
+  printf '%s' "$output" | grep -q 'watchman will refuse to arm'
+  printf '%s' "$output" | grep -q 'restore revivalPrompt from the shipped template'
 }
 
 @test "Doctor reports lease ownership without printing its capability" {
@@ -155,6 +177,216 @@ doctor() {
   [ -f "$p/.nightshift/.watchman" ]
 }
 
+@test "empty punch list reports leftover contract without rewriting it" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Shift contract\n- leftover campaign\n\n## Gates\n- none\n\n## Items\n\n' \
+    >"$p/.nightshift/punch-list.md"
+  before="$(fingerprint "$p")"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'leftover Shift contract and Gates'
+  printf '%s' "$output" | grep -q 'empty punch list will inherit the current contract'
+  printf '%s' "$output" | grep -q '\[confirm\].*review punch-list.md contract'
+  after="$(fingerprint "$p")"
+  [ "$before" = "$after" ]
+  grep -q 'leftover campaign' "$p/.nightshift/punch-list.md"
+}
+
+@test "Doctor reports a missing deadline as none" {
+  p="$(new_project)"
+  punch_open "$p"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'deadline=none'
+}
+
+@test "Doctor reports remaining seconds for a UNIX epoch deadline" {
+  p="$(new_project)"
+  punch_open "$p"
+  future="$(( $(date +%s) + 3600 ))"
+  printf '%s' "$future" >"$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q "deadline=$future remaining="
+  ! printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'
+}
+
+@test "Doctor reports elapsed when the UNIX epoch deadline is past" {
+  p="$(new_project)"
+  punch_open "$p"
+  past="$(( $(date +%s) - 60 ))"
+  printf '%s' "$past" >"$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF "deadline=$past remaining=0s (elapsed)"
+}
+
+@test "Doctor warns when the deadline is not a UNIX epoch" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '2026-08-27T08:45:56+04:00\n' >"$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'
+  ! printf '%s' "$output" | grep -q 'deadline=none'
+}
+
+@test "Doctor warns when the deadline path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline-plant"
+  ln -s deadline-plant "$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'deadline path is not a usable file'
+  ! printf '%s' "$output" | grep -q 'deadline=none'
+  ! printf '%s' "$output" | grep -q 'remaining=0s'
+  grep -qF 'deadline path is not a usable file' "$SKILL"
+  grep -qF 'deadline path is not a usable file' "$STATUS"
+}
+
+@test "Doctor warns when the ended path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'ended path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'gate has clocked the shift out'
+  grep -qF 'ended path is not a usable file' "$SKILL"
+  grep -qF 'ended path is not a usable file' "$STATUS"
+}
+
+@test "Doctor warns when the stall path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'fp\n99\n' >"$p/.nightshift/stall-plant"
+  ln -s stall-plant "$p/.nightshift/.stall"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'stall path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'stall count'
+  grep -qF 'stall path is not a usable file' "$SKILL"
+  grep -qF 'stall path is not a usable file' "$STATUS"
+}
+
+@test "Doctor warns when the session-end path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/session-end-plant"
+  ln -s session-end-plant "$p/.nightshift/.session-end"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'session-end path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'clean session-end marker is present'
+  grep -qF 'session-end path is not a usable file' "$SKILL"
+  grep -qF 'session-end path is not a usable file' "$STATUS"
+}
+
+@test "Doctor warns when the shift-session path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'planted-sid\n/tmp/planted.jsonl\n99999\nstart\nplanted-host\n' >"$p/.nightshift/session-plant"
+  ln -s session-plant "$p/.nightshift/.shift-session"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'shift-session path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'recorded host planted-host'
+  ! printf '%s' "$output" | grep -qF 'session id is present'
+  ! printf '%s' "$output" | grep -qF 'no .shift-session yet'
+  grep -qF 'shift-session path is not a usable file' "$SKILL"
+  grep -qF 'shift-session path is not a usable file' "$STATUS"
+}
+
+@test "Doctor warns when the watchman pidfile path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '%s\n' "$$" >"$p/.nightshift/watchman-plant"
+  ln -s watchman-plant "$p/.nightshift/.watchman"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'watchman pidfile path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'no live watchman pid file'
+  grep -qF 'watchman pidfile path is not a usable file' "$SKILL"
+  grep -qF 'watchman pidfile path is not a usable file' "$STATUS"
+}
+
+@test "Doctor names a failed terminal clock-out and the restored interactive lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'clock-out-failed\n\n' >"$p/.nightshift/.watch-reason"
+  printf 'shift-session\nclaude\n2\n\n\n\n' >"$p/.nightshift/.shift-lease"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'terminal clock-out failed without releasing the shift'
+  printf '%s' "$output" | grep -qF 'process lease restored to the interactive shift; the recorded conversation can operate'
+  grep -qF 'terminal clock-out failed without releasing the shift' "$SKILL"
+  grep -qF 'terminal clock-out failed without releasing the shift' "$STATUS"
+}
+
+@test "Doctor does not tell the owner to reopen while a recovery worker is alive" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'clock-out-failed\n\n' >"$p/.nightshift/.watch-reason"
+  printf 'shift-session\n\n%s\n\nclaude\n' "$$" >"$p/.nightshift/.shift-session"
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'shift-session\nclaude\n2\nnonce1\n%s\n%s\n' "$$" "$start" >"$p/.nightshift/.shift-lease"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'terminal clock-out failed without releasing the shift'
+  printf '%s' "$output" | grep -qF 'recovery worker is alive; the recorded conversation cannot reclaim yet'
+  printf '%s' "$output" | grep -qF 'reopening the recorded conversation stays blocked'
+  ! printf '%s' "$output" | grep -qF 'the recorded conversation can operate'
+}
+
+@test "the drafting-table item-shape example is not a staged draft" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  cp "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/drafting-table-template.md" \
+    "$p/.nightshift/drafting-table.md"
+  printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  ! printf '%s' "$output" | grep -q 'staged drafting-table items='
+}
+
+@test "drafting-table items after the rule are counted" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
+  cat >"$p/.nightshift/drafting-table.md" <<'EOF'
+# Drafting Table
+
+```text
+- [ ] **1. example only.**
+```
+
+---
+
+- [ ] **Real draft.**
+  - Verify: true
+  - Commit: `fix: x`
+EOF
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'staged drafting-table items=1'
+  printf '%s' "$output" | grep -q '\[confirm\].*drafting-table items'
+}
+
+@test "pending Hunt work orders are counted when the punch list is empty" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
+  printf '# Work Orders\n\n## Work order — test\nHours: 2\n\n- [ ] **Coverage hunt.**\n' \
+    >"$p/.nightshift/work-orders.md"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'pending Hunt work orders=1'
+  printf '%s' "$output" | grep -q '\[confirm\].*promote a parked Hunt order'
+}
+
 @test "leftover STOP while unarmed requires owner confirmation" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"
@@ -218,6 +450,9 @@ doctor() {
   grep -qF '/nightshift:doctor' "$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qF 'never repairs' "$BATS_TEST_DIRNAME/../docs/commands.md"
   grep -qF '/nightshift:doctor' "$BATS_TEST_DIRNAME/../docs/troubleshooting.md"
+  grep -qF '/nightshift:doctor' "$BATS_TEST_DIRNAME/../docs/how-it-works.md"
+  grep -qF 'never repairs' "$BATS_TEST_DIRNAME/../docs/how-it-works.md"
+  grep -qF 'runtime/export-support.sh' "$BATS_TEST_DIRNAME/../docs/commands.md"
 }
 
 @test "identity helpers classify Codex session shapes" {
@@ -241,4 +476,24 @@ doctor() {
   printf '%s\n' "$output" | awk 'NR==4{exit $0=="unsupported"?0:1}'
   printf '%s\n' "$output" | awk 'NR==5{exit $0=="malformed"?0:1}'
   printf '%s\n' "$output" | awk 'NR==6{exit $0=="malformed"?0:1}'
+}
+
+LOGIC="$BATS_TEST_DIRNAME/windows/codex-identity-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable Codex identity shape suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'codex-identity-logic.ps1' "$RUN"
+  grep -qF 'Get-NSCodexIdentityKind' "$LOGIC"
+  grep -qF 'thread_abc' "$LOGIC"
+  grep -qF 'function Get-NSCodexIdentityKind' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
+}
+
+@test "Windows Codex identity kinds match POSIX when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
 }

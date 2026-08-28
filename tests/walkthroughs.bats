@@ -38,6 +38,29 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'drafting-table.md' "$START"
 }
 
+# Imported issues carry review flags the helper enforces. A hand-edit of the two markdown files
+# would skip that, so empty-list Start must use the same promote path Hunt already names.
+@test "start cuts a proposed import through the promote helper" {
+  grep -qF 'Status: proposed' "$START"
+  grep -qF 'runtime/import-issues.sh' "$START"
+  grep -qF -- '--promote' "$START"
+  grep -qF 'runtime\windows\import-issues.ps1' "$START"
+  grep -qF -- '-Promote' "$START"
+  grep -qF -- '--allow-flagged' "$START"
+  grep -qF -- '-AllowFlagged' "$START"
+  grep -qi 'never by editing the two markdown files by hand' "$START"
+}
+
+# Hunt writes a heading plus hours plus the item. Cutting only the checkbox leaves an empty
+# order that Doctor no longer counts and Archive has to guess about.
+@test "a work-order cut removes the whole section" {
+  grep -qF 'whole `## Work order` section' "$START"
+  grep -qF 'whole `## Work order` section' "$HUNT"
+  grep -qF 'order heading behind' "$HUNT"
+  grep -qi 'leftover shell from a cut' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
+}
+
 # An item in two files is an item that gets worked twice, or ticked in the wrong place.
 @test "a cut moves the item and never copies it" {
   grep -qi 'move, never copy' "$START"
@@ -55,6 +78,11 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 @test "start writes the deadline from a cut order's recorded hours" {
   grep -q 'work-orders.md' "$START"
   grep -q 'hours\*3600' "$START"
+  grep -qF 'date +%s' "$START"
+  grep -qF 'Get-NSUnixTime' "$START"
+  grep -q 'hours\*3600' "$HUNT"
+  grep -qF 'date +%s' "$HUNT"
+  grep -qF 'Get-NSUnixTime' "$HUNT"
   grep -q 'work-orders.md' "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
 }
 
@@ -107,6 +135,11 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'park it for later' "$HUNT"
 }
 
+@test "Start and Hunt name artifact receipts in the live work loop" {
+  grep -qF 'gate before each commit or artifact receipt' "$START"
+  grep -qF 'gate green at every commit or artifact receipt' "$HUNT"
+}
+
 @test "hunt separates selection mode from launch mode" {
   grep -qi 'Guided' "$HUNT"
   grep -qi 'Automatic' "$HUNT"
@@ -116,8 +149,38 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 
 @test "automatic hunt ranks evidence and uses one combined clock" {
   mode="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/execution-modes.md"
-  grep -qi 'inspect the repository' "$mode"
+  quality="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  grep -qi 'inspect the work target' "$mode"
+  grep -qi 'inspect the work target' "$HUNT"
+  grep -qF '$NS/receipts/' "$HUNT"
+  grep -qF 'Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory' "$HUNT"
+  grep -qF 'Setup would propose artifact, refuse to compose, cut, or arm' "$HUNT"
+  grep -qF 'Refuse to compose, cut, or arm when work-mode is malformed' "$HUNT"
+  grep -qF 'Refuse to compose, cut, or arm when the work target cannot be resolved' "$HUNT"
+  grep -qi 'artifact mode' "$mode"
+  grep -qi 'do not require a git history' "$mode"
+  grep -qF 'Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory' "$mode"
+  grep -qF 'Setup would propose artifact, refuse to compose, cut, or arm' "$mode"
+  grep -qF 'Refuse to compose, cut, or arm when work-mode is malformed' "$mode"
+  grep -qF 'Refuse to compose, cut, or arm when the work target cannot be resolved' "$mode"
+  grep -qF 'Do not `git init` a notes folder' "$mode"
+  grep -qi 'Skip the GitHub issue hunt when work mode is artifact' "$mode"
+  grep -qi 'Skip the defect hunt when work mode is artifact' "$mode"
+  grep -qi 'Skip documentation drift when work mode is artifact' "$mode"
+  grep -qi 'Skip TODO and FIXME debt when work mode is artifact' "$mode"
+  grep -qi 'Skip coverage hunt when work mode is artifact' "$mode"
+  grep -qi 'Skip tooling quality-debt entries when work mode is artifact' "$mode"
+  grep -qi 'applicable only when the work target can supply' "$mode"
+  grep -qi 'do not require git history' "$quality"
+  grep -qF '$NS/receipts/' "$quality"
+  grep -qF 'Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory' "$quality"
+  grep -qF 'Setup would propose artifact, refuse to compose, cut, or arm' "$quality"
+  grep -qF 'Refuse to compose, cut, or arm when work-mode is malformed' "$quality"
+  grep -qF 'Refuse to compose, cut, or arm when the work target cannot be resolved' "$quality"
+  grep -qi 'artifact mode' "$quality"
+  grep -qF 'Do not `git init` a notes folder' "$quality"
   grep -qi 'user or production impact' "$mode"
+  grep -qi 'strength of work-target evidence' "$mode"
   grep -qi 'Remove overlaps' "$mode"
   grep -qi 'Run finite entries first' "$mode"
   grep -qi 'at most one open-ended entry' "$mode"
@@ -138,6 +201,10 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'rollback' "$mode"
   grep -qi 'publishing' "$mode"
   grep -qi 'legal or licensing policy' "$mode"
+  grep -qi 'isolated branch or inside the artifact work target' "$mode"
+  grep -qi 'one branch or artifact work target' "$mode"
+  grep -qF 'one set of receipts' "$mode"
+  grep -qF '.nightshift/receipts/' "$mode"
 }
 
 # The archive files finished paperwork only — the contract and open work are untouchable.
@@ -147,9 +214,19 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'stay exactly where they are' "$s"      # open items + contract stay
   grep -qF 'never ticks a box' "$s"                # files paperwork, does no work
   grep -qF 'archive/<YYYY-MM-DD>/' "$s"            # dated folders are the shape
+  grep -qF 'date +%Y-%m-%d' "$s"
+  grep -qF 'Get-Date -Format yyyy-MM-dd' "$s"
+  grep -qF 'date +%Y-%m-%d' "$START"
+  grep -qF 'Get-Date -Format yyyy-MM-dd' "$START"
   grep -qF 'unanswered stay' "$s"                  # open questions are not history
   grep -qF 'product-research.md' "$s"             # completed research is preserved
   grep -qF '`candidate`, `building`, and `parked`' "$s" # nonterminal opportunities stay live
+  grep -qF 'leftover Shift contract and Gates' "$s"
+  grep -qF '## Notes' "$s"
+  grep -qF 'Never write' "$s"
+  grep -qF 'git -C "$NS"' "$s"
+  grep -qF 'user.email=nightshift@localhost' "$s"
+  grep -qF 'commit.gpgsign=false' "$s"
 }
 
 @test "status surfaces the active product cycle without mutating it" {
@@ -158,4 +235,16 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'exact Next action' "$s"
   grep -qF 'Verify remaining' "$s"
   grep -qF 'without changing them' "$s"
+}
+
+@test "status, start, and hunt name leftover contract on an empty punch list" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+  grep -qF 'leftover' "$s"
+  grep -qF 'never resets' "$s"
+  grep -qF 'parked Hunt orders' "$s"
+  grep -qF 'markdown `---`' "$s"
+  grep -qF 'item-shape example' "$s"
+  grep -qF 'Shift contract and Gates' "$START"
+  grep -qF 'Shift contract and Gates' "$HUNT"
+  grep -qF 'parking-lot.md' "$HUNT"
 }

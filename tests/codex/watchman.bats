@@ -135,13 +135,17 @@ STUB
 
 @test "all boxes ticked with no .ended gets one clock-out spawn, then down" {
   printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  : >"$P/.nightshift/.shift-armed"
   run watch --max-wakes 3
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 1 ]
+  [ -f "$P/.nightshift/.ended" ]
+  [ ! -f "$P/.nightshift/.shift-armed" ]
+  [ ! -f "$P/.nightshift/.shift-lease" ]
   grep -q 'never clocked out' "$P/.nightshift/shift-log.md"
 }
 
-@test "a failed Codex terminal clock-out retries instead of abandoning its lease" {
+@test "a failed Codex terminal clock-out stands down after one attempt" {
   cat >"$BIN/fail.sh" <<'STUB'
 #!/usr/bin/env bash
 echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
@@ -150,12 +154,41 @@ STUB
   chmod +x "$BIN/fail.sh"
   printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
 
-  run watch --agent "bash $BIN/fail.sh" --max-wakes 2
-  [ "$status" -eq 7 ]
-  [ "$(calls)" -eq 2 ]
-  [ -f "$P/.nightshift/.shift-lease" ]
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
   [ ! -f "$P/.nightshift/.ended" ]
-  grep -q 'clock-out returned without releasing' "$P/.nightshift/shift-log.md"
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
+  grep -qF 'clock-out attempt 1/1' "$P/.nightshift/shift-log.md"
+}
+
+@test "a spent deadline with a failed Codex clock-out is bounded" {
+  cat >"$BIN/fail.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+exit 1
+STUB
+  chmod +x "$BIN/fail.sh"
+  echo $(($(date +%s) - 60)) >"$P/.nightshift/deadline"
+  run watch --agent "bash $BIN/fail.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
+}
+
+@test "default Codex watchman config cannot loop a failed terminal clock-out" {
+  cat >"$BIN/fail.sh" <<'STUB'
+#!/usr/bin/env bash
+echo "called $NIGHTSHIFT_REVIVAL" >>.nightshift/agent-calls
+exit 1
+STUB
+  chmod +x "$BIN/fail.sh"
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh"
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  [ "$(sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]')" = "clock-out-failed" ]
 }
 
 @test "a spent deadline with a dead session gets the clock-out spawn" {
@@ -189,6 +222,14 @@ reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
 
 @test "Codex foreign host records wrong-host" {
   printf 'sid\n\n\n\nclaude\n' >"$P/.nightshift/.shift-session"
+  run watch --max-wakes 1
+  [ "$(reason)" = "wrong-host" ]
+}
+
+@test "a symlink shift-session is not a Codex-owned record" {
+  printf 'dead-sid\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/session-plant"
+  rm -f "$P/.nightshift/.shift-session"
+  ln -s session-plant "$P/.nightshift/.shift-session"
   run watch --max-wakes 1
   [ "$(reason)" = "wrong-host" ]
 }
@@ -246,6 +287,7 @@ STUB
   rm "$P/.nightshift/rules.json"
   run "$WATCHMAN" --project "$P"
   [ "$(reason)" = "unreadable-rules" ]
+  printf '%s' "$output" | grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex'
 }
 
 @test "an unsupported Codex identity stands down without invoking Codex" {

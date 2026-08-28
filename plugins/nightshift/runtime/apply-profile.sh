@@ -69,13 +69,15 @@ case "$MODE" in
   *) printf 'apply-profile: --mode must be replace or fill\n' >&2; exit 1 ;;
 esac
 case "$PROFILE" in
-  balanced | no-push | strict-secrets) ;;
-  *) printf 'apply-profile: unknown profile %s\n' "$PROFILE" >&2; exit 1 ;;
+  '' | *[!A-Za-z0-9_-]*)
+    printf 'apply-profile: unknown profile %s\n' "$PROFILE" >&2
+    exit 1
+    ;;
 esac
 SRC="$PROFILES/${PROFILE}.json"
 [ -f "$SRC" ] || {
-  printf 'apply-profile: missing profile file\n' >&2
-  exit 2
+  printf 'apply-profile: unknown profile %s\n' "$PROFILE" >&2
+  exit 1
 }
 
 if ! command -v jq >/dev/null 2>&1; then

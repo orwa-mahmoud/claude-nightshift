@@ -11,8 +11,15 @@ Host differences that matter here: both Stop hooks refuse an early clock-out. Cl
 watchman can revive a live session sitting on a host API-error event. A Codex session that is
 **alive but errored is stood by**, not revived, until that signature is captured. Codex also has
 no Escape or clean-session-end signal, so closing an interactive session with open Items hands the
-night to its watchman. `touch .nightshift/STOP` is the POSIX stop-work order;
+night to its watchman. `touch .nightshift/STOP` is the POSIX panic stop-work order;
 `New-Item -ItemType File -Force .nightshift\STOP` is its native Windows PowerShell equivalent.
+Write it in the folder that contains `.nightshift/` — the workspace, or the target of
+`.nightshift-link`. A STOP next to the link file is not the order.
+That marker waits for the next Stop event or watchman wake. To pause immediately — including when
+the model is stuck — run `runtime/stop-shift.sh --project /absolute/task/root` (native Windows:
+`runtime/windows/stop-shift.ps1 -Project`). Reset drops the deadline but keeps work.
+`runtime/purge-workspace.sh` permanently deletes that project's `.nightshift/` after an exact
+`--confirm-path`. None of them uninstall the plugin.
 The full Windows boundary is in [Native Windows](windows.md).
 
 ## 0. Where is the site?
@@ -95,25 +102,55 @@ cat .nightshift-link
 A valid link is a regular file (not a symlink) with **exactly one absolute path** to a directory
 that contains `.nightshift/`. Anything else fails closed: hooks and skills will not guess.
 
-**Repair.** Remove the broken file and run `link-workspace.sh` again, or work from the workspace
+**Repair.** Remove the broken file and run `link-workspace.sh` again (native Windows:
+`link-workspace.ps1 -HostRoot` / `-Workspace`), or work from the workspace
 that already owns `.nightshift/`. Do not hand-write a relative path.
 
 ## 3. Wrong workspace or work target
 
-**Check.** Run state lives in the resolved workspace. The code repository may be that same folder,
-or the single git child named in `.nightshift/work-target`:
+**Check.** Run state lives in the resolved workspace. Read the mode first:
 
 ```sh
 # after resolving the workspace (pwd, or the link target)
+sed -n '1p' .nightshift/work-mode 2>/dev/null
 sed -n '1p' .nightshift/work-target 2>/dev/null
+```
+
+Native Windows: `Get-Content -TotalCount 1 .nightshift\work-mode` and
+`Get-Content -TotalCount 1 .nightshift\work-target`.
+
+Missing `work-mode` means repository. In repository mode the code repository may be that same
+folder, or the single git child named in `.nightshift/work-target`:
+
+```sh
 git -C "$(sed -n '1p' .nightshift/work-target 2>/dev/null || pwd)" rev-parse --show-toplevel
 ```
 
 Two git repositories as siblings of `.nightshift/` with no `work-target` is undecidable: commit
 guards deny rather than pick one.
 
-**Repair.** Re-run setup and choose the repository explicitly. Do not invent a `work-target` by
-hand unless it is the absolute git top-level of the repo you mean.
+In artifact mode the work target is the persistent folder itself. There is no work-target git
+history. Look at `.nightshift/receipts/` — Doctor reports `artifact receipts N` and, when any
+exist, `latest artifact receipt` with the filename of the most recently written receipt. Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts. Archive
+copies those files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
+into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder. A failing `git -C … rev-parse` here is
+expected, not a broken site.
+
+```sh
+ls .nightshift/receipts 2>/dev/null
+```
+
+Native Windows: `Get-ChildItem .nightshift\receipts -ErrorAction SilentlyContinue`
+
+**Repair.** Re-run setup and choose the folder explicitly. Do not invent a `work-target` by
+hand unless it is the absolute git top-level of the repo you mean. Do not `git init` an artifact
+folder to satisfy this page.
+The GitHub issue hunt is skipped in artifact mode.
+The defect hunt is skipped in artifact mode.
+Documentation drift is skipped in artifact mode.
+TODO and FIXME debt is skipped in artifact mode.
+Coverage hunt is skipped in artifact mode.
+Tooling quality-debt entries are skipped in artifact mode.
 
 ## 4. Unreadable rules
 
@@ -123,6 +160,8 @@ hand unless it is the absolute git top-level of the repo you mean.
 ls -l .nightshift/rules.json
 python3 -m json.tool .nightshift/rules.json >/dev/null
 ```
+
+Native Windows: `Get-Content -Raw .nightshift\rules.json | ConvertFrom-Json | Out-Null`
 
 Watchman refuses to arm when `watchMinutes` is missing or not a whole number, or when
 `watchRetrySeconds`, `revivalPrompt`, or `freshRevivalPrompt` are empty. The clock-out stall
@@ -153,6 +192,8 @@ ls -l .nightshift/STOP .nightshift/.shift-armed .nightshift/.ended \
 sed -n '1,5p' .nightshift/STOP 2>/dev/null
 ```
 
+Native Windows: `Get-Content -TotalCount 5 .nightshift\STOP`
+
 | Marker | Meaning |
 |---|---|
 | `STOP` | Stop-work order. The gate releases at the **next stop attempt**; open boxes stay open. Site rules stay armed until then. |
@@ -166,6 +207,12 @@ sed -n '1,5p' .nightshift/STOP 2>/dev/null
 A leftover `STOP`, `.ended`, `.session-end`, `.shift-session`, or `.shift-lease` from last night
 will surprise tonight. Start clears stale run-control markers before it arms. Do not delete them by
 hand while a session is still working the list.
+
+A leftover Shift contract is different: Archive and Start leave it in place. After a finished
+campaign, `punch-list.md` can have zero open boxes and still name last night's branch, release,
+and issue-close list. The next Hunt cut inherits that text. Status and Doctor report it; review
+the contract and Gates before composing a new campaign. Do not delete the punch list to "clear"
+it. Re-run Setup while Items are empty to be offered a restore of the shipped contract.
 
 **Repair (you want the shift ended now).** From any terminal at the workspace that owns
 `.nightshift/`:
@@ -186,7 +233,8 @@ Start; on native Windows, import `lib\Nightshift.psm1` and call
 
 ## 6. Missing session identity
 
-**Check.** Immediately after arming, Start makes a harmless Bash binding probe on POSIX or a
+**Check.** Immediately after arming, Start — and Hunt or Quality when they start immediately —
+make a harmless Bash binding probe on POSIX or a
 PowerShell binding probe on native Windows. It writes
 `.nightshift/.shift-session` before item work. Typical layout: session id, transcript or rollout
 path, pid, process start time, host (`claude` or `codex`). Claude fills the process fields when it
@@ -202,6 +250,8 @@ workspace is bootstrapped by the bound session's next tool call.
 ```sh
 sed -n '1,5p' .nightshift/.shift-session 2>/dev/null
 ```
+
+Native Windows: `Get-Content -TotalCount 5 .nightshift\.shift-session`
 
 A 500 can land **before** the binding probe, so the file may be missing while the punch list is
 open. On Claude Code the watchman then treats the newest conversation ending in the host's API-error
@@ -220,6 +270,8 @@ project will append to the wrong conversation.
 tail -n 40 .nightshift/shift-log.md
 ls -l .nightshift/.watchman .nightshift/.watchman-tick 2>/dev/null
 ```
+
+Native Windows: `Get-Content -Tail 40 .nightshift\shift-log.md`
 
 Stand-down is success when the night already reached a declared ending. Matching log lines:
 
@@ -268,9 +320,8 @@ active.
 
 If Doctor says the lease is malformed, or work was already interleaved before the fence took
 effect, run Stop (`/nightshift:stop` on Claude Code, or ask Nightshift to stop on Codex) from a
-separate helper conversation, or create `STOP` from another terminal. Wait for the active process
-to stop, inspect the repository and shift log, then run Start; do not rewrite `.shift-lease` by
-hand. A bare `touch` leaves the watchman running until it checks the marker after the current
+separate helper conversation, or run the terminal helper with an explicit `--project` / `-Project`.
+That disarms immediately and releases the lease. Wait for the active process to stop, inspect the work target and shift log, then run Start; do not rewrite `.shift-lease` by hand. A bare `touch` leaves the watchman running until it checks the marker after the current
 subprocess returns or on its next wake.
 
 Automatic refresh is tracked in
@@ -283,7 +334,8 @@ worker.
 
 ## See also
 
-- [Command reference](commands.md) — setup, start, status, doctor, stop, schedule
+- [Command reference](commands.md) — setup, start, status, doctor, stop, reset, purge, schedule
+- [Shift modes](shift-modes.md) — copyable Hunt and Quality launch combinations
 - [Owner knobs](knobs.md) — `rules.json` and env overrides
 - [First-night safety checklist](first-night-checklist.md)
 - [Security policy](../SECURITY.md) — public issues by default; private advisory is optional

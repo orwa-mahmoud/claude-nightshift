@@ -29,6 +29,8 @@ bundle_mode() {
   [ ! -d "$p/.nightshift/support" ]
   grep -qF 'export-support.sh' "$DOCTOR_SKILL"
   grep -qF 'Invoking Doctor alone must not create' "$DOCTOR_SKILL"
+  grep -qF 'runtime/export-support.sh' "$BATS_TEST_DIRNAME/../docs/commands.md"
+  grep -qF 'runtime\windows\export-support.ps1' "$BATS_TEST_DIRNAME/../docs/commands.md"
 }
 
 @test "export writes a 0600 local bundle and never phones home" {
@@ -47,6 +49,80 @@ bundle_mode() {
   grep -q 'name: nightshift' "$bundle"
   grep -q 'validity: valid' "$bundle"
   ! grep -q 'DO NOT STOP' "$bundle"
+}
+
+@test "export reads plugin name without jq" {
+  grep -qF 'PLUGIN_NAME="$(sed -n' "$EXPORT"
+  p="$(new_project)"
+  nojq="$BATS_TEST_TMPDIR/export-nojq"
+  mkdir -p "$nojq"
+  for t in bash sh sed date mkdir uname cat tr chmod python3 git awk grep head tail cut basename dirname mktemp stat cksum find sort hostname id ps rm mv cp ln touch wc xargs sleep shasum sha256sum cmp tee env true false getconf lsof; do
+    command -v "$t" >/dev/null 2>&1 && ln -sf "$(command -v "$t")" "$nojq/$t"
+  done
+  run env PATH="$nojq" bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  [ -f "$bundle" ]
+  grep -qF 'name: nightshift' "$bundle"
+  ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/.claude-plugin/plugin.json" | sed -n 1p)"
+  grep -qF "version: $ver" "$bundle"
+}
+
+@test "export does not report a symlink ended marker as clocked out" {
+  p="$(new_project)"
+  : >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'ended: unusable' "$bundle"
+  ! grep -qF 'ended: yes' "$bundle"
+}
+
+@test "export does not report a symlink session-end marker as a clean exit" {
+  p="$(new_project)"
+  : >"$p/.nightshift/session-end-plant"
+  ln -s session-end-plant "$p/.nightshift/.session-end"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'session_end: unusable' "$bundle"
+  ! grep -qF 'session_end: yes' "$bundle"
+}
+
+@test "export does not report a symlink shift-session as a recorded session" {
+  p="$(new_project)"
+  : >"$p/.nightshift/session-plant"
+  ln -s session-plant "$p/.nightshift/.shift-session"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'session_record: unusable' "$bundle"
+  ! grep -qF 'session_record: present' "$bundle"
+}
+
+@test "export does not report a symlink armed marker as armed" {
+  p="$(new_project)"
+  : >"$p/.nightshift/armed-plant"
+  rm -f "$p/.nightshift/.shift-armed"
+  ln -s armed-plant "$p/.nightshift/.shift-armed"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'armed: unusable' "$bundle"
+  ! grep -qF 'armed: yes' "$bundle"
+}
+
+@test "export does not report a symlink watchman pidfile as present" {
+  p="$(new_project)"
+  : >"$p/.nightshift/watchman-plant"
+  ln -s watchman-plant "$p/.nightshift/.watchman"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'watchman_pidfile: unusable' "$bundle"
+  ! grep -qF 'watchman_pidfile: present' "$bundle"
 }
 
 @test "support reports lease state but omits the ownership capability" {
@@ -115,6 +191,42 @@ with open(p,"w") as f: json.dump(d,f)
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qE 'task: \$(WORKSPACE|WORK_TARGET|HOME)' "$bundle"
   ! grep -F "$p" "$bundle"
+}
+
+LOGIC="$BATS_TEST_DIRNAME/windows/export-support-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-support.ps1"
+
+@test "Windows CI runs the portable export-support redaction suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'export-support-logic.ps1' "$RUN"
+  grep -qF 'supersecret' "$LOGIC"
+  grep -qF 'lease_mode: recovered' "$LOGIC"
+  grep -qF 'Write-NSAtomicLines -Path $tmp -Lines @($lines) -Private' "$WIN_EXPORT"
+  grep -qF '[ -L "$NS/.ended" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $endedPath' "$WIN_EXPORT"
+  grep -qF 'symlink ended marker is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.session-end" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $sessionEndPath' "$WIN_EXPORT"
+  grep -qF 'symlink session-end marker is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.shift-session" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $sessionPath' "$WIN_EXPORT"
+  grep -qF 'symlink shift-session is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.shift-armed" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $armedPath' "$WIN_EXPORT"
+  grep -qF 'symlink armed marker is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.watchman" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $watchmanPath' "$WIN_EXPORT"
+  grep -qF 'symlink watchman pidfile is unusable' "$LOGIC"
+  ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
+}
+
+@test "Windows export-support redaction logic passes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
 }
 
 @test "sanitizer omits secret lines and unresolved absolute paths" {

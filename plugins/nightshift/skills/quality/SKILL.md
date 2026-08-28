@@ -25,6 +25,11 @@ Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 it from the absolute path attached to this skill (`skills/quality/SKILL.md`). Substitute that
 absolute path below; never search for the plugin.
 
+**State map:** `punch-list.md` → owner-approved work active in this shift;
+`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
+decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
+only through Hunt. Ordinary known plans never become work orders.
+
 Read these before scanning:
 
 - `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/execution-modes.md`
@@ -52,8 +57,22 @@ without another pause under the decision policy in `execution-modes.md`.
 
 ## 2. Detect and scan
 
-Detect the stack from the gates catalog (monorepo-aware), inspect repository-owned tooling and
-evidence, then apply the discovery rules from every relevant quality entry. Never install a tool
+Detect the stack from the gates catalog (monorepo-aware) when the work mode is repository,
+including a plugin or marketplace manifest at the work-target root or under `plugins/<name>/`,
+and inspect repository-owned tooling and evidence. In artifact mode inspect the persistent
+folder's files and any existing manifests or reports; do not require git history or stack
+detection that needs a repository. Completion in that folder is `$NS/receipts/`, not a git log.
+Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory.
+If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder.
+Refuse to compose, cut, or arm when work-mode is malformed.
+Refuse to compose, cut, or arm when the work target cannot be resolved.
+Skip quality-debt entries whose discovery surface is
+absent. Do not `git init` a notes folder to make them applicable.
+Skip documentation drift when work mode is artifact.
+Skip TODO and FIXME debt when work mode is artifact.
+Skip coverage hunt when work mode is artifact.
+Skip tooling quality-debt entries when work mode is artifact. Then apply the discovery rules from every relevant quality
+entry. Never install a tool
 merely to manufacture findings. In review-first mode use report-only commands: no fix flags and no
 writes. If `$NS/` does not exist, review-first may report, but any run-direct request must
 stop and point to Setup (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex)
@@ -70,10 +89,12 @@ remaining time. In Guided mode keep only the areas and scope the owner selected.
 When review first was chosen, summarize evidence per catalog entry and top-level directory in plain
 numbers, then show the exact ordered work order. Offer three answers:
 
-- **fix now** — compose one work order from the selected catalog entries and start it here through
- the Hunt cut and Start lifecycle. Preserve every entry's contract. Apply the one
- deadline chosen for the combined shift. Follow Start's entire preflight before cutting or
- arming, exactly as run directly does.
+- **fix now** — compose one Hunt work order from the selected catalog entries: append it to
+ `$NS/work-orders.md` (heading, hours, and item; never clobber orders already
+ sitting there), then cut and start it through the Hunt cut and Start lifecycle. Never write
+ the punch list first. Preserve every entry's contract. Apply the one deadline chosen for the
+ combined shift. Follow Start's entire preflight before cutting or arming, exactly as run
+ directly does.
 - **draft for later** — append them to `$NS/drafting-table.md` and arm nothing. The
  drafting table is staging: it is never read by the gate, which is exactly why proposals can wait
  there safely. Tell the owner they can promote what they want into the punch list and run Start
@@ -88,14 +109,28 @@ agreed to — the box and the start belong together, or neither happens.
 
 ## 5. Run directly
 
-When run directly was chosen, do not present the three-answer review menu. Compose one ordered work
-order, then enter the same Hunt cut and Start lifecycle used by **fix now**. Follow
+When run directly was chosen, do not present the three-answer review menu. Compose one ordered Hunt
+work order, append it to `$NS/work-orders.md` (heading, hours, and item; never
+clobber orders already sitting there), then enter the same Hunt cut and Start lifecycle used by
+**fix now**. Never write the punch list first. Follow
 Start's entire preflight before cutting or arming, including the one-shift check, state and work
 target validation, stale run-control markers, deadline handling, rules, and unattended permissions.
 Only after it passes, cut the order and arm one shift with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
-Windows PowerShell; log the start and arm the watchman exactly as the Start skill requires.
+Windows PowerShell; log the start, run the binding probe
+(`: nightshift-binding-probe` on POSIX, `$null = 'nightshift-binding-probe'`
+on native Windows), classify Codex `$NS/.shift-session` line 1 with
+`ns_codex_identity_kind` from `$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh` (native
+Windows: `Get-NSCodexIdentityKind` after
+`Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force`) before arming the watchman or beginning
+item work, and arm the watchman exactly as the Start skill requires.
+Unsupported or malformed identities refuse as Start requires — never resume
+them. Claude Code uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh`; Codex uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; native Windows uses
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
+`-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`).
 Implement and verify the selected entry contracts, and continue
 until the finite work is clear or the shared deadline ends. Record significant decisions and
 rollback instructions in `$NS/parking-lot.md`; never create a second

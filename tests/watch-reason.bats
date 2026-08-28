@@ -3,7 +3,7 @@ STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 DOCTOR_SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
 
-CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-wedge revived stand-down wrong-host deadline clean-session-end esc-standby silent-standby non-resumable-session unreadable-rules fresh-fallback unsupported-state process-evidence-unavailable"
+CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-wedge revived stand-down wrong-host deadline clean-session-end esc-standby silent-standby non-resumable-session unreadable-rules fresh-fallback unsupported-state process-evidence-unavailable clock-out-failed"
 
 @test "every shipped reason code has a stable label" {
   for c in $CODES; do
@@ -16,9 +16,18 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
 @test "status and Doctor render the same shared reason file" {
   grep -qF '.watch-reason' "$STATUS"
   grep -qF 'ns_reason_label' "$STATUS"
+  grep -qF 'Get-NSReasonLabel' "$STATUS"
   grep -qF 'ns_reason_code' "$DOCTOR"
   grep -qF 'ns_reason_label' "$DOCTOR"
   grep -qF '.watch-reason' "$DOCTOR_SKILL" || grep -qF 'watchman reason' "$DOCTOR"
+}
+
+@test "status reads session and watchman liveness from Doctor" {
+  grep -qF 'recorded pid' "$STATUS"
+  grep -qF 'watchman pid' "$STATUS"
+  grep -qF 'reimplement liveness' "$STATUS"
+  grep -qF 'recorded pid' "$DOCTOR"
+  grep -qF 'watchman pid' "$DOCTOR"
 }
 
 @test "Windows reason allow-list matches the shared codes" {
@@ -37,4 +46,30 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
   ! grep -q $'\t' "$ns/.watch-reason"
   bash -c '. "$1"; ns_record_reason "$2" not-a-real-code' _ "$LIB" "$ns"
   [ "$(sed -n 1p "$ns/.watch-reason")" = "stand-down" ]
+}
+
+LOGIC="$BATS_TEST_DIRNAME/windows/reason-label-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable watchman reason-label suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'reason-label-logic.ps1' "$RUN"
+  grep -qF 'Get-NSReasonLabel' "$LOGIC"
+  grep -qF 'process-evidence-unavailable' "$LOGIC"
+}
+
+@test "Windows reason labels match POSIX when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+  while IFS=$'\t' read -r code label; do
+    [ -n "$code" ] || continue
+    posix="$(bash -c '. "$1"; ns_reason_label "$2"' _ "$LIB" "$code")"
+    [ "$posix" = "$label" ] || {
+      echo "mismatch $code: posix='$posix' win='$label'" >&2
+      return 1
+    }
+  done <<< "$output"
 }

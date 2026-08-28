@@ -86,6 +86,67 @@ function Resolve-NSCanonicalPath {
     return [IO.Path]::GetFullPath($resolved.ProviderPath)
 }
 
+function Test-NSScratchPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $normalized = $Path.TrimEnd('\', '/').Replace('\', '/')
+    return [bool]($normalized -match '^/workspace/scratch(?:/|$)')
+}
+
+function Get-NSWorkMode {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $record = Join-Path $Workspace '.nightshift/work-mode'
+    if (Test-NSReparsePoint $record) {
+        throw 'work mode is malformed'
+    }
+    if (-not (Test-Path -LiteralPath $record -PathType Leaf)) {
+        return 'repository'
+    }
+    $lines = [IO.File]::ReadAllLines($record)
+    if ($lines.Count -lt 1) {
+        throw 'work mode is unreadable'
+    }
+    $mode = $lines[0].Trim()
+    if ($mode -notin @('repository', 'artifact')) {
+        throw 'work mode is malformed'
+    }
+    return $mode
+}
+
+function Write-NSWorkMode {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][ValidateSet('repository', 'artifact')][string]$Mode
+    )
+    $ns = Join-Path $Workspace '.nightshift'
+    $null = New-Item -ItemType Directory -Path $ns -Force
+    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-mode') -Lines @($Mode)
+}
+
+function Get-NSProposedWorkMode {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $project = Resolve-NSCanonicalPath $Workspace
+    if (Test-NSScratchPath $project) {
+        throw 'disposable scratch workspaces are refused'
+    }
+    $top = Invoke-NSGit $project @('rev-parse', '--show-toplevel')
+    if (-not [string]::IsNullOrWhiteSpace($top)) {
+        return 'repository'
+    }
+    foreach ($child in Get-ChildItem -LiteralPath $project -Directory -Force -ErrorAction SilentlyContinue) {
+        if ($child.Name.StartsWith('.')) {
+            continue
+        }
+        if ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
+        $candidate = Invoke-NSGit $child.FullName @('rev-parse', '--show-toplevel')
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            return 'repository'
+        }
+    }
+    return 'artifact'
+}
+
 function Resolve-NSWorkspaceRoot {
     param([Parameter(Mandatory = $true)][string]$HostRoot)
 
@@ -115,7 +176,7 @@ function Resolve-NSWorkspaceRoot {
 }
 
 # Windows PowerShell 5.1 turns redirected native stderr into ErrorRecords. With
-# $ErrorActionPreference=Stop, `git ... 2>$null` then aborts — including CRLF
+# $ErrorActionPreference=Stop, `git ... 2>$null` then aborts - including CRLF
 # warnings and "unknown revision 'HEAD'" on an unborn branch.
 function Invoke-NSGitCommand {
     param(
@@ -195,7 +256,11 @@ function Resolve-NSWorkTarget {
     param([Parameter(Mandatory = $true)][string]$Workspace)
 
     $project = Resolve-NSCanonicalPath $Workspace
+    $mode = Get-NSWorkMode $project
     $record = Join-Path $project '.nightshift/work-target'
+    if (Test-NSReparsePoint $record) {
+        throw 'work target is unreadable'
+    }
     if (Test-Path -LiteralPath $record -PathType Leaf) {
         $lines = [IO.File]::ReadAllLines($record)
         if ($lines.Count -lt 1 -or [string]::IsNullOrWhiteSpace($lines[0])) {
@@ -205,11 +270,28 @@ function Resolve-NSWorkTarget {
         if (-not [IO.Path]::IsPathRooted($target)) {
             $target = Join-Path $project $target
         }
+        $folder = Resolve-NSCanonicalPath $target
+        if (Test-NSScratchPath $folder) {
+            throw 'work target is a disposable scratch workspace'
+        }
+        if ($mode -eq 'artifact') {
+            if (-not (Test-Path -LiteralPath $folder -PathType Container)) {
+                throw 'work target is not a directory'
+            }
+            return $folder
+        }
         $top = Invoke-NSGit $target @('rev-parse', '--show-toplevel')
         if ([string]::IsNullOrWhiteSpace($top)) {
             throw 'work target is not a Git repository'
         }
         return (Resolve-NSCanonicalPath $top)
+    }
+
+    if ($mode -eq 'artifact') {
+        if (Test-NSScratchPath $project) {
+            throw 'work target is a disposable scratch workspace'
+        }
+        return $project
     }
 
     $top = Invoke-NSGit $project @('rev-parse', '--show-toplevel')
@@ -220,6 +302,9 @@ function Resolve-NSWorkTarget {
     $found = $null
     foreach ($child in Get-ChildItem -LiteralPath $project -Directory -Force -ErrorAction SilentlyContinue) {
         if ($child.Name.StartsWith('.')) {
+            continue
+        }
+        if ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) {
             continue
         }
         $candidate = Invoke-NSGit $child.FullName @('rev-parse', '--show-toplevel')
@@ -241,15 +326,167 @@ function Resolve-NSWorkTarget {
 function Write-NSWorkTarget {
     param(
         [Parameter(Mandatory = $true)][string]$Workspace,
-        [Parameter(Mandatory = $true)][string]$Repository
+        [Parameter(Mandatory = $true)][string]$Repository,
+        [ValidateSet('repository', 'artifact')][string]$Mode = 'repository'
     )
-    $top = Invoke-NSGit $Repository @('rev-parse', '--show-toplevel')
-    if ([string]::IsNullOrWhiteSpace($top)) {
-        throw 'work target is not a Git repository'
+    $top = $null
+    if ($Mode -eq 'artifact') {
+        $top = Resolve-NSCanonicalPath $Repository
+        if (-not (Test-Path -LiteralPath $top -PathType Container)) {
+            throw 'work target is not a directory'
+        }
+        if (Test-NSScratchPath $top) {
+            throw 'work target is a disposable scratch workspace'
+        }
+    }
+    else {
+        $gitTop = Invoke-NSGit $Repository @('rev-parse', '--show-toplevel')
+        if ([string]::IsNullOrWhiteSpace($gitTop)) {
+            throw 'work target is not a Git repository'
+        }
+        $top = Resolve-NSCanonicalPath $gitTop
+        if (Test-NSScratchPath $top) {
+            throw 'work target is a disposable scratch workspace'
+        }
     }
     $ns = Join-Path $Workspace '.nightshift'
     $null = New-Item -ItemType Directory -Path $ns -Force
-    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @((Resolve-NSCanonicalPath $top))
+    Write-NSWorkMode $Workspace $Mode
+    $null = Write-NSAtomicLines -Path (Join-Path $ns 'work-target') -Lines @($top)
+}
+
+function Get-NSReceiptsDir {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    return (Join-Path $Workspace '.nightshift/receipts')
+}
+
+function Test-NSUsableReceiptsDir {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    return ((Test-Path -LiteralPath $dir -PathType Container) -and -not (Test-NSReparsePoint $dir))
+}
+
+function Get-NSFileSha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-NSReceiptSlug {
+    param([AllowEmptyString()][string]$Text)
+    $s = ([string]$Text).ToLowerInvariant() -replace '[^a-z0-9]+', '-'
+    $s = $s.Trim('-')
+    if ($s.Length -gt 40) {
+        $s = $s.Substring(0, 40).TrimEnd('-')
+    }
+    if ([string]::IsNullOrEmpty($s)) {
+        $s = 'item'
+    }
+    return $s
+}
+
+function Get-NSReceiptsCount {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    if (-not (Test-NSUsableReceiptsDir $Workspace)) {
+        return 0
+    }
+    return @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not $_.Name.StartsWith('.') -and
+            -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        }).Count
+}
+
+function Get-NSLatestReceipt {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    if (-not (Test-NSUsableReceiptsDir $Workspace)) {
+        return $null
+    }
+    $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not $_.Name.StartsWith('.') -and
+            -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        })
+    if ($files.Count -eq 0) {
+        return $null
+    }
+    # LastWriteTime first. Same-second uniqueness suffixes (`stamp-slug-n.md`)
+    # sort before `stamp-slug.md` by name (`-` < `.`); map `.md` -> `-0.md` so
+    # the unsuffixed sibling sorts first and `-n` wins the tie.
+    $latest = @($files | Sort-Object @{
+            Expression = { $_.LastWriteTimeUtc.Ticks }
+        }, @{
+            Expression = {
+                if ($_.Name -like '*.md') {
+                    $_.Name.Substring(0, $_.Name.Length - 3) + '-0.md'
+                }
+                else {
+                    $_.Name
+                }
+            }
+        })[-1]
+    return $latest.FullName
+}
+
+function Get-NSReceiptsFingerprint {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    if (-not (Test-NSUsableReceiptsDir $Workspace)) {
+        return 'none'
+    }
+    $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            -not $_.Name.StartsWith('.') -and
+            -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        } |
+        Sort-Object { $_.FullName })
+    if ($files.Count -eq 0) {
+        return 'none'
+    }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $utf8 = New-Object Text.UTF8Encoding $false
+        foreach ($file in $files) {
+            $line = '{0} {1}{2}' -f (Get-NSFileSha256 $file.FullName), $file.Name, "`n"
+            $bytes = $utf8.GetBytes($line)
+            [void]$sha.TransformBlock($bytes, 0, $bytes.Length, $null, 0)
+        }
+        [void]$sha.TransformFinalBlock([byte[]]@(), 0, 0)
+        return (([BitConverter]::ToString($sha.Hash)) -replace '-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-NSWorkTargetHead {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    try {
+        $target = Resolve-NSWorkTarget $Workspace
+        $head = Invoke-NSGit $target @('rev-parse', 'HEAD')
+        if (-not [string]::IsNullOrWhiteSpace($head)) {
+            return $head
+        }
+    }
+    catch {
+    }
+    return 'nohead'
+}
+
+function Get-NSProgressToken {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $mode = 'repository'
+    try {
+        $mode = Get-NSWorkMode $Workspace
+    }
+    catch {
+        $mode = 'repository'
+    }
+    if ($mode -eq 'artifact') {
+        return Get-NSReceiptsFingerprint $Workspace
+    }
+    return Get-NSWorkTargetHead $Workspace
 }
 
 function Get-NSStateKind {
@@ -402,6 +639,39 @@ function Get-NSBoxCounts {
         }
     }
     return [pscustomobject]@{ Open = $open; Ticked = $ticked; Total = ($open + $ticked) }
+}
+
+function Get-NSOpenBoxesInFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $open = 0
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        foreach ($line in [IO.File]::ReadLines($Path)) {
+            if ($line -match '^\s*-\s*\[\s\]') {
+                $open++
+            }
+        }
+    }
+    return $open
+}
+
+function Get-NSOpenDrafts {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $open = 0
+    $seenRule = $false
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        foreach ($line in [IO.File]::ReadLines($Path)) {
+            if (-not $seenRule) {
+                if ($line -match '^---\s*$') {
+                    $seenRule = $true
+                }
+                continue
+            }
+            if ($line -match '^\s*-\s*\[\s\]') {
+                $open++
+            }
+        }
+    }
+    return $open
 }
 
 function Get-NSCodexIdentityKind {
@@ -818,7 +1088,11 @@ function Claim-NSSession {
         return $false
     }
     try {
-        return Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.shift-session') `
+        $path = Join-Path $NightshiftDir '.shift-session'
+        if (Test-NSReparsePoint $path) {
+            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        }
+        return Write-NSAtomicLines -Path $path `
             -Lines @($SessionId, $Transcript, $ProcessId, $Start, $HostName) -Private -CreateOnly
     }
     catch {
@@ -875,7 +1149,11 @@ function Write-NSSession {
         return $false
     }
     try {
-        return Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.shift-session') `
+        $path = Join-Path $NightshiftDir '.shift-session'
+        if (Test-NSReparsePoint $path) {
+            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        }
+        return Write-NSAtomicLines -Path $path `
             -Lines @($SessionId, $Transcript, $ProcessId, $Start, $HostName) -Private
     }
     catch {
@@ -1100,6 +1378,39 @@ function Attach-NSLeaseProcess {
     }
 }
 
+function Restore-NSLeaseInteractive {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $mutex = Enter-NSMutex $NightshiftDir '.lease-lock.d'
+    if ($null -eq $mutex) {
+        return $false
+    }
+    try {
+        $lease = Read-NSLease $NightshiftDir
+        if ($null -eq $lease) {
+            return $false
+        }
+        if ([string]::IsNullOrEmpty($lease.Nonce)) {
+            return $true
+        }
+        if (-not [string]::IsNullOrEmpty($lease.ProcessId)) {
+            if ((Test-NSRecordedProcess $lease.ProcessId $lease.Start) -ne 'Dead') {
+                return $false
+            }
+        }
+        if ([string]::IsNullOrEmpty($lease.SessionId)) {
+            $path = Join-Path $NightshiftDir '.shift-lease'
+            Remove-NSFile $path
+            return -not (Test-NSPathEntry $path)
+        }
+        # Empty pid: the recorded session id may reclaim. Copying a still-live
+        # recorded pid would fence that conversation's next tool process.
+        return Write-NSLease $NightshiftDir $lease.SessionId $lease.HostName ($lease.Generation + 1) '' '' ''
+    }
+    finally {
+        Exit-NSMutex $mutex
+    }
+}
+
 function Test-NSLeaseAllows {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
@@ -1193,6 +1504,337 @@ function Reset-NSStaleLease {
     finally {
         Exit-NSMutex $mutex
     }
+}
+
+function Remove-NSPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (Test-NSReparsePoint $Path) {
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        return
+    }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue
+        return
+    }
+    Remove-NSFile $Path
+}
+
+function Resolve-NSControlWorkspace {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $hostPath = Resolve-NSCanonicalPath $Project
+    $workspace = Resolve-NSWorkspaceRoot $hostPath
+    $ns = Join-Path $workspace '.nightshift'
+    return [pscustomobject]@{
+        HostRoot = $hostPath
+        Workspace = $workspace
+        NightshiftDir = $ns
+    }
+}
+
+function Test-NSBroadWorkspace {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $ws = $Workspace.TrimEnd('\', '/')
+    if ([string]::IsNullOrEmpty($ws)) { return $true }
+    if ($ws -in @('/', '\', 'C:', 'C:\')) { return $true }
+    $root = ''
+    try { $root = [IO.Path]::GetPathRoot($ws).TrimEnd('\', '/') } catch { $root = '' }
+    if (-not [string]::IsNullOrEmpty($root) -and $ws.Equals($root, [StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+    $home = ''
+    if (-not [string]::IsNullOrEmpty($env:USERPROFILE)) {
+        try { $home = Resolve-NSCanonicalPath $env:USERPROFILE } catch { $home = '' }
+    }
+    if ([string]::IsNullOrEmpty($home) -and -not [string]::IsNullOrEmpty($env:HOME)) {
+        try { $home = Resolve-NSCanonicalPath $env:HOME } catch { $home = '' }
+    }
+    if (-not [string]::IsNullOrEmpty($home) -and $ws.Equals($home.TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+    $forbidden = @()
+    if (-not [string]::IsNullOrEmpty($root)) {
+        $forbidden += (Join-Path $root 'Users')
+        $forbidden += (Join-Path $root 'Windows')
+        $forbidden += (Join-Path $root 'Program Files')
+        $forbidden += (Join-Path $root 'Program Files (x86)')
+    }
+    foreach ($item in $forbidden) {
+        $candidate = $item.TrimEnd('\', '/')
+        if ($ws.Equals($candidate, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
+function Read-NSControlLink {
+    param([Parameter(Mandatory = $true)][string]$HostRoot)
+    $link = Join-Path $HostRoot '.nightshift-link'
+    if (-not (Test-NSPathEntry $link)) { return $null }
+    if ((Test-NSReparsePoint $link) -or -not (Test-Path -LiteralPath $link -PathType Leaf)) {
+        throw 'invalid .nightshift-link'
+    }
+    $lines = [IO.File]::ReadAllLines($link)
+    if ($lines.Count -ne 1 -or [string]::IsNullOrWhiteSpace($lines[0])) {
+        throw 'invalid .nightshift-link'
+    }
+    $target = $lines[0]
+    if (-not [IO.Path]::IsPathRooted($target)) {
+        throw 'invalid .nightshift-link'
+    }
+    try {
+        return Resolve-NSCanonicalPath $target
+    }
+    catch {
+        $parent = Split-Path -Parent $target
+        return (Join-Path (Resolve-NSCanonicalPath $parent) (Split-Path -Leaf $target))
+    }
+}
+
+function Get-NSControlStartRefuseReason {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $stop = Join-Path $NightshiftDir 'STOP'
+    $ended = Join-Path $NightshiftDir '.ended'
+    if (-not (Test-Path -LiteralPath $stop -PathType Leaf)) { return '' }
+    if ((Test-Path -LiteralPath $ended -PathType Leaf) -and -not (Test-NSReparsePoint $ended)) { return '' }
+    $deadline = Join-Path $NightshiftDir 'deadline'
+    if (-not (Test-Path -LiteralPath $deadline -PathType Leaf) -or (Test-NSReparsePoint $deadline)) {
+        return ''
+    }
+    $raw = ([IO.File]::ReadAllText($deadline)).Trim()
+    if ($raw -notmatch '^[0-9]+$') { return '' }
+    $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    if ($now -lt [long]$raw) { return '' }
+    return "paused shift deadline has expired - write a new UNIX epoch to $NightshiftDir/deadline, or run Reset then Start; refusing to invent a time budget"
+}
+
+function Stop-NSWatchman {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $pidFile = Join-Path $NightshiftDir '.watchman'
+    $tick = Join-Path $NightshiftDir '.watchman-tick'
+    if (Test-NSReparsePoint $pidFile) {
+        Remove-NSPath $pidFile
+        Remove-NSPath $tick
+        return 'stopped'
+    }
+    if (-not (Test-Path -LiteralPath $pidFile -PathType Leaf)) {
+        Remove-NSPath $tick
+        return 'absent'
+    }
+    $lines = @([IO.File]::ReadAllLines($pidFile))
+    $pid = if ($lines.Count -gt 0) { $lines[0].Trim() } else { '' }
+    $start = if ($lines.Count -gt 1) { [string]$lines[1] } else { '' }
+    $state = Test-NSRecordedProcess $pid $start
+    if ($state -in @('Dead', 'Malformed')) {
+        Remove-NSPath $pidFile
+        Remove-NSPath $tick
+        return 'absent'
+    }
+    if ($state -ne 'Alive') {
+        return 'unverified'
+    }
+    if ([string]::IsNullOrEmpty($start)) {
+        $proc = Get-Process -Id ([int]$pid) -ErrorAction SilentlyContinue
+        $blob = ''
+        if ($null -ne $proc) {
+            $blob = [string]$proc.ProcessName + ' ' + [string]$proc.Path
+        }
+        if ($blob -notmatch 'watchman\.ps1|watchman\.sh|start-watchman') {
+            return 'unverified'
+        }
+    }
+    Stop-Process -Id ([int]$pid) -Force -ErrorAction SilentlyContinue
+    Remove-NSPath $pidFile
+    Remove-NSPath $tick
+    return 'stopped'
+}
+
+function Clear-NSRuntimeMarkers {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    foreach ($name in @('.shift-armed', '.ended', '.session-end', '.shift-session', '.stall', '.notified', '.watchman-tick', '.mutex-scope')) {
+        Remove-NSPath (Join-Path $NightshiftDir $name)
+    }
+    Get-ChildItem -LiteralPath $NightshiftDir -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like '.shift-session.tmp.*' -or $_.Name -like '.mutex-scope.tmp.*' } |
+        ForEach-Object { Remove-NSPath $_.FullName }
+    Remove-NSPath (Join-Path $NightshiftDir '.lock.d')
+    $null = Reset-NSStaleLease $NightshiftDir
+}
+
+function Write-NSControlLog {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][string]$Line
+    )
+    $log = Join-Path $NightshiftDir 'shift-log.md'
+    $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    Add-Content -LiteralPath $log -Value "$stamp · $Line" -Encoding utf8
+}
+
+function Stop-NSShift {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [string]$Reason = 'stopped by owner'
+    )
+    $ctx = Resolve-NSControlWorkspace $Project
+    $ns = $ctx.NightshiftDir
+    if (Test-NSReparsePoint $ns) { throw 'stop-shift: .nightshift path is not a usable directory' }
+    if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
+        throw "stop-shift: no .nightshift/ at $($ctx.Workspace)"
+    }
+    if ([string]::IsNullOrEmpty($Reason)) { $Reason = 'stopped by owner' }
+    $ts = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ')
+    Remove-NSPath (Join-Path $ns 'STOP')
+    [IO.File]::WriteAllText((Join-Path $ns 'STOP'), "$Reason · $ts`n")
+    $watch = Stop-NSWatchman $ns
+    Clear-NSRuntimeMarkers $ns
+    $null = Write-NSReason $ns 'owner-stop'
+    Write-NSControlLog $ns 'stopped by owner'
+    $open = 0
+    $punch = Join-Path $ns 'punch-list.md'
+    if (Test-Path -LiteralPath $punch -PathType Leaf) {
+        $open = (Get-NSBoxCounts $punch).Open
+    }
+    Write-Output "stopped $ns"
+    Write-Output "workspace $($ctx.Workspace)"
+    if ($ctx.HostRoot -ne $ctx.Workspace) { Write-Output "host $($ctx.HostRoot)" }
+    Write-Output "watchman $watch"
+    Write-Output "open-items $open"
+    Write-Output 'deadline preserved'
+}
+
+function Reset-NSShift {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    Stop-NSShift -Project $Project -Reason 'reset by owner'
+    $ctx = Resolve-NSControlWorkspace $Project
+    Remove-NSPath (Join-Path $ctx.NightshiftDir 'STOP')
+    Remove-NSPath (Join-Path $ctx.NightshiftDir 'deadline')
+    Remove-NSPath (Join-Path $ctx.NightshiftDir '.watch-reason')
+    Write-NSControlLog $ctx.NightshiftDir 'reset by owner - runtime markers and deadline cleared'
+    Write-Output "reset $($ctx.NightshiftDir)"
+    Write-Output 'deadline removed'
+}
+
+function Remove-NSNightshiftWorkspace {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)][string]$ConfirmPath
+    )
+    $hostPath = Resolve-NSCanonicalPath $Project
+    $workspace = $hostPath
+    $link = Join-Path $hostPath '.nightshift-link'
+    if (Test-NSPathEntry $link) {
+        $workspace = Read-NSControlLink $hostPath
+    }
+    $nsCanon = Join-Path $workspace '.nightshift'
+    if ((Test-Path -LiteralPath $nsCanon -PathType Container) -and -not (Test-NSReparsePoint $nsCanon)) {
+        $nsCanon = Resolve-NSCanonicalPath $nsCanon
+    }
+    else {
+        try { $nsCanon = Resolve-NSCanonicalPath $nsCanon } catch {
+            $parent = Split-Path -Parent $nsCanon
+            $nsCanon = Join-Path (Resolve-NSCanonicalPath $parent) (Split-Path -Leaf $nsCanon)
+        }
+    }
+    $confirm = $ConfirmPath.TrimEnd('\', '/')
+    try { $confirm = Resolve-NSCanonicalPath $ConfirmPath } catch {
+        $parent = Split-Path -Parent $ConfirmPath
+        $confirm = Join-Path (Resolve-NSCanonicalPath $parent) (Split-Path -Leaf $ConfirmPath)
+    }
+    $confirm = $confirm.TrimEnd('\', '/')
+    $nsCanon = $nsCanon.TrimEnd('\', '/')
+    if ($confirm -ne $nsCanon) {
+        throw "purge-workspace: --confirm-path must be exactly $nsCanon"
+    }
+    if ((Test-NSBroadWorkspace $workspace) -or (Test-NSReparsePoint $nsCanon)) {
+        throw "purge-workspace: refusing to delete $nsCanon"
+    }
+    if ((Test-Path -LiteralPath $nsCanon -PathType Container) -and -not (Test-NSReparsePoint $nsCanon)) {
+        Reset-NSShift -Project $Project
+    }
+    if (Test-NSReparsePoint $nsCanon) {
+        throw 'purge-workspace: .nightshift path is a symlink'
+    }
+    if (Test-Path -LiteralPath $nsCanon) {
+        Remove-Item -LiteralPath $nsCanon -Recurse -Force
+    }
+    if (Test-NSPathEntry $link) {
+        Remove-NSPath $link
+    }
+    Write-Output "purged $nsCanon"
+    Write-Output 'plugin install was not touched'
+}
+
+function Test-NSTrustedShiftControl {
+    param(
+        [AllowEmptyString()][string]$Command,
+        [Parameter(Mandatory = $true)][string]$PluginRoot,
+        [Parameter(Mandatory = $true)][string]$Workspace
+    )
+    if ([string]::IsNullOrWhiteSpace($Command)) { return $false }
+    if ($Command.Contains('$')) { return $false }
+    if ($Command -match "[\r\n;|&``<>]") { return $false }
+    $pluginRoot = Resolve-NSCanonicalPath $PluginRoot
+    $workspace = Resolve-NSCanonicalPath $Workspace
+    $normalized = $Command.Trim()
+    foreach ($prefix in @('powershell.exe ', 'pwsh ', 'pwsh.exe ', '& ')) {
+        if ($normalized.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+            $normalized = $normalized.Substring($prefix.Length).Trim()
+        }
+    }
+    $normalized = $normalized -replace "^'", '' -replace "'$", '' -replace '^"', '' -replace '"$', ''
+    # @() keeps a single regex hit as a one-element array; StrictMode rejects .Count on a bare string.
+    $tokens = @([regex]::Matches($normalized, '(?:[^\s"]+|"[^"]*"|''[^'']*'')') | ForEach-Object { $_.Value.Trim("'`"") })
+    if ($tokens.Count -lt 3) { return $false }
+    $idx = 0
+    if ($tokens[0] -in @('powershell', 'powershell.exe', 'pwsh', 'pwsh.exe', 'bash') -and $tokens.Count -ge 4) {
+        if ($tokens[1] -in @('-File', '-Command', '--')) { $idx = 2 } else { $idx = 1 }
+    }
+    $script = $tokens[$idx]
+    try { $script = Resolve-NSCanonicalPath $script } catch { return $false }
+    $helpers = @(
+        (Join-Path $pluginRoot 'runtime/windows/stop-shift.ps1'),
+        (Join-Path $pluginRoot 'runtime/windows/reset-shift.ps1'),
+        (Join-Path $pluginRoot 'runtime/windows/purge-workspace.ps1'),
+        (Join-Path $pluginRoot 'runtime/stop-shift.sh'),
+        (Join-Path $pluginRoot 'runtime/reset-shift.sh'),
+        (Join-Path $pluginRoot 'runtime/purge-workspace.sh')
+    )
+    $ok = $false
+    foreach ($h in $helpers) {
+        try {
+            if ((Resolve-NSCanonicalPath $h) -eq $script) { $ok = $true; break }
+        }
+        catch { }
+    }
+    if (-not $ok) { return $false }
+    $project = ''
+    $confirm = ''
+    for ($i = $idx + 1; $i -lt $tokens.Count; $i++) {
+        if ($tokens[$i] -in @('--project', '-Project') -and ($i + 1) -lt $tokens.Count) {
+            $project = $tokens[$i + 1]
+            $i++
+            continue
+        }
+        if ($tokens[$i] -in @('--confirm-path', '-ConfirmPath') -and ($i + 1) -lt $tokens.Count) {
+            $confirm = $tokens[$i + 1]
+            $i++
+            continue
+        }
+        if ($tokens[$i] -in @('--reason', '-Reason') -and ($i + 1) -lt $tokens.Count) {
+            $i++
+            continue
+        }
+        return $false
+    }
+    if ([string]::IsNullOrEmpty($project)) { return $false }
+    if (-not [IO.Path]::IsPathRooted($project)) { return $false }
+    try {
+        $resolved = (Resolve-NSControlWorkspace $project).Workspace
+    }
+    catch { return $false }
+    if ($resolved -ne $workspace) { return $false }
+    $leaf = Split-Path -Leaf $script
+    if ($leaf -like 'purge-workspace.*' -and [string]::IsNullOrEmpty($confirm)) { return $false }
+    return $true
 }
 
 function New-NSShiftDecision {
@@ -1321,6 +1963,12 @@ function Resolve-NSShiftAuthorize {
     $allow = Test-NSLeaseAllows $NightshiftDir $checkSession $HostName $ProcessId $ProcessStart $Nonce $Generation
     if ($allow -eq 'Deny') {
         if ($Mode -eq 'hardhat') {
+            $held = Read-NSLease $NightshiftDir
+            if ($null -ne $held -and -not [string]::IsNullOrEmpty($held.Nonce) `
+                -and -not [string]::IsNullOrEmpty($held.ProcessId) `
+                -and (Test-NSRecordedProcess $held.ProcessId $held.Start) -eq 'Alive') {
+                return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift is being recovered in another process. Wait or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease.'
+            }
             return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
         }
         return New-NSShiftDecision -Status Pass -Session $Session
@@ -1382,7 +2030,8 @@ function Write-NSReason {
         'completed', 'owner-stop', 'stale-pid', 'invalid-session', 'exhausted-retry',
         'unknown-wedge', 'revived', 'stand-down', 'wrong-host', 'deadline',
         'clean-session-end', 'esc-standby', 'silent-standby', 'non-resumable-session',
-        'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable'
+        'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable',
+        'clock-out-failed'
     )
     if ($Code -notin $allowed) {
         $Code = 'stand-down'
@@ -1463,16 +2112,17 @@ function Get-NSReasonLabel {
         'unknown-wedge' { return 'session looks wedged without a verified error signature' }
         'revived' { return 'session revived into its own conversation' }
         'stand-down' { return 'watchman stood down' }
-        'wrong-host' { return 'watchman stood down — shift belongs to another host' }
+        'wrong-host' { return 'watchman stood down - shift belongs to another host' }
         'deadline' { return 'quitting time passed' }
         'clean-session-end' { return 'owner closed the session' }
-        'esc-standby' { return 'standing by — owner interrupt in the transcript' }
-        'silent-standby' { return 'standing by — session alive and quiet' }
+        'esc-standby' { return 'standing by - owner interrupt in the transcript' }
+        'silent-standby' { return 'standing by - session alive and quiet' }
         'non-resumable-session' { return 'recorded Codex identity cannot be resumed' }
         'unreadable-rules' { return 'rules file missing or incomplete' }
-        'fresh-fallback' { return 'fresh session — punch list is the handover' }
+        'fresh-fallback' { return 'fresh session - punch list is the handover' }
         'unsupported-state' { return 'workspace state-version is unsupported' }
         'process-evidence-unavailable' { return 'process evidence is unavailable' }
+        'clock-out-failed' { return 'terminal clock-out failed without releasing the shift' }
         default { return 'unknown watchman outcome' }
     }
 }
@@ -1553,7 +2203,10 @@ function Test-NSArchiveHasOpenWork {
     if ((Test-NSPathEntry $armed)) {
         return $true
     }
-    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue)) {
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -Force -ErrorAction SilentlyContinue)) {
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
         if ($file.Name -in @('punch-list.md', 'shipped.md')) {
             $counts = Get-NSBoxCounts $file.FullName
             if ($counts.Open -gt 0) {
@@ -1593,6 +2246,9 @@ function Get-NSRetentionEligible {
         return @($rows)
     }
     foreach ($dir in @(Get-ChildItem -LiteralPath $archiveRoot -Directory -ErrorAction SilentlyContinue)) {
+        if ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
         if ($dir.Name -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') {
             continue
         }

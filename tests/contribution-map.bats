@@ -33,6 +33,14 @@ RECEIPTS="$ROOT/examples/README.md"
     'Likely files' 'Minimum verification' 'Current work'; do
     grep -qF "$column" "$MAP"
   done
+
+  grep -qF 'runtime/windows/watchman.ps1' "$MAP"
+  grep -qF 'runtime/windows/start-watchman.ps1' "$MAP"
+  grep -qF 'lib/Nightshift.psm1' "$MAP"
+  grep -qF 'hooks/windows/hardhat.ps1' "$MAP"
+  grep -qF 'hooks/windows/clock-out-gate.ps1' "$MAP"
+  grep -qF 'tests/windows-hardhat.bats' "$MAP"
+  grep -qF 'tests/windows-watchman.bats' "$MAP"
 }
 
 @test "the contribution map preserves focused and repository checks" {
@@ -52,10 +60,17 @@ RECEIPTS="$ROOT/examples/README.md"
     plugins/nightshift/runtime plugins/nightshift/lib/lib.sh \
     plugins/nightshift/runtime/claude/watchman.sh \
     plugins/nightshift/runtime/codex/watchman.sh \
+    plugins/nightshift/runtime/windows/watchman.ps1 \
+    plugins/nightshift/runtime/windows/start-watchman.ps1 \
+    plugins/nightshift/lib/Nightshift.psm1 \
     plugins/nightshift/hooks examples/bad-night-template.md \
+    plugins/nightshift/hooks/windows/hardhat.ps1 \
+    plugins/nightshift/hooks/windows/clock-out-gate.ps1 \
+    tests/windows-hardhat.bats \
+    tests/windows-watchman.bats \
     tests/codex tests/fixtures tests/shifts \
     tests/catalog.bats tests/contribution-map.bats \
-    tests/first-night-checklist.bats tests/troubleshooting.bats \
+    tests/first-night-checklist.bats tests/shift-modes.bats tests/troubleshooting.bats \
     tests/bad-night-template.bats tests/github-templates.bats \
     tests/watchman.bats tests/codex/watchman.bats \
     tests/process-evidence.bats tests/degradation.bats tests/watch-reason.bats \

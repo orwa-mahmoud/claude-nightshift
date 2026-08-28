@@ -6,9 +6,11 @@ a year of drift on a mid-sized project; a monorepo wants a second night.
 
 Supported wherever a package manager reports outdated direct dependencies — npm/pnpm/yarn, uv/pip,
 cargo, go modules.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 ```text
 - [ ] **Dependency upgrade sweep — bring direct dependencies current, one at a time.**
+  - Never select this entry when work mode is artifact.
   - Discovery: the project's own outdated report — `pnpm outdated` / `npm outdated`,
     `uv pip list --outdated`, `cargo outdated`, `go list -u -m all`. **Direct dependencies only**:
     a transitive version is not yours to pin, and forcing one is the owner's call.

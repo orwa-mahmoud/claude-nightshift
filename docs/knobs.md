@@ -5,7 +5,8 @@ the two explicit question-tool entries default to parking so an unattended shift
 the owner.
 
 The contract itself is a knob too: the punch-list text above `## Items` and the rules file's
-`clockOutMessage` are the owner's words. The shipped default asks one commit per item — the
+`clockOutMessage` are the owner's words. The shipped default asks one commit per item in
+repository mode, or one artifact receipt per item in artifact mode — the
 receipts story — but the gate releases on ticks, and the stall guard counts a tick as progress
 on its own, so a contract with the commit rule stripped runs a full night with no commits at
 all (on Codex, such a night needs only the `workspace-write` sandbox).
@@ -108,21 +109,21 @@ shift tool call reads the change.
 | `NIGHTSHIFT_FRESH_PROMPT` | your wording for the **fresh-session** fallback's order — the only rung that starts with no context, so its default points at the punch list (rules file: `freshRevivalPrompt`) |
 | `NIGHTSHIFT_GATE_MESSAGE` | your wording for the clock-out gate's DO-NOT-STOP reinjection (rules file: `clockOutMessage`) |
 | `NIGHTSHIFT_STALL_WARN` | hold-mode stall warning cadence — warn every N stuck stop attempts (rules file: `stallWarnEvery`; default 3) |
-| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any Bash command matching this `grep -E` pattern during a shift — your own site rules. `git .*push` keeps pushing yours for the night (the `.*` also catches `git -c k=v push`); `rm -rf\|docker\|terraform` fences the rest. The rules file is guarded during a shift, so only you set or lift a rule — never the agent working the night |
-| `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits authored under any other identity |
-| `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote` |
-| `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this `grep -E` pattern — the index, widened to the working tree when the command stages implicitly (`git commit -a`) |
+| `NIGHTSHIFT_FORBIDDEN_COMMANDS` | deny any matching command during a shift — POSIX uses `grep -E` against Bash; native Windows uses .NET regular expressions against the host command string. `git .*push` keeps pushing yours for the night (the `.*` also catches `git -c k=v push`); `rm -rf\|docker\|terraform` fences the rest. An invalid pattern fails closed and names this env var; fix it in session settings. The rules file is guarded during a shift, so only you set or lift a rule — never the agent working the night |
+| `NIGHTSHIFT_EXPECTED_EMAIL` | during a shift, deny commits whose repository `git config user.email` is not this identity — POSIX and native Windows both read that config. A command-line override (`-c user.email=`, `--author`, `GIT_AUTHOR_EMAIL`) is denied because the guard cannot verify it |
+| `NIGHTSHIFT_PROTECTED_DIRS` | during a shift, space/pipe-separated dir names never to `git add/commit/tag/remote`. Matching uses the paths Git would write, with `/`; native Windows also normalizes `\` in those Git paths before comparing |
+| `NIGHTSHIFT_NEVER_COMMIT_PATTERNS` | during a shift, deny a commit whose diff matches this pattern — POSIX `grep -E`; native Windows .NET regular expressions, case-insensitive like POSIX `grep -qiE`. The index is widened to the working tree when the command stages implicitly (`git commit -a`). An invalid pattern fails closed and names this env var; fix it in session settings |
 | `NIGHTSHIFT_WATCH` | minutes between night-watchman wakes; `0` disarms it. Unset, the interval is the rules file's `watchMinutes` — shipped as **10** — and an unreadable rules file refuses to arm the watchman rather than guessing. The revival resumes **the shift's own conversation by id** (`claude --resume <recorded session> -p`) — the same recorded conversation id in terminal and IDE history. Before each spawn the watchman advances a process lease, so the recovered process owns observable shift tools and older generations are fenced. An IDE panel already open on that thread cannot auto-refresh while the headless revival appends to it; [reopen the thread instead](how-it-works.md#reopening-a-revived-thread). The watchman degrades per attempt to `claude --continue -p` and last to a fresh `claude -p` in case the conversation itself is what broke. `NIGHTSHIFT_WATCH_AGENT="claude -p"` makes every revival a fresh session instead. On a codex-owned shift the codex watchman revives with `codex exec resume <recorded session>` and falls back to a fresh `codex exec` |
 | `NIGHTSHIFT_STALL_MAX` | by default a stuck agent is held and red-flagged in the shift log, never clocked out; set `=N` to clock the shift out after N stuck attempts. |
-| `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs as unrestricted owner-provided shell with `$NIGHTSHIFT_SUMMARY` set (e.g. `say "$NIGHTSHIFT_SUMMARY"`). It can access the network if your command does. The watchman rings it too — once per outage — when a dead session could not be revived: the one night event that needs you. A successful Claude revival never pages; after the headless subprocess exits, it lands as a notice in `parking-lot.md`, with the thread's resume command and deep links when a session id was recorded. Successful Codex revivals log to `shift-log.md` only |
+| `NIGHTSHIFT_NOTIFY_CMD` | shift-end ping; runs as unrestricted owner-provided shell with `$NIGHTSHIFT_SUMMARY` set. POSIX uses `sh -c` (e.g. `say "$NIGHTSHIFT_SUMMARY"`); native Windows uses PowerShell `Invoke-Expression` (e.g. `Write-Host $env:NIGHTSHIFT_SUMMARY`). It can access the network if your command does. The watchman rings it too — once per outage — when a dead session could not be revived: the one night event that needs you. A successful Claude revival never pages; after the headless subprocess exits, it lands as a notice in `parking-lot.md`, with the thread's resume command and deep links when a session id was recorded. Successful Codex revivals log to `shift-log.md` only |
 
 **Recovery display.** The watchman does not require an owner to monitor it. Reopening a revived
 thread is currently only how the owner refreshes a stale panel before inspecting or interacting;
 the linked upstream refresh work would make that handoff smoother, not enable recovery itself.
 
 **Local profiles.** `runtime/apply-profile.sh` (native Windows: `runtime/windows/apply-profile.ps1`)
-can preview or copy `balanced`, `no-push`, or
-`strict-secrets` from `plugins/nightshift/skills/nightshift/references/profiles/`. That is a
+can preview or copy every version-1 JSON file in
+`plugins/nightshift/skills/nightshift/references/profiles/`. That is a
 one-time local write, not a policy subscription. Fill keeps every owner value and refuses a file
 missing either native question policy. Replace starts from the complete shipped template, applies
 the profile, and shows the full next file first. Apply only while unarmed. Native Windows uses

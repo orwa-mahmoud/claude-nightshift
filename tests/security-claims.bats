@@ -12,3 +12,30 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
   grep -qF 'unrestricted owner-provided shell' "$KNOBS"
   grep -qF 'can access the network' "$KNOBS"
 }
+
+@test "command and commit guards name Windows matching" {
+  grep -qF 'native Windows uses .NET regular expressions against the host command string' "$KNOBS"
+  grep -qF 'native Windows .NET regular expressions, case-insensitive' "$KNOBS"
+}
+
+@test "notification command names Windows Invoke-Expression" {
+  grep -qF 'unrestricted owner-provided shell' "$KNOBS"
+  grep -qF 'POSIX uses `sh -c`' "$KNOBS"
+  grep -qF 'native Windows uses PowerShell `Invoke-Expression`' "$KNOBS"
+}
+
+@test "expected-email guard names git config user.email" {
+  grep -qF 'git config user.email' "$KNOBS"
+  grep -qF 'GIT_AUTHOR_EMAIL' "$KNOBS"
+  grep -qF -- '-c user.email=' "$KNOBS"
+}
+
+@test "protected-dir guard names Git path matching" {
+  grep -qF 'paths Git would write' "$KNOBS"
+  grep -qF 'native Windows also normalizes' "$KNOBS"
+}
+
+@test "command and commit guards name invalid-pattern session repair" {
+  grep -qF 'invalid pattern fails closed' "$KNOBS"
+  grep -qF 'fix it in session settings' "$KNOBS"
+}

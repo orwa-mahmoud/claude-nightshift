@@ -216,7 +216,7 @@ function Test-NSNightshiftDirContext {
 function Test-NSControlRewritePath {
     param([AllowEmptyString()][string]$Target)
     $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target)(/|$|[^A-Za-z0-9_.-])'
+    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)(/|$|[^A-Za-z0-9_.-])'
 }
 
 function Test-NSControlListPath {
@@ -227,7 +227,7 @@ function Test-NSControlListPath {
 
 function Test-NSControlRewriteName {
     param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target)([;&|()\s]|$)'
+    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)([;&|()\s]|$)'
 }
 
 function Test-NSControlListName {
@@ -481,16 +481,21 @@ function Get-NSCommandDenyReason {
     )
     $forbiddenRegex = $null
     $neverRegex = $null
-    try {
-        if (-not [string]::IsNullOrEmpty($ForbiddenCommands)) {
+    if (-not [string]::IsNullOrEmpty($ForbiddenCommands)) {
+        try {
             $forbiddenRegex = New-NSRegex $ForbiddenCommands
         }
-        if (-not [string]::IsNullOrEmpty($NeverCommitPatterns)) {
-            $neverRegex = New-NSRegex $NeverCommitPatterns -IgnoreCase
+        catch {
+            return 'BLOCKED: NIGHTSHIFT_FORBIDDEN_COMMANDS is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in your session settings.'
         }
     }
-    catch {
-        return 'BLOCKED: a Nightshift command or commit pattern is not a valid regular expression on this host. Fix the pattern in .nightshift/rules.json.'
+    if (-not [string]::IsNullOrEmpty($NeverCommitPatterns)) {
+        try {
+            $neverRegex = New-NSRegex $NeverCommitPatterns -IgnoreCase
+        }
+        catch {
+            return 'BLOCKED: NIGHTSHIFT_NEVER_COMMIT_PATTERNS is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in your session settings.'
+        }
     }
 
     $isGitWrite = (Test-NSGitVerb $Scrubbed 'add') -or (Test-NSGitVerb $Scrubbed 'commit') `
@@ -500,6 +505,9 @@ function Get-NSCommandDenyReason {
         if (Test-NSGitVerb $Scrubbed 'add') { $verb = 'add' }
         if (Test-NSGitVerb $Scrubbed 'commit') { $verb = 'commit' }
         if ($null -ne $verb) {
+            if ($Scrubbed -match '(?i)--git-dir|--work-tree') {
+                return "BLOCKED: --git-dir/--work-tree point this $verb somewhere the protected-directory guard cannot verify. Run it from inside the repository instead."
+            }
             $repository = Resolve-NSCommandRepository $Command $CurrentDirectory $Workspace
             if ([string]::IsNullOrEmpty($repository)) {
                 return "BLOCKED: cannot tell which Git repository this $verb targets, so the protected-directory guard cannot run. Run it from inside the repository."
@@ -541,7 +549,7 @@ function Get-NSCommandDenyReason {
         }
         if (-not [string]::IsNullOrEmpty($ExpectedEmail) `
             -and $Scrubbed -match '(?i)-c\s*user\.email=|--author|GIT_(AUTHOR|COMMITTER)_EMAIL=|\$env:GIT_(AUTHOR|COMMITTER)_EMAIL') {
-            return 'BLOCKED: this commit overrides the author identity on the command line, which the expected-identity guard cannot verify. Commit with the repository configured identity.'
+            return "BLOCKED: this commit overrides the author identity on the command line, which the expected-identity guard cannot verify. Commit with the repository's configured identity."
         }
         $repository = Resolve-NSCommandRepository $Command $CurrentDirectory $Workspace
         if ([string]::IsNullOrEmpty($repository)) {
@@ -550,7 +558,7 @@ function Get-NSCommandDenyReason {
         if (-not [string]::IsNullOrEmpty($ExpectedEmail)) {
             $email = Invoke-NSGit $repository @('config', 'user.email')
             if ($email -ne $ExpectedEmail) {
-                return "BLOCKED: Git user.email is '$email', expected '$ExpectedEmail'. Configure the repository identity before committing."
+                return "BLOCKED: committer identity ('$email') is not the expected '$ExpectedEmail'. Fix git config user.email, then retry."
             }
         }
         if ($null -ne $neverRegex) {
@@ -559,13 +567,13 @@ function Get-NSCommandDenyReason {
                 return 'BLOCKED: this commit uses a form the never-commit guard cannot verify. Do not retry a rephrased form.'
             }
             if ($neverRegex.IsMatch([string]$diff)) {
-                return 'BLOCKED: the diff this commit would write matches neverCommitPatterns. Remove the protected content before committing.'
+                return 'BLOCKED: the diff this commit would write matches a never-commit pattern. Remove it, restage, retry. Do not weaken the pattern list.'
             }
         }
     }
 
     if ($null -ne $forbiddenRegex -and $forbiddenRegex.IsMatch($Scrubbed)) {
-        return 'BLOCKED: this command matches forbiddenCommands for the active shift. Do not retry a rephrased form.'
+        return "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
     }
     return ''
 }
@@ -624,9 +632,10 @@ $ns = Join-Path $workspace '.nightshift'
 $punch = Join-Path $ns 'punch-list.md'
 $armed = Join-Path $ns '.shift-armed'
 $ended = Join-Path $ns '.ended'
+$endedReal = (Test-Path -LiteralPath $ended -PathType Leaf) -and -not (Test-NSReparsePoint $ended)
 $counts = Get-NSBoxCounts $punch
 $active = (Test-Path -LiteralPath $armed -PathType Leaf) -and (Test-Path -LiteralPath $punch -PathType Leaf) `
-    -and -not (Test-Path -LiteralPath $ended -PathType Leaf) -and $counts.Open -gt 0
+    -and -not $endedReal -and $counts.Open -gt 0
 
 $nonce = [string]$env:NIGHTSHIFT_LEASE_NONCE
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION
@@ -636,7 +645,7 @@ if (-not $active) {
     if ($revival -and (-not (Test-NSLeaseNonce $ns $HostName $nonce $generation) `
         -or -not (Test-Path -LiteralPath $armed -PathType Leaf) `
         -or -not (Test-Path -LiteralPath $punch -PathType Leaf) `
-        -or (Test-Path -LiteralPath $ended -PathType Leaf))) {
+        -or $endedReal)) {
         Write-Deny 'BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out.'
     }
     exit 0
@@ -650,6 +659,12 @@ $targets = @(Get-NSPayloadTargets $toolInput $tool $command)
 foreach ($target in $targets) {
     if (Test-NSLeaseTarget ([string]$target)) {
         Write-Deny 'BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset.'
+    }
+}
+
+if ($tool -in @('Bash', 'PowerShell')) {
+    if (Test-NSTrustedShiftControl -Command $command -PluginRoot "$pluginRoot" -Workspace $workspace) {
+        exit 0
     }
 }
 
@@ -701,7 +716,7 @@ try {
     $toolRules = Get-NSToolRules $workspace ([string]$env:NIGHTSHIFT_TOOL_RULES)
 }
 catch {
-    Write-Deny 'BLOCKED: toolDeny is not a JSON object of string values, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again.'
+    Write-Deny 'BLOCKED: toolDeny is not a JSON object of string values, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex).'
 }
 
 foreach ($target in $targets) {
@@ -717,7 +732,7 @@ $controlPassive = $tool -in @(
 if (-not $controlPassive) {
     foreach ($target in $targets) {
         if (Test-NSControlTarget ([string]$target)) {
-            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, or work-target, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
+            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
         }
     }
 }
@@ -725,7 +740,7 @@ if (-not $controlPassive) {
 if ($tool -in @('AskUserQuestion', 'request_user_input')) {
     $property = if ($null -eq $toolRules) { $null } else { $toolRules.PSObject.Properties[$tool] }
     if ($null -eq $property) {
-        Write-Deny "BLOCKED: toolDeny is missing the required '$tool' entry. Add that exact host tool name to .nightshift/rules.json with a denial message, or use an empty string to allow it; run Setup again to review the current template."
+        Write-Deny "BLOCKED: toolDeny is missing the required '$tool' entry. Add that exact host tool name to .nightshift/rules.json with a denial message, or use an empty string to allow it; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex) to review the current template."
     }
     if (-not [string]::IsNullOrEmpty([string]$property.Value)) {
         Write-Deny ([string]$property.Value)

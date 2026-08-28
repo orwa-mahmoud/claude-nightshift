@@ -39,9 +39,19 @@ Read `$NS/state-version` first. Legacy (missing) and current (`1`) may be archiv
 A newer or malformed marker fails closed — file nothing, rewrite nothing, and never migrate.
 `state-version` itself stays live; it is not an archive record.
 
+In artifact mode the work target is a persistent folder, not a Git repository. File the same
+Nightshift records; do not require a work-target commit that cannot exist. Copy live receipts with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/archive-receipts.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`).
+The helper writes `$NS/archive/<YYYY-MM-DD>/receipts/` when those files exist, and leave the live copies in
+place so stall progress still sees them. Missing or empty receipts create no dated receipts folder.
+A receipts path that is not a usable directory is a refuse, not an empty skip.
+Never delete live receipts as part of Archive.
+
 ## Where it goes
 
-Everything lands in `$NS/archive/<YYYY-MM-DD>/` — today's date, one folder per archive
+Everything lands in `$NS/archive/<YYYY-MM-DD>/` — today's date (`date +%Y-%m-%d` on POSIX, or
+`Get-Date -Format yyyy-MM-dd` on native Windows), one folder per archive
 run (create parents; re-running on the same day appends to that day's files).
 
 ## What moves, what stays
@@ -50,7 +60,12 @@ run (create parents; re-running on the same day appends to that day's files).
  `$NS/punch-list.md` into the
  archive's `shipped.md` under a `## Shipped <date>` heading — that file reads as the plain
  record of what actually landed. Open `- [ ]` items and everything above `## Items` (the
- contract, the gates) stay exactly where they are.
+ contract, the gates) stay exactly where they are. When that move leaves zero open boxes,
+ append one reminder under `## Notes` (create the heading below `## Items` if it is missing):
+ leftover Shift contract and Gates still bind the next Hunt or Start cut; review them before
+ composing a new campaign; Archive does not reset them. Skip the note when open work remains,
+ when the same sentence is already present, or if adding it would require an open checkbox.
+ Never write `- [ ]` here and never edit above `## Items`.
 - **Shift log → the archive, whole.** Move `$NS/shift-log.md` into
  the folder and start a fresh one
  with the same one-line header. The journal is mechanical; its lines belong to the dates they
@@ -61,8 +76,9 @@ run (create parents; re-running on the same day appends to that day's files).
  open question is not history yet.
 - **Parking lot — only what's answered.** Same rule on
  `$NS/parking-lot.md`: answered entries move, unanswered stay.
-- **Work orders — only what's spent.** Orders already cut into a punch list or marked done
- move from `$NS/work-orders.md`; pending orders stay.
+- **Work orders — only what's spent.** Pending orders are open boxes; they stay.
+ A `## Work order` heading with no remaining box is leftover shell from a cut — delete it,
+ do not file it. File only an order whose box was ticked in place.
 - **Product research → the archive after its shift.** When no shift is active, append the completed
  entries from `$NS/product-research.md` to the archive's `product-research.md`, preserving their dates,
  sources, evidence, and conclusions; then restore the live file from the shipped template. During
@@ -79,7 +95,17 @@ run (create parents; re-running on the same day appends to that day's files).
 Best between shifts. During an active shift with open boxes, say so and ask before moving
 anything — the ticked lines are the night's scoreboard, and the owner may want the morning
 review to see them in place. If the receipts repo exists (`$NS/.git`), commit after
-archiving so the move itself has history.
+archiving so the move itself has history. Use the same headless identity the clock-out gate
+uses, and turn signing off so a global `commit.gpgsign=true` cannot stall:
+
+```bash
+git -C "$NS" add -A
+git -C "$NS" -c user.name=nightshift -c user.email=nightshift@localhost \
+  -c commit.gpgsign=false commit -q -m "archive"
+```
+
+On native Windows the same `git -C` flags work in PowerShell. Nothing to commit is success.
+Never add a remote, never push.
 
 ## Retention
 
@@ -105,7 +131,7 @@ does not confirm, or either rule is `0`, stop after the preview. `--apply`/`-App
 allowlisted runtime log (`scheduled.log`) and dated `archive/YYYY-MM-DD/` directories that
 are old enough, resolved under `$NS/`, not symlinks, and free of still-open work.
 
-Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status, Doctor, or recovery. Never delete
+Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status, Doctor, or recovery. Never call `archive-receipts.sh` or `archive-receipts.ps1` from start, hooks, status, Doctor, or recovery. Never delete
 the live punch list, drafting table, parking lot, rules, current shift files, or owner-authored
 files.
 

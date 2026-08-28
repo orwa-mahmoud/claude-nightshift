@@ -6,9 +6,11 @@ The shift repairs concrete findings without redesigning the interface or claimin
 Supported on projects that already configure accessibility lint rules or automated accessibility
 tests. Detect those commands from package scripts, test configuration, or the item gate. If the
 project has no established accessibility check, this shift is unsupported and must not start.
+Never select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 ```text
 - [ ] **Accessibility repair — fix objective violations reported by existing project checks.**
+  - Never select this entry when work mode is artifact.
   - Discovery: detect and run the repository's configured accessibility linter, component tests,
     or automated scanner. Record the command and objective reported violations; dedupe against
     snag-log.md (ALL seen — fixed and rejected). Do not add a scanner silently.

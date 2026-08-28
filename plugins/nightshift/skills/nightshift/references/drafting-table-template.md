@@ -8,7 +8,8 @@
 
 **Item shape** — one top-level checkbox per item; all detail as indented plain `-` sub-bullets
 (never a nested checkbox — only the top line is a box, so the gate counts one open item per task).
-Every item carries its own **Verify** and **Commit** line.
+Every item carries its own **Verify** line, plus a **Commit** line in repository mode or an
+artifact receipt in artifact mode.
 
 ```text
 - [ ] **1. <title>.**
@@ -16,6 +17,9 @@ Every item carries its own **Verify** and **Commit** line.
   - Verify: <the commands that must pass before ticking>
   - Commit: `<type: message>`
 ```
+
+In artifact mode record the receipt in `$NS/receipts/` with `runtime/write-receipt.sh` (native Windows:
+`runtime\windows\write-receipt.ps1`) instead of a conventional git subject.
 
 **Order = dependency order.** Top → bottom; nothing is built twice.
 

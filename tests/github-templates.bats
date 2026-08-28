@@ -15,6 +15,23 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
   grep -qF 'Codex and Claude Code' "$CONTRIBUTING"
 }
 
+@test "CONTRIBUTING names the Windows CI job" {
+  grep -qF 'windows-native' "$CONTRIBUTING"
+  grep -qF 'tests/windows/run.ps1' "$CONTRIBUTING"
+}
+
+@test "CONTRIBUTING names the remote environment CI jobs" {
+  grep -qF 'remote-ssh' "$CONTRIBUTING"
+  grep -qF 'devcontainer' "$CONTRIBUTING"
+  grep -qF 'sanitized receipts' "$CONTRIBUTING"
+}
+
+@test "CONTRIBUTING requires PowerShell 5.1 and 7 portability" {
+  grep -qF 'PowerShell must stay portable' "$CONTRIBUTING"
+  grep -qF 'Avoid syntax and APIs that exist on' "$CONTRIBUTING"
+  grep -qF 'only one of those runtimes' "$CONTRIBUTING"
+}
+
 parse_yaml() {
   ruby -ryaml -e 'YAML.load_file(ARGV[0]); puts "ok"' "$1"
 }
@@ -25,9 +42,12 @@ parse_yaml() {
   grep -qF 'id: harness' "$FAILED"
   grep -qF 'id: plugin-version' "$FAILED"
   grep -qF 'id: host-version' "$FAILED"
+  grep -qF 'pwsh 7 / Windows 11' "$FAILED"
   grep -qF 'id: expected' "$FAILED"
   grep -qF 'id: observed' "$FAILED"
   grep -qF 'id: markers' "$FAILED"
+  grep -qF 'work-mode is artifact' "$FAILED"
+  grep -qF 'receipts/ had completion files' "$FAILED"
   grep -qF 'id: recovery' "$FAILED"
   grep -qF 'id: logs' "$FAILED"
 }
@@ -70,5 +90,15 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   grep -qF 'catalog-recipe.md' "$CATALOG_FORM"
   grep -qF 'does **not** add the shift' "$CATALOG_FORM"
   grep -qi 'unattended' "$CATALOG_FORM"
+  grep -qi "stranger's workspace" "$CATALOG_FORM"
+  grep -qF 'must not require a git history' "$CATALOG_FORM"
+  grep -qF 'commit or artifact receipt' "$CATALOG_FORM"
+  grep -qF '.nightshift/receipts/' "$CATALOG_FORM"
+  grep -qF 'commit or artifact receipt' "$RECIPE"
+  grep -qF 'must not require a git history' "$RECIPE"
+  grep -qF 'Never select this entry in artifact mode' "$RECIPE"
+  grep -qF 'Never select this entry in artifact mode' "$CATALOG_FORM"
+  grep -qF 'Do not `git init` a notes folder' "$RECIPE"
+  grep -qF 'Do not `git init` a notes folder' "$CATALOG_FORM"
   [ -f "$RECIPE" ]
 }

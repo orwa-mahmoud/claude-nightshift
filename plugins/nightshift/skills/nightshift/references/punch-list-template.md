@@ -26,7 +26,8 @@
   open as the record of where work stopped.
 - **Quitting time** — past `deadline`, the gate clocks the shift out. Belongs to
   open-ended work: start NOTHING new past the whistle, finish the unit in hand, then clock out.
-- **Orderly clock-out** — if a shift must end with work in hand, commit it as a `wip:` commit plus
+- **Orderly clock-out** — if a shift must end with work in hand, commit it as a `wip:` commit
+  (repository mode) or write an artifact receipt (artifact mode), plus
   one handover line in `shift-log.md`, then stop.
 
 ## The standard — what "done" means
@@ -36,9 +37,9 @@
 - Effort is never a reason to defer. "This deserves a focused session" — this IS the focused
   session. Size, difficulty, or hours already spent never justify a stub, a narrowed scope, or
   splitting an item for later. Only correctness does.
-- Run the item gate (the `## Gates` block below) right before each commit; it must be green to tick.
+- Run the item gate (the `## Gates` block below) right before each commit or artifact receipt; it must be green to tick.
 - No suppression — fix root causes. No lint disables without a written reason next to them.
-- One conventional commit per item, local only. Never fake a tick.
+- One conventional commit per item in repository mode; one artifact receipt per item in artifact mode under `$NS/receipts/` (`runtime/write-receipt.sh`, or `runtime/windows/write-receipt.ps1` on native Windows). Local only. Never fake a tick.
 
 ## Site discipline
 
@@ -58,7 +59,7 @@ item. Only the Items list changes.
 ## Gates
 
 <!-- Nightshift Setup fills this from your stack, or leaves it empty (no automated checks).
-     Item gate: runs every item, right before its commit — must be green to tick.
+     Item gate: runs every item, right before its commit or artifact receipt — must be green to tick.
      Site inspection: the heavier batch (coverage, dead code, Sonar), every N items or H hours. -->
 
 _None configured._
@@ -67,6 +68,6 @@ _None configured._
 
 <!-- Empty until you promote work here from drafting-table.md — while this is empty the gate stays
      inert. One top-level open checkbox per task (a dash, a space, then a bracketed space), each
-     with its own sub-bullets, a Verify line, and a Commit line. Tick to a bracketed x when done.
+     with its own sub-bullets, a Verify line, and a Commit line (repository) or receipt (artifact). Tick to a bracketed x when done.
      drafting-table.md carries the exact shape. Keep the illustration out of this file: any
      bracketed-space checkbox here, even in a comment, counts as an open item. -->

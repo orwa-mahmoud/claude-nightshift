@@ -69,7 +69,7 @@ DOCTOR_SH="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
       || { echo "unresolved shell fallback in shared skill: $s"; return 1; }
   done
 
-  for s in setup start hunt quality doctor import-issues schedule archive; do
+  for s in setup start hunt quality doctor import-issues schedule archive stop reset purge; do
     f="$SKILLS/$s/SKILL.md"
     grep -qF '$NIGHTSHIFT_PLUGIN_ROOT' "$f" || { echo "no neutral plugin root: $s"; return 1; }
     grep -qF '${CLAUDE_PLUGIN_ROOT}' "$f" || { echo "no Claude plugin source: $s"; return 1; }
@@ -124,6 +124,7 @@ PY
   grep -qF 'Before creating or changing any file' "$SETUP"
   grep -qF 'create no `$NS/` directory' "$SETUP"
   grep -qF 'Open your project in Codex' "$SETUP"
+  grep -qF 'persistent local folder' "$SETUP"
   grep -qF 'Do not mention Claude Code' "$SETUP"
 }
 
@@ -139,11 +140,17 @@ PY
   grep -qF '$NS/.shift-armed' "$START"
   grep -qF 'runtime/claude/watchman.sh' "$START"
   grep -qF 'runtime/codex/watchman.sh' "$START"
+  grep -qF 'start-watchman.ps1' "$START"
   grep -qF '### Bind this session' "$START"
   grep -qF '$NS/.shift-lease' "$START"
   grep -qF 'ns_lease_reset_stale' "$START"
+  grep -qF 'ns_lease_valid' "$START"
+  grep -qF 'Read-NSLease' "$START"
   grep -qF ': nightshift-binding-probe' "$START"
   grep -qF 'jq` or `python3' "$START"
+  grep -qF 'watchRetrySeconds' "$START"
+  grep -qF 'revivalPrompt' "$START"
+  grep -qF 'freshRevivalPrompt' "$START"
 }
 
 @test "start validates the captured Codex identity before its watchman or item work" {
@@ -159,6 +166,7 @@ PY
   grep -qF '.shift-armed' "$START"
   grep -qF '.shift-session' "$START"
   grep -qF 'before the watchman or item work' "$START"
+  grep -qF 'with no other command between marker removal' "$START"
 }
 
 @test "start refuses an active watchman before clearing stale lease state" {
@@ -172,15 +180,18 @@ PY
   grep -qF '$NS/.shift-lease' "$START"
 }
 
-@test "stop writes the stop-work order and disarms the watchman" {
+@test "stop writes the stop-work order through the trusted helper" {
   grep -qF '$NS/STOP' "$STOP"
   grep -qF '$NS/.watchman' "$STOP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/runtime/stop-shift.sh' "$STOP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\stop-shift.ps1' "$STOP"
   grep -qi 'kill' "$STOP"
 }
 
 @test "stop panic commands use the bound Nightshift directory, not the working directory" {
   grep -qF 'touch "$NS/STOP"' "$STOP"
   grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$STOP"
+  grep -qF 'failed clock-out left a recovery nonce' "$STOP"
   ! grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$STOP"
   ! grep -qF 'touch .nightshift/STOP' "$STOP"
 }
@@ -207,6 +218,36 @@ PY
   done
 }
 
+# Hunt and Quality start a shift without a second command. Naming only .shift-armed
+# left Windows and Codex to invent a launcher; Start already ships the three.
+@test "hunt and quality name the same watchman launchers as start" {
+  for f in "$START" "$HUNT" "$QUALITY"; do
+    grep -qF 'runtime/claude/watchman.sh' "$f" \
+      || { echo "missing Claude watchman: $f"; return 1; }
+    grep -qF 'runtime/codex/watchman.sh' "$f" \
+      || { echo "missing Codex watchman: $f"; return 1; }
+    grep -qF 'start-watchman.ps1' "$f" \
+      || { echo "missing Windows watchman: $f"; return 1; }
+  done
+}
+
+# The Codex watchman must not arm against an unsupported identity. Hunt's listed
+# start steps used to jump from .shift-armed to the launcher.
+@test "hunt and quality run the binding probe and Codex identity checkpoint before the watchman" {
+  for f in "$START" "$HUNT" "$QUALITY"; do
+    grep -qF ': nightshift-binding-probe' "$f" \
+      || { echo "missing POSIX binding probe: $f"; return 1; }
+    grep -qF "\$null = 'nightshift-binding-probe'" "$f" \
+      || { echo "missing Windows binding probe: $f"; return 1; }
+    grep -qF 'ns_codex_identity_kind' "$f" \
+      || { echo "missing Codex identity helper: $f"; return 1; }
+    grep -qF 'Get-NSCodexIdentityKind' "$f" \
+      || { echo "missing Windows Codex identity helper: $f"; return 1; }
+    grep -qF 'Nightshift.psm1' "$f" \
+      || { echo "missing Windows module import: $f"; return 1; }
+  done
+}
+
 @test "start and schedule inspect Claude settings at the task root" {
   grep -qF '$TASK_ROOT/.claude/settings.local.json' "$START"
   grep -qF '$TASK_ROOT/.claude/settings.json' "$START"
@@ -224,6 +265,29 @@ PY
 @test "schedule names the Windows generator from the plugin root" {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1' "$SCHEDULE"
   ! grep -qF '`runtime\windows\schedule.ps1`' "$SCHEDULE"
+  grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -List' "$SCHEDULE"
+  grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -Remove' "$SCHEDULE"
+  grep -qF -- '`--list` / `-List`' "$SCHEDULE"
+  grep -qF -- '`--remove` / `-Remove`' "$SCHEDULE"
+  grep -qF -- "-Agent 'codex exec -s danger-full-access'" "$SCHEDULE"
+  grep -qF -- "--agent 'codex exec -s danger-full-access'" "$SCHEDULE"
+  grep -qF 'parked Hunt work order' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
+  grep -qF 'drafting-table item' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
+}
+
+@test "Windows schedule generate names parked work on an empty list" {
+  ps1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
+  grep -qF 'Note: the punch list has no open items' "$ps1"
+  grep -qF 'Parked Hunt work orders:' "$ps1"
+  grep -qF 'Drafting-table items:' "$ps1"
+  awk '
+    /if \(\$Preflight\)/ { pre=NR }
+    /Note: the punch list has no open items/ { note=NR }
+    /"Scheduled start for/ { start=NR }
+    END { exit !(pre && note && start && pre < note && note < start) }
+  ' "$ps1"
 }
 
 @test "no skill executable uses a cwd-relative marker or plugin helper" {
@@ -247,6 +311,7 @@ PY
   grep -qF '$_here/link-workspace.sh' "$DOCTOR_SH"
   grep -qF '$_here/migrate-state.sh' "$DOCTOR_SH"
   grep -qF '$_here/export-support.sh' "$DOCTOR_SH"
+  grep -qF '$_here/stop-shift.sh' "$DOCTOR_SH"
 }
 
 @test "punch-list template STOP commands use the bound Nightshift directory" {
@@ -260,15 +325,35 @@ PY
 @test "native Windows skills pair runtime helpers instead of calling .sh" {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/doctor/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\doctor.ps1' "$SKILLS/status/SKILL.md"
+  grep -qF 'Get-NSUnixTime' "$SKILLS/status/SKILL.md"
+  grep -qF 'Get-NSReasonLabel' "$SKILLS/status/SKILL.md"
+  grep -qF 'recorded pid' "$SKILLS/status/SKILL.md"
+  grep -qF 'watchman pid' "$SKILLS/status/SKILL.md"
+  grep -qF 'reimplement liveness' "$SKILLS/status/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$SKILLS/import-issues/SKILL.md"
+  grep -qF -- '-Fetch' "$SKILLS/import-issues/SKILL.md"
+  grep -qF -- '-Stage' "$SKILLS/import-issues/SKILL.md"
+  grep -qF -- '-AllowClosed' "$SKILLS/import-issues/SKILL.md"
+  grep -qF -- '-Repo owner/repo' "$SKILLS/import-issues/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' "$HUNT"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$HUNT"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$QUALITY"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\retain-history.ps1' "$SKILLS/archive/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1' "$SKILLS/archive/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$START"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SKILLS/doctor/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SKILLS/doctor/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\export-support.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\stop-shift.ps1' "$SKILLS/stop/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\reset-shift.ps1' "$SKILLS/reset/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\purge-workspace.ps1' "$SKILLS/purge/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$START"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$SETUP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$SKILLS/nightshift/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1' "$START"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1' "$SKILLS/nightshift/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1' \
     "$SKILLS/nightshift/references/shifts/github-issue-hunt.md"
 }
@@ -278,6 +363,11 @@ PY
   grep -qF "Join-Path \$here 'migrate-state.ps1'" "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'export-support.ps1'" "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'link-workspace.ps1'" "$DOCTOR_PS1"
+  grep -qF "Join-Path \$here 'write-receipt.ps1'" "$DOCTOR_PS1"
+  grep -qF "Join-Path \$here 'stop-shift.ps1'" "$DOCTOR_PS1"
+  grep -qF 'leftover Shift contract and Gates' "$DOCTOR_PS1"
+  grep -qF 'pending Hunt work orders=' "$DOCTOR_PS1"
+  grep -qF 'staged drafting-table items=' "$DOCTOR_PS1"
 }
 
 @test "setup substitutes workspace and NS tokens when copying owner files" {

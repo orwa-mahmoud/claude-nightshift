@@ -1,6 +1,7 @@
 load helpers
 
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 
 resolve_target() {
   bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$1"
@@ -55,8 +56,72 @@ resolve_target() {
 @test "setup and start pin the same persisted work target contract" {
   setup_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   start_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
+  status_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+  doctor_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
   grep -qF '$NS/work-target' "$setup_skill"
   grep -qF '$NS/work-target' "$start_skill"
   grep -qF 'several child repositories' "$setup_skill"
   grep -qF 'refuse to arm' "$start_skill"
+  grep -qF 'work target could not be resolved; treating workspace as the code root' "$status_skill"
+  grep -qF 'work target could not be resolved; treating workspace as the code root' "$doctor_skill"
+}
+
+planted_repo() {
+  local r="$1"
+  mkdir -p "$r"
+  git -C "$r" init -q
+  git -C "$r" config user.email dev@example.com
+  git -C "$r" config user.name tester
+  git -C "$r" commit -q --allow-empty -m init
+  (cd -P "$r" && pwd)
+}
+
+@test "a symlink work-target fails closed" {
+  p="$(new_project target-link)"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-work-target")"
+  printf '%s\n' "$planted" >"$p/.nightshift/target-plant"
+  ln -s target-plant "$p/.nightshift/work-target"
+  run resolve_target "$p"
+  [ "$status" -eq 1 ]
+  [ "$output" != "$planted" ]
+}
+
+@test "Doctor does not follow a symlink work-target" {
+  p="$(new_project target-link-doctor)"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-work-target-doctor")"
+  printf '%s\n' "$planted" >"$p/.nightshift/target-plant"
+  ln -s target-plant "$p/.nightshift/work-target"
+  run bash "$DOCTOR" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'work target could not be resolved; treating workspace as the code root'
+  ! printf '%s' "$output" | grep -qF "work target $planted"
+}
+
+@test "unstored resolve skips a symlink child git repository" {
+  notes="$BATS_TEST_TMPDIR/notes-skip-link"
+  mkdir -p "$notes/.nightshift"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-target")"
+  ln -s "$planted" "$notes/decoy"
+  run resolve_target "$notes"
+  [ "$status" -eq 1 ]
+}
+
+@test "unstored resolve still finds a real child beside a planted symlink" {
+  w="$(new_workspace target-decoy-beside)"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-target-beside")"
+  ln -s "$planted" "$w/decoy"
+  expected="$(git -C "$w/repo" rev-parse --show-toplevel)"
+  run resolve_target "$w"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
+}
+
+@test "commit inspect still follows a symlink child git repository" {
+  w="$BATS_TEST_TMPDIR/inspect-link"
+  mkdir -p "$w"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/inspect-repo")"
+  ln -s "$planted" "$w/app"
+  run bash -c '. "$1"; repo_root "$2"' _ "$LIB" "$w"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$planted" ]
 }

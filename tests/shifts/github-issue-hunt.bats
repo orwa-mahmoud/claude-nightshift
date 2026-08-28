@@ -2,6 +2,8 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
+COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
+HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 
 @test "the GitHub issue hunt consumes only imported proposed drafts" {
   grep -qF 'Status: proposed' "$E"
@@ -9,6 +11,8 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qi 'If none exist' "$E"
   grep -qi 'point at Import issues and stop' "$E"
   grep -qi 'Never search GitHub' "$E"
+  grep -qi 'Never select this entry in artifact mode' "$E"
+  grep -qF 'Do not `git init` a notes folder' "$E"
 }
 
 @test "guided preview and direct ranking stay inside the imported set" {
@@ -42,5 +46,8 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qF 'GitHub issue-hunt' "$HUNT"
   grep -qF -- '--list-proposed' "$HUNT"
   grep -qi 'does not replace defect hunt or product' "$HUNT"
+  grep -qi 'Never select it when work mode is artifact' "$HUNT"
+  grep -qi 'skips the GitHub issue hunt in artifact mode' "$COMMANDS"
+  grep -qi 'skips the GitHub issue hunt in artifact mode' "$HOW"
   grep -qi 'Quality does not import, search, or work GitHub issues' "$QUALITY"
 }

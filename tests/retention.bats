@@ -118,6 +118,25 @@ age_file() {
   [ -f "$BATS_TEST_TMPDIR/outside.log" ]
 }
 
+@test "a symlink punch-list in an archive does not count as open work" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  set_retention "$p" 1 1
+  printf '## Items\n- [ ] live open\n' >"$p/.nightshift/punch-list.md"
+  mkdir -p "$p/.nightshift/archive/2017-01-01"
+  printf '%s\n' '- [x] done' >"$p/.nightshift/archive/2017-01-01/shipped.md"
+  ln -s "$p/.nightshift/punch-list.md" "$p/.nightshift/archive/2017-01-01/punch-list.md"
+  age_file "$p/.nightshift/archive/2017-01-01"
+  run bash "$RETAIN" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'archive/2017-01-01'
+  run bash "$RETAIN" --project "$p" --apply
+  [ "$status" -eq 0 ]
+  [ ! -e "$p/.nightshift/archive/2017-01-01" ]
+  [ -f "$p/.nightshift/punch-list.md" ]
+  grep -qF 'live open' "$p/.nightshift/punch-list.md"
+}
+
 @test "hooks start status and Doctor never prune history" {
   ! grep -RIn 'retain-history\|ns_retention_apply' \
     "$ROOT/hooks" \
@@ -134,6 +153,29 @@ age_file() {
   grep -qF 'Never call `retain-history.sh`' "$ARCHIVE"
   grep -qF 'retain-history.ps1' "$ARCHIVE"
   grep -qF 'from start, hooks, status, Doctor, or recovery' "$ARCHIVE"
+}
+
+LOGIC="$BATS_TEST_DIRNAME/windows/retain-history-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+@test "Windows CI runs the portable retain-history apply suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'retain-history-logic.ps1' "$RUN"
+  grep -qF 'Deleted the eligible allowlisted paths' "$LOGIC"
+  grep -qF 'open-work archive is not eligible' "$LOGIC"
+  grep -qF 'symlink punch-list is not open work' "$LOGIC"
+  grep -qF 'refuse to delete while the shift is armed' "$LOGIC"
+  grep -qF 'if [ ! -d "$ns/$rel" ] || [ -L "$ns/$rel" ]; then' "$ROOT/lib/state.sh"
+  awk '/function Get-NSRetentionEligible/,/^function Invoke-NSRetentionApply/' \
+    "$ROOT/lib/Nightshift.psm1" | grep -qF 'ReparsePoint'
+}
+
+@test "Windows retain-history apply logic passes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
 }
 
 @test "archive skill and schema describe the nested retention knobs" {

@@ -37,6 +37,9 @@ function Test-NSDeadlinePassed {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         return $false
     }
+    if (Test-NSReparsePoint $path) {
+        return $false
+    }
     try {
         $value = ([IO.File]::ReadAllText($path)).Trim()
         return $value -match '^[0-9]+$' -and (Get-NSUnixTime) -ge [long]$value
@@ -44,6 +47,16 @@ function Test-NSDeadlinePassed {
     catch {
         return $false
     }
+}
+
+function Test-NSRealEnded {
+    $path = Join-Path $ns '.ended'
+    return ((Test-Path -LiteralPath $path -PathType Leaf) -and -not (Test-NSReparsePoint $path))
+}
+
+function Test-NSRealSessionEnd {
+    $path = Join-Path $ns '.session-end'
+    return ((Test-Path -LiteralPath $path -PathType Leaf) -and -not (Test-NSReparsePoint $path))
 }
 
 function Get-NSTranscript {
@@ -397,7 +410,7 @@ function Get-NSHoldReason {
     if (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) {
         return 'stop-work order'
     }
-    if ((Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) `
+    if ((Test-NSRealEnded) `
         -or -not (Test-Path -LiteralPath $punch -PathType Leaf)) {
         return 'shift ended'
     }
@@ -407,7 +420,7 @@ function Get-NSHoldReason {
     if (Test-NSDeadlinePassed) {
         return 'deadline passed'
     }
-    if ($HostName -eq 'claude' -and (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)) {
+    if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {
         return 'clean session end'
     }
     $verdict = Get-NSSiteVerdict
@@ -441,7 +454,7 @@ if ($IntervalMinutes -lt 0) {
     $rawInterval = Get-NSRule $workspace 'watchMinutes' $override
     if ($rawInterval -notmatch '^[0-9]+$') {
         Write-NSReason $ns 'unreadable-rules' 'watchMinutes'
-        throw 'watchman: watchMinutes is missing or is not a whole number'
+        throw 'watchman: watchMinutes missing or not whole minutes - .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)'
     }
     $IntervalMinutes = [int]$rawInterval
 }
@@ -456,8 +469,11 @@ $notify = Get-NSRule $workspace 'notifyCommand' ([string]$env:NIGHTSHIFT_NOTIFY_
 $downNotified = $false
 if ([string]::IsNullOrEmpty($retrySpacing) -or [string]::IsNullOrEmpty($revivalPrompt) `
     -or [string]::IsNullOrEmpty($freshPrompt)) {
-    Write-NSReason $ns 'unreadable-rules' 'recovery prompt or retry spacing'
-    throw 'watchman: rules.json is missing recovery settings'
+    $missing = if ([string]::IsNullOrEmpty($retrySpacing)) { 'watchRetrySeconds' }
+        elseif ([string]::IsNullOrEmpty($revivalPrompt)) { 'revivalPrompt' }
+        else { 'freshRevivalPrompt' }
+    Write-NSReason $ns 'unreadable-rules' $missing
+    throw "watchman: $missing missing - .nightshift/rules.json absent or incomplete; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
 }
 $retryValues = New-Object Collections.Generic.List[int]
 foreach ($value in ($retrySpacing -split '\s+')) {
@@ -481,7 +497,10 @@ if ($null -eq $watchmanMutex) {
 }
 
 try {
-    if (Test-Path -LiteralPath $pidFile -PathType Leaf) {
+    if (Test-NSReparsePoint $pidFile) {
+        Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+    }
+    elseif (Test-Path -LiteralPath $pidFile -PathType Leaf) {
         try {
             $oldOwner = [IO.File]::ReadAllLines($pidFile)
             $oldPid = if ($oldOwner.Count -gt 0) { $oldOwner[0] } else { '' }
@@ -521,7 +540,7 @@ try {
             Write-NSLogLine 'watchman: stop-work order - standing down'
             exit 0
         }
-        if (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) {
+        if (Test-NSRealEnded) {
             Write-NSReason $ns 'completed'
             exit 0
         }
@@ -541,22 +560,20 @@ try {
         $counts = Get-NSBoxCounts $punch
         if ($counts.Open -eq 0 -or (Test-NSDeadlinePassed)) {
             $label = if ($counts.Open -eq 0) { 'every box is ticked' } else { 'quitting time passed' }
-            Write-NSLogLine "watchman: $label but the shift never clocked out - spawning the clock-out"
+            Write-NSLogLine "watchman: $label but the shift never clocked out - spawning the clock-out (attempt 1/1)"
             $null = Start-NSAgent 1 2
-            if (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) {
+            if (Test-NSRealEnded) {
+                $null = Release-NSLease $ns
                 Write-NSReason $ns $(if ($counts.Open -eq 0) { 'completed' } else { 'deadline' })
                 exit 0
             }
-            Write-NSLogLine 'watchman: clock-out returned without releasing the shift - retrying next wake'
-            Set-NSTranscriptBaseline
-            [IO.File]::WriteAllText($tick, '', $utf8)
-            if ($MaxWakes -gt 0 -and $wake -ge $MaxWakes) {
-                exit 7
-            }
-            continue
+            $null = Restore-NSLeaseInteractive $ns
+            Write-NSReason $ns 'clock-out-failed'
+            Write-NSLogLine 'watchman: clock-out attempt 1/1 returned without releasing the shift - standing down'
+            exit 0
         }
 
-        if ($HostName -eq 'claude' -and (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)) {
+        if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {
             Write-NSReason $ns 'clean-session-end'
             Write-NSLogLine 'watchman: clean session end - the owner closed it; standing down'
             exit 0

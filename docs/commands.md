@@ -11,16 +11,18 @@
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
                        # optional follow-up: export a redacted local support bundle (never uploaded)
-/nightshift:stop       # end the shift now; open boxes stay open
-/nightshift:archive    # file finished work into .nightshift/archive/<date>/ — shipped items, logs, handled snags
-# you review the local commits and push — or forbid pushing outright (one env line below)
+/nightshift:stop       # pause now; open boxes stay open; deadline is preserved
+/nightshift:reset      # drop runtime markers and the deadline; keep punch list and history
+/nightshift:purge      # delete this project's .nightshift/; does not uninstall the plugin
+/nightshift:archive    # file finished work into .nightshift/archive/<YYYY-MM-DD>/ — shipped items, logs, handled snags; leftover contract stays
+# you review the local commits or artifact receipts — push only in repository mode, or forbid pushing outright (one env line below)
 ```
 
 Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes
-as Hunt. A review-first survey is read-only until the owner chooses what happens next: **fix now**
-composes and starts the selected work, **draft for later** writes only to the drafting table, and
-**ignore** writes nothing. Run directly composes, arms, and starts the selected work without a
-second approval pause.
+as Hunt. Copyable owner requests for each combination are in [Shift modes](shift-modes.md). A review-first survey is read-only until the owner chooses what happens next: **fix now**
+appends a Hunt work order then cuts and starts it, **draft for later** writes only to the drafting
+table, and **ignore** writes nothing. Run directly composes that same work order, arms, and starts
+the selected work without a second approval pause.
 
 Those are Claude Code's slash spellings. In Codex or repository-connected ChatGPT, mention
 Nightshift and ask naturally: “set up Nightshift,” “show me the ready-made shifts,” “run product
@@ -31,7 +33,15 @@ skills and `.nightshift/` files are used in persistent project workspaces.
 For a custom timed objective, use Hunt in **Guided** mode and choose **Owner walkthrough**. Its
 scope answer is required and becomes the objective verbatim; then set the hours and choose review
 first or run directly. Automatic mode never selects this entry because the goal must come from the
-owner rather than repository discovery.
+owner rather than work-target discovery.
+
+Automatic mode also skips the GitHub issue hunt in artifact mode. Imported drafts stay on the
+drafting table until the work target is a matching git repository.
+Automatic mode also skips the defect hunt in artifact mode.
+Automatic mode also skips documentation drift in artifact mode.
+Automatic mode also skips TODO and FIXME debt in artifact mode.
+Automatic mode also skips coverage hunt in artifact mode.
+Automatic mode also skips tooling quality-debt entries in artifact mode.
 
 When the task root and Nightshift workspace differ, setup can create an explicit local link after
 showing both absolute paths and receiving confirmation. The offline equivalent is:
@@ -50,17 +60,99 @@ plugins\nightshift\runtime\windows\link-workspace.ps1 `
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected; Nightshift never searches for a workspace automatically.
 
-Stop-work order, any time, from a POSIX terminal: `touch .nightshift/STOP`. Native Windows
-PowerShell uses `New-Item -ItemType File -Force .nightshift\STOP`. On Claude Code, Escape
+Immediate pause, any time, without a model. `--project` is the folder you opened (task root);
+Nightshift follows `.nightshift-link` when present. Do not omit `--project` — these helpers never
+guess the current working directory.
+
+```bash
+plugins/nightshift/runtime/stop-shift.sh --project /absolute/task/root
+plugins/nightshift/runtime/reset-shift.sh --project /absolute/task/root
+plugins/nightshift/runtime/purge-workspace.sh --project /absolute/task/root \
+  --confirm-path /absolute/workspace/.nightshift
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
+plugins\nightshift\runtime\windows\reset-shift.ps1 -Project C:\absolute\task\root
+plugins\nightshift\runtime\windows\purge-workspace.ps1 -Project C:\absolute\task\root `
+  -ConfirmPath C:\absolute\workspace\.nightshift
+```
+
+Stop pauses and disarms immediately: hooks become inert, the watchman is killed only when
+verified, the lease is released, and the deadline is preserved. Reset does that teardown and also
+removes the deadline and leftover STOP. Purge does Reset, then deletes only that project's
+`.nightshift/` after an exact `--confirm-path` match. None of them uninstall the plugin.
+
+A panic `touch .nightshift/STOP` (POSIX) or `New-Item -ItemType File -Force .nightshift\STOP`
+(native Windows PowerShell) still writes the stop-work order in the folder that contains
+`.nightshift/` — not beside `.nightshift-link`. A STOP next to `.nightshift-link` is not
+the order. That marker waits for the next Stop event or watchman wake; it does not disarm
+immediately. On Claude Code, Escape
 pauses the interactive session and its watchman reads that interrupt before reviving. Codex exposes
 no equivalent owner-interrupt signal, so closing an interactive Codex session with open Items hands
-the shift to its watchman. STOP reaches either host, including a headless run, and ends the shift
-at the agent's next stop attempt.
+the shift to its watchman.
+
+When a paused Stop left an expired deadline, Start refuses to invent a new time budget. Write a
+new UNIX epoch to `.nightshift/deadline`, or run Reset then Start.
 
 When a shift is not where you think it is — wrong folder, broken `.nightshift-link`, leftover
 `STOP`, watchman stood down, or a stale process rejected by the process lease — run
 `/nightshift:doctor` on Claude Code or ask Nightshift to diagnose on Codex, then walk
 [Troubleshooting](troubleshooting.md) before changing files. Doctor reports; it never repairs.
+In artifact mode it also reports `artifact receipts N`, `latest artifact receipt` with the
+filename of the most recently written receipt when any exist, and warns `artifact mode has ticked items but no receipts` when boxes
+were ticked without `write-receipt`. It warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts.
+
+A redacted local support bundle from a terminal (never uploaded):
+
+```bash
+plugins/nightshift/runtime/export-support.sh --project .
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\export-support.ps1 -Project .
+```
+
+An artifact-mode completion receipt (refuses repository mode; rejects missing or empty outputs):
+
+```bash
+plugins/nightshift/runtime/write-receipt.sh --project . --item 'title' --verify 'checks' --output ./out.md
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\write-receipt.ps1 -Project . -Item 'title' -Verify 'checks' -Output .\out.md
+```
+
+Copy live artifact receipts into today's dated archive folder (leaves the live copies in place).
+Missing or empty receipts create no dated receipts folder.
+
+```bash
+plugins/nightshift/runtime/archive-receipts.sh --project .
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\archive-receipts.ps1 -Project .
+```
+
+A cited research report against its source manifest:
+
+```bash
+plugins/nightshift/runtime/check-report.sh --project . --report ./report.md --manifest ./sources.tsv --output ./report.md
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\check-report.ps1 -Project . -Report .\report.md -Manifest .\sources.tsv -Output .\report.md
+```
 
 **Permissions: the night cannot click Allow.** An unattended shift freezes on a permission prompt,
 and a watchman revival runs headless — a denied tool stays denied. For long runs,
@@ -111,7 +203,8 @@ plugins/nightshift/runtime/schedule.sh --project . --remove      # the command t
 Run it from a terminal, or copy the single file anywhere. It refuses a second entry for a project
 that already has one, and identifies projects by path rather than folder name, so two checkouts
 called `api` never collide. It cannot queue your work for you, though — that part has to be in the
-punch list already.
+punch list already. Preflight also fails `work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm` when the mode file is missing and Setup would propose artifact.
+It also fails `work target could not be resolved - a scheduled start will refuse to arm` when the recorded work target cannot be read.
 
 Native Windows uses the token-free PowerShell generator:
 

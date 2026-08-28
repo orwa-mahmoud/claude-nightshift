@@ -38,11 +38,12 @@ Bash. Once the workspace and work target are resolved, the bundled mechanical sc
 
 ```powershell
 & "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\setup.ps1" `
- -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET"
+ -Project "$NIGHTSHIFT_WORKSPACE" -WorkTarget "$WORK_TARGET" -Mode "$WORK_MODE"
 ```
 
-It copies only absent files, writes state version 1 for a new site, persists the work target, and
-keeps `$NS/` private. The skill still owns every owner choice below; the script asks
+It copies only absent files, writes state version 1 for a new site, persists the work target and
+work mode (`-Mode repository` or `-Mode artifact`), and
+keeps `$NS/` private. It refuses a notes folder under default repository mode: `pass -Mode artifact for a notes folder that is not a Git repository`. The skill still owns every owner choice below; the script asks
 nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
 
 If the user explicitly identifies a different existing workspace containing `.nightshift/`, show
@@ -63,7 +64,7 @@ or other files.** Tell the user directly:
 > Nightshift needs a persistent software project workspace. This ChatGPT conversation is using a
 > temporary workspace, so files created here will not affect your repository.
 >
-> Open your project in Codex, or start Codex connected to its GitHub repository. Then mention
+> Open your project in Codex (a Git repository or a persistent local folder), or start Codex connected to its GitHub repository. Then mention
 > Nightshift and say: “Set up Nightshift in this project.”
 
 Do not mention Claude Code in this ChatGPT-specific redirect: the user is already in an OpenAI
@@ -71,17 +72,30 @@ product, so give them the shortest OpenAI-native route. Do not infer “temporar
 project is not a git repository — local non-git projects and the recommended parent-workspace
 layout remain valid. The explicit disposable scratch path is the stop signal.
 
-Resolve the code repository before stack detection:
+Detect the work mode, explain it, and ask before persisting it. Use
+`ns_propose_work_mode` (POSIX) or `Get-NSProposedWorkMode` after importing
+`Nightshift.psm1` (native Windows):
 
-- If the workspace itself is a Git repository, it is the work target.
-- Otherwise inspect its immediate, non-hidden child directories. If exactly one is a Git
- repository, that repository is the work target while `$NS/` stays in the opened parent.
-- If several child repositories exist and `$NS/work-target` does not already select one,
- show the choices and require an explicit target; never guess.
-- Persist the chosen repository's absolute Git top-level path, followed by one newline, in
- `$NS/work-target`. On later setup runs, validate and retain that
- target unless the owner explicitly changes it. Stack detection, Git checks, gates, commits, and
- verification operate in this work target—not necessarily in the workspace holding run state.
+- `repository` — the workspace is a Git repository, or exactly one immediate non-hidden child is. Skip a symlink or reparse child; it is not a nested checkout.
+  several child repositories still mean repository mode; show the choices and require an explicit
+  target, never guess.
+- `artifact` — there is no Git repository here. The persistent folder itself is the work target
+  (research, docs, audits, planning). Say so plainly: gates, commits, and stack detection that
+  require Git do not apply; complete each item with
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh"` (native Windows:
+  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1"`).
+  Completion in that folder is `$NS/receipts/`, not a git log.
+  When `$NS/receipts` exists but is not a usable directory, say so and do not treat artifact setup as complete.
+- scratch (`ns_propose_work_mode` status 2, or `Get-NSProposedWorkMode` throwing) — stop; create
+  nothing.
+
+Never persist a mode until the owner confirms. Never `git init` a notes folder to change an artifact proposal into repository mode. Then write `$NS/work-mode` as `repository` or
+`artifact` (one word, one newline) and `$NS/work-target` as the absolute canonical path of the
+chosen folder. On POSIX: `ns_record_work_target "$NIGHTSHIFT_WORKSPACE" "$WORK_TARGET" "$WORK_MODE"`.
+On later setup runs, validate and retain that mode and target unless the owner explicitly changes
+them. Repository mode: stack detection, Git checks, gates, commits, and verification operate in
+the work target. Artifact mode: inspection, edits, and verification operate in that folder without
+pretending it is a repository.
 
 ## 1. Scaffold `$NS/` (never clobber an existing shift)
 
@@ -143,7 +157,10 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
 
 Detect the stack in the persisted work target from the table in
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/gates-catalog.md`
-(monorepo-aware). Then ask the
+(monorepo-aware). A plugin or marketplace manifest may sit at the work-target
+root or one directory down at `plugins/<name>/.claude-plugin/` /
+`plugins/<name>/.codex-plugin/`; that nested layout is a match when no
+language-stack row already won. Then ask the
 user, showing the detected proposal, with three first-class answers:
 
 - **accept** the proposal as-is,
@@ -218,23 +235,29 @@ Claude Code's `$TASK_ROOT/.claude/settings.local.json` still carries `NIGHTSHIFT
 earlier version synced from this file, offer to remove them: the file is the one copy.
 
 **Local rule profiles — offer, never impose.** Setup may list the shipped examples in
-`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (`balanced`, `no-push`, `strict-secrets`) and preview
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 JSON file there) and preview
 one with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
 On native Windows, preview with
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.
 Applying requires an explicit yes and `--apply` / `-Apply`. Fill never overwrites an owner value. Replace
 shows the complete next file first. Profiles are a one-time local copy — no network, no
-subscription. Refuse `--apply` while armed.
+subscription. Refuse `--apply` / `-Apply` while armed.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's top-level keys and its nested `toolDeny` keys to the owner's file
-(`jq -r 'keys[]'` on each object): offer any missing key with its default — "this version added
+(`jq -r 'keys[]'` on each object, or equivalent Python when jq is absent; on native Windows,
+`(Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json).PSObject.Properties.Name`
+and the same for `.toolDeny`): offer any missing key with its default — "this version added
 `request_user_input`; add it?" — and never touch a value the owner already has. A missing native
 question key is a configuration error, not permission to invent a fallback. Same posture for the
 contract: if the shipped punch-list template's contract (the text above `## Items`) has changed
 since the owner's copy was scaffolded, show the diff and offer a merge — the owner's
 wording wins every conflict, and a punch list with open boxes is never touched at all.
+The same empty-Items offer applies when the owner's contract is leftover campaign text
+(a finished branch, release, or issue-close list) even if the shipped template has not
+changed: show the diff and offer to restore the template contract, or keep theirs.
+Never rewrite without an explicit yes.
 
 ## 6. Summarize
 
