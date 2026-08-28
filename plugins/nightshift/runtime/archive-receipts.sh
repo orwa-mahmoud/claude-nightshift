@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# archive-receipts.sh — copy live artifact receipts into a dated archive folder.
+#
+# Leaves live copies in place so stall progress still sees them. Skips hidden
+# files and does not follow symlinks. Missing receipts is success.
+# Archive-only. Hooks, start, status, Doctor, and recovery must never invoke this.
+#
+#   archive-receipts.sh [--project DIR] [--date YYYY-MM-DD]
+#
+# Exit: 0 copied or nothing to copy · 1 usage · 2 refused
+set -u
+
+_here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+# shellcheck source=plugins/nightshift/lib/lib.sh
+. "$_here/../lib/lib.sh"
+
+PROJECT="${CLAUDE_PROJECT_DIR:-${CODEX_PROJECT_DIR:-$PWD}}"
+DATE=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --project)
+      [ $# -ge 2 ] || { printf 'archive-receipts: --project needs a value\n' >&2; exit 1; }
+      PROJECT="$2"
+      shift 2
+      ;;
+    --date)
+      [ $# -ge 2 ] || { printf 'archive-receipts: --date needs a value\n' >&2; exit 1; }
+      DATE="$2"
+      shift 2
+      ;;
+    -h | --help)
+      awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
+      exit 1
+      ;;
+    *) printf 'archive-receipts: unknown argument: %s\n' "$1" >&2; exit 1 ;;
+  esac
+done
+
+HOST="$(cd -P "$PROJECT" 2>/dev/null && pwd)" || {
+  printf 'archive-receipts: cannot cd to %s\n' "$PROJECT" >&2
+  exit 1
+}
+
+WORKSPACE="$HOST"
+if [ -e "$HOST/.nightshift-link" ] || [ -L "$HOST/.nightshift-link" ]; then
+  WORKSPACE="$(ns_workspace_root "$HOST" 2>/dev/null)" || {
+    printf 'archive-receipts: invalid .nightshift-link — Nightshift will not guess a workspace\n' >&2
+    exit 2
+  }
+fi
+
+KIND="$(ns_state_kind "$WORKSPACE")"
+case "$KIND" in
+  malformed | future)
+    printf 'archive-receipts: %s\n' "$(ns_state_refuse_message "$KIND")" >&2
+    exit 2
+    ;;
+  absent)
+    printf 'archive-receipts: no .nightshift/ at %s\n' "$WORKSPACE" >&2
+    exit 2
+    ;;
+esac
+
+NS="$WORKSPACE/.nightshift"
+if [ -z "$DATE" ]; then
+  DATE="$(date +%Y-%m-%d)"
+fi
+case "$DATE" in
+  [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+  *) printf 'archive-receipts: --date must be YYYY-MM-DD\n' >&2; exit 1 ;;
+esac
+
+src="$(ns_receipts_dir "$WORKSPACE")"
+dest="$NS/archive/$DATE/receipts"
+if [ -L "$NS/archive" ] || [ -L "$NS/archive/$DATE" ] || [ -L "$dest" ]; then
+  printf 'archive-receipts: refuse to write through a symlink archive path\n' >&2
+  exit 2
+fi
+
+copied=0
+if [ -d "$src" ]; then
+  mkdir -p "$dest" || {
+    printf 'archive-receipts: cannot create %s\n' "$dest" >&2
+    exit 2
+  }
+  if [ -L "$dest" ]; then
+    printf 'archive-receipts: refuse to write through a symlink archive path\n' >&2
+    exit 2
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ -f "$f" ] || continue
+    [ -L "$f" ] && continue
+    base="${f##*/}"
+    case "$base" in
+      .* | '') continue ;;
+    esac
+    cp "$f" "$dest/$base" || {
+      printf 'archive-receipts: failed to copy %s\n' "$base" >&2
+      exit 2
+    }
+    copied=$((copied + 1))
+  done <<FIND
+$(find "$src" -type f ! -name '.*' 2>/dev/null)
+FIND
+fi
+
+if [ "$copied" -eq 0 ]; then
+  exit 0
+fi
+printf '%s\n' "$dest"
+exit 0

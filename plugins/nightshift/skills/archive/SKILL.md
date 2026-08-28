@@ -40,8 +40,10 @@ A newer or malformed marker fails closed — file nothing, rewrite nothing, and 
 `state-version` itself stays live; it is not an archive record.
 
 In artifact mode the work target is a persistent folder, not a Git repository. File the same
-Nightshift records; do not require a work-target commit that cannot exist. Copy `$NS/receipts/`
-into `$NS/archive/<YYYY-MM-DD>/receipts/` when those files exist, and leave the live copies in
+Nightshift records; do not require a work-target commit that cannot exist. Copy live receipts with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/archive-receipts.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`).
+The helper writes `$NS/archive/<YYYY-MM-DD>/receipts/` when those files exist, and leave the live copies in
 place so stall progress still sees them. Never delete live receipts as part of Archive.
 
 ## Where it goes
@@ -127,7 +129,7 @@ does not confirm, or either rule is `0`, stop after the preview. `--apply`/`-App
 allowlisted runtime log (`scheduled.log`) and dated `archive/YYYY-MM-DD/` directories that
 are old enough, resolved under `$NS/`, not symlinks, and free of still-open work.
 
-Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status, Doctor, or recovery. Never delete
+Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status, Doctor, or recovery. Never call `archive-receipts.sh` or `archive-receipts.ps1` from start, hooks, status, Doctor, or recovery. Never delete
 the live punch list, drafting table, parking lot, rules, current shift files, or owner-authored
 files.
 

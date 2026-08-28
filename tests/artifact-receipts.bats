@@ -244,6 +244,7 @@ new_artifact() {
 @test "archive copies receipts and leaves live copies" {
   grep -qF 'archive/<YYYY-MM-DD>/receipts/' "$ARCHIVE"
   grep -qF 'leave the live copies' "$ARCHIVE"
+  grep -qF 'runtime/archive-receipts.sh' "$ARCHIVE"
 }
 
 @test "skills and docs name artifact receipts" {
@@ -275,6 +276,7 @@ new_artifact() {
   grep -qF 'local commits or artifact receipts' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$WINDOC"
+  grep -qF 'runtime\windows\archive-receipts.ps1' "$WINDOC"
   grep -qF 'persistent folder' "$WINDOC"
   grep -qF 'latest artifact receipt' "$WINDOC"
   grep -qF 'most recently written' "$WINDOC"

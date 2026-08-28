@@ -338,6 +338,7 @@ PY
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$HUNT"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1' "$QUALITY"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\retain-history.ps1' "$SKILLS/archive/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1' "$SKILLS/archive/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$START"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1' "$SKILLS/doctor/SKILL.md"
