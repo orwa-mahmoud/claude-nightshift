@@ -94,6 +94,12 @@ TARGET=""
 UNUSABLE_RECV=0
 if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
   fact "work mode $MODE"
+  if [ ! -s "$NS/work-mode" ]; then
+    proposed="$(ns_propose_work_mode "$WORKSPACE" 2>/dev/null)" || proposed=""
+    if [ "$proposed" = artifact ]; then
+      warn "work mode is unset; Setup would propose artifact"
+    fi
+  fi
   if [ "$MODE" = artifact ]; then
     fact "artifact receipts $(ns_receipts_count "$WORKSPACE")"
     if latest="$(ns_latest_receipt "$WORKSPACE")"; then

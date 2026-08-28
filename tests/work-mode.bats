@@ -8,6 +8,7 @@ DOCTOR_SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
 ARCHIVE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
 SCHEDULE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
 DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
+WIN_DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
 DOC="$BATS_TEST_DIRNAME/../docs/how-it-works.md"
 VOCAB="$BATS_TEST_DIRNAME/../docs/vocabulary.md"
 HARDHAT="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/shared/hardhat-core.sh"
@@ -87,6 +88,18 @@ call_lib() {
   run bash "$DOCTOR" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode repository'
+  ! printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'
+}
+
+@test "Doctor warns when an unset mode would be proposed as artifact" {
+  w="$BATS_TEST_TMPDIR/notes-unset-mode"
+  mkdir -p "$w/.nightshift" "$w/research"
+  cp "$RULES_TEMPLATE" "$w/.nightshift/rules.json"
+  printf 'notes\n' >"$w/research/topic.md"
+  run bash "$DOCTOR" --project "$w"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'work mode repository'
+  printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'
 }
 
 @test "Setup Start Status Doctor Archive and Schedule name both modes" {
@@ -101,6 +114,9 @@ call_lib() {
   grep -qF 'Skip a symlink or reparse child; it is not a nested checkout.' "$DOC"
   grep -qF 'work mode' "$STATUS" || grep -qF 'work-mode' "$STATUS"
   grep -qF 'work mode' "$DOCTOR_SKILL" || grep -qF 'work-mode' "$DOCTOR_SKILL"
+  grep -qF 'work mode is unset; Setup would propose artifact' "$DOCTOR"
+  grep -qF 'work mode is unset; Setup would propose artifact' "$WIN_DOCTOR"
+  grep -qF 'work mode is unset; Setup would propose artifact' "$DOCTOR_SKILL"
   grep -qF 'artifact' "$ARCHIVE"
   grep -qF 'work-mode' "$SCHEDULE" || grep -qF 'artifact' "$SCHEDULE"
   grep -qF 'exists but is not a usable directory' "$SCHEDULE"

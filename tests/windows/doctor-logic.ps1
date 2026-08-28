@@ -53,6 +53,7 @@ function Invoke-Doctor {
 }
 
 $root = Join-Path ([IO.Path]::GetTempPath()) ("ns-doctor-logic-" + [guid]::NewGuid().ToString('N'))
+$notes = $null
 $null = New-Item -ItemType Directory -Path (Join-Path $root '.nightshift') -Force
 try {
     $ns = Join-Path $root '.nightshift'
@@ -70,6 +71,8 @@ try {
     Expect-True ($leftover.ExitCode -eq 0) "leftover contract exits 0 (got $($leftover.ExitCode) $($leftover.Stderr))"
     Expect-True ($leftover.Stdout -match 'leftover Shift contract and Gates') `
         'empty punch list names leftover contract'
+    Expect-True ($leftover.Stdout -notmatch 'work mode is unset; Setup would propose artifact') `
+        'a git workspace does not warn that Setup would propose artifact'
     Expect-True ($leftover.Stdout -match 'empty punch list will inherit the current contract') `
         'unarmed empty list warns that the contract is inherited'
     Expect-True ($leftover.Stdout -match '\[confirm\].*review punch-list.md contract') `
@@ -130,9 +133,22 @@ try {
         'empty revivalPrompt is a warning'
     Expect-True ($emptyPrompt.Stdout -match 'watchman will refuse to arm') `
         'empty revivalPrompt names the watchman refuse'
+
+    $notes = $root + '-notes'
+    $null = New-Item -ItemType Directory -Path (Join-Path $notes '.nightshift') -Force
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $notes '.nightshift/rules.json')
+    $null = New-Item -ItemType Directory -Path (Join-Path $notes 'research') -Force
+    [IO.File]::WriteAllText((Join-Path $notes 'research/topic.md'), "notes`n")
+    $unset = Invoke-Doctor $notes
+    Expect-True ($unset.ExitCode -eq 0) "unset notes doctor exits 0 (got $($unset.ExitCode) $($unset.Stderr))"
+    Expect-True ($unset.Stdout -match 'work mode is unset; Setup would propose artifact') `
+        'an unset notes folder warns that Setup would propose artifact'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+    if ($null -ne $notes) {
+        Remove-Item -LiteralPath $notes -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 if ($failures.Count -gt 0) {

@@ -106,6 +106,16 @@ $unusableRecv = $false
 try {
     $reportedMode = Get-NSWorkMode $workspace
     Add-NSFact "work mode $reportedMode"
+    $modeRecord = Join-Path $ns 'work-mode'
+    if (-not (Test-Path -LiteralPath $modeRecord -PathType Leaf)) {
+        try {
+            if ((Get-NSProposedWorkMode $workspace) -eq 'artifact') {
+                Add-NSWarn 'work mode is unset; Setup would propose artifact'
+            }
+        }
+        catch {
+        }
+    }
     if ($reportedMode -eq 'artifact') {
         Add-NSFact "artifact receipts $(Get-NSReceiptsCount $workspace)"
         $latest = Get-NSLatestReceipt $workspace
