@@ -126,7 +126,7 @@ guards deny rather than pick one.
 
 In artifact mode the work target is the persistent folder itself. There is no work-target git
 history. Look at `.nightshift/receipts/` — Doctor reports `artifact receipts N` and, when any
-exist, `latest artifact receipt` with the filename of the most recently written receipt. Archive
+exist, `latest artifact receipt` with the filename of the most recently written receipt. Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Archive
 copies those files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
 into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder. A failing `git -C … rev-parse` here is
 expected, not a broken site.

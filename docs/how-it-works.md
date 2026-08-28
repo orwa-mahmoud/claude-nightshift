@@ -373,6 +373,7 @@ records the item, output paths, verification, optional decisions and sources, ti
 file identity (bytes, SHA-256, mtime). Missing or empty outputs are refused. The stall guard
 treats a new receipt like a commit; Doctor reports `artifact receipts N` and, when any exist,
 `latest artifact receipt` with the filename only of the most recently written receipt, and warns when ticked items have no receipts;
+it warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory;
 Archive copies receipts with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
 into the dated folder and leaves the live files in place. Missing or empty receipts create no dated receipts folder. Repository mode still requires a
 work-target git commit.
