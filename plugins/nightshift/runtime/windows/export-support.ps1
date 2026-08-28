@@ -171,7 +171,17 @@ else {
 }
 $null = $lines.Add('')
 $null = $lines.Add('== markers ==')
-$null = $lines.Add(('armed: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf) { 'yes' } else { 'no' })))
+$armedPath = Join-Path $ns '.shift-armed'
+$armedLabel = if (Test-NSReparsePoint $armedPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $armedPath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("armed: $armedLabel")
 $endedPath = Join-Path $ns '.ended'
 $endedLabel = if (Test-NSReparsePoint $endedPath) {
     'unusable'

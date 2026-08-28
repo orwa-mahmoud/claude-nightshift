@@ -153,7 +153,11 @@ dest="$outdir/${stamp}.txt"
     printf 'work_target: unresolved\n'
   fi
   printf '\n== markers ==\n'
-  printf 'armed: %s\n' "$( [ -f "$NS/.shift-armed" ] && printf yes || printf no )"
+  if [ -L "$NS/.shift-armed" ]; then
+    printf 'armed: unusable\n'
+  else
+    printf 'armed: %s\n' "$( [ -f "$NS/.shift-armed" ] && printf yes || printf no )"
+  fi
   if [ -L "$NS/.ended" ]; then
     printf 'ended: unusable\n'
   else

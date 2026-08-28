@@ -224,6 +224,36 @@ try {
             Expect-True (-not $recordText.Contains('session_record: present')) 'symlink shift-session is not a recorded session'
         }
     }
+
+    $armedPlant = Join-Path $ns 'armed-plant'
+    [IO.File]::WriteAllText($armedPlant, "plant`n")
+    $armedLink = Join-Path $ns '.shift-armed'
+    Remove-Item -LiteralPath $armedLink -Force -ErrorAction SilentlyContinue
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $armedLink -Target $armedPlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink armed marker (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $armedLink) {
+        $armedExported = Invoke-ExportSupport $root
+        Expect-True ($armedExported.ExitCode -eq 0) `
+            "symlink armed export exits 0 (got $($armedExported.ExitCode) $($armedExported.Stderr))"
+        $armedLine = ($armedExported.Stdout -split "`n" | Where-Object { $_ -match '^Support bundle: ' } | Select-Object -First 1)
+        $armedBundle = if ($armedLine) { $armedLine.Substring('Support bundle: '.Length).Trim() } else { '' }
+        Expect-True ((-not [string]::IsNullOrEmpty($armedBundle)) -and (Test-Path -LiteralPath $armedBundle -PathType Leaf)) `
+            "symlink armed bundle exists: $armedBundle"
+        if (-not [string]::IsNullOrEmpty($armedBundle) -and (Test-Path -LiteralPath $armedBundle -PathType Leaf)) {
+            $armedText = [IO.File]::ReadAllText($armedBundle)
+            Expect-True ($armedText.Contains('armed: unusable')) 'symlink armed marker is unusable'
+            Expect-True (-not $armedText.Contains('armed: yes')) 'symlink armed marker is not armed'
+        }
+    }
 }
 finally {
     if ($null -eq $oldLeak) {
