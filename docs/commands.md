@@ -174,6 +174,7 @@ Run it from a terminal, or copy the single file anywhere. It refuses a second en
 that already has one, and identifies projects by path rather than folder name, so two checkouts
 called `api` never collide. It cannot queue your work for you, though — that part has to be in the
 punch list already. Preflight also fails `work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm` when the mode file is missing and Setup would propose artifact.
+It also fails `work target could not be resolved - a scheduled start will refuse to arm` when the recorded work target cannot be read.
 
 Native Windows uses the token-free PowerShell generator:
 
