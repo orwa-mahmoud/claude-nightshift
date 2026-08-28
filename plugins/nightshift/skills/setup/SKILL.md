@@ -76,7 +76,7 @@ Detect the work mode, explain it, and ask before persisting it. Use
 `ns_propose_work_mode` (POSIX) or `Get-NSProposedWorkMode` after importing
 `Nightshift.psm1` (native Windows):
 
-- `repository` — the workspace is a Git repository, or exactly one immediate non-hidden child is.
+- `repository` — the workspace is a Git repository, or exactly one immediate non-hidden child is. Skip a symlink or reparse child; it is not a nested checkout.
   several child repositories still mean repository mode; show the choices and require an explicit
   target, never guess.
 - `artifact` — there is no Git repository here. The persistent folder itself is the work target

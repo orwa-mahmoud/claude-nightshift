@@ -291,7 +291,7 @@ Nightshift resolves two locations and persists both decisions:
   marketplace manifest may sit at a repository work-target root or under `plugins/<name>/`.
 
 State resolution never searches parent or sibling folders. Work-target resolution accepts the
-opened repository or exactly one immediate, non-hidden child repository. Several candidates require
+opened repository or exactly one immediate, non-hidden child repository. Skip a symlink or reparse child; it is not a nested checkout. Several candidates require
 an explicit choice.
 
 ### Repository root (supported)
