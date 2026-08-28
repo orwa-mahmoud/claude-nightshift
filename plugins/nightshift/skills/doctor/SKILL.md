@@ -67,6 +67,7 @@ also reports `latest artifact receipt` with the filename only of the most recent
 items exist and the receipts directory is empty, Doctor warns
 `artifact mode has ticked items but no receipts`.
 Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Doctor counts.
+Missing or empty receipts create no dated receipts folder.
 
 ## 2. Classify actions — do not execute them
 

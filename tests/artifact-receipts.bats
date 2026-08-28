@@ -297,6 +297,7 @@ new_artifact() {
   grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_SKILL"
   grep -qF 'archive/<YYYY-MM-DD>/receipts/' "$DOCTOR_SKILL"
   grep -qF 'do not replace the live files Doctor counts' "$DOCTOR_SKILL"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$DOCTOR_SKILL"
   grep -qF 'artifact receipt' "$TEMPLATE"
   grep -qF 'runtime/write-receipt.sh' "$DOC"
   grep -qF 'runtime/archive-receipts.sh' "$DOC"
