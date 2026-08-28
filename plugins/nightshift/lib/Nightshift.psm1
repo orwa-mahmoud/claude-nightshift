@@ -95,6 +95,9 @@ function Test-NSScratchPath {
 function Get-NSWorkMode {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     $record = Join-Path $Workspace '.nightshift/work-mode'
+    if (Test-NSReparsePoint $record) {
+        throw 'work mode is malformed'
+    }
     if (-not (Test-Path -LiteralPath $record -PathType Leaf)) {
         return 'repository'
     }

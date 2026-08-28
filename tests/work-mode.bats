@@ -82,6 +82,19 @@ call_lib() {
   [ "$status" -eq 1 ]
 }
 
+@test "a symlink work-mode fails closed" {
+  p="$(new_project mode-link)"
+  printf 'artifact\n' >"$p/.nightshift/mode-plant"
+  ln -s mode-plant "$p/.nightshift/work-mode"
+  run bash -c '. "$1"; ns_work_mode "$2"' _ "$LIB" "$p"
+  [ "$status" -eq 1 ]
+  run bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$p"
+  [ "$status" -eq 1 ]
+  run bash "$DOCTOR" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'work mode is malformed; treating the site as unusable until Setup rewrites it'
+}
+
 @test "Doctor reports work mode" {
   p="$(new_project mode-doctor)"
   bash -c '. "$1"; ns_record_work_target "$2" "$3"' _ "$LIB" "$p" "$p"
@@ -201,6 +214,9 @@ planted_repo() {
   ! awk '/^repo_root\(\)/,/^ns_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
   awk '/function Get-NSProposedWorkMode/,/^function Resolve-NSWorkspaceRoot/' "$PSM1" | grep -qF 'ReparsePoint'
   awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'ReparsePoint'
+  awk '/^ns_work_mode\(\)/,/^ns_record_work_mode\(\)/' "$PATHS" | grep -qF '[ -L "$record" ]'
+  awk '/function Get-NSWorkMode/,/^function Write-NSWorkMode/' "$PSM1" | grep -qF 'Test-NSReparsePoint'
+  grep -qF 'symlink work-mode is malformed' "$LOGIC"
   grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' \
     "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/setup.ps1"
   grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' "$SETUP"

@@ -156,6 +156,34 @@ try {
     Expect-True ($parentSetup.ExitCode -eq 0) `
         "default setup on a parent with a real child exits 0 (got $($parentSetup.ExitCode) $($parentSetup.Stderr))"
     Expect-True ((Get-NSWorkMode $parent) -eq 'repository') 'parent setup persists repository mode'
+
+    $linkRoot = Join-Path $root 'mode-link'
+    $linkNs = Join-Path $linkRoot '.nightshift'
+    $null = New-Item -ItemType Directory -Path $linkNs -Force
+    $plant = Join-Path $linkNs 'mode-plant'
+    [IO.File]::WriteAllText($plant, "artifact`n")
+    $modeLink = Join-Path $linkNs 'work-mode'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $modeLink -Target $plant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink work-mode (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $modeLink) {
+        $threw = $false
+        try {
+            $null = Get-NSWorkMode $linkRoot
+        }
+        catch {
+            $threw = $_.Exception.Message -match 'malformed'
+        }
+        Expect-True $threw 'symlink work-mode is malformed'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

@@ -156,6 +156,9 @@ ns_is_scratch_path() {
 # Return 1 when the record exists and is not one of those two words.
 ns_work_mode() {
   local record="$1/.nightshift/work-mode" mode=""
+  if [ -L "$record" ]; then
+    return 1
+  fi
   if [ ! -s "$record" ]; then
     printf 'repository'
     return 0
