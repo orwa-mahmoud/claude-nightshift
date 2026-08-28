@@ -30,6 +30,8 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
   grep -qF 'revivalPrompt is empty' "$HELPER"
   grep -qF 'freshRevivalPrompt is empty' "$HELPER"
   grep -qF 'revivalPrompt is empty' "$LOGIC"
+  grep -qF 'work mode is malformed; treating the site as unusable until Setup rewrites it' "$HELPER"
+  grep -qF 'a symlink work-mode is reported as malformed' "$LOGIC"
 }
 
 @test "Windows Doctor leftover and staged-work logic passes when pwsh is present" {

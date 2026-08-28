@@ -9,6 +9,7 @@ $rulesTemplate = Join-Path $repository 'plugins/nightshift/skills/nightshift/ref
 $draftTemplate = Join-Path $repository 'plugins/nightshift/skills/nightshift/references/drafting-table-template.md'
 $hostExecutable = (Get-Process -Id $PID).Path
 $failures = New-Object 'System.Collections.Generic.List[string]'
+$onWin32 = [Environment]::OSVersion.Platform -eq 'Win32NT'
 
 function Expect-True {
     param([bool]$Condition, [string]$Message)
@@ -54,6 +55,7 @@ function Invoke-Doctor {
 
 $root = Join-Path ([IO.Path]::GetTempPath()) ("ns-doctor-logic-" + [guid]::NewGuid().ToString('N'))
 $notes = $null
+$linkNotes = $null
 $null = New-Item -ItemType Directory -Path (Join-Path $root '.nightshift') -Force
 try {
     $ns = Join-Path $root '.nightshift'
@@ -147,11 +149,45 @@ try {
         'an unset notes folder warns that Setup would propose artifact'
     Expect-True ($unset.Stdout -match 'persist the proposed artifact mode with Setup; Doctor does not write work-mode') `
         'an unset notes folder offers Setup as a confirm action'
+
+    $linkNotes = $root + '-mode-link'
+    $linkNs = Join-Path $linkNotes '.nightshift'
+    $null = New-Item -ItemType Directory -Path $linkNs, (Join-Path $linkNotes 'research') -Force
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $linkNs 'rules.json')
+    [IO.File]::WriteAllText((Join-Path $linkNotes 'research/topic.md'), "notes`n")
+    $plant = Join-Path $linkNs 'mode-plant'
+    [IO.File]::WriteAllText($plant, "artifact`n")
+    $modeLink = Join-Path $linkNs 'work-mode'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $modeLink -Target $plant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink work-mode (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $modeLink) {
+        $malformed = Invoke-Doctor $linkNotes
+        Expect-True ($malformed.ExitCode -eq 0) `
+            "symlink work-mode doctor exits 0 (got $($malformed.ExitCode) $($malformed.Stderr))"
+        Expect-True ($malformed.Stdout -match 'work mode is malformed; treating the site as unusable until Setup rewrites it') `
+            'a symlink work-mode is reported as malformed'
+        Expect-True ($malformed.Stdout -notmatch 'work mode is unset; Setup would propose artifact') `
+            'a symlink work-mode is not reported as unset'
+        Expect-True ($malformed.Stdout -notmatch 'work mode artifact') `
+            'a symlink work-mode does not report artifact'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
     if ($null -ne $notes) {
         Remove-Item -LiteralPath $notes -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $linkNotes) {
+        Remove-Item -LiteralPath $linkNotes -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
