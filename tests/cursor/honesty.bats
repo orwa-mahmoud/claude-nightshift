@@ -4,6 +4,9 @@ ROOT="$BATS_TEST_DIRNAME/../../"
 HOW="$ROOT/docs/how-it-works.md"
 KNOBS="$ROOT/docs/knobs.md"
 START="$ROOT/plugins/nightshift/skills/start/SKILL.md"
+README="$ROOT/README.md"
+MARKET="$ROOT/.claude-plugin/marketplace.json"
+CODEX_MARKET="$ROOT/.agents/plugins/marketplace.json"
 
 @test "docs name the Cursor IDE and CLI store split" {
   grep -qF '~/.cursor/projects/' "$HOW"
@@ -24,4 +27,11 @@ START="$ROOT/plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'marketplace and local plugin hooks' "$HOW"
   grep -qF 'a Cursor limitation' "$HOW"
   grep -qF 'not a Nightshift skip' "$HOW"
+}
+
+@test "public install copy still waits on a verified Cursor shift" {
+  ! grep -qE '^### Cursor' "$README"
+  grep -qF 'marketplace listing waits' "$HOW"
+  ! grep -qi cursor "$MARKET"
+  ! grep -qi cursor "$CODEX_MARKET"
 }
