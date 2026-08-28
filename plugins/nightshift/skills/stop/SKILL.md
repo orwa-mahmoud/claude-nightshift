@@ -49,4 +49,5 @@ Claude Code, or ask Nightshift to start on Codex), which clears the marker.
 **Panic form (works even if the model is unresponsive):** from any POSIX terminal,
 `touch "$NS/STOP"`. In native Windows PowerShell, run
 `New-Item -ItemType File -Force "$NS\STOP"`. The gate honors either
-marker the same way.
+marker the same way, including when a failed clock-out left a recovery nonce that still
+fences the recorded conversation.

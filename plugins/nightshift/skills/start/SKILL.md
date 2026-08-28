@@ -117,6 +117,10 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  or `New-Item -ItemType File -Force "$NS\STOP"` in native Windows
  PowerShell. A record whose process is provably dead is last night's leftover: fall through and
  clear it below.
+ When Doctor reports `terminal clock-out failed without releasing the shift` and the lease is
+ interactive, reopen the recorded conversation — do not run the stale-lease reset. If a recovery
+ worker still holds the lease, wait or issue STOP from a separate session; reopening stays blocked
+ while that worker is alive.
  On native Windows, use `Get-Process -Id <pid>` plus the recorded UTC start time through
  `Test-NSRecordedProcess`; an inaccessible process is unavailable evidence, not death.
 - **Stand down a stale watchman before clearing its state.** Only after the checks above prove no

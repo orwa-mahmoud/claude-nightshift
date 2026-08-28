@@ -84,6 +84,7 @@ Read `$NS/` and print:
  When Doctor warns `session-end path is not a usable file`, say so — a planted symlink is not a clean exit.
  When Doctor warns `shift-session path is not a usable file`, say so — a planted symlink is not a recorded session.
  When Doctor warns `watchman pidfile path is not a usable file`, say so — a planted symlink is not a live watchman.
+ When Doctor warns `terminal clock-out failed without releasing the shift`, say so and relay whether the recorded conversation can reclaim or is still blocked.
  If a shift is running, the bound session from
  `$NS/.shift-session` (never print the session id). Also report
  `$NS/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
