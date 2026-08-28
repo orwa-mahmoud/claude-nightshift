@@ -35,7 +35,7 @@ Use this once before leaving Nightshift unattended in a project.
   then push or open a pull request yourself. In artifact mode there is no work-target git history:
   review `$NS/receipts/` instead (Doctor names the most recently written file). Archive copies those
   files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
-  into the dated folder and leaves the live copies in place.
+  into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder.
 
 The emergency stop is always available from the Nightshift workspace — the folder that
 contains `.nightshift/`, not a linked task root:

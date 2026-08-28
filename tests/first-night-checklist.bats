@@ -22,6 +22,7 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF '$NS/receipts/' "$CHECKLIST"
   grep -qF 'runtime/archive-receipts.sh' "$CHECKLIST"
   grep -qF 'runtime/windows/archive-receipts.ps1' "$CHECKLIST"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$CHECKLIST"
   grep -qF 'most recently written' "$CHECKLIST"
 }
 
