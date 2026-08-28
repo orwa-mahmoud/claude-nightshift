@@ -95,6 +95,7 @@ call_lib() {
   grep -qF 'artifact' "$SETUP"
   grep -qF 'work-mode' "$START"
   grep -qF 'artifact' "$START"
+  grep -qF 'exists but is not a usable directory' "$START"
   grep -qF 'work mode' "$STATUS" || grep -qF 'work-mode' "$STATUS"
   grep -qF 'work mode' "$DOCTOR_SKILL" || grep -qF 'work-mode' "$DOCTOR_SKILL"
   grep -qF 'artifact' "$ARCHIVE"
