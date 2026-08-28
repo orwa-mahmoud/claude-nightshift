@@ -190,6 +190,21 @@ load helpers
   [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "1" ]
 }
 
+@test "a symlink work-mode does not treat receipts as stall progress" {
+  p="$(new_project mode-link-stall)"
+  printf 'artifact\n' >"$p/.nightshift/mode-plant"
+  ln -s mode-plant "$p/.nightshift/work-mode"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=10 NIGHTSHIFT_STALL_WARN=1
+  run gate "$p" NIGHTSHIFT_STALL_MAX=10 NIGHTSHIFT_STALL_WARN=1
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "2" ]
+  mkdir -p "$p/.nightshift/receipts"
+  printf 'planted\n' >"$p/.nightshift/receipts/20260101T000000Z-plant.md"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=10 NIGHTSHIFT_STALL_WARN=1
+  is_block "$output"
+  [ "$(sed -n '2p' "$p/.nightshift/.stall")" = "3" ]
+}
+
 @test "workspace layout: a commit in the repo below still counts as progress" {
   w="$(new_workspace)"
   punch_open "$w"
