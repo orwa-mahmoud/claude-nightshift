@@ -254,6 +254,36 @@ try {
             Expect-True (-not $armedText.Contains('armed: yes')) 'symlink armed marker is not armed'
         }
     }
+
+    $watchmanPlant = Join-Path $ns 'watchman-plant'
+    [IO.File]::WriteAllText($watchmanPlant, "plant`n")
+    $watchmanLink = Join-Path $ns '.watchman'
+    Remove-Item -LiteralPath $watchmanLink -Force -ErrorAction SilentlyContinue
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $watchmanLink -Target $watchmanPlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink watchman pidfile (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $watchmanLink) {
+        $watchmanExported = Invoke-ExportSupport $root
+        Expect-True ($watchmanExported.ExitCode -eq 0) `
+            "symlink watchman pidfile export exits 0 (got $($watchmanExported.ExitCode) $($watchmanExported.Stderr))"
+        $watchmanLine = ($watchmanExported.Stdout -split "`n" | Where-Object { $_ -match '^Support bundle: ' } | Select-Object -First 1)
+        $watchmanBundle = if ($watchmanLine) { $watchmanLine.Substring('Support bundle: '.Length).Trim() } else { '' }
+        Expect-True ((-not [string]::IsNullOrEmpty($watchmanBundle)) -and (Test-Path -LiteralPath $watchmanBundle -PathType Leaf)) `
+            "symlink watchman pidfile bundle exists: $watchmanBundle"
+        if (-not [string]::IsNullOrEmpty($watchmanBundle) -and (Test-Path -LiteralPath $watchmanBundle -PathType Leaf)) {
+            $watchmanText = [IO.File]::ReadAllText($watchmanBundle)
+            Expect-True ($watchmanText.Contains('watchman_pidfile: unusable')) 'symlink watchman pidfile is unusable'
+            Expect-True (-not $watchmanText.Contains('watchman_pidfile: present')) 'symlink watchman pidfile is not present'
+        }
+    }
 }
 finally {
     if ($null -eq $oldLeak) {

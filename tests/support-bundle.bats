@@ -199,6 +199,7 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   grep -qF 'symlink armed marker is unusable' "$LOGIC"
   grep -qF '[ -L "$NS/.watchman" ]' "$EXPORT"
   grep -qF 'Test-NSReparsePoint $watchmanPath' "$WIN_EXPORT"
+  grep -qF 'symlink watchman pidfile is unusable' "$LOGIC"
   ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
 }
 
