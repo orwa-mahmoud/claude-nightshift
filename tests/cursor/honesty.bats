@@ -18,3 +18,10 @@ START="$ROOT/plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'conversation_id' "$HOW"
   ! grep -qE 'agent --resume .*conversation_id' "$HOW" "$KNOBS" "$START"
 }
+
+@test "docs name the Cursor CLI file-hook limitation" {
+  grep -qF 'currently ignores' "$HOW"
+  grep -qF 'marketplace and local plugin hooks' "$HOW"
+  grep -qF 'a Cursor limitation' "$HOW"
+  grep -qF 'not a Nightshift skip' "$HOW"
+}

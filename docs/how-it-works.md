@@ -287,7 +287,10 @@ tab is denied with the attach command while that worker holds the shift. Other I
 the same project stay outside the gate. Closing the origin tab is not a clean session end
 once a worker is recorded. Do not arm the Claude or Codex watchman from a Cursor session.
 Install locally under `~/.cursor/plugins/local` first; marketplace listing waits on a
-verified Cursor shift with watchman recovery.
+verified Cursor shift with watchman recovery. The Cursor CLI (`agent`) currently ignores
+marketplace and local plugin hooks and only runs project `.cursor/hooks.json`. Setup can
+copy the shipped Cursor hook file there on an explicit yes; that is a Cursor limitation,
+not a Nightshift skip.
 
 The differences among Claude Code and Codex are in recovery evidence. Claude Code exposes Escape,
 clean session-end, process, transcript, and API-error signals. Codex exposes process and rollout
