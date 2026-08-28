@@ -373,7 +373,10 @@ function Get-NSReceiptsCount {
         return 0
     }
     return @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
-        Where-Object { -not $_.Name.StartsWith('.') }).Count
+        Where-Object {
+            -not $_.Name.StartsWith('.') -and
+            -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        }).Count
 }
 
 function Get-NSLatestReceipt {
@@ -383,7 +386,10 @@ function Get-NSLatestReceipt {
         return $null
     }
     $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
-        Where-Object { -not $_.Name.StartsWith('.') })
+        Where-Object {
+            -not $_.Name.StartsWith('.') -and
+            -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        })
     if ($files.Count -eq 0) {
         return $null
     }
@@ -412,7 +418,10 @@ function Get-NSReceiptsFingerprint {
         return 'none'
     }
     $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
-        Where-Object { -not $_.Name.StartsWith('.') } |
+        Where-Object {
+            -not $_.Name.StartsWith('.') -and
+            -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
+        } |
         Sort-Object { $_.FullName })
     if ($files.Count -eq 0) {
         return 'none'

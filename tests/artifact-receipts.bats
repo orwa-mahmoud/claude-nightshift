@@ -180,6 +180,21 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-real.md'
 }
 
+@test "receipts helpers ignore symlink receipts" {
+  a="$(new_artifact symlink-receipts)"
+  mkdir -p "$a/.nightshift/receipts"
+  printf 'ok\n' >"$a/.nightshift/receipts/20260101T000000Z-real.md"
+  ln -s "$a/.nightshift/receipts/20260101T000000Z-real.md" \
+    "$a/.nightshift/receipts/20260101T000000Z-link.md"
+  latest="$(bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a")"
+  [ "$(basename "$latest")" = '20260101T000000Z-real.md' ]
+  [ "$(bash -c '. "$1"; ns_receipts_count "$2"' _ "$LIB" "$a")" = 1 ]
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 1'
+  printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-real.md'
+}
+
 @test "receipts helpers ignore files nested under receipts/" {
   a="$(new_artifact nested-receipts)"
   mkdir -p "$a/.nightshift/receipts/nested"
@@ -338,7 +353,9 @@ new_artifact() {
   [ -f "$WRITE_LOGIC" ]
   grep -qF 'write-receipt-logic.ps1' "$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'Get-NSLatestReceipt' "$WRITE_LOGIC"
-  grep -qF 'latest artifact receipt' "$WRITE_LOGIC"
+  grep -qF 'latest ignores a hidden sibling' "$WRITE_LOGIC"
+  grep -qF 'symlink receipt is not counted' "$WRITE_LOGIC"
+  grep -qF 'symlink receipt is not latest' "$WRITE_LOGIC"
   grep -qF 'artifact mode has ticked items but no receipts' "$WRITE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0

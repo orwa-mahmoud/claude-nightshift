@@ -9,6 +9,7 @@ $doctor = Join-Path $repository 'plugins/nightshift/runtime/windows/doctor.ps1'
 $module = Join-Path $repository 'plugins/nightshift/lib/Nightshift.psm1'
 $hostExecutable = (Get-Process -Id $PID).Path
 $failures = New-Object 'System.Collections.Generic.List[string]'
+$onWin32 = [Environment]::OSVersion.Platform -eq 'Win32NT'
 
 function Expect-True {
     param([bool]$Condition, [string]$Message)
@@ -196,6 +197,35 @@ try {
     Expect-True ((Get-NSReceiptsCount $hiddenCase) -eq 1) 'a real receipt counts beside a hidden file'
     Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $hiddenCase))) -eq '20260101T000000Z-real.md') `
         'latest ignores a hidden sibling'
+
+    $symlinkCase = Join-Path $root 'symlink-notes'
+    $symlinkNs = Join-Path $symlinkCase '.nightshift'
+    $symlinkRecv = Join-Path $symlinkNs 'receipts'
+    $null = New-Item -ItemType Directory -Path $symlinkRecv -Force
+    [IO.File]::WriteAllText((Join-Path $symlinkNs 'work-mode'), "artifact`n")
+    $realReceipt = Join-Path $symlinkRecv '20260101T000000Z-real.md'
+    [IO.File]::WriteAllText($realReceipt, "ok`n")
+    $fpBefore = Get-NSReceiptsFingerprint $symlinkCase
+    $receiptLink = Join-Path $symlinkRecv '20260101T000000Z-link.md'
+    $fileLinkCreated = $true
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $receiptLink -Target $realReceipt -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            $fileLinkCreated = $false
+        }
+        else {
+            throw
+        }
+    }
+    if ($fileLinkCreated) {
+        Expect-True ((Get-NSReceiptsCount $symlinkCase) -eq 1) 'symlink receipt is not counted'
+        Expect-True (([IO.Path]::GetFileName((Get-NSLatestReceipt $symlinkCase))) -eq '20260101T000000Z-real.md') `
+            'symlink receipt is not latest'
+        Expect-True ((Get-NSReceiptsFingerprint $symlinkCase) -eq $fpBefore) `
+            'symlink receipt is not in the stall fingerprint'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
