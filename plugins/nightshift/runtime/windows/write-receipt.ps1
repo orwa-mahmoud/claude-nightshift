@@ -102,6 +102,10 @@ foreach ($raw in $outputs) {
     else {
         $abs = Join-Path $hostPath $raw
     }
+    if ((Test-NSReparsePoint $abs) -or -not (Test-Path -LiteralPath $abs -PathType Leaf)) {
+        Write-NSReceiptError "write-receipt: missing output: $raw"
+        exit 2
+    }
     try {
         $abs = Resolve-NSCanonicalPath $abs
     }

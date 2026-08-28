@@ -160,6 +160,36 @@ try {
     )
     Expect-True ($missing.ExitCode -eq 2) "missing output exits 2 (got $($missing.ExitCode))"
 
+    $linkOutCase = Join-Path $root 'link-output-notes'
+    $linkOutNs = Join-Path $linkOutCase '.nightshift'
+    $null = New-Item -ItemType Directory -Path $linkOutNs -Force
+    [IO.File]::WriteAllText((Join-Path $linkOutNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $linkOutNs 'work-target'), "$linkOutCase`n")
+    $realOut = Join-Path $linkOutCase 'real.md'
+    $aliasOut = Join-Path $linkOutCase 'alias.md'
+    [IO.File]::WriteAllText($realOut, "ok`n")
+    $outLinkCreated = $true
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $aliasOut -Target $realOut -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            $outLinkCreated = $false
+        }
+        else {
+            throw
+        }
+    }
+    if ($outLinkCreated) {
+        $linkedOut = Invoke-WriteReceipt $linkOutCase @(
+            '-Item', 'x', '-Verify', 'ok', '-Output', $aliasOut
+        )
+        Expect-True ($linkedOut.ExitCode -eq 2) "symlink output exits 2 (got $($linkedOut.ExitCode) $($linkedOut.Stderr))"
+        Expect-True ($linkedOut.Stderr -match 'missing output') 'symlink output is missing'
+        Expect-True (-not (Test-Path -LiteralPath (Join-Path $linkOutNs 'receipts'))) `
+            'does not create receipts for a symlink output'
+    }
+
     $repo = Join-Path $root 'repo'
     $null = New-Item -ItemType Directory -Path (Join-Path $repo '.nightshift') -Force
     [IO.File]::WriteAllText((Join-Path $repo '.nightshift/work-mode'), "repository`n")

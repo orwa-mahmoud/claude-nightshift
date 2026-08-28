@@ -462,6 +462,8 @@ new_artifact() {
   grep -qF 'does not write through a reparse receipts path' "$WRITE_LOGIC"
   grep -qF 'does not replace a file receipts path' "$WRITE_LOGIC"
   grep -qF 'Doctor warns when receipts path is not a usable directory' "$WRITE_LOGIC"
+  grep -qF 'symlink output is missing' "$WRITE_LOGIC"
+  grep -qF 'does not create receipts for a symlink output' "$WRITE_LOGIC"
   grep -qF 'Doctor offers a replace-path action when receipts path is unusable' "$WRITE_LOGIC"
   grep -qF 'Doctor does not offer write-receipt on an unusable receipts path' "$WRITE_LOGIC"
   grep -qF 'Doctor does not warn empty ticks when receipts path is unusable' "$WRITE_LOGIC"
