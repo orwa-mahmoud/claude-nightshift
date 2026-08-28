@@ -382,6 +382,7 @@ new_artifact() {
   grep -qF 'ticked items have no receipts' "$DOC"
   grep -qF 'artifact receipts path is not a usable directory' "$DOC"
   grep -qF 'replace it rather than write-receipt' "$DOC"
+  grep -qF 'cannot land receipts' "$DOC"
   grep -qF '**artifact receipt**' "$VOCAB"
   grep -qF '**archive**' "$VOCAB"
   grep -qF 'live receipts stay' "$VOCAB"
