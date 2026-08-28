@@ -552,3 +552,112 @@ ns_hardhat_command_reason() {
   fi
   return 1
 }
+
+# Split a simple command into tokens. Rejects unmatched quotes. No eval.
+ns_hardhat_split_tokens() { # <cmd> → fills __ns_hh_tok
+  local s="$1" tok="" quote="" c
+  __ns_hh_tok=()
+  while [ -n "$s" ]; do
+    c="${s%"${s#?}"}"
+    s="${s#?}"
+    if [ -n "$quote" ]; then
+      if [ "$c" = "$quote" ]; then
+        quote=""
+      else
+        tok="${tok}${c}"
+      fi
+      continue
+    fi
+    case "$c" in
+      \' | \") quote="$c" ;;
+      [[:space:]])
+        if [ -n "$tok" ]; then
+          __ns_hh_tok+=("$tok")
+          tok=""
+        fi
+        ;;
+      *) tok="${tok}${c}" ;;
+    esac
+  done
+  [ -z "$quote" ] || return 1
+  [ -n "$tok" ] && __ns_hh_tok+=("$tok")
+  return 0
+}
+
+ns_hardhat_canon_regular_file() { # <path>
+  local p="$1" dir
+  [ -n "$p" ] || return 1
+  [ -f "$p" ] && [ ! -L "$p" ] || return 1
+  case "$p" in
+    */*) dir="$(cd -P "${p%/*}" >/dev/null 2>&1 && pwd -P)" || return 1 ;;
+    *) return 1 ;;
+  esac
+  printf '%s/%s' "$dir" "${p##*/}"
+}
+
+# True when the command is exactly a plugin Stop/Reset/Purge helper for this workspace.
+# Invoked after lease targeting and before unbound, so a fenced conversation can recover.
+ns_hardhat_trusted_shift_control() { # <cmd> <plugin_root> <workspace>
+  local cmd="$1" plugin="$2" workspace="$3"
+  local script project="" confirm="" i tok helper expected resolved
+  [ -n "$cmd" ] && [ -n "$plugin" ] && [ -n "$workspace" ] || return 1
+  case "$cmd" in
+    *$'\n'* | *$'\r'*) return 1 ;;
+  esac
+  printf '%s' "$cmd" | grep -qE '[;&|`$<>]' && return 1
+  printf '%s' "$cmd" | grep -q '\$' && return 1
+  ns_hardhat_split_tokens "$cmd" || return 1
+  [ "${#__ns_hh_tok[@]}" -ge 3 ] || return 1
+  i=0
+  case "${__ns_hh_tok[0]}" in
+    bash | sh | /bin/bash | /usr/bin/bash)
+      i=1
+      ;;
+  esac
+  script="${__ns_hh_tok[$i]}"
+  script="$(ns_hardhat_canon_regular_file "$script")" || return 1
+  plugin="$(cd -P "$plugin" >/dev/null 2>&1 && pwd -P)" || return 1
+  expected=""
+  for helper in stop-shift.sh reset-shift.sh purge-workspace.sh; do
+    tok="$(ns_hardhat_canon_regular_file "$plugin/runtime/$helper")" || continue
+    if [ "$script" = "$tok" ]; then
+      expected="$helper"
+      break
+    fi
+  done
+  [ -n "$expected" ] || return 1
+  i=$((i + 1))
+  while [ "$i" -lt "${#__ns_hh_tok[@]}" ]; do
+    tok="${__ns_hh_tok[$i]}"
+    i=$((i + 1))
+    case "$tok" in
+      --project)
+        [ "$i" -lt "${#__ns_hh_tok[@]}" ] || return 1
+        project="${__ns_hh_tok[$i]}"
+        i=$((i + 1))
+        ;;
+      --reason)
+        [ "$i" -lt "${#__ns_hh_tok[@]}" ] || return 1
+        i=$((i + 1))
+        ;;
+      --confirm-path)
+        [ "$i" -lt "${#__ns_hh_tok[@]}" ] || return 1
+        confirm="${__ns_hh_tok[$i]}"
+        i=$((i + 1))
+        ;;
+      *) return 1 ;;
+    esac
+  done
+  [ -n "$project" ] || return 1
+  case "$project" in /*) ;; *) return 1 ;; esac
+  resolved="$(cd -P "$project" 2>/dev/null && pwd)" || return 1
+  if [ -e "$resolved/.nightshift-link" ] || [ -L "$resolved/.nightshift-link" ]; then
+    resolved="$(ns_workspace_root "$resolved" 2>/dev/null)" || return 1
+  fi
+  workspace="$(cd -P "$workspace" 2>/dev/null && pwd)" || return 1
+  [ "$resolved" = "$workspace" ] || return 1
+  if [ "$expected" = purge-workspace.sh ]; then
+    [ -n "$confirm" ] || return 1
+  fi
+  return 0
+}

@@ -97,6 +97,15 @@ if ns_hardhat_payload_targets_lease "$TOOL" "$INPUT" "$LEASE_COMMAND"; then
   deny "BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset."
 fi
 
+# Owner emergency helpers may run from the bound or fenced conversation. Exact plugin
+# binaries only; this is not a bypass of lease or control files.
+if ns_hardhat_is_command_tool "$TOOL"; then
+  NS_PLUGIN_ROOT="$(cd -P "$_here/.." >/dev/null 2>&1 && pwd -P)" || NS_PLUGIN_ROOT=""
+  if [ -n "$NS_PLUGIN_ROOT" ] && ns_hardhat_trusted_shift_control "$CMD" "$NS_PLUGIN_ROOT" "$PROJECT_DIR"; then
+    exit 0
+  fi
+fi
+
 # The conversation record preserves continuity; the lease names the process generation allowed
 # to act on it. Initial work uses the Claude ancestor's pid + start time. Every watchman spawn
 # instead carries a unique nonce and generation, so an old IDE process with the same session id

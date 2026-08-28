@@ -112,15 +112,18 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  A live `$NS/.watchman` beside an armed list with open Items is also an active shift,
  including the gap between recovery attempts. Refuse the second Start and point the owner at
  Status or STOP; never kill that watchman as stale.
- The platform-native command that creates `$NS/STOP` is the lever
- if they want a live shift ended first: `touch "$NS/STOP"` on POSIX,
- or `New-Item -ItemType File -Force "$NS\STOP"` in native Windows
- PowerShell. A record whose process is provably dead is last night's leftover: fall through and
- clear it below.
+ The trusted Stop helper is the lever if they want a live shift paused first:
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/stop-shift.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ on POSIX, or
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\stop-shift.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
+ on native Windows. That disarms immediately. The panic form that only writes the marker —
+ `touch "$NS/STOP"` on POSIX, or `New-Item -ItemType File -Force "$NS\STOP"` in native Windows
+ PowerShell — waits for the next Stop event. A record whose process is provably dead is last
+ night's leftover: fall through and clear it below.
  When Doctor reports `terminal clock-out failed without releasing the shift` and the lease is
  interactive, reopen the recorded conversation — do not run the stale-lease reset. If a recovery
- worker still holds the lease, wait or issue STOP from a separate session; reopening stays blocked
- while that worker is alive.
+ worker still holds the lease, wait or run Stop from a separate session (or the terminal helper);
+ reopening stays blocked while that worker is alive.
  On native Windows, use `Get-Process -Id <pid>` plus the recorded UTC start time through
  `Test-NSRecordedProcess`; an inaccessible process is unavailable evidence, not death.
 - **Stand down a stale watchman before clearing its state.** Only after the checks above prove no
@@ -140,6 +143,18 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  Refuse to continue if it fails. For malformed state, substitute the resolved absolute paths and
  print this command for the owner to run directly after STOP; do not run it from the blocked
  session.
+- **A paused shift with an expired deadline does not get a silent new budget.** If `$NS/STOP` is
+ present, `$NS/.ended` is absent, and `$NS/deadline` is a UNIX epoch that has already passed,
+ refuse to start. Print the helper's reason and stop here. Do not ask for hours. Do not clear
+ `STOP`. Do not invent a time budget. The owner writes a new UNIX epoch to `$NS/deadline`
+ (`date -d '+4 hours' +%s` or `date -v+4H +%s` on POSIX; `[DateTimeOffset]::UtcNow.AddHours(4).ToUnixTimeSeconds()`
+ on native Windows) or runs Reset then Start.
+ ```bash
+ bash -c '. "$1/lib/lib.sh"; . "$1/lib/control.sh"; ns_control_start_refuse_reason "$2/.nightshift"' \
+  nightshift "$NIGHTSHIFT_PLUGIN_ROOT" "$NIGHTSHIFT_WORKSPACE"
+ ```
+ On native Windows, after `Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force`,
+ run `Get-NSControlStartRefuseReason $NS`. A non-empty string is the refusal.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
  leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
  present: `$NS/STOP`, `$NS/.stall`, `$NS/.notified`, `$NS/.ended`,
@@ -149,7 +164,7 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  internal mutex.
 - **The deadline is cleared only if it has already passed.** A shift that reached the whistle
  leaves a spent deadline behind, and keeping it clocks tonight out immediately with zero items
- done. But a deadline still in the future is tonight's plan — written by the owner or by hunt's
+ done. A paused Stop with a future deadline keeps that deadline. But a deadline still in the future is tonight's plan — written by the owner or by hunt's
  cut — and since this command never asks for hours, deleting it would strand a walkthrough that
  can no longer be given a clock.
 - **The punch list is the shift.** If `$NS/punch-list.md` has at least one open `- [ ]`
@@ -279,7 +294,7 @@ project.
 
 The probe must execute cleanly with no hook denial or hook error. On native Windows this is also
 the live check that the filesystem can make an atomic private session claim and lease. If it fails,
-remove `$NS/.shift-armed`, issue STOP, and use the stale-lease reset
+remove `$NS/.shift-armed`, run Stop, and use the stale-lease reset
 procedure above; do not begin item
 work or arm a watchman on an assumed claim.
 

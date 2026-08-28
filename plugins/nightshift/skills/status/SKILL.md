@@ -80,6 +80,8 @@ Read `$NS/` and print:
  When Doctor warns `ended path is not a usable file`, say so — a planted symlink is not a clock-out.
 - **State** — whether `$NS/STOP` is present (and its reason), and the current
  `$NS/.stall` attempt count if any.
+ If `$NS/STOP` is present and the shift is unarmed, the run is paused: Start resumes it, Reset
+ drops the deadline, and Purge deletes project Nightshift state. None of those uninstall the plugin.
  When Doctor warns `stall path is not a usable file`, say so — a planted symlink is not a stall count.
  When Doctor warns `session-end path is not a usable file`, say so — a planted symlink is not a clean exit.
  When Doctor warns `shift-session path is not a usable file`, say so — a planted symlink is not a recorded session.

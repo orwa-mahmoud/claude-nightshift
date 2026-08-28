@@ -85,6 +85,13 @@ if ns_hardhat_payload_targets_lease "$TOOL" "$CODEX_RAW" "$LEASE_COMMAND"; then
   deny "BLOCKED: the process lease is runtime-owned, as is its mutex identity. Do not read, delete, or rewrite either file; issue STOP from another session if ownership must be reset."
 fi
 
+if ns_hardhat_is_command_tool "$TOOL"; then
+  NS_PLUGIN_ROOT="$(cd -P "$_here/../.." >/dev/null 2>&1 && pwd -P)" || NS_PLUGIN_ROOT=""
+  if [ -n "$NS_PLUGIN_ROOT" ] && ns_hardhat_trusted_shift_control "$CMD" "$NS_PLUGIN_ROOT" "$PROJECT_DIR"; then
+    exit 0
+  fi
+fi
+
 # Codex offers no interactive process ancestry this hook can vouch for, so the initial pid and
 # start-time lines stay empty. Watchman children carry a unique lease nonce and generation.
 ns_shift_unbound codex hardhat

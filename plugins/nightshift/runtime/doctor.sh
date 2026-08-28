@@ -234,7 +234,7 @@ if [ "$ARMED" -eq 1 ] && [ "$OPEN" -eq 0 ] && [ "$ENDED" -eq 0 ]; then
 fi
 if [ "$STOP" -eq 1 ] && [ "$ARMED" -eq 1 ]; then
   warn "stop-work order is pending until the next stop attempt"
-  act confirm "leave STOP in place until the working session ends; do not delete it mid-run"
+  act confirm "run $_here/stop-shift.sh --project $HOST to disarm immediately; a bare STOP file waits for the next Stop event; do not delete STOP by hand"
 fi
 if [ "$STOP" -eq 1 ] && [ "$ARMED" -eq 0 ]; then
   warn "STOP leftover while no shift is armed — start will clear it"
@@ -383,7 +383,7 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
     fi
     if [ "$HOST_REC" != "none" ] && [ "$LEASE_HOST" != "$HOST_REC" ]; then
       warn "process lease host $LEASE_HOST disagrees with recorded session host $HOST_REC"
-      act blocked "issue STOP from a separate session, then run Start again; do not rewrite the lease by hand"
+      act blocked "run $_here/stop-shift.sh --project $HOST, then Start again; do not rewrite the lease by hand"
     fi
     if [ -n "$LEASE_PID" ]; then
       if ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
@@ -397,22 +397,22 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
       if [ -n "$LEASE_NONCE" ]; then
         if [ -n "$LEASE_PID" ] && ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
           fact "recovery worker is alive; the recorded conversation cannot reclaim yet"
-          act confirm "wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease"
+          act confirm "wait until the recovery worker exits, or run $_here/stop-shift.sh --project $HOST; reopening the recorded conversation stays blocked while that worker holds the lease"
         else
-          fact "recovery worker is not confirmed alive after a failed clock-out; issue STOP from a separate session, then Start"
+          fact "recovery worker is not confirmed alive after a failed clock-out; run $_here/stop-shift.sh --project $HOST, then Start"
         fi
       else
         fact "process lease restored to the interactive shift; the recorded conversation can operate"
-        act confirm "reopen the recorded conversation to continue or issue STOP; Start re-arms after Stop"
+        act confirm "reopen the recorded conversation to continue or run $_here/stop-shift.sh --project $HOST; Start re-arms after Stop"
       fi
     elif [ -n "$LEASE_NONCE" ] && [ -n "$LEASE_PID" ] && ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
       fact "recovery worker is alive; the recorded conversation cannot reclaim yet"
-      act confirm "wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease"
+      act confirm "wait until the recovery worker exits, or run $_here/stop-shift.sh --project $HOST; reopening the recorded conversation stays blocked while that worker holds the lease"
     fi
   else
     LEASE_STATE="malformed"
     warn "process lease is malformed — ownership cannot be proven"
-    act blocked "issue STOP from a separate session, then run Start again; never guess or edit .shift-lease"
+    act blocked "run $_here/stop-shift.sh --project $HOST, then Start again; never guess or edit .shift-lease"
   fi
 elif [ "$ARMED" -eq 1 ] && [ -n "$SID" ]; then
   warn "armed shift has no process lease — the bound session's next tool call must bootstrap it"

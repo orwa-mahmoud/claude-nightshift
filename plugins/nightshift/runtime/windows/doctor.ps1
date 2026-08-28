@@ -282,7 +282,7 @@ if ($armed -eq 1 -and $open -eq 0 -and $ended -eq 0) {
 }
 if ($stop -eq 1 -and $armed -eq 1) {
     Add-NSWarn 'stop-work order is pending until the next stop attempt'
-    Add-NSAct confirm 'leave STOP in place until the working session ends; do not delete it mid-run'
+    Add-NSAct confirm "run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath to disarm immediately; a bare STOP file waits for the next Stop event; do not delete STOP by hand"
 }
 if ($stop -eq 1 -and $armed -eq 0) {
     Add-NSWarn 'STOP leftover while no shift is armed - start will clear it'
@@ -447,7 +447,7 @@ if (Test-NSPathEntry $leasePath) {
         }
         if ($hostRec -ne 'none' -and [string]$lease.HostName -ne $hostRec) {
             Add-NSWarn "process lease host $($lease.HostName) disagrees with recorded session host $hostRec"
-            Add-NSAct blocked 'issue STOP from a separate session, then run Start again; do not rewrite the lease by hand'
+            Add-NSAct blocked "run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath, then Start again; do not rewrite the lease by hand"
         }
         if (-not [string]::IsNullOrEmpty([string]$lease.ProcessId)) {
             $holder = Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)
@@ -467,26 +467,26 @@ if (Test-NSPathEntry $leasePath) {
             if ($noncePresent) {
                 if ($holderAlive) {
                     Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
-                    Add-NSAct confirm 'wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease'
+                    Add-NSAct confirm "wait until the recovery worker exits, or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; reopening the recorded conversation stays blocked while that worker holds the lease"
                 }
                 else {
-                    Add-NSFact 'recovery worker is not confirmed alive after a failed clock-out; issue STOP from a separate session, then Start'
+                    Add-NSFact "recovery worker is not confirmed alive after a failed clock-out; run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath, then Start"
                 }
             }
             else {
                 Add-NSFact 'process lease restored to the interactive shift; the recorded conversation can operate'
-                Add-NSAct confirm 'reopen the recorded conversation to continue or issue STOP; Start re-arms after Stop'
+                Add-NSAct confirm "reopen the recorded conversation to continue or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; Start re-arms after Stop"
             }
         }
         elseif ($noncePresent -and $holderAlive) {
             Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
-            Add-NSAct confirm 'wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease'
+            Add-NSAct confirm "wait until the recovery worker exits, or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; reopening the recorded conversation stays blocked while that worker holds the lease"
         }
     }
     else {
         $leaseState = 'malformed'
         Add-NSWarn 'process lease is malformed - ownership cannot be proven'
-        Add-NSAct blocked 'issue STOP from a separate session, then run Start again; never guess or edit .shift-lease'
+        Add-NSAct blocked "run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath, then Start again; never guess or edit .shift-lease"
     }
 }
 elseif ($armed -eq 1 -and -not [string]::IsNullOrEmpty($sid)) {

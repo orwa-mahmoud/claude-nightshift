@@ -662,6 +662,12 @@ foreach ($target in $targets) {
     }
 }
 
+if ($tool -in @('Bash', 'PowerShell')) {
+    if (Test-NSTrustedShiftControl -Command $command -PluginRoot "$pluginRoot" -Workspace $workspace) {
+        exit 0
+    }
+}
+
 $unbound = Resolve-NSShiftUnbound -NightshiftDir $ns -HostName $HostName `
     -Nonce $nonce -Generation $generation -Revival $revival -Mode hardhat
 if ($unbound.Status -eq 'Pass') { exit 0 }

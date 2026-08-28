@@ -82,7 +82,10 @@ The report tags every suggestion:
  write the parking lot or ask—the Doctor invocation remains byte-identical.
 - `[blocked]` — Nightshift cannot fix this here (non-resumable Codex id, malformed process lease,
  missing host binary, unverified wedge). Say so. Never guess a session id or print/edit a lease
- capability.
+ capability. For a stuck conversation or a fenced recorded session, name
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/stop-shift.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ (native Windows: `stop-shift.ps1 -Project`) — that pauses immediately without waiting for a Stop
+ event. Do not run it from Doctor.
 
 Invoking Doctor alone must leave the tree byte-identical. Never perform a repair merely because
 Doctor was invoked.
