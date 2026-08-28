@@ -165,7 +165,11 @@ dest="$outdir/${stamp}.txt"
   else
     printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
   fi
-  printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
+  if [ -L "$NS/.shift-session" ]; then
+    printf 'session_record: unusable\n'
+  else
+    printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
+  fi
   printf 'process_lease: %s\n' "$LEASE_STATE"
   [ -z "$LEASE_HOST" ] || printf 'lease_host: %s\n' "$LEASE_HOST"
   [ -z "$LEASE_GENERATION" ] || printf 'lease_generation: %s\n' "$LEASE_GENERATION"

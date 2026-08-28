@@ -73,6 +73,17 @@ bundle_mode() {
   ! grep -qF 'session_end: yes' "$bundle"
 }
 
+@test "export does not report a symlink shift-session as a recorded session" {
+  p="$(new_project)"
+  : >"$p/.nightshift/session-plant"
+  ln -s session-plant "$p/.nightshift/.shift-session"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'session_record: unusable' "$bundle"
+  ! grep -qF 'session_record: present' "$bundle"
+}
+
 @test "support reports lease state but omits the ownership capability" {
   p="$(new_project)"
   printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
@@ -157,6 +168,9 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   grep -qF '[ -L "$NS/.session-end" ]' "$EXPORT"
   grep -qF 'Test-NSReparsePoint $sessionEndPath' "$WIN_EXPORT"
   grep -qF 'symlink session-end marker is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.shift-session" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $sessionPath' "$WIN_EXPORT"
+  grep -qF 'symlink shift-session is unusable' "$LOGIC"
   ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
 }
 

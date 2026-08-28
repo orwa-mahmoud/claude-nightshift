@@ -195,7 +195,17 @@ else {
     'no'
 }
 $null = $lines.Add("session_end: $sessionEndLabel")
-$null = $lines.Add(('session_record: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-session') -PathType Leaf) { 'present' } else { 'absent' })))
+$sessionPath = Join-Path $ns '.shift-session'
+$sessionRecordLabel = if (Test-NSReparsePoint $sessionPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $sessionPath -PathType Leaf) {
+    'present'
+}
+else {
+    'absent'
+}
+$null = $lines.Add("session_record: $sessionRecordLabel")
 $null = $lines.Add("process_lease: $leaseState")
 if (-not [string]::IsNullOrEmpty($leaseHost)) { $lines.Add("lease_host: $leaseHost") }
 if (-not [string]::IsNullOrEmpty($leaseGeneration)) { $lines.Add("lease_generation: $leaseGeneration") }

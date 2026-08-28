@@ -194,6 +194,36 @@ try {
             Expect-True (-not $sessionText.Contains('session_end: yes')) 'symlink session-end marker is not a clean exit'
         }
     }
+
+    $recordPlant = Join-Path $ns 'session-record-plant'
+    [IO.File]::WriteAllText($recordPlant, "plant`n")
+    $recordLink = Join-Path $ns '.shift-session'
+    Remove-Item -LiteralPath $recordLink -Force -ErrorAction SilentlyContinue
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $recordLink -Target $recordPlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink shift-session (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $recordLink) {
+        $recordExported = Invoke-ExportSupport $root
+        Expect-True ($recordExported.ExitCode -eq 0) `
+            "symlink shift-session export exits 0 (got $($recordExported.ExitCode) $($recordExported.Stderr))"
+        $recordLine = ($recordExported.Stdout -split "`n" | Where-Object { $_ -match '^Support bundle: ' } | Select-Object -First 1)
+        $recordBundle = if ($recordLine) { $recordLine.Substring('Support bundle: '.Length).Trim() } else { '' }
+        Expect-True ((-not [string]::IsNullOrEmpty($recordBundle)) -and (Test-Path -LiteralPath $recordBundle -PathType Leaf)) `
+            "symlink shift-session bundle exists: $recordBundle"
+        if (-not [string]::IsNullOrEmpty($recordBundle) -and (Test-Path -LiteralPath $recordBundle -PathType Leaf)) {
+            $recordText = [IO.File]::ReadAllText($recordBundle)
+            Expect-True ($recordText.Contains('session_record: unusable')) 'symlink shift-session is unusable'
+            Expect-True (-not $recordText.Contains('session_record: present')) 'symlink shift-session is not a recorded session'
+        }
+    }
 }
 finally {
     if ($null -eq $oldLeak) {
