@@ -87,6 +87,37 @@ try {
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $dest '.not-a-receipt'))) `
         'does not copy a hidden file'
 
+    $symlinkNotes = Join-Path $root 'symlink-receipts'
+    $symlinkNs = Join-Path $symlinkNotes '.nightshift'
+    $symlinkRecv = Join-Path $symlinkNs 'receipts'
+    $null = New-Item -ItemType Directory -Path $symlinkRecv -Force
+    [IO.File]::WriteAllText((Join-Path $symlinkNs 'work-mode'), "artifact`n")
+    $realReceipt = Join-Path $symlinkRecv '20260101T000000Z-real.md'
+    [IO.File]::WriteAllText($realReceipt, "real`n")
+    $receiptLink = Join-Path $symlinkRecv '20260101T000000Z-link.md'
+    $fileLinkCreated = $true
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $receiptLink -Target $realReceipt -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            $fileLinkCreated = $false
+        }
+        else {
+            throw
+        }
+    }
+    if ($fileLinkCreated) {
+        $skipLink = Invoke-ArchiveReceipts $symlinkNotes @('-Date', '2026-08-28')
+        Expect-True ($skipLink.ExitCode -eq 0) "symlink receipt copy exits 0 (got $($skipLink.ExitCode) $($skipLink.Stderr))"
+        $skipDest = $skipLink.Stdout.Trim()
+        Expect-True (Test-Path -LiteralPath (Join-Path $skipDest '20260101T000000Z-real.md') -PathType Leaf) `
+            'copies the regular receipt beside a symlink'
+        Expect-True (-not (Test-Path -LiteralPath (Join-Path $skipDest '20260101T000000Z-link.md'))) `
+            'does not copy a symlink receipt'
+        Expect-True (Test-Path -LiteralPath $receiptLink) 'leaves the live symlink receipt'
+    }
+
     $empty = Join-Path $root 'empty-notes'
     $emptyNs = Join-Path $empty '.nightshift'
     $null = New-Item -ItemType Directory -Path $emptyNs -Force

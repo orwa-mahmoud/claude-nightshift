@@ -93,6 +93,7 @@ new_artifact() {
   grep -qF 'archive-receipts-logic.ps1' "$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'leaves the first live receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy a hidden file' "$ARCHIVE_LOGIC"
+  grep -qF 'does not copy a symlink receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not write through a reparse archive path' "$ARCHIVE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
