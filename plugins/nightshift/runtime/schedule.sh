@@ -207,6 +207,8 @@ if [ "$MODE" = "preflight" ]; then
     pf "Work:      $target"
   else
     pf "Work:      unresolved (workspace itself will be the cwd)"
+    pf "FAIL work target could not be resolved - a scheduled start will refuse to arm"
+    fail=1
   fi
   check_artifact_receipts
   _recv_rc=$?
@@ -401,6 +403,10 @@ elif [ "$_recv_rc" -eq 2 ]; then
   exit 1
 elif [ "$_recv_rc" -eq 3 ]; then
   printf 'schedule: work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm\n' >&2
+  exit 1
+fi
+if ! ns_work_target "$PROJECT" >/dev/null 2>&1; then
+  printf 'schedule: work target could not be resolved - a scheduled start will refuse to arm\n' >&2
   exit 1
 fi
 

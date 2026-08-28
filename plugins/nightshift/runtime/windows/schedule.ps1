@@ -209,6 +209,8 @@ if ($Preflight) {
     }
     catch {
         'Work:      unresolved (workspace itself will be the working directory)'
+        $failures.Add('work target could not be resolved')
+        'FAIL work target could not be resolved - a scheduled start will refuse to arm'
     }
     $recvRc = Test-NSScheduleArtifactReceipts $workspace
     if ($recvRc -eq 1) {
@@ -360,6 +362,12 @@ if ($recvRc -eq 2) {
 }
 if ($recvRc -eq 3) {
     throw 'schedule: work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
+}
+try {
+    $null = Resolve-NSWorkTarget $workspace
+}
+catch {
+    throw 'schedule: work target could not be resolved - a scheduled start will refuse to arm'
 }
 
 if ($AsJson) {

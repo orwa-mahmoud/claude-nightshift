@@ -349,6 +349,45 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF '3 unset artifact proposal' "$WIN"
 }
 
+@test "--preflight fails when the work target cannot be resolved" {
+  p="$(new_project sched-target-link)"
+  planted="$BATS_TEST_TMPDIR/planted-sched-target"
+  mkdir -p "$planted"
+  git -C "$planted" init -q
+  git -C "$planted" config user.email dev@example.com
+  git -C "$planted" config user.name tester
+  git -C "$planted" commit -q --allow-empty -m init
+  printf '%s\n' "$(cd -P "$planted" && pwd)" >"$p/.nightshift/target-plant"
+  ln -s target-plant "$p/.nightshift/work-target"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
+  run "$SCHED" --project "$p" --preflight
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -qF 'FAIL work target could not be resolved - a scheduled start will refuse to arm'
+}
+
+@test "generate refuses when the work target cannot be resolved" {
+  p="$(new_project sched-target-link-gen)"
+  planted="$BATS_TEST_TMPDIR/planted-sched-target-gen"
+  mkdir -p "$planted"
+  git -C "$planted" init -q
+  git -C "$planted" config user.email dev@example.com
+  git -C "$planted" config user.name tester
+  git -C "$planted" commit -q --allow-empty -m init
+  printf '%s\n' "$(cd -P "$planted" && pwd)" >"$p/.nightshift/target-plant"
+  ln -s target-plant "$p/.nightshift/work-target"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
+  run "$SCHED" --project "$p" --at 04:05
+  [ "$status" -eq 1 ]
+  printf '%s' "$output$stderr" | grep -qF 'work target could not be resolved - a scheduled start will refuse to arm'
+}
+
+@test "Windows schedule names an unresolved work target" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/schedule/SKILL.md"
+  grep -qF 'work target could not be resolved - a scheduled start will refuse to arm' "$SCHED"
+  grep -qF 'work target could not be resolved - a scheduled start will refuse to arm' "$WIN"
+  grep -qF 'If the work target cannot be resolved, refuse to print or install a job; a scheduled start will refuse to arm.' "$s"
+}
+
 @test "--preflight fails closed on an empty punch list" {
   cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
   printf '## Items\n' >"$P/.nightshift/punch-list.md"
