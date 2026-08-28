@@ -384,6 +384,7 @@ new_artifact() {
   grep -qF 'replace it rather than write-receipt' "$DOC"
   grep -qF 'cannot land receipts' "$DOC"
   grep -qF '**artifact receipt**' "$VOCAB"
+  grep -qF 'A path that is not a usable directory is a refuse, not an empty night' "$VOCAB"
   grep -qF '**archive**' "$VOCAB"
   grep -qF 'live receipts stay' "$VOCAB"
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$VOCAB"

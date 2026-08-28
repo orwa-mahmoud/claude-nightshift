@@ -12,7 +12,7 @@ Everything is named after construction-site work — learn one term, guess the r
 | **hardhat** | PreToolUse hook | mandatory safety equipment — your forbidden commands, protected dirs, secret patterns, and expected commit identity; denied, not discouraged |
 | **process lease** | `.nightshift/.shift-lease` | transient ownership of the active shift process — each watchman recovery advances its generation, admitting the recovered worker and fencing stale processes on the same conversation without locking other tabs |
 | **item gate** | per-item commands | work isn't accepted until it passes inspection — once per item, right before its commit or artifact receipt |
-| **artifact receipt** | `.nightshift/receipts/` | durable completion record in artifact mode — item, outputs, verification, identity hashes; replaces a work-target commit |
+| **artifact receipt** | `.nightshift/receipts/` | durable completion record in artifact mode — item, outputs, verification, identity hashes; replaces a work-target commit. A path that is not a usable directory is a refuse, not an empty night. |
 | **archive** | `.nightshift/archive/<YYYY-MM-DD>/` | dated filing of shipped items, the journal, handled snags, and copied artifact receipts; live receipts stay in `.nightshift/receipts/`. Missing or empty receipts create no dated receipts folder. |
 | **site inspection** | interval commands | the scheduled heavy inspection (coverage, dead code, Sonar) every N items or H hours |
 | **walkthrough** | template item | the open-ended scan → fix loop that hunts defects until the clock runs out |
