@@ -42,6 +42,7 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
   grep -qi 'morning handoff' "$E"
   grep -qF 'do not `git init` the folder' "$E"
   grep -qi 'artifact receipt' "$E"
+  grep -qF '$NS/receipts/' "$E"
 }
 
 @test "hunt recognizes required objectives and declared entry compatibility" {

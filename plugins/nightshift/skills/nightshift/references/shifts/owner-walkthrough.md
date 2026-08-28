@@ -22,7 +22,7 @@ licensing decisions remain outside the coding-work authorization.
   - Objective: the Owner instructions attached by Hunt are authoritative and must remain verbatim.
     Never replace them with an easier, narrower, or merely adjacent goal.
   - Isolate first: in repository mode, work on a dedicated nightshift branch, never the default
-    branch. In artifact mode do not `git init` the folder; write receipts instead of commits. Never merge,
+    branch. In artifact mode do not `git init` the folder; write receipts under `$NS/receipts/` instead of commits. Never merge,
     push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
     authorized that exact action.
   - Establish the continuation record before implementation: use the single `Status: building`

@@ -32,8 +32,8 @@ or a substantial feature, but never merges its own branch and never leaves a hal
   - Each cycle: choose the strongest complete improvement that fits the remaining time. Before
     substantial implementation, make it the single building entry using the shipped structure.
     Small fixes, coherent medium work, and substantial features are all valid. Build end-to-end,
-    run the item gate, then commit separately in repository mode or write an artifact receipt in
-    artifact mode, update the opportunity map, then reassess the product
+    run the item gate, then commit separately in repository mode or write an artifact receipt under `$NS/receipts/`
+    in artifact mode, update the opportunity map, then reassess the product
     before choosing again. Keep the branch buildable after every commit; in artifact mode keep
     outputs reviewable after every receipt.
   - The building entry is the cycle's continuation record. Refresh Current phase, Completed,
