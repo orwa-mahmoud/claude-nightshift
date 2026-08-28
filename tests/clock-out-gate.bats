@@ -173,6 +173,23 @@ load helpers
   grep -q 'stalled — auto-ended' "$p/.nightshift/shift-log.md"
 }
 
+@test "a symlink stall does not auto-end the shift" {
+  p="$(new_project)"
+  punch_open "$p"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=2
+  is_block "$output"
+  fp="$(sed -n 1p "$p/.nightshift/.stall")"
+  printf '%s\n99\n' "$fp" >"$p/.nightshift/stall-plant"
+  rm -f "$p/.nightshift/.stall"
+  ln -s stall-plant "$p/.nightshift/.stall"
+  run gate "$p" NIGHTSHIFT_STALL_MAX=2
+  is_block "$output"
+  [ -f "$p/.nightshift/.stall" ]
+  [ ! -L "$p/.nightshift/.stall" ]
+  [ "$(sed -n 2p "$p/.nightshift/.stall")" = "1" ]
+  [ ! -f "$p/.nightshift/STOP" ]
+}
+
 @test "a ticked box resets the stall counter" {
   p="$(new_project)"
   printf '## Items\n- [ ] **1.**\n- [ ] **2.**\n' >"$p/.nightshift/punch-list.md"

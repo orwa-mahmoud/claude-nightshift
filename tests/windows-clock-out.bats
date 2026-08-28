@@ -28,3 +28,11 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/codex/clock-out-gate.sh"
   grep -qF 'ns_gate_progress_token' "$CODEX"
   grep -qF 'Get-NSProgressToken' "$HELPER"
 }
+
+@test "Windows stall skip matches POSIX symlink fail-closed" {
+  grep -qF '[ -L "$STALL" ]' "$CORE"
+  grep -qF '[ -L "$STALL" ]' "$CODEX"
+  grep -qF 'Test-NSReparsePoint $stall' "$HELPER"
+  grep -qF '[ ! -L "$STALL" ]' "$CORE"
+  grep -qF '[ ! -L "$STALL" ]' "$CODEX"
+}

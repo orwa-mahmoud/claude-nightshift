@@ -194,7 +194,10 @@ $stop = [int](Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf)
 $sessionEnd = [int](Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)
 $stall = ''
 $stallPath = Join-Path $ns '.stall'
-if (Test-Path -LiteralPath $stallPath -PathType Leaf) {
+if (Test-NSReparsePoint $stallPath) {
+    Add-NSWarn 'stall path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $stallPath -PathType Leaf) {
     try {
         $stall = (([IO.File]::ReadAllText($stallPath)) -replace '\s', '')
     }

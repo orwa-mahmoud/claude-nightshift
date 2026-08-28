@@ -171,7 +171,11 @@ STOP=0
 SESSION_END=0
 [ -f "$NS/.session-end" ] && SESSION_END=1
 STALL=""
-[ -f "$NS/.stall" ] && STALL="$(tr -d '[:space:]' <"$NS/.stall" 2>/dev/null)"
+if [ -L "$NS/.stall" ]; then
+  warn "stall path is not a usable file"
+elif [ -f "$NS/.stall" ]; then
+  STALL="$(tr -d '[:space:]' <"$NS/.stall" 2>/dev/null)"
+fi
 
 if [ "$ARMED" -eq 1 ]; then fact "shift is armed"; else fact "shift is not armed"; fi
 case "$STATE_KIND" in

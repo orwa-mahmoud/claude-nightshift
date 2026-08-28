@@ -303,7 +303,7 @@ try {
         $fingerprint = "$($counts.Ticked):$(Get-NSProgressToken $workspace)"
         $previousFingerprint = ''
         $previousAttempts = 0
-        if (Test-Path -LiteralPath $stall -PathType Leaf) {
+        if ((Test-Path -LiteralPath $stall -PathType Leaf) -and -not (Test-NSReparsePoint $stall)) {
             try {
                 $lines = [IO.File]::ReadAllLines($stall)
                 if ($lines.Count -gt 0) {
@@ -326,6 +326,9 @@ try {
         if ($stallMax -eq 0 -and $attempts -ge $stallWarn) {
             Write-NSLogLine "stall warning - $attempts attempts no progress, $($counts.Ticked)/$($counts.Total) done; keeping shift open"
             $attempts = 0
+        }
+        if (Test-NSReparsePoint $stall) {
+            Remove-Item -LiteralPath $stall -Force -ErrorAction SilentlyContinue
         }
         $null = Write-NSAtomicLines -Path $stall -Lines @($fingerprint, [string]$attempts)
     }

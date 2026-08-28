@@ -259,6 +259,17 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'ended path is not a usable file' "$STATUS"
 }
 
+@test "Doctor warns when the stall path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'fp\n99\n' >"$p/.nightshift/stall-plant"
+  ln -s stall-plant "$p/.nightshift/.stall"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'stall path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'stall count'
+}
+
 @test "the drafting-table item-shape example is not a staged draft" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"

@@ -223,7 +223,7 @@ if [ "$STALL_OK" -eq 1 ]; then
   FP="$TICKED:$(ns_gate_progress_token)"
   prev_fp=""
   prev_n=0
-  if [ -f "$STALL" ]; then
+  if [ -f "$STALL" ] && [ ! -L "$STALL" ]; then
     prev_fp="$(sed -n '1p' "$STALL")"
     prev_n="$(sed -n '2p' "$STALL")"
     prev_n="${prev_n:-0}"
@@ -244,6 +244,7 @@ if [ "$STALL_OK" -eq 1 ]; then
     log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
     attempts=0
   fi
+  [ -L "$STALL" ] && rm -f "$STALL"
   printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 else
   log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
