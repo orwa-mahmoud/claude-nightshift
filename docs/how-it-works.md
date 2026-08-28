@@ -220,8 +220,25 @@ Claude session exit is different: it tells the watchman to stand down until Star
 headless run has no Escape. On Claude Code, Escape in the shift transcript also tells the watchman
 to stand by. Codex exposes no equivalent owner-interrupt signal; closing an interactive Codex
 session with open Items leaves the armed shift to its watchman. To end the shift itself on either
-host, use the host command or create the portable stop-work order in the folder that contains
-`.nightshift/` (not beside `.nightshift-link`):
+host, use the host Stop command or the terminal helper in the folder you opened:
+
+```bash
+plugins/nightshift/runtime/stop-shift.sh --project /absolute/task/root
+```
+
+Native Windows PowerShell:
+
+```powershell
+plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
+```
+
+That writes `STOP`, kills only a verified watchman, removes `.shift-armed`, and releases the
+lease immediately. Hooks stay installed and become inert. The deadline and punch list stay. Reset
+(`reset-shift.sh` / `reset-shift.ps1`) also drops the deadline. Purge deletes that project's
+`.nightshift/` after an exact `--confirm-path`. None of them uninstall the plugin.
+
+The panic form in the folder that contains `.nightshift/` (not beside `.nightshift-link`) still
+works, but it waits for the next Stop event:
 
 ```bash
 touch .nightshift/STOP
@@ -230,10 +247,8 @@ touch .nightshift/STOP
 Native Windows PowerShell uses
 `New-Item -ItemType File -Force .nightshift\STOP`.
 
-The order is applied at the agent's next stop attempt so the guards are not stripped from work that
-is still running. It then releases the gate, records the ending, and snapshots receipts when the
-optional receipts repository is enabled. Open boxes remain open, preserving the exact stopping
-point.
+Open boxes remain open, preserving the exact stopping point. Start resumes a paused Stop. An
+expired preserved deadline is not silently replaced; write a new UNIX epoch or run Reset first.
 
 ## Receipts
 

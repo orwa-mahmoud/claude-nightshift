@@ -11,7 +11,9 @@
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
                        # optional follow-up: export a redacted local support bundle (never uploaded)
-/nightshift:stop       # end the shift now; open boxes stay open
+/nightshift:stop       # pause now; open boxes stay open; deadline is preserved
+/nightshift:reset      # drop runtime markers and the deadline; keep punch list and history
+/nightshift:purge      # delete this project's .nightshift/; does not uninstall the plugin
 /nightshift:archive    # file finished work into .nightshift/archive/<YYYY-MM-DD>/ — shipped items, logs, handled snags; leftover contract stays
 # you review the local commits or artifact receipts — push only in repository mode, or forbid pushing outright (one env line below)
 ```
@@ -58,14 +60,42 @@ plugins\nightshift\runtime\windows\link-workspace.ps1 `
 The target must already contain `.nightshift/`. Relative, missing, multiline, and symlink pointers
 are rejected; Nightshift never searches for a workspace automatically.
 
-Stop-work order, any time, from a POSIX terminal in the folder that contains `.nightshift/`:
-`touch .nightshift/STOP`. Native Windows PowerShell uses
-`New-Item -ItemType File -Force .nightshift\STOP`. A STOP next to `.nightshift-link` is not
-the order. On Claude Code, Escape
+Immediate pause, any time, without a model. `--project` is the folder you opened (task root);
+Nightshift follows `.nightshift-link` when present. Do not omit `--project` — these helpers never
+guess the current working directory.
+
+```bash
+plugins/nightshift/runtime/stop-shift.sh --project /absolute/task/root
+plugins/nightshift/runtime/reset-shift.sh --project /absolute/task/root
+plugins/nightshift/runtime/purge-workspace.sh --project /absolute/task/root \
+  --confirm-path /absolute/workspace/.nightshift
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
+plugins\nightshift\runtime\windows\reset-shift.ps1 -Project C:\absolute\task\root
+plugins\nightshift\runtime\windows\purge-workspace.ps1 -Project C:\absolute\task\root `
+  -ConfirmPath C:\absolute\workspace\.nightshift
+```
+
+Stop pauses and disarms immediately: hooks become inert, the watchman is killed only when
+verified, the lease is released, and the deadline is preserved. Reset does that teardown and also
+removes the deadline and leftover STOP. Purge does Reset, then deletes only that project's
+`.nightshift/` after an exact `--confirm-path` match. None of them uninstall the plugin.
+
+A panic `touch .nightshift/STOP` (POSIX) or `New-Item -ItemType File -Force .nightshift\STOP`
+(native Windows PowerShell) still writes the stop-work order in the folder that contains
+`.nightshift/` — not beside `.nightshift-link`. A STOP next to `.nightshift-link` is not
+the order. That marker waits for the next Stop event or watchman wake; it does not disarm
+immediately. On Claude Code, Escape
 pauses the interactive session and its watchman reads that interrupt before reviving. Codex exposes
 no equivalent owner-interrupt signal, so closing an interactive Codex session with open Items hands
-the shift to its watchman. STOP reaches either host, including a headless run, and ends the shift
-at the agent's next stop attempt.
+the shift to its watchman.
+
+When a paused Stop left an expired deadline, Start refuses to invent a new time budget. Write a
+new UNIX epoch to `.nightshift/deadline`, or run Reset then Start.
 
 When a shift is not where you think it is — wrong folder, broken `.nightshift-link`, leftover
 `STOP`, watchman stood down, or a stale process rejected by the process lease — run

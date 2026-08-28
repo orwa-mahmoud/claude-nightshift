@@ -72,6 +72,8 @@ Before leaving any run unattended, use the concise
 | Check status | Ask: **“Show shift status.”** | `/nightshift:status` |
 | Diagnose | Ask Nightshift to diagnose the site | `/nightshift:doctor` |
 | Stop the shift | Ask Nightshift to stop | `/nightshift:stop` |
+| Reset runtime | Ask Nightshift to reset | `/nightshift:reset` |
+| Remove project state | Ask Nightshift to purge this project's Nightshift data | `/nightshift:purge` |
 
 1. Set up Nightshift and accept only the proposed gates you want.
 2. In `.nightshift/punch-list.md`, add one small, concrete task under `## Items`:
@@ -172,9 +174,11 @@ Nightshift moves the contract outside the conversation so the list and decisions
   consistent; they are not prerequisites for headless recovery or lease enforcement.
 - **The handoff is inspectable.** Local commits, timestamps, decisions, snags, and recovery events
   remain in plain files.
-- **The owner can always stop it.** Use the host command or `touch .nightshift/STOP` in the
-  folder that contains `.nightshift/` (not beside `.nightshift-link`); unfinished boxes remain
-  open.
+- **The owner can always stop it.** Use the host command or
+  `runtime/stop-shift.sh --project /absolute/task/root` (native Windows: `stop-shift.ps1 -Project`)
+  to pause immediately even when the model is stuck. `touch .nightshift/STOP` in the
+  folder that contains `.nightshift/` (not beside `.nightshift-link`) is the panic marker and
+  waits for the next Stop event; unfinished boxes remain open.
 
 Read [How Nightshift works](docs/how-it-works.md) for recovery evidence, host differences,
 workspace layouts, mechanical guarantees, and limits.
@@ -322,9 +326,11 @@ independent of that history. The precise boundaries are in
   ended. Bound it with a deadline, `NIGHTSHIFT_STALL_MAX`, or both when cost matters more.
 - The stall guard treats ticks, commits, and artifact receipts as progress, so failed-attempt commits can look alive;
   the item gate and deadline remain the backstop.
-- Stop the shift at any time with the host command, `touch .nightshift/STOP` on POSIX, or
-  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell — in the
-  folder that contains `.nightshift/`, not beside `.nightshift-link`.
+- Stop the shift at any time with the host command, `runtime/stop-shift.sh --project /absolute/task/root`
+  on POSIX, or `runtime/windows/stop-shift.ps1 -Project` in native Windows PowerShell.
+  `touch .nightshift/STOP` on POSIX, or
+  `New-Item -ItemType File -Force .nightshift\STOP` in native Windows PowerShell, still writes the
+  panic marker in the folder that contains `.nightshift/`, not beside `.nightshift-link`.
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 

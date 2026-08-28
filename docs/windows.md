@@ -74,8 +74,19 @@ explicit link after the owner confirms both absolute paths:
   -HostRoot C:\path\to\task -Workspace C:\path\to\workspace
 ```
 
+The immediate pause from any folder, with an explicit project path, is:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\stop-shift.ps1" `
+  -Project C:\path\to\task
+```
+
+Reset drops the deadline afterward (`reset-shift.ps1`). Purge deletes only that project's
+`.nightshift/` after `-ConfirmPath` matches the canonical directory
+(`purge-workspace.ps1`). None of them uninstall the plugin.
+
 The panic stop from the Nightshift workspace — the folder that contains `.nightshift/`,
-not a linked task root — is:
+not a linked task root — waits for the next Stop event:
 
 ```powershell
 New-Item -ItemType File -Force .nightshift\STOP

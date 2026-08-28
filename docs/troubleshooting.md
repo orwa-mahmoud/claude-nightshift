@@ -11,10 +11,15 @@ Host differences that matter here: both Stop hooks refuse an early clock-out. Cl
 watchman can revive a live session sitting on a host API-error event. A Codex session that is
 **alive but errored is stood by**, not revived, until that signature is captured. Codex also has
 no Escape or clean-session-end signal, so closing an interactive session with open Items hands the
-night to its watchman. `touch .nightshift/STOP` is the POSIX stop-work order;
+night to its watchman. `touch .nightshift/STOP` is the POSIX panic stop-work order;
 `New-Item -ItemType File -Force .nightshift\STOP` is its native Windows PowerShell equivalent.
 Write it in the folder that contains `.nightshift/` — the workspace, or the target of
 `.nightshift-link`. A STOP next to the link file is not the order.
+That marker waits for the next Stop event or watchman wake. To pause immediately — including when
+the model is stuck — run `runtime/stop-shift.sh --project /absolute/task/root` (native Windows:
+`runtime/windows/stop-shift.ps1 -Project`). Reset drops the deadline but keeps work.
+`runtime/purge-workspace.sh` permanently deletes that project's `.nightshift/` after an exact
+`--confirm-path`. None of them uninstall the plugin.
 The full Windows boundary is in [Native Windows](windows.md).
 
 ## 0. Where is the site?
@@ -315,9 +320,8 @@ active.
 
 If Doctor says the lease is malformed, or work was already interleaved before the fence took
 effect, run Stop (`/nightshift:stop` on Claude Code, or ask Nightshift to stop on Codex) from a
-separate helper conversation, or create `STOP` from another terminal. Wait for the active process
-to stop, inspect the work target and shift log, then run Start; do not rewrite `.shift-lease` by
-hand. A bare `touch` leaves the watchman running until it checks the marker after the current
+separate helper conversation, or run the terminal helper with an explicit `--project` / `-Project`.
+That disarms immediately and releases the lease. Wait for the active process to stop, inspect the work target and shift log, then run Start; do not rewrite `.shift-lease` by hand. A bare `touch` leaves the watchman running until it checks the marker after the current
 subprocess returns or on its next wake.
 
 Automatic refresh is tracked in
@@ -330,7 +334,7 @@ worker.
 
 ## See also
 
-- [Command reference](commands.md) — setup, start, status, doctor, stop, schedule
+- [Command reference](commands.md) — setup, start, status, doctor, stop, reset, purge, schedule
 - [Shift modes](shift-modes.md) — copyable Hunt and Quality launch combinations
 - [Owner knobs](knobs.md) — `rules.json` and env overrides
 - [First-night safety checklist](first-night-checklist.md)
