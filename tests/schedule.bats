@@ -200,6 +200,7 @@ STUB
   printf '%s\n' "$block" | grep -qF -- '-List'
   printf '%s\n' "$block" | grep -qF -- '-Remove'
   printf '%s\n' "$block" | grep -qF 'work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
+  printf '%s\n' "$block" | grep -qF 'work target could not be resolved - a scheduled start will refuse to arm'
 }
 
 @test "native Windows helper docs name import-issues" {

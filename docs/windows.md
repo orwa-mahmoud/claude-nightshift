@@ -101,6 +101,7 @@ The generator prints one PowerShell registration command and the complete XML. T
 `.nightshift\scheduled.log`, and registers nothing itself. The deterministic `Nightshift-*` task
 name lives in Task Scheduler's existing root folder, so first registration needs no separate folder
 creation. Preflight also fails `work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm` when the mode file is missing and Setup would propose artifact.
+It also fails `work target could not be resolved - a scheduled start will refuse to arm` when the recorded work target cannot be read.
 
 The generated task uses the current user's interactive token. It can start a missed run when that
 user is next logged in, but it does not wake or power on the machine and does not survive a logout
