@@ -18,7 +18,7 @@ Supported on any repository or artifact folder that can hold the deliverable. Fo
   - Verify relative links, fenced examples, and commands against `ok` sources and the tree.
     Project-native doc checks (the item gate) run before each commit or artifact receipt.
     A command that only appeared in an `unavailable` source is a gap, not a documented feature.
-  - Repository mode: one conventional commit in the work target. Artifact mode: write-receipt
+  - Repository mode: one conventional commit in the work target. Artifact mode: write-receipt into `$NS/receipts/`
     for the deliverable and manifest. Both leave the cited-research report beside the doc.
   - Review first writes the deliverable only. Direct mode may edit authorized local doc files
     named in the report; it never publishes or deploys.

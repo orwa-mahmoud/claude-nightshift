@@ -20,8 +20,8 @@ Typical hours: 2–4.
     a later shift can resume from the same provenance. Do not replace them with a summary that
     drops locators or retrieval times.
   - Review first writes the brief, manifest, and notes only. Direct mode may update those local
-    files; it never publishes. Artifact mode completes with write-receipt on the brief, notes,
-    and manifest.
+    files; it never publishes. Artifact mode completes with write-receipt into `$NS/receipts/`
+    on the brief, notes, and manifest.
   - Inherit cited-research.md. Keep private code, secrets, customer data, and unpublished
     material out of external fetches and out of the brief.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected).

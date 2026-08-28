@@ -13,6 +13,7 @@ FIXTURE="$BATS_TEST_DIRNAME/../fixtures/research-synthesis"
   grep -qi 'notes file' "$E"
   grep -qi 'resume' "$E"
   grep -qi 'write-receipt' "$E"
+  grep -qF '$NS/receipts/' "$E"
   grep -qi 'Artifact mode' "$E"
 }
 
