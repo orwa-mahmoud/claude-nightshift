@@ -19,6 +19,8 @@ MODES="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/exe
   grep -qF 'hours are required' "$DOC" || grep -qF 'Hours are required' "$DOC"
   grep -qF 'Owner-selected catalog entries' "$DOC"
   grep -qF '.nightshift/receipts/' "$DOC"
+  grep -qF 'runtime/archive-receipts.sh' "$DOC"
+  grep -qF 'runtime/windows/archive-receipts.ps1' "$DOC"
   grep -qF 'do not prove the work' "$DOC"
   grep -qF '/nightshift:hunt' "$DOC"
   grep -qF 'Hunt Automatic for four hours' "$DOC"

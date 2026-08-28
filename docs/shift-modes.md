@@ -7,7 +7,9 @@ project you want changed — a Git repository or a persistent folder, never a Ch
 workspace.
 
 Morning review is local: work-target commits in repository mode, or files under
-`.nightshift/receipts/` in artifact mode (Doctor names the most recently written filename). Status, the shift
+`.nightshift/receipts/` in artifact mode (Doctor names the most recently written filename).
+Archive copies those files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
+into the dated folder and leaves the live copies in place. Status, the shift
 log, and the parking lot sit beside those. Ticks are self-reported; they do not prove the work.
 
 ## Guided + Review first
