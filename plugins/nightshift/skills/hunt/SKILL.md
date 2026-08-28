@@ -45,7 +45,7 @@ Offer two first-class modes:
 - **Guided** — show one offer line per entry, with its ending marked. The owner may choose more
  than one.
 - **Automatic** — ask for hours, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
- their findings, and rank them using `execution-modes.md`. Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Show evidence only in review-first
+ their findings, and rank them using `execution-modes.md`. Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Refuse to compose, cut, or arm when the work target cannot be resolved. Show evidence only in review-first
  mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
 the whistle. Respect every entry's compatibility restrictions when composing a combination; never

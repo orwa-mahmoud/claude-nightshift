@@ -65,6 +65,7 @@ detection that needs a repository. Completion in that folder is `$NS/receipts/`,
 Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory.
 If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder.
 Refuse to compose, cut, or arm when work-mode is malformed.
+Refuse to compose, cut, or arm when the work target cannot be resolved.
 Skip quality-debt entries whose discovery surface is
 absent. Do not `git init` a notes folder to make them applicable.
 Skip documentation drift when work mode is artifact.
