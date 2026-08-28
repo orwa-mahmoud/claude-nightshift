@@ -91,6 +91,7 @@ if [ ! -d "$NS" ]; then
 fi
 
 TARGET=""
+UNUSABLE_RECV=0
 if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
   fact "work mode $MODE"
   if [ "$MODE" = artifact ]; then
@@ -101,7 +102,9 @@ if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
     recv="$(ns_receipts_dir "$WORKSPACE")"
     if [ -e "$recv" ] || [ -L "$recv" ]; then
       if ! ns_receipts_usable_dir "$WORKSPACE" >/dev/null; then
+        UNUSABLE_RECV=1
         warn "artifact receipts path is not a usable directory"
+        act confirm "replace the unusable receipts path with a real directory so write-receipt can land; Doctor does not rewrite it"
       fi
     fi
   fi
@@ -133,7 +136,7 @@ else
 fi
 
 if [ "$MODE" = artifact ]; then
-  if [ "${TICKED:-0}" -gt 0 ] && [ "$(ns_receipts_count "$WORKSPACE")" -eq 0 ]; then
+  if [ "${TICKED:-0}" -gt 0 ] && [ "$(ns_receipts_count "$WORKSPACE")" -eq 0 ] && [ "$UNUSABLE_RECV" -eq 0 ]; then
     warn "artifact mode has ticked items but no receipts"
     act confirm "complete ticked items with $_here/write-receipt.sh (native Windows: runtime/windows/write-receipt.ps1) or untick them; Doctor does not rewrite the punch list"
   fi

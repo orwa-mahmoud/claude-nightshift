@@ -66,8 +66,7 @@ fact is `repository` or `artifact`. In artifact mode the report also includes
 also reports `latest artifact receipt` with the filename only of the most recently written receipt (no directory path). When ticked
 items exist and the receipts directory is empty, Doctor warns
 `artifact mode has ticked items but no receipts`.
-When `$NS/receipts` exists but is not a usable directory, Doctor warns
-`artifact receipts path is not a usable directory`.
+When `$NS/receipts` exists but is not a usable directory, Doctor warns `artifact receipts path is not a usable directory` and offers `replace the unusable receipts path with a real directory so write-receipt can land; Doctor does not rewrite it`. Doctor does not also warn empty ticks for that path.
 Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Doctor counts.
 Missing or empty receipts create no dated receipts folder.
 

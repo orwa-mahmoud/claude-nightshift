@@ -102,6 +102,7 @@ if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
     exit 0
 }
 
+$unusableRecv = $false
 try {
     $reportedMode = Get-NSWorkMode $workspace
     Add-NSFact "work mode $reportedMode"
@@ -113,7 +114,9 @@ try {
         }
         $recv = Get-NSReceiptsDir $workspace
         if ((Test-NSPathEntry $recv) -and -not (Test-NSUsableReceiptsDir $workspace)) {
+            $unusableRecv = $true
             Add-NSWarn 'artifact receipts path is not a usable directory'
+            Add-NSAct confirm 'replace the unusable receipts path with a real directory so write-receipt can land; Doctor does not rewrite it'
         }
     }
 }
@@ -150,7 +153,7 @@ else {
 }
 
 try {
-    if ((Get-NSWorkMode $workspace) -eq 'artifact' -and $ticked -gt 0 -and (Get-NSReceiptsCount $workspace) -eq 0) {
+    if ((Get-NSWorkMode $workspace) -eq 'artifact' -and $ticked -gt 0 -and (Get-NSReceiptsCount $workspace) -eq 0 -and -not $unusableRecv) {
         Add-NSWarn 'artifact mode has ticked items but no receipts'
         Add-NSAct confirm "complete ticked items with $(Join-Path $here 'write-receipt.ps1') or untick them; Doctor does not rewrite the punch list"
     }

@@ -294,6 +294,22 @@ try {
     Expect-True ($fileDoctor.ExitCode -eq 0) "Doctor on file receipts path exits 0 (got $($fileDoctor.ExitCode))"
     Expect-True ($fileDoctor.Stdout -match 'artifact receipts path is not a usable directory') `
         'Doctor warns when receipts path is not a usable directory'
+    Expect-True ($fileDoctor.Stdout -match 'so write-receipt can land') `
+        'Doctor offers a replace-path action when receipts path is unusable'
+    Expect-True ($fileDoctor.Stdout -notmatch 'complete ticked items with') `
+        'Doctor does not offer write-receipt on an unusable receipts path'
+
+    [IO.File]::WriteAllText((Join-Path $fileWriteNs 'punch-list.md'), "## Items`n- [x] **done.**`n")
+    $tickedUnusable = Invoke-Doctor $fileWrite
+    Expect-True ($tickedUnusable.ExitCode -eq 0) "Doctor on ticked unusable receipts path exits 0 (got $($tickedUnusable.ExitCode))"
+    Expect-True ($tickedUnusable.Stdout -match 'artifact receipts path is not a usable directory') `
+        'Doctor still warns unusable path when ticks exist'
+    Expect-True ($tickedUnusable.Stdout -match 'so write-receipt can land') `
+        'Doctor still offers replace-path when ticks sit on an unusable receipts path'
+    Expect-True ($tickedUnusable.Stdout -notmatch 'artifact mode has ticked items but no receipts') `
+        'Doctor does not warn empty ticks when receipts path is unusable'
+    Expect-True ($tickedUnusable.Stdout -notmatch 'complete ticked items with') `
+        'Doctor does not offer write-receipt when ticks sit on an unusable receipts path'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

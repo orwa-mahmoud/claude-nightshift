@@ -73,7 +73,7 @@ When a shift is not where you think it is — wrong folder, broken `.nightshift-
 [Troubleshooting](troubleshooting.md) before changing files. Doctor reports; it never repairs.
 In artifact mode it also reports `artifact receipts N`, `latest artifact receipt` with the
 filename of the most recently written receipt when any exist, and warns `artifact mode has ticked items but no receipts` when boxes
-were ticked without `write-receipt`. It warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory.
+were ticked without `write-receipt`. It warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt.
 
 A redacted local support bundle from a terminal (never uploaded):
 
