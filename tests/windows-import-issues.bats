@@ -11,6 +11,8 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/import-issues.p
   grep -qF -- '-Promote' "$LOGIC"
   grep -qF 'Review flags: destructive' "$LOGIC"
   grep -qF 'PositionalBinding = $false' "$HELPER"
+  grep -qF '[IO.FileAttributes]::ReparsePoint' "$HELPER"
+  ! grep -qF -- '-Recurse' "$HELPER"
 }
 
 @test "Windows import-issues usage errors name native flags" {

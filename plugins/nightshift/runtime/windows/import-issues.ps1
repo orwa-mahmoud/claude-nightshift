@@ -140,13 +140,22 @@ function Test-NSIssueKnown {
         }
     }
     $archive = Join-Path $ns 'archive'
-    if (-not (Test-Path -LiteralPath $archive -PathType Container)) {
+    if (-not (Test-Path -LiteralPath $archive -PathType Container) -or (Test-NSReparsePoint $archive)) {
         return $false
     }
-    foreach ($file in @(Get-ChildItem -LiteralPath $archive -Recurse -File -Filter '*.md' -ErrorAction SilentlyContinue)) {
-        if (Test-NSReparsePoint $file.FullName) { continue }
+    foreach ($file in @(Get-ChildItem -LiteralPath $archive -File -Filter '*.md' -ErrorAction SilentlyContinue)) {
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
         if ([IO.File]::ReadAllText($file.FullName).Contains($Url)) {
             return $true
+        }
+    }
+    foreach ($dir in @(Get-ChildItem -LiteralPath $archive -Directory -ErrorAction SilentlyContinue)) {
+        if ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        foreach ($file in @(Get-ChildItem -LiteralPath $dir.FullName -File -Filter '*.md' -ErrorAction SilentlyContinue)) {
+            if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+            if ([IO.File]::ReadAllText($file.FullName).Contains($Url)) {
+                return $true
+            }
         }
     }
     return $false

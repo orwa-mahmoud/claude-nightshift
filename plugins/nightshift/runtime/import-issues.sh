@@ -196,12 +196,21 @@ already_known() {
   local url="$1" f
   [ -f "$DRAFT" ] && grep -F -q "$url" "$DRAFT" && return 0
   [ -f "$NS/punch-list.md" ] && grep -F -q "$url" "$NS/punch-list.md" && return 0
-  [ -d "$NS/archive" ] || return 1
-  for f in "$NS/archive"/*/*.md "$NS/archive"/*.md; do
+  [ -d "$NS/archive" ] && [ ! -L "$NS/archive" ] || return 1
+  for f in "$NS/archive"/*.md; do
     [ -e "$f" ] || continue
     [ -L "$f" ] && continue
     [ -f "$f" ] || continue
     grep -F -q "$url" "$f" && return 0
+  done
+  for dated in "$NS/archive"/*; do
+    [ -d "$dated" ] && [ ! -L "$dated" ] || continue
+    for f in "$dated"/*.md; do
+      [ -e "$f" ] || continue
+      [ -L "$f" ] && continue
+      [ -f "$f" ] || continue
+      grep -F -q "$url" "$f" && return 0
+    done
   done
   return 1
 }

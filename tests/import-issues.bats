@@ -141,11 +141,20 @@ prep_draft() {
   run isolated_import "$r" --stage https://github.com/acme/widgets/issues/12
   ! grep -q 'Add a dry-run flag' "$r/.nightshift/drafting-table.md"
 
+  s="$(new_project symlink-archive-known)"
+  prep_draft "$s"
+  mkdir -p "$s/outside" "$s/.nightshift/archive"
+  printf '%s\n' 'Source: https://github.com/acme/widgets/issues/12' >"$s/outside/shipped.md"
+  ln -s "$s/outside" "$s/.nightshift/archive/2018-01-01"
+  run isolated_import "$s" --stage https://github.com/acme/widgets/issues/12
+  grep -q 'Add a dry-run flag' "$s/.nightshift/drafting-table.md"
+
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh' "$SKILL"
   grep -qF -- '--project "$NIGHTSHIFT_WORKSPACE"' "$SKILL"
   grep -qF 'Claude Code and Codex run the same platform helper' "$SKILL"
   grep -qF 'If work mode is artifact' "$SKILL"
   grep -qi 'will not consume them' "$SKILL"
+  grep -qF '[ -d "$dated" ] && [ ! -L "$dated" ]' "$IMPORT"
 }
 
 @test "the helper never searches, mutates GitHub, or fetches the network itself" {
