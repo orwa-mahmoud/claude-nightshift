@@ -211,12 +211,15 @@ planted_repo() {
   grep -qF 'work-mode-logic.ps1' "$RUN"
   grep -qF '[ -L "${child%/}" ]' "$PATHS"
   awk '/^ns_work_target\(\)/,/^ns_record_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
+  awk '/^ns_work_target\(\)/,/^ns_record_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "$record" ]'
   ! awk '/^repo_root\(\)/,/^ns_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
   awk '/function Get-NSProposedWorkMode/,/^function Resolve-NSWorkspaceRoot/' "$PSM1" | grep -qF 'ReparsePoint'
   awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'ReparsePoint'
+  awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'Test-NSReparsePoint $record'
   awk '/^ns_work_mode\(\)/,/^ns_record_work_mode\(\)/' "$PATHS" | grep -qF '[ -L "$record" ]'
   awk '/function Get-NSWorkMode/,/^function Write-NSWorkMode/' "$PSM1" | grep -qF 'Test-NSReparsePoint'
   grep -qF 'symlink work-mode is malformed' "$LOGIC"
+  grep -qF 'symlink work-target is unreadable' "$LOGIC"
   grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' \
     "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/setup.ps1"
   grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' "$SETUP"

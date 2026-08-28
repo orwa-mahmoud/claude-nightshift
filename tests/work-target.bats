@@ -71,6 +71,16 @@ planted_repo() {
   (cd -P "$r" && pwd)
 }
 
+@test "a symlink work-target fails closed" {
+  p="$(new_project target-link)"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-work-target")"
+  printf '%s\n' "$planted" >"$p/.nightshift/target-plant"
+  ln -s target-plant "$p/.nightshift/work-target"
+  run resolve_target "$p"
+  [ "$status" -eq 1 ]
+  [ "$output" != "$planted" ]
+}
+
 @test "unstored resolve skips a symlink child git repository" {
   notes="$BATS_TEST_TMPDIR/notes-skip-link"
   mkdir -p "$notes/.nightshift"

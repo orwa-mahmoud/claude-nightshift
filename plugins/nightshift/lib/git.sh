@@ -55,6 +55,9 @@ repo_root() {
 ns_work_target() {
   local project="$1" record="$1/.nightshift/work-target" target="" child base top found="" mode=""
   mode="$(ns_work_mode "$project")" || return 1
+  if [ -L "$record" ]; then
+    return 1
+  fi
   if [ -s "$record" ]; then
     IFS= read -r target <"$record" || true
     case "$target" in /*) ;; *) target="$project/$target" ;; esac

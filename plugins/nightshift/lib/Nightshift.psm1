@@ -258,6 +258,9 @@ function Resolve-NSWorkTarget {
     $project = Resolve-NSCanonicalPath $Workspace
     $mode = Get-NSWorkMode $project
     $record = Join-Path $project '.nightshift/work-target'
+    if (Test-NSReparsePoint $record) {
+        throw 'work target is unreadable'
+    }
     if (Test-Path -LiteralPath $record -PathType Leaf) {
         $lines = [IO.File]::ReadAllLines($record)
         if ($lines.Count -lt 1 -or [string]::IsNullOrWhiteSpace($lines[0])) {

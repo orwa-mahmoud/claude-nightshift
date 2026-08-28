@@ -184,6 +184,42 @@ try {
         }
         Expect-True $threw 'symlink work-mode is malformed'
     }
+
+    $targetLinkRoot = Join-Path $root 'target-link'
+    $null = New-Item -ItemType Directory -Path $targetLinkRoot -Force
+    New-GitRepo $targetLinkRoot
+    $otherTarget = Join-Path $root 'other-target'
+    New-GitRepo $otherTarget
+    $otherTop = Invoke-NSGit $otherTarget @('rev-parse', '--show-toplevel')
+    $targetNs = Join-Path $targetLinkRoot '.nightshift'
+    $null = New-Item -ItemType Directory -Path $targetNs -Force
+    $targetPlant = Join-Path $targetNs 'target-plant'
+    [IO.File]::WriteAllText($targetPlant, "$otherTop`n")
+    $targetLink = Join-Path $targetNs 'work-target'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $targetLink -Target $targetPlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink work-target (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $targetLink) {
+        $targetThrew = $false
+        $resolvedPlant = $null
+        try {
+            $resolvedPlant = Resolve-NSWorkTarget $targetLinkRoot
+        }
+        catch {
+            $targetThrew = $_.Exception.Message -match 'unreadable'
+        }
+        Expect-True $targetThrew 'symlink work-target is unreadable'
+        Expect-True ($null -eq $resolvedPlant -or $resolvedPlant -ne (Resolve-NSCanonicalPath $otherTop)) `
+            'symlink work-target does not resolve the planted path'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
