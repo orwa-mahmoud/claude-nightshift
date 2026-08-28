@@ -173,7 +173,7 @@ if [ "$own_rc" -eq 2 ]; then
   printf '{"decision":"block","reason":"%s"}\n' "$(printf '%s' "$NS_SHIFT_FAIL" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
   exit 0
 fi
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" "$(ns_claude_session_host "${TPATH:-}")" || true
 fi
 ns_shift_ownership claude "$CURRENT_PID" "$CURRENT_START" gate

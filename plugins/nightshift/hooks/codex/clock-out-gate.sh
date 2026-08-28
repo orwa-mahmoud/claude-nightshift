@@ -158,7 +158,7 @@ if [ "$own_rc" -eq 2 ]; then
   codex_emit_block "$NS_SHIFT_FAIL"
   exit 0
 fi
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
 fi
 ns_shift_ownership codex "" "" gate

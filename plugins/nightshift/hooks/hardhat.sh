@@ -110,7 +110,7 @@ own_rc=$?
 [ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
 # Only the original binding-tool set may make the first claim; the catch-all matcher must not
 # let a passive helper Read, search, or MCP call steal the shift.
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   case "$TOOL" in
     Bash | AskUserQuestion | Edit | Write | MultiEdit | NotebookEdit)
       ns_session_claim "$NS" "$SID" "${TPATH:-}" "$CURRENT_PID" "$CURRENT_START" "$(ns_claude_session_host "${TPATH:-}")" || true

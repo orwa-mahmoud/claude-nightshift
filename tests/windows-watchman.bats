@@ -42,6 +42,11 @@ PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 @test "watchmen skip a symlink shift-session" {
   grep -qF '[ -L "$NS/.shift-session" ]' "$CLAUDE"
   grep -qF '[ -L "$NS/.shift-session" ]' "$CODEX"
-  grep -qF '[ -L "$rec" ]' "$OWNERSHIP"
+  grep -qF 'ns_session_line' "$OWNERSHIP"
+  grep -qF 'ns_session_present' "$OWNERSHIP"
+  grep -qF '[ ! -L "$rec" ]' "$OWNERSHIP"
+  grep -qF '[ -L "$ns/.shift-session" ]' "$OWNERSHIP"
   awk '/function Read-NSSession/,/^function Write-NSSession/' "$PSM1" | grep -qF 'Test-NSReparsePoint $path'
+  awk '/function Claim-NSSession/,/^function Read-NSSession/' "$PSM1" | grep -qF 'Test-NSReparsePoint $path'
+  awk '/function Write-NSSession/,/^function Read-NSLease/' "$PSM1" | grep -qF 'Test-NSReparsePoint $path'
 }

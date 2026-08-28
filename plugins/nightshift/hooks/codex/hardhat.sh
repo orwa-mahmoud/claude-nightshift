@@ -91,7 +91,7 @@ ns_shift_unbound codex hardhat
 own_rc=$?
 [ "$own_rc" -eq 1 ] && exit 0
 [ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
-if [ ! -f "$NS/.shift-session" ] && [ -n "${SID:-}" ]; then
+if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   case "$TOOL" in
     Bash | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
       ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true

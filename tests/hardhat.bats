@@ -470,6 +470,18 @@ load helpers
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
 }
 
+@test "a symlink shift-session does not block the first working session" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'planted-tab\n/tmp/plant.jsonl\n99999\nstart\nclaude\n' >"$p/.nightshift/session-plant"
+  ln -s session-plant "$p/.nightshift/.shift-session"
+  jq -nc '{tool_name:"Bash",session_id:"first-tab",transcript_path:"/tmp/a.jsonl",tool_input:{command:"echo hi"}}' |
+    CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  [ -f "$p/.nightshift/.shift-session" ]
+  [ ! -L "$p/.nightshift/.shift-session" ]
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "first-tab" ]
+}
+
 # Cursor runs Claude Code's plugin interface, so these hooks execute there too. The record
 # must name the real host: Claude's watchman stands down from a cursor-owned shift instead of
 # firing `claude --resume` at a conversation it can never reach.

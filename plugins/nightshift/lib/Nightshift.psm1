@@ -1088,7 +1088,11 @@ function Claim-NSSession {
         return $false
     }
     try {
-        return Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.shift-session') `
+        $path = Join-Path $NightshiftDir '.shift-session'
+        if (Test-NSReparsePoint $path) {
+            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        }
+        return Write-NSAtomicLines -Path $path `
             -Lines @($SessionId, $Transcript, $ProcessId, $Start, $HostName) -Private -CreateOnly
     }
     catch {
@@ -1145,7 +1149,11 @@ function Write-NSSession {
         return $false
     }
     try {
-        return Write-NSAtomicLines -Path (Join-Path $NightshiftDir '.shift-session') `
+        $path = Join-Path $NightshiftDir '.shift-session'
+        if (Test-NSReparsePoint $path) {
+            Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+        }
+        return Write-NSAtomicLines -Path $path `
             -Lines @($SessionId, $Transcript, $ProcessId, $Start, $HostName) -Private
     }
     catch {

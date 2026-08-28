@@ -74,6 +74,7 @@ ns_session_claim() { # <ns> <sid> <transcript> <pid> <start> <host>; complete fi
   local ns="$1" tmp rc
   tmp="$ns/.shift-session.tmp.$$.$RANDOM"
   ns_session_write "$ns" "$2" "$3" "$4" "$5" "$6" "$tmp" || return 1
+  [ -L "$ns/.shift-session" ] && rm -f "$ns/.shift-session"
   ln "$tmp" "$ns/.shift-session" 2>/dev/null
   rc=$?
   rm -f "$tmp"
@@ -96,23 +97,21 @@ ns_host_process() { # <host> <ns> <fallback-pid>
   local rec_pid rec_start live
   NS_CURRENT_PID=""
   NS_CURRENT_START=""
-  if [ -f "$2/.shift-session" ]; then
-    rec_pid="$(sed -n 3p "$2/.shift-session" 2>/dev/null | tr -d '[:space:]')"
-    rec_start="$(sed -n 4p "$2/.shift-session" 2>/dev/null)"
-    case "$rec_pid" in
-      '' | *[!0-9]*) ;;
-      *)
-        if [ "$rec_pid" -gt 1 ] && kill -0 "$rec_pid" 2>/dev/null; then
-          live="$(ns_process_start "$rec_pid" 2>/dev/null || true)"
-          if [ -n "$live" ] && [ "$live" = "$rec_start" ]; then
-            NS_CURRENT_PID="$rec_pid"
-            NS_CURRENT_START="$rec_start"
-            return 0
-          fi
+  rec_pid="$(ns_session_line "$2" 3 | tr -d '[:space:]')"
+  rec_start="$(ns_session_line "$2" 4)"
+  case "$rec_pid" in
+    '' | *[!0-9]*) ;;
+    *)
+      if [ "$rec_pid" -gt 1 ] && kill -0 "$rec_pid" 2>/dev/null; then
+        live="$(ns_process_start "$rec_pid" 2>/dev/null || true)"
+        if [ -n "$live" ] && [ "$live" = "$rec_start" ]; then
+          NS_CURRENT_PID="$rec_pid"
+          NS_CURRENT_START="$rec_start"
+          return 0
         fi
-        ;;
-    esac
-  fi
+      fi
+      ;;
+  esac
   NS_CURRENT_PID="$(ns_ancestor_pid "$1" "$3" 2>/dev/null || true)"
   [ -z "$NS_CURRENT_PID" ] || NS_CURRENT_START="$(ns_process_start "$NS_CURRENT_PID" 2>/dev/null || true)"
 }
@@ -337,7 +336,7 @@ ns_shift_unbound() { # <host> <mode:hardhat|gate>
   local host="$1" mode="$2" bound
   : "${LEASE_NONCE:=}" "${LEASE_GENERATION:=}"
   NS_SHIFT_FAIL=""
-  bound="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+  bound="$(ns_session_line "$NS" 1)"
   if [ -z "$bound" ] && ns_lease_load "$NS" && [ -n "$NS_LEASE_NONCE" ]; then
     if [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] \
       || ! ns_lease_nonce_matches "$NS" "$host" "$LEASE_NONCE" "$LEASE_GENERATION"; then
@@ -359,7 +358,7 @@ ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
   NS_SHIFT_REC=""
   NS_SHIFT_FAIL=""
 
-  rec="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+  rec="$(ns_session_line "$NS" 1)"
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
     if ! ns_lease_nonce_matches "$NS" "$host" "$LEASE_NONCE" "$LEASE_GENERATION"; then
       if [ "$mode" = hardhat ]; then
@@ -378,9 +377,9 @@ ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
           return 1
         fi
       fi
-      session_pid="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+      session_pid="$(ns_session_line "$NS" 3 | tr -d '[:space:]')"
       if [ "$rec" != "$SID" ] || { [ -n "$pid" ] && [ "$session_pid" != "$pid" ]; }; then
-        transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
+        transcript="${TPATH:-$(ns_session_line "$NS" 2)}"
         if ! ns_session_replace "$NS" "$SID" "$transcript" "$pid" "$start" "$host"; then
           if [ "$mode" = hardhat ]; then
             NS_SHIFT_FAIL="BLOCKED: the recovered conversation could not update .shift-session. Issue STOP from another session, then run Start again."
@@ -421,7 +420,7 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   local rec session_pid lease_scope check_sid lease_rc transcript
   : "${LEASE_NONCE:=}" "${LEASE_GENERATION:=}"
   NS_SHIFT_FAIL=""
-  rec="${NS_SHIFT_REC:-$(sed -n 1p "$NS/.shift-session" 2>/dev/null)}"
+  rec="${NS_SHIFT_REC:-$(ns_session_line "$NS" 1)}"
 
   lease_scope=""
   if ns_lease_valid "$NS"; then lease_scope="$NS_LEASE_SID"; fi
@@ -474,9 +473,9 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
       fi
       return 2
     fi
-    session_pid="$(sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+    session_pid="$(ns_session_line "$NS" 3 | tr -d '[:space:]')"
     if [ "$NS_LEASE_PID" = "$pid" ] && [ "$session_pid" != "$pid" ]; then
-      transcript="${TPATH:-$(sed -n 2p "$NS/.shift-session" 2>/dev/null)}"
+      transcript="${TPATH:-$(ns_session_line "$NS" 2)}"
       if ! ns_session_replace "$NS" "$SID" "$transcript" "$pid" "$start" "$host"; then
         if [ "$mode" = hardhat ]; then
           NS_SHIFT_FAIL="BLOCKED: the reclaimed interactive process could not refresh .shift-session. Issue STOP from another session, then run Start again."
@@ -558,15 +557,23 @@ ns_claude_session_host() { # <transcript-path>
   esac
 }
 
+# True when .shift-session is a real file, not a planted symlink.
+ns_session_present() { # <ns-dir>
+  local rec="$1/.shift-session"
+  [ -f "$rec" ] && [ ! -L "$rec" ]
+}
+
+# Prints one line of a real .shift-session file. Empty when the path is missing or a symlink.
+ns_session_line() { # <ns-dir> <line>
+  ns_session_present "$1" || return 0
+  sed -n "$2p" "$1/.shift-session" 2>/dev/null
+}
+
 # Which host owns this shift. Absent means a record written before hosts were distinguished,
 # and every such record is Claude's — nothing else could have written one.
 ns_session_host() {
-  local rec="$1/.shift-session" h
-  if [ -L "$rec" ]; then
-    printf 'claude'
-    return
-  fi
-  h="$(sed -n 5p "$rec" 2>/dev/null | tr -d '[:space:]')"
+  local h
+  h="$(ns_session_line "$1" 5 | tr -d '[:space:]')"
   printf '%s' "${h:-claude}"
 }
 
