@@ -229,7 +229,10 @@ if ($sessionEnd -eq 1) { Add-NSFact 'clean session-end marker is present' }
 if (-not [string]::IsNullOrEmpty($stall)) { Add-NSFact "stall count $stall" }
 
 $deadlinePath = Join-Path $ns 'deadline'
-if (-not (Test-Path -LiteralPath $deadlinePath -PathType Leaf)) {
+if (Test-NSReparsePoint $deadlinePath) {
+    Add-NSWarn 'deadline path is not a usable file'
+}
+elseif (-not (Test-Path -LiteralPath $deadlinePath -PathType Leaf)) {
     Add-NSFact 'deadline=none'
 }
 else {

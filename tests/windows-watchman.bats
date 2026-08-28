@@ -19,3 +19,9 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
   grep -qF '.git/index.lock' "$CODEX"
   grep -qF 'danger-full-access' "$CODEX"
 }
+
+@test "watchmen skip a symlink deadline" {
+  grep -qF '[ -L "$NS/deadline" ]' "$CLAUDE"
+  grep -qF '[ ! -L "$NS/deadline" ]' "$CODEX"
+  awk '/function Test-NSDeadlinePassed/,/^function Get-NSTranscript/' "$HELPER" | grep -qF 'Test-NSReparsePoint $path'
+}

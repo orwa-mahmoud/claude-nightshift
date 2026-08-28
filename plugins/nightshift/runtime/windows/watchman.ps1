@@ -37,6 +37,9 @@ function Test-NSDeadlinePassed {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         return $false
     }
+    if (Test-NSReparsePoint $path) {
+        return $false
+    }
     try {
         $value = ([IO.File]::ReadAllText($path)).Trim()
         return $value -match '^[0-9]+$' -and (Get-NSUnixTime) -ge [long]$value

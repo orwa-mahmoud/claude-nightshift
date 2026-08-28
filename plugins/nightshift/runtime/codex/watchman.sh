@@ -249,7 +249,7 @@ while :; do
     [ "$clock_rc" -eq 2 ] && exit 7
     continue
   fi
-  if [ -f "$NS/deadline" ]; then
+  if [ -f "$NS/deadline" ] && [ ! -L "$NS/deadline" ]; then
     dl="$(tr -d '[:space:]' <"$NS/deadline" 2>/dev/null)"
     if printf '%s' "$dl" | grep -qE '^[0-9]+$' && [ "$(date +%s)" -ge "$dl" ]; then
       log_line "watchman: past the deadline with the session gone — spawning the clock-out"

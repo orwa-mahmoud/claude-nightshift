@@ -161,6 +161,7 @@ open_boxes() { ns_open_boxes "$PUNCH"; }
 
 deadline_passed() {
   local dl
+  [ -L "$NS/deadline" ] && return 1
   [ -f "$NS/deadline" ] || return 1
   dl="$(tr -d '[:space:]' <"$NS/deadline" 2>/dev/null || true)"
   [ -n "$dl" ] || return 1

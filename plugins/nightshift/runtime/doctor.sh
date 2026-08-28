@@ -198,7 +198,9 @@ esac
 [ -n "$STALL" ] && fact "stall count $STALL"
 
 DEADLINE="$NS/deadline"
-if [ ! -f "$DEADLINE" ]; then
+if [ -L "$DEADLINE" ]; then
+  warn "deadline path is not a usable file"
+elif [ ! -f "$DEADLINE" ]; then
   fact "deadline=none"
 else
   dl_raw="$(tr -d '[:space:]' <"$DEADLINE" 2>/dev/null)"

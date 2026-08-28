@@ -27,6 +27,7 @@ ns_gate_progress_token() {
 
 ns_gate_deadline_passed() {
   local now dl target
+  [ -L "$DEADLINE" ] && return 1
   now="$(date +%s)"
   dl="$(tr -d '[:space:]' <"$DEADLINE" 2>/dev/null || true)"
   [ -n "$dl" ] || return 1

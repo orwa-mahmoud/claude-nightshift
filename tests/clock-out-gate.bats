@@ -119,6 +119,16 @@ load helpers
   [ ! -f "$p/.nightshift/STOP" ]
 }
 
+@test "a symlink deadline never ends the shift by accident" {
+  p="$(new_project)"
+  punch_open "$p"
+  echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline-plant"
+  ln -s deadline-plant "$p/.nightshift/deadline"
+  run gate "$p"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/STOP" ]
+}
+
 @test "a stalled shift is held by default: block stands, no STOP, warning logged" {
   p="$(new_project)"
   punch_open "$p"

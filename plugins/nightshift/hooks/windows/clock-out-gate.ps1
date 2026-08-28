@@ -133,6 +133,9 @@ function Test-NSDeadlinePassed {
     if (-not (Test-Path -LiteralPath $deadline -PathType Leaf)) {
         return $false
     }
+    if (Test-NSReparsePoint $deadline) {
+        return $false
+    }
     try {
         $rawDeadline = ([IO.File]::ReadAllText($deadline)).Trim()
         if ($rawDeadline -match '^[0-9]+$') {

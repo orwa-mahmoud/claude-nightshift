@@ -231,6 +231,18 @@ with open(p,"w") as f: json.dump(d,f)
   ! printf '%s' "$output" | grep -q 'deadline=none'
 }
 
+@test "Doctor warns when the deadline path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline-plant"
+  ln -s deadline-plant "$p/.nightshift/deadline"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'deadline path is not a usable file'
+  ! printf '%s' "$output" | grep -q 'deadline=none'
+  ! printf '%s' "$output" | grep -q 'remaining=0s'
+}
+
 @test "the drafting-table item-shape example is not a staged draft" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"
