@@ -560,19 +560,17 @@ try {
         $counts = Get-NSBoxCounts $punch
         if ($counts.Open -eq 0 -or (Test-NSDeadlinePassed)) {
             $label = if ($counts.Open -eq 0) { 'every box is ticked' } else { 'quitting time passed' }
-            Write-NSLogLine "watchman: $label but the shift never clocked out - spawning the clock-out"
+            Write-NSLogLine "watchman: $label but the shift never clocked out - spawning the clock-out (attempt 1/1)"
             $null = Start-NSAgent 1 2
             if (Test-NSRealEnded) {
+                $null = Release-NSLease $ns
                 Write-NSReason $ns $(if ($counts.Open -eq 0) { 'completed' } else { 'deadline' })
                 exit 0
             }
-            Write-NSLogLine 'watchman: clock-out returned without releasing the shift - retrying next wake'
-            Set-NSTranscriptBaseline
-            [IO.File]::WriteAllText($tick, '', $utf8)
-            if ($MaxWakes -gt 0 -and $wake -ge $MaxWakes) {
-                exit 7
-            }
-            continue
+            $null = Restore-NSLeaseInteractive $ns
+            Write-NSReason $ns 'clock-out-failed'
+            Write-NSLogLine 'watchman: clock-out attempt 1/1 returned without releasing the shift - standing down'
+            exit 0
         }
 
         if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {

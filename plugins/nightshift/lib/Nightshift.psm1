@@ -1378,6 +1378,39 @@ function Attach-NSLeaseProcess {
     }
 }
 
+function Restore-NSLeaseInteractive {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $mutex = Enter-NSMutex $NightshiftDir '.lease-lock.d'
+    if ($null -eq $mutex) {
+        return $false
+    }
+    try {
+        $lease = Read-NSLease $NightshiftDir
+        if ($null -eq $lease) {
+            return $false
+        }
+        if ([string]::IsNullOrEmpty($lease.Nonce)) {
+            return $true
+        }
+        if (-not [string]::IsNullOrEmpty($lease.ProcessId)) {
+            if ((Test-NSRecordedProcess $lease.ProcessId $lease.Start) -ne 'Dead') {
+                return $false
+            }
+        }
+        if ([string]::IsNullOrEmpty($lease.SessionId)) {
+            $path = Join-Path $NightshiftDir '.shift-lease'
+            Remove-NSFile $path
+            return -not (Test-NSPathEntry $path)
+        }
+        # Empty pid: the recorded session id may reclaim. Copying a still-live
+        # recorded pid would fence that conversation's next tool process.
+        return Write-NSLease $NightshiftDir $lease.SessionId $lease.HostName ($lease.Generation + 1) '' '' ''
+    }
+    finally {
+        Exit-NSMutex $mutex
+    }
+}
+
 function Test-NSLeaseAllows {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
@@ -1599,6 +1632,12 @@ function Resolve-NSShiftAuthorize {
     $allow = Test-NSLeaseAllows $NightshiftDir $checkSession $HostName $ProcessId $ProcessStart $Nonce $Generation
     if ($allow -eq 'Deny') {
         if ($Mode -eq 'hardhat') {
+            $held = Read-NSLease $NightshiftDir
+            if ($null -ne $held -and -not [string]::IsNullOrEmpty($held.Nonce) `
+                -and -not [string]::IsNullOrEmpty($held.ProcessId) `
+                -and (Test-NSRecordedProcess $held.ProcessId $held.Start) -eq 'Alive') {
+                return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift is being recovered in another process. Wait or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease.'
+            }
             return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
         }
         return New-NSShiftDecision -Status Pass -Session $Session
@@ -1660,7 +1699,8 @@ function Write-NSReason {
         'completed', 'owner-stop', 'stale-pid', 'invalid-session', 'exhausted-retry',
         'unknown-wedge', 'revived', 'stand-down', 'wrong-host', 'deadline',
         'clean-session-end', 'esc-standby', 'silent-standby', 'non-resumable-session',
-        'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable'
+        'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable',
+        'clock-out-failed'
     )
     if ($Code -notin $allowed) {
         $Code = 'stand-down'
@@ -1751,6 +1791,7 @@ function Get-NSReasonLabel {
         'fresh-fallback' { return 'fresh session — punch list is the handover' }
         'unsupported-state' { return 'workspace state-version is unsupported' }
         'process-evidence-unavailable' { return 'process evidence is unavailable' }
+        'clock-out-failed' { return 'terminal clock-out failed without releasing the shift' }
         default { return 'unknown watchman outcome' }
     }
 }

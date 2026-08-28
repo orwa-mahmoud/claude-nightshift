@@ -417,30 +417,30 @@ while :; do
     exit 0
   fi
   if [ "$(open_boxes)" -eq 0 ]; then
-    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
+    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out (attempt 1/1)"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    ns_watchman_clockout_pending "$NS" "$SENTINEL"
     clock_rc=$?
     if [ "$clock_rc" -eq 0 ]; then
       note completed
       exit 0
     fi
-    log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
-    [ "$clock_rc" -eq 2 ] && exit 7
-    continue
+    note clock-out-failed
+    log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+    exit 0
   fi
   if deadline_passed; then
-    log_line "watchman: quitting time passed with the site dead — spawning the clock-out"
+    log_line "watchman: quitting time passed with the site dead — spawning the clock-out (attempt 1/1)"
     spawn "$(resolve_agent)" "$(rung_prompt 1 2)" || true
-    ns_watchman_clockout_pending "$NS" "$SENTINEL" "$MAX_WAKES" "$wake"
+    ns_watchman_clockout_pending "$NS" "$SENTINEL"
     clock_rc=$?
     if [ "$clock_rc" -eq 0 ]; then
       note deadline
       exit 0
     fi
-    log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
-    [ "$clock_rc" -eq 2 ] && exit 7
-    continue
+    note clock-out-failed
+    log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+    exit 0
   fi
   if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then
     note clean-session-end

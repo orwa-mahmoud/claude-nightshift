@@ -392,6 +392,23 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
         fact "lease holder pid $LEASE_PID is not confirmed alive"
       fi
     fi
+    if [ "$(ns_reason_code "$NS")" = clock-out-failed ]; then
+      warn "terminal clock-out failed without releasing the shift"
+      if [ -n "$LEASE_NONCE" ]; then
+        if [ -n "$LEASE_PID" ] && ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
+          fact "recovery worker is alive; the recorded conversation cannot reclaim yet"
+          act confirm "wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease"
+        else
+          fact "recovery worker is not confirmed alive after a failed clock-out; issue STOP from a separate session, then Start"
+        fi
+      else
+        fact "process lease restored to the interactive shift; the recorded conversation can operate"
+        act confirm "reopen the recorded conversation to continue or issue STOP; Start re-arms after Stop"
+      fi
+    elif [ -n "$LEASE_NONCE" ] && [ -n "$LEASE_PID" ] && ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
+      fact "recovery worker is alive; the recorded conversation cannot reclaim yet"
+      act confirm "wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease"
+    fi
   else
     LEASE_STATE="malformed"
     warn "process lease is malformed — ownership cannot be proven"

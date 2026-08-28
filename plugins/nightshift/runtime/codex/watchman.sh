@@ -239,32 +239,32 @@ while :; do
   fi
 
   if [ "$(open_boxes)" -eq 0 ]; then
-    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out"
+    log_line "watchman: every box ticked but the shift never clocked out — spawning the clock-out (attempt 1/1)"
     spawn 1 || true
-    ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+    ns_watchman_clockout_pending "$NS" "$TICK"
     clock_rc=$?
     if [ "$clock_rc" -eq 0 ]; then
       note completed
       exit 0
     fi
-    log_line "watchman: clock-out returned without releasing the shift — retrying next wake"
-    [ "$clock_rc" -eq 2 ] && exit 7
-    continue
+    note clock-out-failed
+    log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+    exit 0
   fi
   if [ -f "$NS/deadline" ] && [ ! -L "$NS/deadline" ]; then
     dl="$(tr -d '[:space:]' <"$NS/deadline" 2>/dev/null)"
     if printf '%s' "$dl" | grep -qE '^[0-9]+$' && [ "$(date +%s)" -ge "$dl" ]; then
-      log_line "watchman: past the deadline with the session gone — spawning the clock-out"
+      log_line "watchman: past the deadline with the session gone — spawning the clock-out (attempt 1/1)"
       spawn 1 || true
-      ns_watchman_clockout_pending "$NS" "$TICK" "$MAX_WAKES" "$wake"
+      ns_watchman_clockout_pending "$NS" "$TICK"
       clock_rc=$?
       if [ "$clock_rc" -eq 0 ]; then
         note deadline
         exit 0
       fi
-      log_line "watchman: deadline clock-out returned without releasing the shift — retrying next wake"
-      [ "$clock_rc" -eq 2 ] && exit 7
-      continue
+      note clock-out-failed
+      log_line "watchman: clock-out attempt 1/1 returned without releasing the shift — standing down"
+      exit 0
     fi
   fi
 

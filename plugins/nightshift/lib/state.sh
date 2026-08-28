@@ -124,6 +124,7 @@ ns_reason_label() {
     fresh-fallback) printf 'fresh session — punch list is the handover' ;;
     unsupported-state) printf 'workspace state-version is unsupported' ;;
     process-evidence-unavailable) printf 'process evidence is unavailable' ;;
+    clock-out-failed) printf 'terminal clock-out failed without releasing the shift' ;;
     *) printf 'unknown watchman outcome' ;;
   esac
 }
@@ -132,7 +133,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable) ;;
+    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable|clock-out-failed) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"

@@ -293,8 +293,10 @@ ns_lease_allows() { # <ns> <sid> <host> <pid> <start> <nonce> <generation>
   lease_start="$NS_LEASE_START"
   [ "$lease_host" = "$host" ] || return 1
   if [ -n "$lease_nonce" ]; then
-    [ "$nonce" = "$lease_nonce" ] && [ "$generation" = "$lease_generation" ]
-    return
+    if [ "$nonce" = "$lease_nonce" ] && [ "$generation" = "$lease_generation" ]; then
+      return 0
+    fi
+    return 1
   fi
   [ "$lease_sid" = "$sid" ] || return 1
   [ -z "$nonce" ] && [ -z "$generation" ] || return 1
@@ -450,7 +452,12 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   lease_rc=$?
   if [ "$lease_rc" -eq 1 ]; then
     if [ "$mode" = hardhat ]; then
-      NS_SHIFT_FAIL="BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here."
+      if ns_lease_load "$NS" && [ -n "$NS_LEASE_NONCE" ] \
+        && [ -n "$NS_LEASE_PID" ] && ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"; then
+        NS_SHIFT_FAIL="BLOCKED: this shift is being recovered in another process. Wait or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease."
+      else
+        NS_SHIFT_FAIL="BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here."
+      fi
       return 2
     fi
     return 1
@@ -522,17 +529,56 @@ ns_watchman_run_child() { # <ns> <host> <sid> <work_target> <project_env> <proje
   return "$rc"
 }
 
-# After a clock-out spawn: 0 = the shift ended, 1 = still open (sentinel refreshed),
-# 2 = still open and the wake cap is reached (caller exits 7 after logging).
-ns_watchman_clockout_pending() { # <ns> <sentinel> <max_wakes> <wake>
+# After a clock-out spawn: 0 = the shift ended, 1 = still armed (sentinel refreshed,
+# recovery nonce restored to interactive when the child is proven dead). Callers stand
+# down on 1 — production must not retry terminal clock-out. Extra args are ignored.
+ns_watchman_clockout_pending() { # <ns> <sentinel> [ignored-max-wakes] [ignored-wake]
   if [ -f "$1/.ended" ] && [ ! -L "$1/.ended" ]; then
+    ns_lease_release "$1" || true
     return 0
   fi
   : >"$2" 2>/dev/null || true
-  if [ "$3" -gt 0 ] && [ "$4" -ge "$3" ]; then
-    return 2
-  fi
+  ns_lease_restore_interactive "$1" || true
   return 1
+}
+
+# Convert a dead recovery nonce back to the recorded interactive session. Proves the
+# lease-holder pid is dead (or never attached) under the lease lock. Empty sid with a
+# nonce releases instead of writing an unowned interactive lease.
+ns_lease_restore_interactive() { # <ns>
+  local ns="$1" sid host generation rc
+  ns_lease_lock "$ns" || return 1
+  if ! ns_lease_valid "$ns"; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  if [ -z "$NS_LEASE_NONCE" ]; then
+    ns_lease_unlock "$ns"
+    return 0
+  fi
+  if [ -n "$NS_LEASE_PID" ]; then
+    ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+    rc=$?
+    if [ "$rc" -ne 1 ]; then
+      ns_lease_unlock "$ns"
+      return 1
+    fi
+  fi
+  sid="$NS_LEASE_SID"
+  host="$NS_LEASE_HOST"
+  generation=$((NS_LEASE_GENERATION + 1))
+  if [ -z "$sid" ]; then
+    rm -f "$ns/.shift-lease"
+    rc=$?
+    ns_lease_unlock "$ns"
+    return "$rc"
+  fi
+  # Empty pid: the recorded session id may reclaim. Copying a still-live
+  # recorded pid would fence that conversation's next tool process.
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$generation" "" "" ""
+  rc=$?
+  ns_lease_unlock "$ns"
+  return "$rc"
 }
 
 ns_lease_reset_stale() { # $1 = .nightshift; caller has proved no process or watchman owns it

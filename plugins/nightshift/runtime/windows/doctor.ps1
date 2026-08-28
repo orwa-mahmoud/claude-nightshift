@@ -458,6 +458,30 @@ if (Test-NSPathEntry $leasePath) {
                 Add-NSFact "lease holder pid $($lease.ProcessId) is not confirmed alive"
             }
         }
+        $rcodeEarly = Get-NSReasonCode $ns
+        $noncePresent = -not [string]::IsNullOrEmpty([string]$lease.Nonce)
+        $holderAlive = -not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
+            -and ((Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)) -eq 'Alive')
+        if ($rcodeEarly -eq 'clock-out-failed') {
+            Add-NSWarn 'terminal clock-out failed without releasing the shift'
+            if ($noncePresent) {
+                if ($holderAlive) {
+                    Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
+                    Add-NSAct confirm 'wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease'
+                }
+                else {
+                    Add-NSFact 'recovery worker is not confirmed alive after a failed clock-out; issue STOP from a separate session, then Start'
+                }
+            }
+            else {
+                Add-NSFact 'process lease restored to the interactive shift; the recorded conversation can operate'
+                Add-NSAct confirm 'reopen the recorded conversation to continue or issue STOP; Start re-arms after Stop'
+            }
+        }
+        elseif ($noncePresent -and $holderAlive) {
+            Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
+            Add-NSAct confirm 'wait until the recovery worker exits, or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease'
+        }
     }
     else {
         $leaseState = 'malformed'
