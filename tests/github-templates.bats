@@ -93,6 +93,7 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   grep -qi "stranger's workspace" "$CATALOG_FORM"
   grep -qF 'must not require a git history' "$CATALOG_FORM"
   grep -qF 'commit or artifact receipt' "$CATALOG_FORM"
+  grep -qF '.nightshift/receipts/' "$CATALOG_FORM"
   grep -qF 'commit or artifact receipt' "$RECIPE"
   grep -qF 'must not require a git history' "$RECIPE"
   grep -qF 'Never select this entry in artifact mode' "$RECIPE"
