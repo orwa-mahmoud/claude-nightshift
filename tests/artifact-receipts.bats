@@ -207,6 +207,7 @@ new_artifact() {
   run bash "$DOCTOR" --project "$a"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'artifact receipts 0'
+  printf '%s' "$output" | grep -qF 'artifact receipts path is not a usable directory'
 }
 
 @test "write-receipt refuses a symlink receipts directory" {
@@ -228,6 +229,15 @@ new_artifact() {
   [ "$status" -eq 2 ]
   [ -f "$p/.nightshift/receipts" ]
   grep -qF 'not-a-dir' "$p/.nightshift/receipts"
+}
+
+@test "Doctor warns when the receipts path is not a usable directory" {
+  a="$(new_artifact doctor-recv-file)"
+  printf 'not-a-dir\n' >"$a/.nightshift/receipts"
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 0'
+  printf '%s' "$output" | grep -qF 'artifact receipts path is not a usable directory'
 }
 
 @test "receipts helpers ignore files nested under receipts/" {
@@ -327,6 +337,7 @@ new_artifact() {
   grep -qF 'latest artifact receipt' "$STATUS"
   grep -qF 'most recently written' "$STATUS"
   grep -qF 'artifact mode has ticked items but no receipts' "$STATUS"
+  grep -qF 'artifact receipts path is not a usable directory' "$STATUS"
   grep -qF 'archive/<YYYY-MM-DD>/receipts/' "$STATUS"
   grep -qF 'do not replace the live files Status reports' "$STATUS"
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$STATUS"
@@ -334,6 +345,7 @@ new_artifact() {
   grep -qF 'latest artifact receipt' "$DOCTOR_SKILL"
   grep -qF 'most recently written' "$DOCTOR_SKILL"
   grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_SKILL"
+  grep -qF 'artifact receipts path is not a usable directory' "$DOCTOR_SKILL"
   grep -qF 'archive/<YYYY-MM-DD>/receipts/' "$DOCTOR_SKILL"
   grep -qF 'do not replace the live files Doctor counts' "$DOCTOR_SKILL"
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$DOCTOR_SKILL"
@@ -390,6 +402,7 @@ new_artifact() {
   grep -qF 'artifact receipts' "$DOCTOR_PS1"
   grep -qF 'latest artifact receipt' "$DOCTOR_PS1"
   grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_PS1"
+  grep -qF 'artifact receipts path is not a usable directory' "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'write-receipt.ps1'" "$DOCTOR_PS1"
   grep -qF 'Get-NSProgressToken' "$WIN_GATE"
   grep -qF 'ns_gate_progress_token' "$CORE"
@@ -416,6 +429,7 @@ new_artifact() {
   grep -qF 'nested receipt is not latest' "$WRITE_LOGIC"
   grep -qF 'does not write through a reparse receipts path' "$WRITE_LOGIC"
   grep -qF 'does not replace a file receipts path' "$WRITE_LOGIC"
+  grep -qF 'Doctor warns when receipts path is not a usable directory' "$WRITE_LOGIC"
   grep -qF 'artifact mode has ticked items but no receipts' "$WRITE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0

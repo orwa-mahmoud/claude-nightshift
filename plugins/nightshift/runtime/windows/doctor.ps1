@@ -111,6 +111,10 @@ try {
         if (-not [string]::IsNullOrEmpty($latest)) {
             Add-NSFact "latest artifact receipt $([IO.Path]::GetFileName($latest))"
         }
+        $recv = Get-NSReceiptsDir $workspace
+        if ((Test-NSPathEntry $recv) -and -not (Test-NSUsableReceiptsDir $workspace)) {
+            Add-NSWarn 'artifact receipts path is not a usable directory'
+        }
     }
 }
 catch {

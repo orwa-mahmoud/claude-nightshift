@@ -290,6 +290,10 @@ try {
     Expect-True ($fileBlocked.ExitCode -eq 2) "file receipts path exits 2 (got $($fileBlocked.ExitCode) $($fileBlocked.Stderr))"
     Expect-True ((Get-Content -LiteralPath (Join-Path $fileWriteNs 'receipts') -Raw) -match 'not-a-dir') `
         'does not replace a file receipts path'
+    $fileDoctor = Invoke-Doctor $fileWrite
+    Expect-True ($fileDoctor.ExitCode -eq 0) "Doctor on file receipts path exits 0 (got $($fileDoctor.ExitCode))"
+    Expect-True ($fileDoctor.Stdout -match 'artifact receipts path is not a usable directory') `
+        'Doctor warns when receipts path is not a usable directory'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

@@ -43,6 +43,7 @@ Read `$NS/` and print:
  When Doctor prints `latest artifact receipt`, name that most recently written file; do not invent a git log.
  When Doctor warns `artifact mode has ticked items but no receipts`, say so — ticked boxes without
  a receipt are not reviewable completion.
+ When Doctor warns `artifact receipts path is not a usable directory`, say so — a planted file or symlink is not an empty night.
  Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Status reports.
  Missing or empty receipts create no dated receipts folder.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list

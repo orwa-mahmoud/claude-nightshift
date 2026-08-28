@@ -98,6 +98,12 @@ if MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null)"; then
     if latest="$(ns_latest_receipt "$WORKSPACE")"; then
       fact "latest artifact receipt ${latest##*/}"
     fi
+    recv="$(ns_receipts_dir "$WORKSPACE")"
+    if [ -e "$recv" ] || [ -L "$recv" ]; then
+      if ! ns_receipts_usable_dir "$WORKSPACE" >/dev/null; then
+        warn "artifact receipts path is not a usable directory"
+      fi
+    fi
   fi
 else
   MODE=""
