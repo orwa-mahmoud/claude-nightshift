@@ -199,6 +199,7 @@ STUB
   block="$(awk '/^## Task Scheduler$/{p=1; next} /^## /{p=0} p' "$w")"
   printf '%s\n' "$block" | grep -qF -- '-List'
   printf '%s\n' "$block" | grep -qF -- '-Remove'
+  printf '%s\n' "$block" | grep -qF 'work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
 }
 
 @test "native Windows helper docs name import-issues" {
