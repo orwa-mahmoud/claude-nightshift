@@ -526,7 +526,7 @@ ns_watchman_run_child() { # <ns> <host> <sid> <work_target> <project_env> <proje
 # After a clock-out spawn: 0 = the shift ended, 1 = still open (sentinel refreshed),
 # 2 = still open and the wake cap is reached (caller exits 7 after logging).
 ns_watchman_clockout_pending() { # <ns> <sentinel> <max_wakes> <wake>
-  if [ -f "$1/.ended" ]; then
+  if [ -f "$1/.ended" ] && [ ! -L "$1/.ended" ]; then
     return 0
   fi
   : >"$2" 2>/dev/null || true

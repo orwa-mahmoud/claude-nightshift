@@ -23,5 +23,11 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
 @test "watchmen skip a symlink deadline" {
   grep -qF '[ -L "$NS/deadline" ]' "$CLAUDE"
   grep -qF '[ ! -L "$NS/deadline" ]' "$CODEX"
-  awk '/function Test-NSDeadlinePassed/,/^function Get-NSTranscript/' "$HELPER" | grep -qF 'Test-NSReparsePoint $path'
+  awk '/function Test-NSDeadlinePassed/,/^function Test-NSRealEnded/' "$HELPER" | grep -qF 'Test-NSReparsePoint $path'
+}
+
+@test "watchmen skip a symlink ended marker" {
+  grep -qF '[ ! -L "$NS/.ended" ]' "$CLAUDE"
+  grep -qF '[ ! -L "$NS/.ended" ]' "$CODEX"
+  grep -qF 'function Test-NSRealEnded' "$HELPER"
 }

@@ -71,7 +71,7 @@ LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 # that is what stands these rules down.
 if ! ns_hardhat_active; then
   if [ "${NIGHTSHIFT_REVIVAL:-}" = "1" ]; then
-    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$ENDED" ] \
+    if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$ENDED" ] && [ ! -L "$ENDED" ]; } \
       || ! ns_lease_nonce_matches "$NS" codex "$LEASE_NONCE" "$LEASE_GENERATION"; then
       deny "BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out."
     fi

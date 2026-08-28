@@ -121,6 +121,9 @@ function Invoke-NSWhistle {
 function Complete-NSShift {
     param([Parameter(Mandatory = $true)][string]$Summary)
     if (Test-Path -LiteralPath $ns -PathType Container) {
+        if (Test-NSReparsePoint $ended) {
+            Remove-Item -LiteralPath $ended -Force -ErrorAction SilentlyContinue
+        }
         [IO.File]::WriteAllText($ended, '', $utf8)
     }
     Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue

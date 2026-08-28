@@ -49,6 +49,11 @@ function Test-NSDeadlinePassed {
     }
 }
 
+function Test-NSRealEnded {
+    $path = Join-Path $ns '.ended'
+    return ((Test-Path -LiteralPath $path -PathType Leaf) -and -not (Test-NSReparsePoint $path))
+}
+
 function Get-NSTranscript {
     $recorded = Get-NSSessionValue 'Transcript'
     if (-not [string]::IsNullOrEmpty($recorded) -and (Test-Path -LiteralPath $recorded -PathType Leaf)) {
@@ -400,7 +405,7 @@ function Get-NSHoldReason {
     if (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) {
         return 'stop-work order'
     }
-    if ((Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) `
+    if ((Test-NSRealEnded) `
         -or -not (Test-Path -LiteralPath $punch -PathType Leaf)) {
         return 'shift ended'
     }
@@ -527,7 +532,7 @@ try {
             Write-NSLogLine 'watchman: stop-work order - standing down'
             exit 0
         }
-        if (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) {
+        if (Test-NSRealEnded) {
             Write-NSReason $ns 'completed'
             exit 0
         }
@@ -549,7 +554,7 @@ try {
             $label = if ($counts.Open -eq 0) { 'every box is ticked' } else { 'quitting time passed' }
             Write-NSLogLine "watchman: $label but the shift never clocked out - spawning the clock-out"
             $null = Start-NSAgent 1 2
-            if (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) {
+            if (Test-NSRealEnded) {
                 Write-NSReason $ns $(if ($counts.Open -eq 0) { 'completed' } else { 'deadline' })
                 exit 0
             }

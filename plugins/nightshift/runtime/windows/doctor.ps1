@@ -182,7 +182,14 @@ if ($drafts -gt 0) {
 }
 
 $armed = [int](Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf)
-$ended = [int](Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf)
+$endedPath = Join-Path $ns '.ended'
+$ended = 0
+if (Test-NSReparsePoint $endedPath) {
+    Add-NSWarn 'ended path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $endedPath -PathType Leaf) {
+    $ended = 1
+}
 $stop = [int](Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf)
 $sessionEnd = [int](Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf)
 $stall = ''

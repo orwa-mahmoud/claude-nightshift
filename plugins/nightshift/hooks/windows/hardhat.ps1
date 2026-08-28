@@ -632,9 +632,10 @@ $ns = Join-Path $workspace '.nightshift'
 $punch = Join-Path $ns 'punch-list.md'
 $armed = Join-Path $ns '.shift-armed'
 $ended = Join-Path $ns '.ended'
+$endedReal = (Test-Path -LiteralPath $ended -PathType Leaf) -and -not (Test-NSReparsePoint $ended)
 $counts = Get-NSBoxCounts $punch
 $active = (Test-Path -LiteralPath $armed -PathType Leaf) -and (Test-Path -LiteralPath $punch -PathType Leaf) `
-    -and -not (Test-Path -LiteralPath $ended -PathType Leaf) -and $counts.Open -gt 0
+    -and -not $endedReal -and $counts.Open -gt 0
 
 $nonce = [string]$env:NIGHTSHIFT_LEASE_NONCE
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION
@@ -644,7 +645,7 @@ if (-not $active) {
     if ($revival -and (-not (Test-NSLeaseNonce $ns $HostName $nonce $generation) `
         -or -not (Test-Path -LiteralPath $armed -PathType Leaf) `
         -or -not (Test-Path -LiteralPath $punch -PathType Leaf) `
-        -or (Test-Path -LiteralPath $ended -PathType Leaf))) {
+        -or $endedReal)) {
         Write-Deny 'BLOCKED: this recovered worker no longer owns an active shift. Do not continue after clock-out.'
     }
     exit 0

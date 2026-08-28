@@ -118,7 +118,10 @@ release_lease() {
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
 end_shift() {
-  [ -d "$NS" ] && : >"$ENDED"
+  if [ -d "$NS" ]; then
+    [ -L "$ENDED" ] && rm -f "$ENDED"
+    : >"$ENDED"
+  fi
   # The shift is over, so the site stops being on shift: without this the guards would still apply
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"

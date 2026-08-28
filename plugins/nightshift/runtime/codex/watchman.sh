@@ -224,7 +224,7 @@ while :; do
   wake=$((wake + 1))
 
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
-  if [ -f "$NS/.ended" ]; then note completed; exit 0; fi
+  if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
 
   # Another host's shift is another watchman's business: resuming it from here would spawn

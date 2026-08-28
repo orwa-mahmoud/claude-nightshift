@@ -30,7 +30,7 @@ esac
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 
-if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || [ -f "$NS/.ended" ] \
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } \
   || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
   exit 0
 fi

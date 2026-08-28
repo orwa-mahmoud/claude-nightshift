@@ -161,7 +161,11 @@ fi
 ARMED=0
 [ -f "$NS/.shift-armed" ] && ARMED=1
 ENDED=0
-[ -f "$NS/.ended" ] && ENDED=1
+if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then
+  ENDED=1
+elif [ -L "$NS/.ended" ]; then
+  warn "ended path is not a usable file"
+fi
 STOP=0
 [ -f "$NS/STOP" ] && STOP=1
 SESSION_END=0

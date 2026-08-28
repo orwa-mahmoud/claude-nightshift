@@ -2,7 +2,7 @@
 # Shared hardhat decisions. Host wrappers own payload parsing and deny response emission.
 
 ns_hardhat_active() {
-  [ -f "$NS/.shift-armed" ] && [ -f "$PUNCH" ] && [ ! -f "$ENDED" ] \
+  [ -f "$NS/.shift-armed" ] && [ -f "$PUNCH" ] && { [ ! -f "$ENDED" ] || [ -L "$ENDED" ]; } \
     && [ "$(ns_open_boxes "$PUNCH")" -gt 0 ]
 }
 

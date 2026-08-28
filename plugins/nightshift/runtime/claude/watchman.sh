@@ -376,7 +376,7 @@ site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead | unavaila
 # still warranted.
 hold_reason() {
   if [ -f "$NS/STOP" ]; then printf 'stop-work order'; return; fi
-  if [ -f "$NS/.ended" ] || [ ! -f "$PUNCH" ]; then printf 'shift ended'; return; fi
+  if { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } || [ ! -f "$PUNCH" ]; then printf 'shift ended'; return; fi
   if [ "$(open_boxes)" -eq 0 ]; then printf 'all boxes ticked'; return; fi
   if deadline_passed; then printf 'deadline passed'; return; fi
   if [ -f "$NS/.session-end" ]; then printf 'clean session end'; return; fi
@@ -403,7 +403,7 @@ while :; do
   wake=$((wake + 1))
 
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
-  if [ -f "$NS/.ended" ]; then note completed; exit 0; fi
+  if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
   # This watchman revives Claude sessions. A record naming another host belongs to that host's
   # watchman: resuming it here would spawn claude against a shift another agent is working.

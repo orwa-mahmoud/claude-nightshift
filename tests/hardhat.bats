@@ -231,6 +231,15 @@ load helpers
   is_allow
 }
 
+@test "a symlink ended marker keeps the site rules armed" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+}
+
 @test "forbidden-commands pattern denies during an active shift" {
   p="$(new_project)"
   punch_open "$p"

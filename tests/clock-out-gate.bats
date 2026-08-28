@@ -33,6 +33,17 @@ load helpers
   [ ! -f "$p/.nightshift/.shift-armed" ]
 }
 
+@test "clock-out replaces a symlink ended marker with a regular file" {
+  p="$(new_project)"
+  punch_done "$p"
+  printf 'plant\n' >"$p/.nightshift/ended-plant"
+  ln -s ended-plant "$p/.nightshift/.ended"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -L "$p/.nightshift/.ended" ]
+}
+
 @test "stop-work order releases even with open boxes" {
   p="$(new_project)"
   punch_open "$p"

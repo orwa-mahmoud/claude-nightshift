@@ -41,7 +41,8 @@ $punch = Join-Path $ns 'punch-list.md'
 $counts = Get-NSBoxCounts $punch
 if (-not (Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf) `
     -or -not (Test-Path -LiteralPath $punch -PathType Leaf) `
-    -or (Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) `
+    -or ((Test-Path -LiteralPath (Join-Path $ns '.ended') -PathType Leaf) `
+        -and -not (Test-NSReparsePoint (Join-Path $ns '.ended'))) `
     -or $counts.Open -eq 0) {
     exit 0
 }
