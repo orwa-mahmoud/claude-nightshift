@@ -60,6 +60,7 @@ repository — the historical default. `artifact` means the work target is a per
 a Git repository. Keep every `$NS/` read and write in the bound directory, but run project
 inspection, edits, gates, Git operations, commits, and verification in that work target when the
 mode is repository. In artifact mode, inspect and edit that folder and do not require Git.
+Completion in that folder is `$NS/receipts/`, not a git log.
 Complete each item with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh" --project "$NIGHTSHIFT_WORKSPACE"`
 (native Windows:

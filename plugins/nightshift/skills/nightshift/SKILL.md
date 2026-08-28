@@ -71,7 +71,7 @@ Top to bottom, one item, no batching:
 3. **Gate** — run the item gate (the `## Gates` commands) right before the commit or artifact
   receipt. It must be green. No suppressions without a written reason beside them.
 4. **Receipt** — repository mode: one conventional commit in the work target, local by default.
-  Artifact mode: one completion receipt via
+  Artifact mode: one completion receipt in `$NS/receipts/` via
   `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh"` (native Windows:
   `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1"`), recording the item, outputs,
   verification, and sources. Never tick without that receipt. Push yourself only when the punch
