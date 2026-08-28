@@ -56,6 +56,16 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   printf '%s' "$output" | grep -q 'already watching'
 }
 
+@test "a symlink watchman pidfile does not block a new watchman" {
+  printf '%s\n' "$$" >"$P/.nightshift/watchman-plant"
+  ln -s watchman-plant "$P/.nightshift/.watchman"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 5
+  [ "$status" -eq 0 ]
+  [ ! -L "$P/.nightshift/.watchman" ]
+  [ "$(sed -n 1p "$P/.nightshift/watchman-plant")" = "$$" ]
+  ! printf '%s' "$output" | grep -q 'already watching'
+}
+
 @test "a stop-work order stands it down" {
   touch "$P/.nightshift/STOP"
   run watch --agent "bash $BIN/tick.sh" --max-wakes 3

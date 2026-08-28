@@ -96,6 +96,17 @@ bundle_mode() {
   ! grep -qF 'armed: yes' "$bundle"
 }
 
+@test "export does not report a symlink watchman pidfile as present" {
+  p="$(new_project)"
+  : >"$p/.nightshift/watchman-plant"
+  ln -s watchman-plant "$p/.nightshift/.watchman"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'watchman_pidfile: unusable' "$bundle"
+  ! grep -qF 'watchman_pidfile: present' "$bundle"
+}
+
 @test "support reports lease state but omits the ownership capability" {
   p="$(new_project)"
   printf 'shift-session\n\n\n\nclaude\n' >"$p/.nightshift/.shift-session"
@@ -186,6 +197,8 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   grep -qF '[ -L "$NS/.shift-armed" ]' "$EXPORT"
   grep -qF 'Test-NSReparsePoint $armedPath' "$WIN_EXPORT"
   grep -qF 'symlink armed marker is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.watchman" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $watchmanPath' "$WIN_EXPORT"
   ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
 }
 

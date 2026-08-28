@@ -220,7 +220,17 @@ $null = $lines.Add("process_lease: $leaseState")
 if (-not [string]::IsNullOrEmpty($leaseHost)) { $lines.Add("lease_host: $leaseHost") }
 if (-not [string]::IsNullOrEmpty($leaseGeneration)) { $lines.Add("lease_generation: $leaseGeneration") }
 if (-not [string]::IsNullOrEmpty($leaseMode)) { $lines.Add("lease_mode: $leaseMode") }
-$null = $lines.Add(('watchman_pidfile: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.watchman') -PathType Leaf) { 'present' } else { 'absent' })))
+$watchmanPath = Join-Path $ns '.watchman'
+$watchmanPidfileLabel = if (Test-NSReparsePoint $watchmanPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
+    'present'
+}
+else {
+    'absent'
+}
+$null = $lines.Add("watchman_pidfile: $watchmanPidfileLabel")
 $null = $lines.Add('')
 $null = $lines.Add('== rules ==')
 $null = $lines.Add("validity: $rulesState")

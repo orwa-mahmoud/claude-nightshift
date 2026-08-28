@@ -402,7 +402,13 @@ elif [ "$ARMED" -eq 1 ] && [ -n "$SID" ]; then
 fi
 
 WPID=""
-[ -f "$NS/.watchman" ] && WPID="$(sed -n 1p "$NS/.watchman" 2>/dev/null | tr -d '[:space:]')"
+WATCHMAN_UNUSABLE=0
+if [ -L "$NS/.watchman" ]; then
+  warn "watchman pidfile path is not a usable file"
+  WATCHMAN_UNUSABLE=1
+elif [ -f "$NS/.watchman" ]; then
+  WPID="$(sed -n 1p "$NS/.watchman" 2>/dev/null | tr -d '[:space:]')"
+fi
 if [ -n "$WPID" ] && printf '%s' "$WPID" | grep -qE '^[0-9]+$'; then
   if kill -0 "$WPID" 2>/dev/null; then
     fact "watchman pid $WPID is alive"
@@ -414,7 +420,7 @@ if [ -n "$WPID" ] && printf '%s' "$WPID" | grep -qE '^[0-9]+$'; then
       act confirm "re-run start so the host watchman is armed; do not launch a second copy by hand beside a living one"
     fi
   fi
-else
+elif [ "$WATCHMAN_UNUSABLE" -eq 0 ]; then
   fact "no live watchman pid file"
 fi
 
@@ -423,7 +429,7 @@ if [ -n "$RCODE" ]; then
   fact "watchman reason $RCODE ($(ns_reason_label "$RCODE"))"
 fi
 
-if [ "$ARMED" -eq 1 ] && [ "$OPEN" -gt 0 ] && [ -z "$WPID" ]; then
+if [ "$ARMED" -eq 1 ] && [ "$OPEN" -gt 0 ] && [ -z "$WPID" ] && [ "$WATCHMAN_UNUSABLE" -eq 0 ]; then
   warn "shift is armed with open boxes and no watchman"
   act confirm "re-run start so the host watchman is armed, or work the list in the live session"
 fi

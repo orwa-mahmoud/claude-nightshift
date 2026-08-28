@@ -471,8 +471,13 @@ elseif ($armed -eq 1 -and -not [string]::IsNullOrEmpty($sid)) {
 
 $wpid = ''
 $wstart = ''
+$watchmanUnusable = $false
 $watchmanPath = Join-Path $ns '.watchman'
-if (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
+if (Test-NSReparsePoint $watchmanPath) {
+    Add-NSWarn 'watchman pidfile path is not a usable file'
+    $watchmanUnusable = $true
+}
+elseif (Test-Path -LiteralPath $watchmanPath -PathType Leaf) {
     try {
         $watchLines = [IO.File]::ReadAllLines($watchmanPath)
         $wpid = if ($watchLines.Count -gt 0) { ([string]$watchLines[0] -replace '\s', '') } else { '' }
@@ -499,7 +504,9 @@ if ($wpid -match '^[0-9]+$') {
     }
 }
 else {
-    Add-NSFact 'no live watchman pid file'
+    if (-not $watchmanUnusable) {
+        Add-NSFact 'no live watchman pid file'
+    }
 }
 
 $rcode = Get-NSReasonCode $ns
@@ -507,7 +514,7 @@ if (-not [string]::IsNullOrEmpty($rcode)) {
     Add-NSFact "watchman reason $rcode ($(Get-NSReasonLabel $rcode))"
 }
 
-if ($armed -eq 1 -and $open -gt 0 -and [string]::IsNullOrEmpty($wpid)) {
+if ($armed -eq 1 -and $open -gt 0 -and [string]::IsNullOrEmpty($wpid) -and -not $watchmanUnusable) {
     Add-NSWarn 'shift is armed with open boxes and no watchman'
     Add-NSAct confirm 're-run start so the host watchman is armed, or work the list in the live session'
 }

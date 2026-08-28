@@ -120,7 +120,9 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 
 # One watchman per site — either host's. A stale pidfile from a dead holder is taken over.
 PIDFILE="$NS/.watchman"
-if [ -f "$PIDFILE" ]; then
+if [ -L "$PIDFILE" ]; then
+  rm -f "$PIDFILE"
+elif [ -f "$PIDFILE" ]; then
   oldpid="$(sed -n 1p "$PIDFILE" 2>/dev/null)"
   if [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null; then
     printf 'watchman: already watching (pid %s)\n' "$oldpid" >&2

@@ -497,7 +497,10 @@ if ($null -eq $watchmanMutex) {
 }
 
 try {
-    if (Test-Path -LiteralPath $pidFile -PathType Leaf) {
+    if (Test-NSReparsePoint $pidFile) {
+        Remove-Item -LiteralPath $pidFile -Force -ErrorAction SilentlyContinue
+    }
+    elseif (Test-Path -LiteralPath $pidFile -PathType Leaf) {
         try {
             $oldOwner = [IO.File]::ReadAllLines($pidFile)
             $oldPid = if ($oldOwner.Count -gt 0) { $oldOwner[0] } else { '' }

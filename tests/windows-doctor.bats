@@ -43,6 +43,8 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
   grep -qF 'a symlink work-mode is reported as malformed' "$LOGIC"
   grep -qF 'a symlink work-target is reported as unresolved' "$LOGIC"
   grep -qF 'work target could not be resolved; treating workspace as the code root' "$HELPER"
+  grep -qF 'watchman pidfile path is not a usable file' "$HELPER"
+  grep -qF 'Test-NSReparsePoint $watchmanPath' "$HELPER"
 }
 
 @test "Windows Doctor leftover and staged-work logic passes when pwsh is present" {

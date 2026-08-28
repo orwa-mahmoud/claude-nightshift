@@ -148,7 +148,10 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { printf '%s · %s\n' "$(ts)" "$1" >>"$NS/shift-log.md"; }
 
 # One watchman per site. A stale pidfile (dead pid) is taken over silently.
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+# A planted symlink is not a live owner — replace it rather than follow it.
+if [ -L "$PIDFILE" ]; then
+  rm -f "$PIDFILE"
+elif [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
   printf 'watchman: already watching (pid %s)\n' "$(cat "$PIDFILE")" >&2
   exit 1
 fi

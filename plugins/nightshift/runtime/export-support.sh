@@ -178,7 +178,11 @@ dest="$outdir/${stamp}.txt"
   [ -z "$LEASE_HOST" ] || printf 'lease_host: %s\n' "$LEASE_HOST"
   [ -z "$LEASE_GENERATION" ] || printf 'lease_generation: %s\n' "$LEASE_GENERATION"
   [ -z "$LEASE_MODE" ] || printf 'lease_mode: %s\n' "$LEASE_MODE"
-  printf 'watchman_pidfile: %s\n' "$( [ -f "$NS/.watchman" ] && printf present || printf absent )"
+  if [ -L "$NS/.watchman" ]; then
+    printf 'watchman_pidfile: unusable\n'
+  else
+    printf 'watchman_pidfile: %s\n' "$( [ -f "$NS/.watchman" ] && printf present || printf absent )"
+  fi
   printf '\n== rules ==\n'
   printf 'validity: %s\n' "$RULES_STATE"
   printf 'keys: %s\n' "${RULES_KEYS:-}"

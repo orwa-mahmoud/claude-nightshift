@@ -50,3 +50,9 @@ PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   awk '/function Claim-NSSession/,/^function Read-NSSession/' "$PSM1" | grep -qF 'Test-NSReparsePoint $path'
   awk '/function Write-NSSession/,/^function Read-NSLease/' "$PSM1" | grep -qF 'Test-NSReparsePoint $path'
 }
+
+@test "watchmen skip a symlink watchman pidfile" {
+  grep -qF '[ -L "$PIDFILE" ]' "$CLAUDE"
+  grep -qF '[ -L "$PIDFILE" ]' "$CODEX"
+  grep -qF 'Test-NSReparsePoint $pidFile' "$HELPER"
+}
