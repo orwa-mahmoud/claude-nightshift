@@ -1,6 +1,7 @@
 load helpers
 
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 
 resolve_target() {
   bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$1"
@@ -79,6 +80,17 @@ planted_repo() {
   run resolve_target "$p"
   [ "$status" -eq 1 ]
   [ "$output" != "$planted" ]
+}
+
+@test "Doctor does not follow a symlink work-target" {
+  p="$(new_project target-link-doctor)"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-work-target-doctor")"
+  printf '%s\n' "$planted" >"$p/.nightshift/target-plant"
+  ln -s target-plant "$p/.nightshift/work-target"
+  run bash "$DOCTOR" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'work target could not be resolved; treating workspace as the code root'
+  ! printf '%s' "$output" | grep -qF "work target $planted"
 }
 
 @test "unstored resolve skips a symlink child git repository" {

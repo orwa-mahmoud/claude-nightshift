@@ -56,6 +56,8 @@ function Invoke-Doctor {
 $root = Join-Path ([IO.Path]::GetTempPath()) ("ns-doctor-logic-" + [guid]::NewGuid().ToString('N'))
 $notes = $null
 $linkNotes = $null
+$targetLink = $null
+$otherTarget = $null
 $null = New-Item -ItemType Directory -Path (Join-Path $root '.nightshift') -Force
 try {
     $ns = Join-Path $root '.nightshift'
@@ -180,6 +182,43 @@ try {
         Expect-True ($malformed.Stdout -notmatch 'work mode artifact') `
             'a symlink work-mode does not report artifact'
     }
+
+    $targetLink = $root + '-target-link'
+    $otherTarget = $root + '-other-target'
+    $null = New-Item -ItemType Directory -Path $targetLink, $otherTarget -Force
+    foreach ($repo in @($targetLink, $otherTarget)) {
+        & git -C $repo init --quiet
+        if ($LASTEXITCODE -ne 0) { throw "git init failed in $repo" }
+        & git -C $repo -c user.name=t -c user.email=t@example.com commit --allow-empty -q -m init
+        if ($LASTEXITCODE -ne 0) { throw "git commit failed in $repo" }
+    }
+    $targetNs = Join-Path $targetLink '.nightshift'
+    $null = New-Item -ItemType Directory -Path $targetNs -Force
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $targetNs 'rules.json')
+    $otherTop = (& git -C $otherTarget rev-parse --show-toplevel).Trim()
+    $targetPlant = Join-Path $targetNs 'target-plant'
+    [IO.File]::WriteAllText($targetPlant, "$otherTop`n")
+    $workTargetLink = Join-Path $targetNs 'work-target'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $workTargetLink -Target $targetPlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink work-target (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $workTargetLink) {
+        $unreadable = Invoke-Doctor $targetLink
+        Expect-True ($unreadable.ExitCode -eq 0) `
+            "symlink work-target doctor exits 0 (got $($unreadable.ExitCode) $($unreadable.Stderr))"
+        Expect-True ($unreadable.Stdout -match 'work target could not be resolved; treating workspace as the code root') `
+            'a symlink work-target is reported as unresolved'
+        Expect-True ($unreadable.Stdout -notmatch [regex]::Escape("work target $otherTop")) `
+            'a symlink work-target does not report the planted path'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
@@ -188,6 +227,12 @@ finally {
     }
     if ($null -ne $linkNotes) {
         Remove-Item -LiteralPath $linkNotes -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $targetLink) {
+        Remove-Item -LiteralPath $targetLink -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $otherTarget) {
+        Remove-Item -LiteralPath $otherTarget -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
