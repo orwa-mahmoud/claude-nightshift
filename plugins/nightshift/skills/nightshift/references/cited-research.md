@@ -5,8 +5,8 @@ cited report. SEO audit, documentation-from-sources, and research-synthesis inhe
 verbatim. It is not a Hunt catalog entry; those specialized shifts live in `shifts/`.
 
 Use it in repository mode or artifact mode. Artifact mode completes with
-`runtime/write-receipt.sh` (native Windows: `runtime/windows/write-receipt.ps1`) against the
-report and any other output files. Repository mode still makes one conventional commit per item.
+`runtime/write-receipt.sh` (native Windows: `runtime/windows/write-receipt.ps1`) into `$NS/receipts/`
+against the report and any other output files. Repository mode still makes one conventional commit per item.
 
 ## Sources are an explicit list
 
@@ -91,4 +91,4 @@ missing headings, uncited `ok` sources, unrecorded unavailable sources, fabricat
 secret lines). Fix the report; do not weaken the checker.
 
 In artifact mode, pass the same output paths to `write-receipt.sh` / `write-receipt.ps1` after
-the checker is green.
+the checker is green. Completion lands in `$NS/receipts/`, not a git log.
