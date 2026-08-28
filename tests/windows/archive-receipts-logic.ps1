@@ -70,6 +70,9 @@ try {
     [IO.File]::WriteAllText((Join-Path $recv '20260101T000000Z-one.md'), "one`n")
     [IO.File]::WriteAllText((Join-Path $recv '20260101T000001Z-two.md'), "two`n")
     [IO.File]::WriteAllText((Join-Path $recv '.not-a-receipt'), "dot`n")
+    $nestedRecv = Join-Path $recv 'nested'
+    $null = New-Item -ItemType Directory -Path $nestedRecv -Force
+    [IO.File]::WriteAllText((Join-Path $nestedRecv '20260101T000000Z-nested.md'), "nested`n")
 
     $ok = Invoke-ArchiveReceipts $artifact @('-Date', '2026-08-28')
     Expect-True ($ok.ExitCode -eq 0) "copy exits 0 (got $($ok.ExitCode) $($ok.Stderr))"
@@ -86,6 +89,8 @@ try {
         'copies the second receipt'
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $dest '.not-a-receipt'))) `
         'does not copy a hidden file'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $dest '20260101T000000Z-nested.md'))) `
+        'does not copy a nested receipt'
 
     $symlinkNotes = Join-Path $root 'symlink-receipts'
     $symlinkNs = Join-Path $symlinkNotes '.nightshift'

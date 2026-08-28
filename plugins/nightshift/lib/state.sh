@@ -425,7 +425,7 @@ ns_receipts_count() {
   dir="$(ns_receipts_dir "$1")"
   n=0
   if [ -d "$dir" ]; then
-    n="$(find "$dir" -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
+    n="$(find "$dir" -maxdepth 1 -type f ! -name '.*' 2>/dev/null | wc -l | tr -d ' ')"
   fi
   printf '%s' "${n:-0}"
 }
@@ -454,7 +454,7 @@ ns_latest_receipt() {
   dir="$(ns_receipts_dir "$1")"
   [ -d "$dir" ] || return 1
   out="$(
-    find "$dir" -type f ! -name '.*' -print 2>/dev/null | while IFS= read -r path; do
+    find "$dir" -maxdepth 1 -type f ! -name '.*' -print 2>/dev/null | while IFS= read -r path; do
       [ -n "$path" ] || continue
       ns_latest_receipt_sort_row "$path"
     done | LC_ALL=C sort | tail -n 1
@@ -472,7 +472,7 @@ ns_receipts_fingerprint() {
     printf 'none'
     return 0
   fi
-  out="$(find "$dir" -type f ! -name '.*' -print 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
+  out="$(find "$dir" -maxdepth 1 -type f ! -name '.*' -print 2>/dev/null | LC_ALL=C sort | while IFS= read -r f; do
     cksum "$f" 2>/dev/null
   done)"
   if [ -z "$out" ]; then

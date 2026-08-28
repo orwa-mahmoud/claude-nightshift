@@ -33,6 +33,19 @@ new_artifact() {
   grep -qF 'one' "$dest/20260101T000000Z-one.md"
 }
 
+@test "archive-receipts skips files nested under receipts/" {
+  p="$(new_artifact nested)"
+  mkdir -p "$p/.nightshift/receipts/nested"
+  printf 'real\n' >"$p/.nightshift/receipts/20260101T000000Z-real.md"
+  printf 'nested\n' >"$p/.nightshift/receipts/nested/20260101T000000Z-nested.md"
+  run bash "$ARCHIVE_SH" --project "$p" --date 2026-08-28
+  [ "$status" -eq 0 ]
+  dest="$p/.nightshift/archive/2026-08-28/receipts"
+  [ -f "$dest/20260101T000000Z-real.md" ]
+  [ ! -e "$dest/20260101T000000Z-nested.md" ]
+  grep -qF 'find "$src" -maxdepth 1 -type f' "$ARCHIVE_SH"
+}
+
 @test "archive-receipts skips hidden files and does not follow symlink receipts" {
   p="$(new_artifact hidden)"
   mkdir -p "$p/.nightshift/receipts"
@@ -92,6 +105,7 @@ new_artifact() {
   [ -f "$ARCHIVE_LOGIC" ]
   grep -qF 'archive-receipts-logic.ps1' "$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'leaves the first live receipt' "$ARCHIVE_LOGIC"
+  grep -qF 'does not copy a nested receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy a hidden file' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy a symlink receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not write through a reparse archive path' "$ARCHIVE_LOGIC"

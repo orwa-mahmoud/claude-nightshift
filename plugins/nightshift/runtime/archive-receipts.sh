@@ -101,7 +101,7 @@ if [ -d "$src" ]; then
     }
     copied=$((copied + 1))
   done <<FIND
-$(find "$src" -type f ! -name '.*' 2>/dev/null)
+$(find "$src" -maxdepth 1 -type f ! -name '.*' 2>/dev/null)
 FIND
 fi
 

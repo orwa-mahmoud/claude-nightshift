@@ -180,6 +180,21 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-real.md'
 }
 
+@test "receipts helpers ignore files nested under receipts/" {
+  a="$(new_artifact nested-receipts)"
+  mkdir -p "$a/.nightshift/receipts/nested"
+  printf 'nested\n' >"$a/.nightshift/receipts/nested/20260101T000000Z-nested.md"
+  printf 'ok\n' >"$a/.nightshift/receipts/20260101T000000Z-real.md"
+  latest="$(bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a")"
+  [ "$(basename "$latest")" = '20260101T000000Z-real.md' ]
+  [ "$(bash -c '. "$1"; ns_receipts_count "$2"' _ "$LIB" "$a")" = 1 ]
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 1'
+  printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-real.md'
+  grep -qF 'find "$dir" -maxdepth 1 -type f' "$STATE"
+}
+
 @test "latest receipt is absent when only hidden files exist" {
   a="$(new_artifact latest-hidden-only)"
   mkdir -p "$a/.nightshift/receipts"
