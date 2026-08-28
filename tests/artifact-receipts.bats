@@ -265,6 +265,7 @@ new_artifact() {
   grep -qF 'artifact mode has ticked items but no receipts' "$DOCTOR_SKILL"
   grep -qF 'artifact receipt' "$TEMPLATE"
   grep -qF 'runtime/write-receipt.sh' "$DOC"
+  grep -qF 'runtime/archive-receipts.sh' "$DOC"
   grep -qF 'latest artifact receipt' "$DOC"
   grep -qF 'most recently written' "$DOC"
   grep -qF 'ticked items have no receipts' "$DOC"
