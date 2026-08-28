@@ -2,6 +2,7 @@ load helpers
 
 ARCHIVE_SH="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/archive-receipts.sh"
 ARCHIVE_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/archive-receipts.ps1"
+ARCHIVE_LOGIC="$BATS_TEST_DIRNAME/windows/archive-receipts-logic.ps1"
 ARCHIVE_SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
 COMMANDS="$BATS_TEST_DIRNAME/../docs/commands.md"
 HOW="$BATS_TEST_DIRNAME/../docs/how-it-works.md"
@@ -85,4 +86,17 @@ new_artifact() {
   [ -f "$ARCHIVE_PS1" ]
   grep -qF 'Get-NSReceiptsDir' "$ARCHIVE_PS1"
   grep -qF "StartsWith('.')" "$ARCHIVE_PS1"
+}
+
+@test "Windows archive-receipts logic passes when pwsh is present" {
+  [ -f "$ARCHIVE_LOGIC" ]
+  grep -qF 'archive-receipts-logic.ps1' "$BATS_TEST_DIRNAME/windows/run.ps1"
+  grep -qF 'leaves the first live receipt' "$ARCHIVE_LOGIC"
+  grep -qF 'does not copy a hidden file' "$ARCHIVE_LOGIC"
+  grep -qF 'does not write through a reparse archive path' "$ARCHIVE_LOGIC"
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$ARCHIVE_LOGIC"
+  [ "$status" -eq 0 ]
 }

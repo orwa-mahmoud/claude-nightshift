@@ -466,6 +466,10 @@ try {
     $writeReceiptLogicRun = Invoke-TestScript $writeReceiptLogic
     Assert-Equal 0 $writeReceiptLogicRun.ExitCode `
         "write-receipt artifact mode: $($writeReceiptLogicRun.Stdout) $($writeReceiptLogicRun.Stderr)"
+    $archiveReceiptsLogic = Join-Path $PSScriptRoot 'archive-receipts-logic.ps1'
+    $archiveReceiptsLogicRun = Invoke-TestScript $archiveReceiptsLogic
+    Assert-Equal 0 $archiveReceiptsLogicRun.ExitCode `
+        "archive-receipts copy: $($archiveReceiptsLogicRun.Stdout) $($archiveReceiptsLogicRun.Stderr)"
     $checkReportLogic = Join-Path $PSScriptRoot 'check-report-logic.ps1'
     $checkReportLogicRun = Invoke-TestScript $checkReportLogic
     Assert-Equal 0 $checkReportLogicRun.ExitCode `
