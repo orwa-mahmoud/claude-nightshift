@@ -300,6 +300,8 @@ new_artifact() {
   grep -qF 'most recently written' "$DOC"
   grep -qF 'ticked items have no receipts' "$DOC"
   grep -qF '**artifact receipt**' "$VOCAB"
+  grep -qF '**archive**' "$VOCAB"
+  grep -qF 'live receipts stay' "$VOCAB"
   grep -qF 'runtime/write-receipt.sh' "$COMMANDS"
   grep -qF 'artifact mode has ticked items but no receipts' "$COMMANDS"
   grep -qF 'latest artifact receipt' "$COMMANDS"
