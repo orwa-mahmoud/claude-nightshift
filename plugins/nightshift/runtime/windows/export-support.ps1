@@ -184,7 +184,17 @@ else {
 }
 $null = $lines.Add("ended: $endedLabel")
 $null = $lines.Add(('stop: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) { 'yes' } else { 'no' })))
-$null = $lines.Add(('session_end: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.session-end') -PathType Leaf) { 'yes' } else { 'no' })))
+$sessionEndPath = Join-Path $ns '.session-end'
+$sessionEndLabel = if (Test-NSReparsePoint $sessionEndPath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $sessionEndPath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("session_end: $sessionEndLabel")
 $null = $lines.Add(('session_record: {0}' -f $(if (Test-Path -LiteralPath (Join-Path $ns '.shift-session') -PathType Leaf) { 'present' } else { 'absent' })))
 $null = $lines.Add("process_lease: $leaseState")
 if (-not [string]::IsNullOrEmpty($leaseHost)) { $lines.Add("lease_host: $leaseHost") }

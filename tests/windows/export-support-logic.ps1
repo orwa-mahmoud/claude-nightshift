@@ -165,6 +165,35 @@ try {
             Expect-True (-not $linkedText.Contains('ended: yes')) 'symlink ended marker is not clocked out'
         }
     }
+
+    $sessionPlant = Join-Path $ns 'session-end-plant'
+    [IO.File]::WriteAllText($sessionPlant, "plant`n")
+    $sessionLink = Join-Path $ns '.session-end'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $sessionLink -Target $sessionPlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink session-end marker (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $sessionLink) {
+        $sessionExported = Invoke-ExportSupport $root
+        Expect-True ($sessionExported.ExitCode -eq 0) `
+            "symlink session-end export exits 0 (got $($sessionExported.ExitCode) $($sessionExported.Stderr))"
+        $sessionLine = ($sessionExported.Stdout -split "`n" | Where-Object { $_ -match '^Support bundle: ' } | Select-Object -First 1)
+        $sessionBundle = if ($sessionLine) { $sessionLine.Substring('Support bundle: '.Length).Trim() } else { '' }
+        Expect-True ((-not [string]::IsNullOrEmpty($sessionBundle)) -and (Test-Path -LiteralPath $sessionBundle -PathType Leaf)) `
+            "symlink session-end bundle exists: $sessionBundle"
+        if (-not [string]::IsNullOrEmpty($sessionBundle) -and (Test-Path -LiteralPath $sessionBundle -PathType Leaf)) {
+            $sessionText = [IO.File]::ReadAllText($sessionBundle)
+            Expect-True ($sessionText.Contains('session_end: unusable')) 'symlink session-end marker is unusable'
+            Expect-True (-not $sessionText.Contains('session_end: yes')) 'symlink session-end marker is not a clean exit'
+        }
+    }
 }
 finally {
     if ($null -eq $oldLeak) {

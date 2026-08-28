@@ -160,7 +160,11 @@ dest="$outdir/${stamp}.txt"
     printf 'ended: %s\n' "$( [ -f "$NS/.ended" ] && printf yes || printf no )"
   fi
   printf 'stop: %s\n' "$( [ -f "$NS/STOP" ] && printf yes || printf no )"
-  printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
+  if [ -L "$NS/.session-end" ]; then
+    printf 'session_end: unusable\n'
+  else
+    printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
+  fi
   printf 'session_record: %s\n' "$( [ -f "$NS/.shift-session" ] && printf present || printf absent )"
   printf 'process_lease: %s\n' "$LEASE_STATE"
   [ -z "$LEASE_HOST" ] || printf 'lease_host: %s\n' "$LEASE_HOST"
