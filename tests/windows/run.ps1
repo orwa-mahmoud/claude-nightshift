@@ -486,6 +486,10 @@ try {
     $hardhatLogicRun = Invoke-TestScript $hardhatLogic
     Assert-Equal 0 $hardhatLogicRun.ExitCode `
         "hardhat expectedEmail: $($hardhatLogicRun.Stdout) $($hardhatLogicRun.Stderr)"
+    $controlLogic = Join-Path $PSScriptRoot 'control-logic.ps1'
+    $controlLogicRun = Invoke-TestScript $controlLogic
+    Assert-Equal 0 $controlLogicRun.ExitCode `
+        "control stop/reset/purge: $($controlLogicRun.Stdout) $($controlLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

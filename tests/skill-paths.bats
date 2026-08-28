@@ -69,7 +69,7 @@ DOCTOR_SH="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
       || { echo "unresolved shell fallback in shared skill: $s"; return 1; }
   done
 
-  for s in setup start hunt quality doctor import-issues schedule archive stop; do
+  for s in setup start hunt quality doctor import-issues schedule archive stop reset purge; do
     f="$SKILLS/$s/SKILL.md"
     grep -qF '$NIGHTSHIFT_PLUGIN_ROOT' "$f" || { echo "no neutral plugin root: $s"; return 1; }
     grep -qF '${CLAUDE_PLUGIN_ROOT}' "$f" || { echo "no Claude plugin source: $s"; return 1; }
@@ -180,13 +180,12 @@ PY
   grep -qF '$NS/.shift-lease' "$START"
 }
 
-@test "stop writes the stop-work order and disarms the watchman" {
+@test "stop writes the stop-work order through the trusted helper" {
   grep -qF '$NS/STOP' "$STOP"
   grep -qF '$NS/.watchman' "$STOP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/runtime/stop-shift.sh' "$STOP"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\stop-shift.ps1' "$STOP"
   grep -qi 'kill' "$STOP"
-  grep -qF 'Stop-Process' "$STOP"
-  grep -qF 'Test-NSRecordedProcess' "$STOP"
-  grep -qF 'Nightshift.psm1' "$STOP"
 }
 
 @test "stop panic commands use the bound Nightshift directory, not the working directory" {
@@ -312,6 +311,7 @@ PY
   grep -qF '$_here/link-workspace.sh' "$DOCTOR_SH"
   grep -qF '$_here/migrate-state.sh' "$DOCTOR_SH"
   grep -qF '$_here/export-support.sh' "$DOCTOR_SH"
+  grep -qF '$_here/stop-shift.sh' "$DOCTOR_SH"
 }
 
 @test "punch-list template STOP commands use the bound Nightshift directory" {
@@ -346,6 +346,9 @@ PY
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1' "$SKILLS/doctor/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\export-support.ps1' "$SKILLS/doctor/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\stop-shift.ps1' "$SKILLS/stop/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\reset-shift.ps1' "$SKILLS/reset/SKILL.md"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\purge-workspace.ps1' "$SKILLS/purge/SKILL.md"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$START"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$SETUP"
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1' "$SKILLS/nightshift/SKILL.md"
@@ -361,6 +364,7 @@ PY
   grep -qF "Join-Path \$here 'export-support.ps1'" "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'link-workspace.ps1'" "$DOCTOR_PS1"
   grep -qF "Join-Path \$here 'write-receipt.ps1'" "$DOCTOR_PS1"
+  grep -qF "Join-Path \$here 'stop-shift.ps1'" "$DOCTOR_PS1"
   grep -qF 'leftover Shift contract and Gates' "$DOCTOR_PS1"
   grep -qF 'pending Hunt work orders=' "$DOCTOR_PS1"
   grep -qF 'staged drafting-table items=' "$DOCTOR_PS1"

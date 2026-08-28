@@ -1,0 +1,107 @@
+# Portable PowerShell probe for Stop/Reset/Purge control helpers.
+# Run on macOS or Windows before pushing: pwsh -File tests/windows/control-logic.ps1
+# It does not replace windows-native CI (ACLs, mutexes, dispatchers), and Windows CI
+# also runs it via tests/windows/run.ps1.
+Set-StrictMode -Version 2.0
+$ErrorActionPreference = 'Stop'
+
+$repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
+$plugin = Join-Path $repository 'plugins/nightshift'
+Import-Module (Join-Path $plugin 'lib/Nightshift.psm1') -Force -DisableNameChecking
+
+$failures = New-Object 'System.Collections.Generic.List[string]'
+
+function Expect-True {
+    param([bool]$Condition, [string]$Message)
+    if (-not $Condition) {
+        $failures.Add($Message)
+        Write-Host "FAIL: $Message"
+    }
+}
+
+$root = Join-Path ([IO.Path]::GetTempPath()) ("ns-control-logic-" + [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $root -Force
+$ns = Join-Path $root '.nightshift'
+$null = New-Item -ItemType Directory -Path $ns -Force
+[IO.File]::WriteAllText((Join-Path $ns 'punch-list.md'), "## Items`n- [ ] **1. first.**`n")
+[IO.File]::WriteAllText((Join-Path $ns 'rules.json'), "{ }`n")
+[IO.File]::WriteAllText((Join-Path $ns 'parking-lot.md'), "parked`n")
+$deadline = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3600
+[IO.File]::WriteAllText((Join-Path $ns 'deadline'), "$deadline`n")
+$null = New-Item -ItemType File -Path (Join-Path $ns '.shift-armed') -Force
+[IO.File]::WriteAllText((Join-Path $ns '.shift-lease'), "sid`nclaude`n1`n`n1`n`n")
+
+try {
+    $lines = @(Stop-NSShift -Project $root)
+    $joined = $lines -join "`n"
+    Expect-True ($joined -match 'deadline preserved') "stop preserves deadline: $joined"
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) 'STOP written'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns '.shift-armed'))) 'armed marker removed'
+    if (Test-NSWindows) {
+        Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns '.shift-lease'))) 'lease released'
+    }
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'deadline') -PathType Leaf) 'deadline file kept'
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'parking-lot.md') -PathType Leaf) 'parking lot kept'
+    $null = Stop-NSShift -Project $root
+    Expect-True $true 'second stop is idempotent'
+
+    $refuse = Get-NSControlStartRefuseReason $ns
+    Expect-True ([string]::IsNullOrEmpty($refuse)) "future paused deadline is resumable: $refuse"
+    [IO.File]::WriteAllText((Join-Path $ns 'deadline'), "1`n")
+    $refuse = Get-NSControlStartRefuseReason $ns
+    Expect-True (-not [string]::IsNullOrEmpty($refuse)) 'expired paused deadline is refused'
+    Expect-True ($refuse -match 'refusing to invent a time budget') "refuse names the budget: $refuse"
+
+    $resetLines = @(Reset-NSShift -Project $root)
+    $resetJoined = $resetLines -join "`n"
+    Expect-True ($resetJoined -match 'deadline removed') "reset removes deadline: $resetJoined"
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns 'deadline'))) 'deadline gone'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns 'STOP'))) 'STOP gone'
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'punch-list.md') -PathType Leaf) 'punch list kept'
+    Expect-True (Test-Path -LiteralPath $ns -PathType Container) '.nightshift kept'
+    $null = Reset-NSShift -Project $root
+
+    $pluginRoot = Resolve-NSCanonicalPath $plugin
+    $helper = Join-Path $pluginRoot 'runtime/windows/stop-shift.ps1'
+    $ok = Test-NSTrustedShiftControl -Command "$helper -Project $root" -PluginRoot $pluginRoot -Workspace $root
+    Expect-True $ok 'exact stop helper is trusted'
+    $bad = Test-NSTrustedShiftControl -Command "$helper -Project $root; Remove-Item x" -PluginRoot $pluginRoot -Workspace $root
+    Expect-True (-not $bad) 'semicolon extra command is not trusted'
+    $rel = Test-NSTrustedShiftControl -Command "$helper -Project ." -PluginRoot $pluginRoot -Workspace $root
+    Expect-True (-not $rel) 'relative project is not trusted'
+
+    Expect-True (Test-NSBroadWorkspace '/') 'slash is broad'
+    if (-not [string]::IsNullOrEmpty($env:HOME)) {
+        try {
+            $home = Resolve-NSCanonicalPath $env:HOME
+            Expect-True (Test-NSBroadWorkspace $home) 'home is broad'
+        }
+        catch { }
+    }
+
+    $confirm = Join-Path $root '.nightshift'
+    try { $confirm = Resolve-NSCanonicalPath $ns } catch { }
+    $null = Remove-NSNightshiftWorkspace -Project $root -ConfirmPath $confirm
+    Expect-True (-not (Test-Path -LiteralPath $ns)) 'purge removes .nightshift'
+    Expect-True (Test-Path -LiteralPath $root -PathType Container) 'project root remains'
+    $null = Remove-NSNightshiftWorkspace -Project $root -ConfirmPath $confirm
+
+    $threw = $false
+    try {
+        $null = Remove-NSNightshiftWorkspace -Project $root -ConfirmPath 'C:\not-this'
+    }
+    catch { $threw = $true }
+    Expect-True $threw 'purge requires exact confirm-path'
+}
+finally {
+    if (Test-Path -LiteralPath $root) {
+        Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+if ($failures.Count -gt 0) {
+    Write-Host ("{0} control-logic failures" -f $failures.Count)
+    exit 1
+}
+Write-Host 'control-logic ok'
+exit 0
