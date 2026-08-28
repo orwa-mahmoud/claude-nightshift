@@ -2,7 +2,7 @@ param(
     [string]$Project = ''
 )
 
-# reset-shift.ps1 — abandon current runtime mechanics. Preserves punch list, rules, and history.
+# reset-shift.ps1  -  abandon current runtime mechanics. Preserves punch list, rules, and history.
 #   reset-shift.ps1 -Project DIR
 # -Project is required. Does not use the current working directory.
 

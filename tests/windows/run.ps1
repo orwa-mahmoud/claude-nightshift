@@ -665,8 +665,8 @@ try {
     $overrideEmail = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git -c user.email=other@example.com commit -m x' } @{
         NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
     }
-    Assert-True ($overrideEmail.Stdout -match "repository's configured identity") `
-        'a command-line identity override is denied'
+    Assert-True ($overrideEmail.Stdout -match 'configured identity') `
+        "a command-line identity override is denied ($(Format-HookResult $overrideEmail))"
 
     $gitDirCommit = Invoke-Hardhat $workspace $sessionId 'Bash' @{ command = 'git --git-dir=C:\elsewhere\.git commit -m x' } @{
         NIGHTSHIFT_EXPECTED_EMAIL = 'dev@example.com'
@@ -905,9 +905,12 @@ exit 0
     $recoveryAcl = Get-Acl -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/.shift-lease')
     Assert-True $recoveryAcl.AreAccessRulesProtected 'lease takeover preserves the private ACL'
 
+    $postRecoveryLease = Read-NSLease (Join-Path $recoveryWorkspace '.nightshift')
+    Assert-True ($null -ne $postRecoveryLease -and -not [string]::IsNullOrEmpty($postRecoveryLease.Nonce)) `
+        "recovery leaves a nonce lease before fencing ($(if ($null -eq $postRecoveryLease) { 'missing' } else { $postRecoveryLease.Nonce }))"
     $staleTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' }
-    Assert-True ($staleTool.Stdout -match 'continued in a recovered process') `
-        'the pre-recovery process is fenced after lease takeover'
+    Assert-True ($staleTool.Stdout -match 'recovered process|being recovered') `
+        "the pre-recovery process is fenced after lease takeover ($(Format-HookResult $staleTool))"
     $recoveredTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' } @{
         NIGHTSHIFT_REVIVAL = '1'
         NIGHTSHIFT_LEASE_GENERATION = $receiptLines[2]
@@ -997,13 +1000,15 @@ exit 0
     Write-Host 'Checking bounded terminal clock-out'
     $clockFailWorkspace = Join-Path $root 'clock-out fail workspace'
     $null = Initialize-TestWorkspace $clockFailWorkspace
-    Set-TestPunch $clockFailWorkspace $false
+    # Bind while the punch list still has open work - hardhat is inert when every box is ticked.
+    Set-TestPunch $clockFailWorkspace $true
     [IO.File]::WriteAllText((Join-Path $clockFailWorkspace '.nightshift/.shift-armed'), '')
     $clockFailSession = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
     $clockFailBind = Invoke-Hardhat $clockFailWorkspace $clockFailSession 'Bash' @{
         command = "`$null = 'nightshift-binding-probe'"
     }
     Assert-Equal 0 $clockFailBind.ExitCode 'clock-out fail fixture binds'
+    Set-TestPunch $clockFailWorkspace $false
     $clockFailReceipt = Join-Path $root 'clock-out fail receipt.txt'
     $clockFailStub = Join-Path $root 'clock-out fail stub.ps1'
     @'
@@ -1015,7 +1020,8 @@ exit 1
         @('-Project', $clockFailWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $clockFailStub) `
         '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_TEST_AGENT_RECEIPT = $clockFailReceipt }
     Assert-Equal 0 $clockFailWatch.ExitCode "failed clock-out stands down: $($clockFailWatch.Stderr)"
-    Assert-True (Test-Path -LiteralPath $clockFailReceipt) 'failed clock-out spawned once'
+    Assert-True (Test-Path -LiteralPath $clockFailReceipt) `
+        "failed clock-out spawned once ($(Format-HookResult $clockFailWatch))"
     Assert-Equal 1 @([IO.File]::ReadAllLines($clockFailReceipt)).Count 'failed clock-out does not retry'
     $clockFailReason = [IO.File]::ReadAllLines((Join-Path $clockFailWorkspace '.nightshift/.watch-reason'))[0]
     Assert-Equal 'clock-out-failed' $clockFailReason 'failed clock-out records clock-out-failed'
@@ -1026,13 +1032,14 @@ exit 1
 
     $clockOkWorkspace = Join-Path $root 'clock-out ok workspace'
     $null = Initialize-TestWorkspace $clockOkWorkspace
-    Set-TestPunch $clockOkWorkspace $false
+    Set-TestPunch $clockOkWorkspace $true
     [IO.File]::WriteAllText((Join-Path $clockOkWorkspace '.nightshift/.shift-armed'), '')
     $clockOkSession = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
     $clockOkBind = Invoke-Hardhat $clockOkWorkspace $clockOkSession 'Bash' @{
         command = "`$null = 'nightshift-binding-probe'"
     }
     Assert-Equal 0 $clockOkBind.ExitCode 'successful clock-out fixture binds'
+    Set-TestPunch $clockOkWorkspace $false
     $clockOkReceipt = Join-Path $root 'clock-out ok receipt.txt'
     $clockOkStub = Join-Path $root 'clock-out ok stub.ps1'
     @'

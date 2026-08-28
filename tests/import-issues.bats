@@ -154,7 +154,7 @@ prep_draft() {
   grep -qF 'Claude Code and Codex run the same platform helper' "$SKILL"
   grep -qF 'If work mode is artifact' "$SKILL"
   grep -qi 'will not consume them' "$SKILL"
-  grep -qF '[ -d "$dated" ] && [ ! -L "$dated" ]' "$IMPORT"
+  grep -qF 'if [ ! -d "$dated" ] || [ -L "$dated" ]; then' "$IMPORT"
 }
 
 @test "the helper never searches, mutates GitHub, or fetches the network itself" {

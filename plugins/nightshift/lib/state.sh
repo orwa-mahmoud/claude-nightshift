@@ -114,14 +114,14 @@ ns_reason_label() {
     unknown-wedge) printf 'session looks wedged without a verified error signature' ;;
     revived) printf 'session revived into its own conversation' ;;
     stand-down) printf 'watchman stood down' ;;
-    wrong-host) printf 'watchman stood down — shift belongs to another host' ;;
+    wrong-host) printf 'watchman stood down - shift belongs to another host' ;;
     deadline) printf 'quitting time passed' ;;
     clean-session-end) printf 'owner closed the session' ;;
-    esc-standby) printf 'standing by — owner interrupt in the transcript' ;;
-    silent-standby) printf 'standing by — session alive and quiet' ;;
+    esc-standby) printf 'standing by - owner interrupt in the transcript' ;;
+    silent-standby) printf 'standing by - session alive and quiet' ;;
     non-resumable-session) printf 'recorded Codex identity cannot be resumed' ;;
     unreadable-rules) printf 'rules file missing or incomplete' ;;
-    fresh-fallback) printf 'fresh session — punch list is the handover' ;;
+    fresh-fallback) printf 'fresh session - punch list is the handover' ;;
     unsupported-state) printf 'workspace state-version is unsupported' ;;
     process-evidence-unavailable) printf 'process evidence is unavailable' ;;
     clock-out-failed) printf 'terminal clock-out failed without releasing the shift' ;;

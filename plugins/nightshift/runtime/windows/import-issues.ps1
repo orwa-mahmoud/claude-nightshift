@@ -121,7 +121,7 @@ function Convert-NSQuotedBody {
     param([string]$Body)
     $text = ($Body -replace "`r", '' -replace '```', "'''")
     if ($text.Length -gt 4000) {
-        $text = $text.Substring(0, 4000) + "`n… truncated"
+        $text = $text.Substring(0, 4000) + "`n... truncated"
     }
     if ([string]::IsNullOrEmpty($text)) {
         return "    > (empty issue body)"

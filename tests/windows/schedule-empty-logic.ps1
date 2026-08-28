@@ -49,7 +49,7 @@ try {
 
     [IO.File]::WriteAllText((Join-Path $ns 'punch-list.md'), "## Items`n`n")
     [IO.File]::WriteAllText((Join-Path $ns 'work-orders.md'),
-        "# Work Orders`n`n## Work order — test`nHours: 2`n`n- [ ] **Coverage hunt.**`n")
+        "# Work Orders`n`n## Work order  -  test`nHours: 2`n`n- [ ] **Coverage hunt.**`n")
     [IO.File]::WriteAllText((Join-Path $ns 'drafting-table.md'), @'
 # Drafting Table
 

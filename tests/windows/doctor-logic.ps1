@@ -116,7 +116,7 @@ try {
         'staged drafts are a confirm action'
 
     [IO.File]::WriteAllText((Join-Path $ns 'work-orders.md'),
-        "# Work Orders`n`n## Work order — test`nHours: 2`n`n- [ ] **Coverage hunt.**`n")
+        "# Work Orders`n`n## Work order  -  test`nHours: 2`n`n- [ ] **Coverage hunt.**`n")
     $orders = Invoke-Doctor $root
     Expect-True ($orders.ExitCode -eq 0) "work orders exit 0 (got $($orders.ExitCode) $($orders.Stderr))"
     Expect-True ($orders.Stdout -match 'pending Hunt work orders=1') `

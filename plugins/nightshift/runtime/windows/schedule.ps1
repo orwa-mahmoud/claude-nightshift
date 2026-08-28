@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
-# 0 ok · 1 unusable receipts path · 2 malformed work-mode · 3 unset artifact proposal
+# 0 ok  -  1 unusable receipts path  -  2 malformed work-mode  -  3 unset artifact proposal
 function Test-NSScheduleArtifactReceipts {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     try {

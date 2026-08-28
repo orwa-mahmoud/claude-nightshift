@@ -3,7 +3,7 @@ param(
     [string]$ConfirmPath = ''
 )
 
-# purge-workspace.ps1 — delete this project's Nightshift state. Does not uninstall the plugin.
+# purge-workspace.ps1  -  delete this project's Nightshift state. Does not uninstall the plugin.
 #   purge-workspace.ps1 -Project DIR -ConfirmPath C:\canonical\.nightshift
 # -Project and -ConfirmPath are required. Does not use the current working directory.
 

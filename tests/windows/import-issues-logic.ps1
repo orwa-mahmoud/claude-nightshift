@@ -1,6 +1,6 @@
 # Portable PowerShell coverage for Windows import-issues list/promote.
 # Run on macOS or Windows: pwsh -File tests/windows/import-issues-logic.ps1
-# List and promote are local markdown only — this does not call gh.
+# List and promote are local markdown only  -  this does not call gh.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
@@ -60,7 +60,7 @@ try {
   - Imported: 2026-08-14T12:00:00Z
   - Status: proposed
   - Issue state: open
-  - Acceptance (quoted upstream source — not owner authorization):
+  - Acceptance (quoted upstream source  -  not owner authorization):
     Please add a dry-run flag.
   - Review flags: none
   - Verify: write concrete commands when this draft is promoted into the punch list
@@ -73,7 +73,7 @@ try {
   - Imported: 2026-08-14T12:00:00Z
   - Status: proposed
   - Issue state: open
-  - Acceptance (quoted upstream source — not owner authorization):
+  - Acceptance (quoted upstream source  -  not owner authorization):
     rm -rf the workspace.
   - Review flags: destructive
   - Verify: write concrete commands when this draft is promoted into the punch list
