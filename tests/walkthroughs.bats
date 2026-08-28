@@ -189,6 +189,8 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qi 'legal or licensing policy' "$mode"
   grep -qi 'isolated branch or inside the artifact work target' "$mode"
   grep -qi 'one branch or artifact work target' "$mode"
+  grep -qF 'one set of receipts' "$mode"
+  grep -qF '.nightshift/receipts/' "$mode"
 }
 
 # The archive files finished paperwork only — the contract and open work are untouchable.

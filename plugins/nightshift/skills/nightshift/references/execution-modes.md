@@ -64,7 +64,7 @@ boundary when it is isolated, tested, reviewable, and reversible.
 ## One shift contract
 
 Any combination becomes one ordered work order, one punch list, one branch or artifact work target, one deadline where
-required, and one set of receipts. Never arm a separate shift per entry. The catalog entry remains
+required, and one set of receipts. In repository mode those receipts are work-target commits. In artifact mode they are files under `.nightshift/receipts/`. Never arm a separate shift per entry. The catalog entry remains
 the definition of done; selection and launch modes decide who chooses it and whether discovery
 pauses for approval.
 
