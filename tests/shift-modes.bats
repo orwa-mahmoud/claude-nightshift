@@ -21,6 +21,7 @@ MODES="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/exe
   grep -qF '.nightshift/receipts/' "$DOC"
   grep -qF 'runtime/archive-receipts.sh' "$DOC"
   grep -qF 'runtime/windows/archive-receipts.ps1' "$DOC"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$DOC"
   grep -qF 'do not prove the work' "$DOC"
   grep -qF '/nightshift:hunt' "$DOC"
   grep -qF 'Hunt Automatic for four hours' "$DOC"
