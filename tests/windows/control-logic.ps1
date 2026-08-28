@@ -69,6 +69,8 @@ try {
     Expect-True (-not $bad) 'semicolon extra command is not trusted'
     $rel = Test-NSTrustedShiftControl -Command "$helper -Project ." -PluginRoot $pluginRoot -Workspace $root
     Expect-True (-not $rel) 'relative project is not trusted'
+    $ordinary = Test-NSTrustedShiftControl -Command 'Get-Location' -PluginRoot $pluginRoot -Workspace $root
+    Expect-True (-not $ordinary) 'a single-token ordinary command is not trusted'
 
     Expect-True (Test-NSBroadWorkspace '/') 'slash is broad'
     if (-not [string]::IsNullOrEmpty($env:HOME)) {
