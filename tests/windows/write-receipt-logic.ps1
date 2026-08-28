@@ -338,8 +338,39 @@ try {
         'Doctor still offers replace-path when ticks sit on an unusable receipts path'
     Expect-True ($tickedUnusable.Stdout -notmatch 'artifact mode has ticked items but no receipts') `
         'Doctor does not warn empty ticks when receipts path is unusable'
-    Expect-True ($tickedUnusable.Stdout -notmatch 'complete ticked items with') `
-        'Doctor does not offer write-receipt when ticks sit on an unusable receipts path'
+        Expect-True ($tickedUnusable.Stdout -notmatch 'complete ticked items with') `
+            'Doctor does not offer write-receipt when ticks sit on an unusable receipts path'
+
+    $modeLinkCase = Join-Path $root 'mode-link-notes'
+    $modeLinkNs = Join-Path $modeLinkCase '.nightshift'
+    $modeLinkOut = Join-Path $modeLinkCase 'out.md'
+    $null = New-Item -ItemType Directory -Path $modeLinkNs -Force
+    $modePlant = Join-Path $modeLinkNs 'mode-plant'
+    [IO.File]::WriteAllText($modePlant, "artifact`n")
+    [IO.File]::WriteAllText($modeLinkOut, "ok`n")
+    $modeLink = Join-Path $modeLinkNs 'work-mode'
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $modeLink -Target $modePlant -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            Write-Host 'skip symlink work-mode (cannot create)'
+        }
+        else {
+            throw
+        }
+    }
+    if (Test-Path -LiteralPath $modeLink) {
+        $modeBlocked = Invoke-WriteReceipt $modeLinkCase @(
+            '-Item', 'x', '-Verify', 'ok', '-Output', $modeLinkOut
+        )
+        Expect-True ($modeBlocked.ExitCode -eq 3) `
+            "symlink work-mode exits 3 (got $($modeBlocked.ExitCode) $($modeBlocked.Stderr))"
+        Expect-True (($modeBlocked.Stderr + $modeBlocked.Stdout) -match 'work-mode is malformed') `
+            'symlink work-mode is malformed'
+        Expect-True (-not (Test-Path -LiteralPath (Join-Path $modeLinkNs 'receipts'))) `
+            'does not create receipts for a symlink work-mode'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

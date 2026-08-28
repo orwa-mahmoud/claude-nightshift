@@ -59,6 +59,17 @@ new_artifact() {
   [ "$output" = 1 ]
 }
 
+@test "write-receipt refuses a symlink work-mode" {
+  p="$(new_artifact mode-link)"
+  mv "$p/.nightshift/work-mode" "$p/.nightshift/mode-plant"
+  ln -s mode-plant "$p/.nightshift/work-mode"
+  printf 'ok\n' >"$p/out/topic.md"
+  run bash "$WRITE" --project "$p" --item 'x' --verify 'ok' --output "$p/out/topic.md"
+  [ "$status" -eq 3 ]
+  printf '%s' "$output$stderr" | grep -qF 'write-receipt: work-mode is malformed'
+  [ ! -d "$p/.nightshift/receipts" ]
+}
+
 @test "write-receipt refuses repository mode" {
   p="$(new_project receipt-repo)"
   printf 'ok\n' >"$p/out.md"
@@ -467,6 +478,8 @@ new_artifact() {
   grep -qF 'nested receipt is not counted' "$WRITE_LOGIC"
   grep -qF 'nested receipt is not latest' "$WRITE_LOGIC"
   grep -qF 'does not write through a reparse receipts path' "$WRITE_LOGIC"
+  grep -qF 'symlink work-mode is malformed' "$WRITE_LOGIC"
+  grep -qF 'does not create receipts for a symlink work-mode' "$WRITE_LOGIC"
   grep -qF 'does not replace a file receipts path' "$WRITE_LOGIC"
   grep -qF 'Doctor warns when receipts path is not a usable directory' "$WRITE_LOGIC"
   grep -qF 'symlink output is missing' "$WRITE_LOGIC"
