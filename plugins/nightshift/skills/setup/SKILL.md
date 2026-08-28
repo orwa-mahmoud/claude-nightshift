@@ -43,7 +43,7 @@ Bash. Once the workspace and work target are resolved, the bundled mechanical sc
 
 It copies only absent files, writes state version 1 for a new site, persists the work target and
 work mode (`-Mode repository` or `-Mode artifact`), and
-keeps `$NS/` private. The skill still owns every owner choice below; the script asks
+keeps `$NS/` private. It refuses a notes folder under default repository mode: `pass -Mode artifact for a notes folder that is not a Git repository`. The skill still owns every owner choice below; the script asks
 nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
 
 If the user explicitly identifies a different existing workspace containing `.nightshift/`, show

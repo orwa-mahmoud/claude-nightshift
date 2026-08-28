@@ -203,6 +203,15 @@ planted_repo() {
   awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'ReparsePoint'
   grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' \
     "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/setup.ps1"
+  grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' "$SETUP"
+  grep -qF 'failed default setup creates no Nightshift directory' "$LOGIC"
+  awk '
+    /pass -Mode artifact for a notes folder that is not a Git repository/ {
+      if (!scaffold) refuse_first = 1
+    }
+    /New-Item -ItemType Directory -Path \$ns/ { scaffold = 1 }
+    END { exit (refuse_first && scaffold ? 0 : 1) }
+  ' "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/setup.ps1"
 }
 
 @test "Windows work-mode discovery logic passes when pwsh is present" {

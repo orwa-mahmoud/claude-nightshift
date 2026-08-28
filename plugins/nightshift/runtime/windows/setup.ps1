@@ -25,6 +25,19 @@ $workspace = Resolve-NSWorkspaceRoot $taskRoot
 $ns = Join-Path $workspace '.nightshift'
 $newSite = -not (Test-Path -LiteralPath $ns -PathType Container)
 
+if ($Mode -eq 'repository' -and [string]::IsNullOrEmpty($WorkTarget) `
+    -and -not (Test-Path -LiteralPath (Join-Path $ns 'work-target') -PathType Leaf)) {
+    $proposed = $null
+    try {
+        $proposed = Get-NSProposedWorkMode $workspace
+    }
+    catch {
+    }
+    if ($proposed -eq 'artifact') {
+        throw 'setup: pass -Mode artifact for a notes folder that is not a Git repository'
+    }
+}
+
 if (-not $newSite) {
     $kind = Get-NSStateKind $workspace
     if ($kind -in @('malformed', 'future')) {

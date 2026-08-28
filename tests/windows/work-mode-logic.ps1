@@ -141,8 +141,8 @@ try {
         "default setup on a notes folder exits non-zero (got $($defaultSetup.ExitCode))"
     Expect-True (($defaultSetup.Stderr + $defaultSetup.Stdout) -match 'pass -Mode artifact for a notes folder') `
         "default setup names -Mode artifact (got $($defaultSetup.Stderr) $($defaultSetup.Stdout))"
-    Expect-True (-not (Test-Path -LiteralPath (Join-Path $unsetNotes '.nightshift/work-mode') -PathType Leaf)) `
-        'failed default setup does not persist work-mode'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $unsetNotes '.nightshift'))) `
+        'failed default setup creates no Nightshift directory'
 
     $artifactNotes = Join-Path $root 'setup-artifact'
     $null = New-Item -ItemType Directory -Path (Join-Path $artifactNotes 'research') -Force
