@@ -85,6 +85,7 @@ Detect the work mode, explain it, and ask before persisting it. Use
   `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/write-receipt.sh"` (native Windows:
   `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\write-receipt.ps1"`).
   Completion in that folder is `$NS/receipts/`, not a git log.
+  When `$NS/receipts` exists but is not a usable directory, say so and do not treat artifact setup as complete.
 - scratch (`ns_propose_work_mode` status 2, or `Get-NSProposedWorkMode` throwing) — stop; create
   nothing.
 
