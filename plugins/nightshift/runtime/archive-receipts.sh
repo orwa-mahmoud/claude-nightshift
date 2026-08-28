@@ -2,7 +2,8 @@
 # archive-receipts.sh — copy live artifact receipts into a dated archive folder.
 #
 # Leaves live copies in place so stall progress still sees them. Skips hidden
-# files and does not follow symlinks. Missing receipts is success.
+# files and does not follow symlinks. Missing or empty receipts is success and
+# does not create an empty dated folder.
 # Archive-only. Hooks, start, status, Doctor, and recovery must never invoke this.
 #
 #   archive-receipts.sh [--project DIR] [--date YYYY-MM-DD]
@@ -79,14 +80,6 @@ fi
 
 copied=0
 if [ -d "$src" ]; then
-  mkdir -p "$dest" || {
-    printf 'archive-receipts: cannot create %s\n' "$dest" >&2
-    exit 2
-  }
-  if [ -L "$dest" ]; then
-    printf 'archive-receipts: refuse to write through a symlink archive path\n' >&2
-    exit 2
-  fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     [ -f "$f" ] || continue
@@ -95,6 +88,16 @@ if [ -d "$src" ]; then
     case "$base" in
       .* | '') continue ;;
     esac
+    if [ "$copied" -eq 0 ]; then
+      mkdir -p "$dest" || {
+        printf 'archive-receipts: cannot create %s\n' "$dest" >&2
+        exit 2
+      }
+      if [ -L "$dest" ]; then
+        printf 'archive-receipts: refuse to write through a symlink archive path\n' >&2
+        exit 2
+      fi
+    fi
     cp "$f" "$dest/$base" || {
       printf 'archive-receipts: failed to copy %s\n' "$base" >&2
       exit 2

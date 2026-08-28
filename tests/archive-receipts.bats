@@ -69,6 +69,25 @@ new_artifact() {
   [ ! -d "$p/.nightshift/archive/2026-08-28/receipts" ]
 }
 
+@test "archive-receipts creates no dest when receipts exist but nothing copies" {
+  p="$(new_artifact empty-dir)"
+  mkdir -p "$p/.nightshift/receipts"
+  run bash "$ARCHIVE_SH" --project "$p" --date 2026-08-28
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ ! -d "$p/.nightshift/archive/2026-08-28/receipts" ]
+
+  printf 'dot\n' >"$p/.nightshift/receipts/.not-a-receipt"
+  mkdir -p "$p/.nightshift/receipts/nested"
+  printf 'nested\n' >"$p/.nightshift/receipts/nested/20260101T000000Z-nested.md"
+  ln -s "$p/.nightshift/receipts/nested/20260101T000000Z-nested.md" \
+    "$p/.nightshift/receipts/20260101T000000Z-link.md"
+  run bash "$ARCHIVE_SH" --project "$p" --date 2026-08-28
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  [ ! -d "$p/.nightshift/archive/2026-08-28/receipts" ]
+}
+
 @test "archive-receipts refuses a malformed date and a missing project" {
   p="$(new_artifact bad-date)"
   run bash "$ARCHIVE_SH" --project "$p" --date not-a-date
@@ -104,6 +123,7 @@ new_artifact() {
 @test "Windows archive-receipts logic passes when pwsh is present" {
   [ -f "$ARCHIVE_LOGIC" ]
   grep -qF 'archive-receipts-logic.ps1' "$BATS_TEST_DIRNAME/windows/run.ps1"
+  grep -qF 'skip-only receipts create no archive folder' "$ARCHIVE_LOGIC"
   grep -qF 'leaves the first live receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy a nested receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy a hidden file' "$ARCHIVE_LOGIC"

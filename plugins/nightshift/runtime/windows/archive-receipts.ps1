@@ -63,20 +63,22 @@ foreach ($p in @((Join-Path $ns 'archive'), (Join-Path $ns "archive/$Date"), $de
 
 $copied = 0
 if (Test-Path -LiteralPath $src -PathType Container) {
-    $null = New-Item -ItemType Directory -Path $dest -Force
-    $destItem = Get-Item -LiteralPath $dest -Force
-    if ($destItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-        Write-NSArchiveReceiptsError 'archive-receipts: refuse to write through a symlink archive path'
-        exit 2
-    }
     $files = @(Get-ChildItem -LiteralPath $src -File -Force -ErrorAction SilentlyContinue |
         Where-Object {
             -not $_.Name.StartsWith('.') -and
             -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint)
         })
-    foreach ($file in $files) {
-        Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $dest $file.Name) -Force
-        $copied++
+    if ($files.Count -gt 0) {
+        $null = New-Item -ItemType Directory -Path $dest -Force
+        $destItem = Get-Item -LiteralPath $dest -Force
+        if ($destItem.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Write-NSArchiveReceiptsError 'archive-receipts: refuse to write through a symlink archive path'
+            exit 2
+        }
+        foreach ($file in $files) {
+            Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $dest $file.Name) -Force
+            $copied++
+        }
     }
 }
 

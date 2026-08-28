@@ -133,6 +133,18 @@ try {
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $emptyNs 'archive/2026-08-28/receipts'))) `
         'empty receipts create no archive folder'
 
+    $emptyDir = Join-Path $root 'empty-dir-notes'
+    $emptyDirNs = Join-Path $emptyDir '.nightshift'
+    $emptyDirRecv = Join-Path $emptyDirNs 'receipts'
+    $null = New-Item -ItemType Directory -Path $emptyDirRecv -Force
+    [IO.File]::WriteAllText((Join-Path $emptyDirNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $emptyDirRecv '.not-a-receipt'), "dot`n")
+    $emptyOnly = Invoke-ArchiveReceipts $emptyDir @('-Date', '2026-08-28')
+    Expect-True ($emptyOnly.ExitCode -eq 0) "skip-only receipts exit 0 (got $($emptyOnly.ExitCode) $($emptyOnly.Stderr))"
+    Expect-True ([string]::IsNullOrWhiteSpace($emptyOnly.Stdout)) 'skip-only receipts print nothing'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $emptyDirNs 'archive/2026-08-28/receipts'))) `
+        'skip-only receipts create no archive folder'
+
     $bad = Invoke-ArchiveReceipts $artifact @('-Date', 'not-a-date')
     Expect-True ($bad.ExitCode -eq 1) "malformed date exits 1 (got $($bad.ExitCode))"
 
