@@ -363,7 +363,7 @@ ns_retention_eligible() {
       archive/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) rel="${rel%/}" ;;
       *) continue ;;
     esac
-    [ -d "$ns/$rel" ] || continue
+    [ -d "$ns/$rel" ] && [ ! -L "$ns/$rel" ] || continue
     path="$(ns_under_nightshift "$ws" "$rel")" || continue
     ns_archive_has_open_work "$path" && continue
     age="$(ns_age_days "$path")" || continue

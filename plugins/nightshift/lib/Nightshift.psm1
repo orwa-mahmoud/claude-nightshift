@@ -1854,6 +1854,9 @@ function Get-NSRetentionEligible {
         return @($rows)
     }
     foreach ($dir in @(Get-ChildItem -LiteralPath $archiveRoot -Directory -ErrorAction SilentlyContinue)) {
+        if ($dir.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
         if ($dir.Name -notmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') {
             continue
         }
