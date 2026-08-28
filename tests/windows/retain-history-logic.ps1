@@ -171,6 +171,25 @@ try {
     $archiveLink = Join-Path $hns 'archive/2018-01-01'
     New-ReparseDirectory $archiveLink $outsideDir
 
+    [IO.File]::WriteAllText((Join-Path $hns 'punch-list.md'), "## Items`n- [ ] live open`n")
+    $linkArchive = Join-Path $hns 'archive/2017-01-01'
+    $null = New-Item -ItemType Directory -Path $linkArchive -Force
+    [IO.File]::WriteAllText((Join-Path $linkArchive 'shipped.md'), "- [x] done`n")
+    $punchLink = Join-Path $linkArchive 'punch-list.md'
+    $punchLinkCreated = $true
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $punchLink -Target (Join-Path $hns 'punch-list.md') -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            $punchLinkCreated = $false
+        }
+        else {
+            throw
+        }
+    }
+    Age-Path $linkArchive
+
     $hostilePreview = Invoke-RetainHistory $hostile
     Expect-True ($hostilePreview.ExitCode -eq 0) "hostile preview exits 0 (got $($hostilePreview.ExitCode) $($hostilePreview.Stderr))"
     if ($fileLinkCreated) {
@@ -179,6 +198,9 @@ try {
     Expect-True ($hostilePreview.Stdout -notmatch 'archive/2020-01-01') 'open-work archive is not eligible'
     Expect-True ($hostilePreview.Stdout -notmatch 'archive/2018-01-01') 'reparse archive directory is not eligible'
     Expect-True ($hostilePreview.Stdout -match 'archive/2019-01-01') 'closed old archive is eligible'
+    if ($punchLinkCreated) {
+        Expect-True ($hostilePreview.Stdout -match 'archive/2017-01-01') 'symlink punch-list is not open work'
+    }
 
     $hostileApply = Invoke-RetainHistory $hostile -Apply
     Expect-True ($hostileApply.ExitCode -eq 0) "hostile apply exits 0 (got $($hostileApply.ExitCode) $($hostileApply.Stderr))"
@@ -190,6 +212,10 @@ try {
     Expect-True (Test-Path -LiteralPath $archiveLink) 'apply leaves the reparse archive directory'
     Expect-True (Test-Path -LiteralPath (Join-Path $outsideDir 'secret.md')) 'apply does not follow the archive reparse point'
     Expect-True (-not (Test-Path -LiteralPath $doneArchive)) 'apply deletes the closed old archive'
+    if ($punchLinkCreated) {
+        Expect-True (-not (Test-Path -LiteralPath $linkArchive)) 'apply deletes the archive whose punch-list is a symlink'
+        Expect-True (Test-Path -LiteralPath (Join-Path $hns 'punch-list.md')) 'apply leaves the live punch list'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

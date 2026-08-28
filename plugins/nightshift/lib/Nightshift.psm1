@@ -1805,7 +1805,10 @@ function Test-NSArchiveHasOpenWork {
     if ((Test-NSPathEntry $armed)) {
         return $true
     }
-    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue)) {
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -Force -ErrorAction SilentlyContinue)) {
+        if ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
         if ($file.Name -in @('punch-list.md', 'shipped.md')) {
             $counts = Get-NSBoxCounts $file.FullName
             if ($counts.Open -gt 0) {

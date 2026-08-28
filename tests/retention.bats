@@ -118,6 +118,25 @@ age_file() {
   [ -f "$BATS_TEST_TMPDIR/outside.log" ]
 }
 
+@test "a symlink punch-list in an archive does not count as open work" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  set_retention "$p" 1 1
+  printf '## Items\n- [ ] live open\n' >"$p/.nightshift/punch-list.md"
+  mkdir -p "$p/.nightshift/archive/2017-01-01"
+  printf '%s\n' '- [x] done' >"$p/.nightshift/archive/2017-01-01/shipped.md"
+  ln -s "$p/.nightshift/punch-list.md" "$p/.nightshift/archive/2017-01-01/punch-list.md"
+  age_file "$p/.nightshift/archive/2017-01-01"
+  run bash "$RETAIN" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'archive/2017-01-01'
+  run bash "$RETAIN" --project "$p" --apply
+  [ "$status" -eq 0 ]
+  [ ! -e "$p/.nightshift/archive/2017-01-01" ]
+  [ -f "$p/.nightshift/punch-list.md" ]
+  grep -qF 'live open' "$p/.nightshift/punch-list.md"
+}
+
 @test "hooks start status and Doctor never prune history" {
   ! grep -RIn 'retain-history\|ns_retention_apply' \
     "$ROOT/hooks" \
@@ -144,6 +163,7 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'retain-history-logic.ps1' "$RUN"
   grep -qF 'Deleted the eligible allowlisted paths' "$LOGIC"
   grep -qF 'open-work archive is not eligible' "$LOGIC"
+  grep -qF 'symlink punch-list is not open work' "$LOGIC"
   grep -qF 'refuse to delete while the shift is armed' "$LOGIC"
 }
 
