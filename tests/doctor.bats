@@ -281,6 +281,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'session-end path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'clean session-end marker is present'
+  grep -qF 'session-end path is not a usable file' "$SKILL"
+  grep -qF 'session-end path is not a usable file' "$STATUS"
 }
 
 @test "the drafting-table item-shape example is not a staged draft" {

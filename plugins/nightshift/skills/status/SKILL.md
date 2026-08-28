@@ -81,6 +81,7 @@ Read `$NS/` and print:
 - **State** — whether `$NS/STOP` is present (and its reason), and the current
  `$NS/.stall` attempt count if any.
  When Doctor warns `stall path is not a usable file`, say so — a planted symlink is not a stall count.
+ When Doctor warns `session-end path is not a usable file`, say so — a planted symlink is not a clean exit.
  If a shift is running, the bound session from
  `$NS/.shift-session` (never print the session id). Also report
  `$NS/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
