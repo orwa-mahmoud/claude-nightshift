@@ -97,9 +97,11 @@ load helpers
   [ "$(jq -r '[.hooks.preToolUse[].command] | length' "$f")" -eq 1 ]
   [ "$(jq -r '[.hooks.stop[].command] | length' "$f")" -eq 1 ]
   [ "$(jq -r '[.hooks.sessionEnd[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.beforeSubmitPrompt[].command] | length' "$f")" -eq 1 ]
   jq -e '.hooks.preToolUse[0].command | test("cursor/hardhat")' "$f" >/dev/null
   jq -e '.hooks.stop[0].command | test("cursor/clock-out-gate")' "$f" >/dev/null
   jq -e '.hooks.sessionEnd[0].command | test("cursor/session-end")' "$f" >/dev/null
+  jq -e '.hooks.beforeSubmitPrompt[0].command | test("cursor/before-submit")' "$f" >/dev/null
   while IFS= read -r cmd; do
     path="${cmd/\$\{CURSOR_PLUGIN_ROOT\}/$root}"
     [ -f "$path" ] || { echo "Cursor hooks.json names a missing file: $path"; return 1; }

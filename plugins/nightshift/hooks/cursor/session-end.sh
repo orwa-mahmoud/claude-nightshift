@@ -2,8 +2,9 @@
 # session-end.sh — Cursor sessionEnd hook. Owner interrupt / clean close mid-shift.
 #
 # Cursor documents reason: completed | aborted | error | window_close | user_close.
-# Owner hand on the door: aborted or user_close. Those write .session-end so a future
-# Cursor watchman (not shipped until resume-of-this-chat is proven) can stand down.
+# Owner hand on the door: aborted or user_close. Those write .session-end so the
+# Cursor watchman can stand down. Closing the origin IDE tab while a CLI worker is
+# recorded is not a clean close — the worker still owns the night.
 # Inert outside an active shift. Never arms Claude or Codex watchmen.
 set -u
 
@@ -35,7 +36,12 @@ REASON="${CURSOR_SESSION_END_REASON:-unknown}"
 
 if [ -f "$NS/.shift-session" ] && [ ! -L "$NS/.shift-session" ]; then
   REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
-  [ -n "$REC" ] && [ -n "$SID" ] && [ "$SID" != "$REC" ] && exit 0
+  WORKER="$(ns_cursor_worker_id "$NS")"
+  if [ -n "$WORKER" ]; then
+    [ -n "$SID" ] && [ "$SID" = "$WORKER" ] || exit 0
+  else
+    [ -n "$REC" ] && [ -n "$SID" ] && [ "$SID" != "$REC" ] && exit 0
+  fi
   HOST_LINE="$(sed -n 5p "$NS/.shift-session" 2>/dev/null)"
   [ -z "$HOST_LINE" ] || [ "$HOST_LINE" = "cursor" ] || exit 0
 fi

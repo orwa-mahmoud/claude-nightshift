@@ -17,6 +17,11 @@
       {
         "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/session-end.sh"
       }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/before-submit.sh"
+      }
     ]
   }
 }

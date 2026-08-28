@@ -51,6 +51,32 @@ is_cursor_deny() {
   is_cursor_deny
 }
 
+@test "origin tab is pointed at the live CLI worker" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'origin-ide\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  printf 'live-cli-worker\n' >"$p/.nightshift/.shift-worker"
+  jq -nc --arg p "$p" \
+    '{tool_name:"Shell",conversation_id:"origin-ide",transcript_path:"",cwd:$p,tool_input:{command:"echo hi"}}' \
+    >"$BATS_TEST_TMPDIR/origin-shell.json"
+  run env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh" <"$BATS_TEST_TMPDIR/origin-shell.json"
+  is_cursor_deny
+  printf '%s' "$output" | grep -q 'agent --resume='
+  printf '%s' "$output" | grep -q 'live-cli-worker'
+  printf '%s' "$output" | grep -q -- "--workspace"
+}
+
+@test "another conversation stays free while a CLI worker is recorded" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'origin-ide\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  printf 'live-cli-worker\n' >"$p/.nightshift/.shift-worker"
+  out="$(jq -nc --arg p "$p" \
+    '{tool_name:"Shell",conversation_id:"helper-tab",transcript_path:"",cwd:$p,tool_input:{command:"git push origin main"}}' |
+    env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+}
+
 @test "cursor binding probe is recognized on Shell" {
   p="$(new_project)"
   punch_open "$p"

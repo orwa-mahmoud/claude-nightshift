@@ -122,6 +122,9 @@ if ns_hardhat_binding_probe "$TOOL" "$CMD"; then
   fi
 fi
 
+if ns_cursor_stale_origin "$NS" "${SID:-}"; then
+  deny "$(ns_cursor_pointer_message "$NS" "$PROJECT_DIR")"
+fi
 ns_shift_authorize cursor "" "" hardhat
 own_rc=$?
 [ "$own_rc" -eq 1 ] && exit 0

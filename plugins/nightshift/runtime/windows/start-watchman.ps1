@@ -1,7 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Project,
     [Parameter(Mandatory = $true)]
-    [ValidateSet('claude', 'codex')]
+    [ValidateSet('claude', 'codex', 'cursor')]
     [string]$HostName
 )
 

@@ -146,7 +146,7 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
  not exist, run `git -C "$NS" init` rather than `cd`-ing there.
  Ensure `$NS/.gitignore` contains the
  transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
- `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
+ `.shift-session.tmp.*`, `.shift-worker`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
  `.mutex-scope.tmp.*`, `.watchman`, `.watchman-tick`, `.lock.d/`, and `.lease-lock.d/`; preserve
  existing lines. Make one initial commit only when setup created the receipts repository.
  Creating the repo does **not** turn on headless auto-commit — that is `receiptsAutoCommit`

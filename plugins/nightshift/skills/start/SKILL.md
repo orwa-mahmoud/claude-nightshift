@@ -334,10 +334,11 @@ Each host arms its own; both read their cadence from the rules file, and each st
 shift the other host owns. Unless the rules file's `watchMinutes` is `0` (or
 `NIGHTSHIFT_WATCH=0` overrides), arm it in the background.
 
-**Cursor:** do **not** arm the Claude or Codex watchman from a Cursor session. Record the Cursor
-conversation id in `.shift-session` (host line `cursor`). A Cursor watchman ships only after
-resume-of-this-chat is proven; until then recovery is manual. `watchMinutes` `0` still disarms
-every watchman. Say that plainly once, then continue to Work.
+**Cursor:** arm the Cursor watchman, never the Claude or Codex watchman. Record the Cursor
+conversation id in `.shift-session` (host line `cursor`). That id is the origin IDE tab.
+Revival mints or resumes a CLI worker in `.shift-worker`; never pass the IDE id to
+`agent --resume`. `watchMinutes` `0` still disarms every watchman. Say that plainly once,
+then continue to Work.
 
 On Claude Code:
 
@@ -351,12 +352,19 @@ On Codex:
 nohup "$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
 ```
 
+On Cursor:
+
+```bash
+nohup "$NIGHTSHIFT_PLUGIN_ROOT/runtime/cursor/watchman.sh" --project "$NIGHTSHIFT_WORKSPACE" >/dev/null 2>&1 &
+```
+
 On native Windows, start the same bundled PowerShell watchman for the active host:
 
 ```powershell
 & "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1" `
  -Project "$NIGHTSHIFT_WORKSPACE" -HostName claude
 # Codex uses: -HostName codex
+# Cursor uses: -HostName cursor
 ```
 
 The Codex identity checkpoint above has already passed before this command is reached. One stance

@@ -140,6 +140,7 @@ PY
   grep -qF '$NS/.shift-armed' "$START"
   grep -qF 'runtime/claude/watchman.sh' "$START"
   grep -qF 'runtime/codex/watchman.sh' "$START"
+  grep -qF 'runtime/cursor/watchman.sh' "$START"
   grep -qF 'start-watchman.ps1' "$START"
   grep -qF '### Bind this session' "$START"
   grep -qF '$NS/.shift-lease' "$START"
@@ -226,6 +227,8 @@ PY
       || { echo "missing Claude watchman: $f"; return 1; }
     grep -qF 'runtime/codex/watchman.sh' "$f" \
       || { echo "missing Codex watchman: $f"; return 1; }
+    grep -qF 'runtime/cursor/watchman.sh' "$f" \
+      || { echo "missing Cursor watchman: $f"; return 1; }
     grep -qF 'start-watchman.ps1' "$f" \
       || { echo "missing Windows watchman: $f"; return 1; }
   done

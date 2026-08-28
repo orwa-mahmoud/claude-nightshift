@@ -859,7 +859,7 @@ function Test-NSRecordedProcess {
 
 function Get-NSHostProcess {
     param(
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [int]$StartingProcessId = $PID
     )
     try {
@@ -1074,7 +1074,7 @@ function Claim-NSSession {
         [AllowEmptyString()][string]$Transcript = '',
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$Start = '',
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName
     )
     if ([string]::IsNullOrEmpty($SessionId)) {
         return $false
@@ -1119,7 +1119,7 @@ function Read-NSSession {
     for ($i = 0; $i -lt $lines.Count; $i++) {
         $values[$i] = $lines[$i]
     }
-    if ($values[2] -notmatch '^[0-9]*$' -or $values[4] -notin @('claude', 'codex')) {
+    if ($values[2] -notmatch '^[0-9]*$' -or $values[4] -notin @('claude', 'codex', 'cursor')) {
         return $null
     }
     return [pscustomobject]@{
@@ -1138,7 +1138,7 @@ function Write-NSSession {
         [AllowEmptyString()][string]$Transcript = '',
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$Start = '',
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName
     )
     foreach ($value in @($SessionId, $Transcript, $ProcessId, $Start)) {
         if (-not (Test-NSSafeLine $value)) {
@@ -1181,7 +1181,7 @@ function Read-NSLease {
             return $null
         }
     }
-    if ($lines[1] -notin @('claude', 'codex') -or $lines[2] -notmatch '^[1-9][0-9]*$' `
+    if ($lines[1] -notin @('claude', 'codex', 'cursor') -or $lines[2] -notmatch '^[1-9][0-9]*$' `
         -or $lines[3] -notmatch '^[A-Za-z0-9._-]*$' -or $lines[4] -notmatch '^[0-9]*$') {
         return $null
     }
@@ -1205,7 +1205,7 @@ function Write-NSLease {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [AllowEmptyString()][string]$SessionId,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [Parameter(Mandatory = $true)][int]$Generation,
         [AllowEmptyString()][string]$Nonce,
         [AllowEmptyString()][string]$ProcessId,
@@ -1238,7 +1238,7 @@ function Claim-NSInitialLease {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [Parameter(Mandatory = $true)][string]$SessionId,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$Start = ''
     )
@@ -1279,7 +1279,7 @@ function Takeover-NSLease {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [AllowEmptyString()][string]$SessionId = '',
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName
     )
     $mutex = Enter-NSMutex $NightshiftDir '.lease-lock.d'
     if ($null -eq $mutex) {
@@ -1313,7 +1313,7 @@ function Takeover-NSLease {
 function Test-NSLeaseNonce {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$Nonce,
         [AllowEmptyString()][string]$Generation
     )
@@ -1329,7 +1329,7 @@ function Bind-NSLeaseSession {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [Parameter(Mandatory = $true)][string]$SessionId,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [Parameter(Mandatory = $true)][string]$Nonce,
         [Parameter(Mandatory = $true)][string]$Generation
     )
@@ -1356,7 +1356,7 @@ function Bind-NSLeaseSession {
 function Attach-NSLeaseProcess {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [Parameter(Mandatory = $true)][string]$Nonce,
         [Parameter(Mandatory = $true)][string]$Generation,
         [Parameter(Mandatory = $true)][string]$ProcessId,
@@ -1415,7 +1415,7 @@ function Test-NSLeaseAllows {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
         [AllowEmptyString()][string]$SessionId,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$Start = '',
         [AllowEmptyString()][string]$Nonce = '',
@@ -1853,7 +1853,7 @@ function New-NSShiftDecision {
 function Resolve-NSShiftUnbound {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$Nonce = '',
         [AllowEmptyString()][string]$Generation = '',
         [bool]$Revival = $false,
@@ -1875,7 +1875,7 @@ function Resolve-NSShiftUnbound {
 function Resolve-NSShiftRebind {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$SessionId = '',
         [AllowEmptyString()][string]$Transcript = '',
         [AllowEmptyString()][string]$ProcessId = '',
@@ -1929,7 +1929,7 @@ function Resolve-NSShiftRebind {
 function Resolve-NSShiftAuthorize {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$SessionId = '',
         [AllowEmptyString()][string]$ProcessId = '',
         [AllowEmptyString()][string]$ProcessStart = '',
@@ -1997,7 +1997,7 @@ function Resolve-NSShiftAuthorize {
 function Resolve-NSShiftOwnership {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
-        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex')][string]$HostName,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
         [AllowEmptyString()][string]$SessionId = '',
         [AllowEmptyString()][string]$Transcript = '',
         [AllowEmptyString()][string]$ProcessId = '',

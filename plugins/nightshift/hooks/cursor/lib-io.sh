@@ -79,6 +79,15 @@ cursor_emit_release() {
   :
 }
 
+# cursor_emit_prompt_block <reason> — documented beforeSubmitPrompt denial.
+cursor_emit_prompt_block() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -nc --arg r "$1" '{continue:false,user_message:$r}'
+  else
+    printf '{"continue":false,"user_message":"%s"}\n' "$(_cursor_json_escape "$1")"
+  fi
+}
+
 # cursor_emit_deny <reason> — documented preToolUse denial.
 cursor_emit_deny() {
   if command -v jq >/dev/null 2>&1; then

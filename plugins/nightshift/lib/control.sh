@@ -174,6 +174,7 @@ ns_control_drop_runtime_markers() { # <ns>
   ns_control_drop "$ns/.ended"
   ns_control_drop "$ns/.session-end"
   ns_control_drop "$ns/.shift-session"
+  ns_control_drop "$ns/.shift-worker"
   ns_control_drop "$ns/.stall"
   ns_control_drop "$ns/.notified"
   ns_control_drop "$ns/.watchman-tick"

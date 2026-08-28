@@ -163,6 +163,7 @@ if ($Receipts -or (Test-Path -LiteralPath $receiptRepo -PathType Container)) {
         '.session-end',
         '.shift-session',
         '.shift-session.tmp.*',
+        '.shift-worker',
         '.shift-lease',
         '.shift-lease.tmp.*',
         '.mutex-scope',

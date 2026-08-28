@@ -419,15 +419,20 @@ ns_shift_rebind() { # <host> <pid> <start> <mode:hardhat|gate>
 # shellcheck disable=SC2034
 ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   local host="$1" pid="$2" start="$3" mode="$4"
-  local rec session_pid lease_scope check_sid lease_rc transcript
+  local rec session_pid lease_scope check_sid lease_rc transcript worker
   : "${LEASE_NONCE:=}" "${LEASE_GENERATION:=}"
   NS_SHIFT_FAIL=""
   rec="${NS_SHIFT_REC:-$(ns_session_line "$NS" 1)}"
 
   lease_scope=""
   if ns_lease_valid "$NS"; then lease_scope="$NS_LEASE_SID"; fi
+  worker=""
+  if [ "$host" = cursor ]; then
+    worker="$(ns_cursor_worker_id "$NS")"
+  fi
   if [ -n "$rec" ] && [ -n "${SID:-}" ] && [ "$SID" != "$rec" ] \
-    && [ "$SID" != "$lease_scope" ] && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
+    && [ "$SID" != "$lease_scope" ] && [ "$SID" != "$worker" ] \
+    && [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ]; then
     return 1
   fi
 
@@ -654,4 +659,59 @@ ns_codex_identity_kind() {
   fi
   printf 'unsupported'
   return 1
+}
+
+# Cursor CLI worker — the resumable id in ~/.cursor/chats. The origin IDE conversation
+# stays on .shift-session; this file is the id agent --resume may legally receive.
+ns_cursor_worker_present() { # <ns>
+  [ -f "$1/.shift-worker" ] && [ ! -L "$1/.shift-worker" ]
+}
+
+ns_cursor_worker_id() { # <ns>
+  ns_cursor_worker_present "$1" || return 0
+  sed -n 1p "$1/.shift-worker" 2>/dev/null
+}
+
+ns_cursor_worker_write() { # <ns> <cli_id>
+  local ns="$1" id="$2" tmp
+  [ -d "$ns" ] && [ -n "$id" ] || return 1
+  ns_lease_safe_line "$id" || return 1
+  case "$id" in
+    *[[:space:]/\\\$\`\;\|\&\<\>\*]*) return 1 ;;
+  esac
+  tmp="$ns/.shift-worker.tmp.$$.$RANDOM"
+  (umask 077; printf '%s\n' "$id" >"$tmp") || { rm -f "$tmp"; return 1; }
+  [ -L "$ns/.shift-worker" ] && rm -f "$ns/.shift-worker"
+  mv -f "$tmp" "$ns/.shift-worker"
+}
+
+ns_cursor_store_kind() { # <transcript-path>
+  case "$1" in
+    */agent-transcripts/*) printf 'ide' ;;
+    */.cursor/chats/* | */.cursor/chats) printf 'cli' ;;
+    *) printf 'unknown' ;;
+  esac
+}
+
+# Origin IDE tab while a different CLI worker holds the shift.
+ns_cursor_stale_origin() { # <ns> <sid>
+  local rec worker
+  rec="$(ns_session_line "$1" 1)"
+  worker="$(ns_cursor_worker_id "$1")"
+  [ -n "$rec" ] && [ -n "$worker" ] && [ -n "${2:-}" ] \
+    && [ "$2" = "$rec" ] && [ "$2" != "$worker" ]
+}
+
+ns_cursor_resume_command() { # <ns> <workspace>
+  local worker workspace
+  worker="$(ns_cursor_worker_id "$1")"
+  workspace="$2"
+  [ -n "$worker" ] && [ -n "$workspace" ] || return 1
+  printf 'agent --resume="%s" --workspace "%s"' "$worker" "$workspace"
+}
+
+ns_cursor_pointer_message() { # <ns> <workspace>
+  local cmd
+  cmd="$(ns_cursor_resume_command "$1" "$2")" || return 1
+  printf 'BLOCKED: this shift continued in a recovered CLI session. Attach with: %s' "$cmd"
 }

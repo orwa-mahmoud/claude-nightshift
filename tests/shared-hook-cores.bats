@@ -64,12 +64,15 @@ CODEX_HOOKS="$HOOKS/codex"
   LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
   CLAUDE_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/claude/watchman.sh"
   CODEX_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
+  CURSOR_WM="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/cursor/watchman.sh"
   grep -qF 'ns_watchman_run_child() {' "$LIB_DIR"/*.sh
   grep -qF 'ns_watchman_clockout_pending() {' "$LIB_DIR"/*.sh
   grep -qF 'ns_watchman_run_child' "$CLAUDE_WM"
   grep -qF 'ns_watchman_run_child' "$CODEX_WM"
+  grep -qF 'ns_watchman_run_child' "$CURSOR_WM"
   grep -qF 'ns_watchman_clockout_pending' "$CLAUDE_WM"
   grep -qF 'ns_watchman_clockout_pending' "$CODEX_WM"
+  grep -qF 'ns_watchman_clockout_pending' "$CURSOR_WM"
 }
 
 @test "host protocols remain in their wrappers" {

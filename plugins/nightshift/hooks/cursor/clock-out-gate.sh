@@ -175,6 +175,10 @@ fi
 if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" cursor || true
 fi
+if ns_cursor_stale_origin "$NS" "${SID:-}"; then
+  cursor_emit_release
+  exit 0
+fi
 ns_shift_ownership cursor "" "" gate
 own_rc=$?
 if [ "$own_rc" -eq 1 ]; then

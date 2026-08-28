@@ -28,6 +28,15 @@ cursor_session_end() {
   [ ! -f "$p/.nightshift/.session-end" ]
 }
 
+@test "cursor session-end ignores the origin tab once a CLI worker is recorded" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'origin-ide\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  printf 'live-cli-worker\n' >"$p/.nightshift/.shift-worker"
+  cursor_session_end "$p" origin-ide user_close
+  [ ! -f "$p/.nightshift/.session-end" ]
+}
+
 @test "cursor session-end is inert while the shift is unarmed" {
   p="$(new_project)"
   punch_open "$p"
