@@ -117,6 +117,7 @@ new_artifact() {
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$COMMANDS"
   grep -qF 'runtime\windows\archive-receipts.ps1' "$COMMANDS"
   grep -qF 'runtime/archive-receipts.sh' "$HOW"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$HOW"
   [ -f "$ARCHIVE_PS1" ]
   grep -qF 'Get-NSReceiptsDir' "$ARCHIVE_PS1"
   grep -qF "StartsWith('.')" "$ARCHIVE_PS1"

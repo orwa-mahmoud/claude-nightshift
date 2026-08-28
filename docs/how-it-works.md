@@ -374,7 +374,7 @@ file identity (bytes, SHA-256, mtime). Missing or empty outputs are refused. The
 treats a new receipt like a commit; Doctor reports `artifact receipts N` and, when any exist,
 `latest artifact receipt` with the filename only of the most recently written receipt, and warns when ticked items have no receipts;
 Archive copies receipts with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
-into the dated folder and leaves the live files in place. Repository mode still requires a
+into the dated folder and leaves the live files in place. Missing or empty receipts create no dated receipts folder. Repository mode still requires a
 work-target git commit.
 
 Cited reports in that folder follow `cited-research.md` and
