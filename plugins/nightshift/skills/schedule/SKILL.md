@@ -36,6 +36,7 @@ to set up on Codex). Nothing below is meaningful without it.
 Read `$NS/work-mode`. Artifact mode is a persistent folder, not a Git repository; the scheduled
 agent still starts in that work target. A malformed mode or a scratch work target is a refuse —
 fix it with Setup before installing a job. In artifact mode, refuse to print or install a job when `$NS/receipts` exists but is not a usable directory.
+If `$NS/work-mode` is missing and Setup would propose artifact, refuse to print or install a job; a scheduled start will refuse to arm.
 
 ## 2. Is there work queued?
 

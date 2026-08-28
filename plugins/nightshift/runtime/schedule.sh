@@ -139,10 +139,18 @@ show_registered() {
 }
 
 # Artifact notes-folder nights cannot land receipts through a planted path.
-# Return: 0 ok · 1 unusable receipts path · 2 malformed work-mode
+# Missing work-mode still reads as repository; a folder Setup would propose as
+# artifact must not get a printed job that Start will refuse.
+# Return: 0 ok · 1 unusable receipts path · 2 malformed work-mode · 3 unset artifact proposal
 check_artifact_receipts() {
-  local mode recv
+  local mode recv proposed
   if mode="$(ns_work_mode "$PROJECT" 2>/dev/null)"; then
+    if [ ! -s "$PROJECT/.nightshift/work-mode" ]; then
+      proposed="$(ns_propose_work_mode "$PROJECT" 2>/dev/null)" || proposed=""
+      if [ "$proposed" = artifact ]; then
+        return 3
+      fi
+    fi
     if [ "$mode" = artifact ]; then
       recv="$(ns_receipts_dir "$PROJECT")"
       if [ -e "$recv" ] || [ -L "$recv" ]; then
@@ -207,6 +215,9 @@ if [ "$MODE" = "preflight" ]; then
     fail=1
   elif [ "$_recv_rc" -eq 2 ]; then
     pf "FAIL work-mode is malformed"
+    fail=1
+  elif [ "$_recv_rc" -eq 3 ]; then
+    pf "FAIL work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm"
     fail=1
   fi
 
@@ -387,6 +398,9 @@ if [ "$_recv_rc" -eq 1 ]; then
   exit 1
 elif [ "$_recv_rc" -eq 2 ]; then
   printf 'schedule: work-mode is malformed\n' >&2
+  exit 1
+elif [ "$_recv_rc" -eq 3 ]; then
+  printf 'schedule: work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm\n' >&2
   exit 1
 fi
 

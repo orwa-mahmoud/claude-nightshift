@@ -3,10 +3,15 @@ load helpers
 SCHED="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/schedule.sh"
 WIN="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
 
+persist_artifact() {
+  printf 'artifact\n' >"$1/.nightshift/work-mode"
+}
+
 setup() {
   P="$BATS_TEST_TMPDIR/proj"
   mkdir -p "$P/.nightshift"
   printf '## Items\n- [ ] **1. real work.**\n' >"$P/.nightshift/punch-list.md"
+  persist_artifact "$P"
 }
 
 @test "refuses a project with no .nightshift" {
@@ -46,6 +51,7 @@ setup() {
 @test "generated entries safely quote spaced paths and escape launchd XML" {
   p="$BATS_TEST_TMPDIR/project with spaces & ampersand"
   mkdir -p "$p/.nightshift"
+  persist_artifact "$p"
   printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
   run "$SCHED" --project "$p" --at 04:05 --agent "codex exec -a never"
   [ "$status" -eq 0 ]
@@ -144,6 +150,7 @@ STUB
   a="$BATS_TEST_TMPDIR/a/api"; b="$BATS_TEST_TMPDIR/b/api"
   for d in "$a" "$b"; do
     mkdir -p "$d/.nightshift"
+    persist_artifact "$d"
     printf '## Items\n- [ ] **1. work.**\n' >"$d/.nightshift/punch-list.md"
   done
   ida="$("$SCHED" --project "$a" --at 04:05 | grep -o 'com.nightshift.[A-Za-z0-9-]*\|# nightshift:[A-Za-z0-9-]*' | head -1)"
@@ -165,6 +172,7 @@ STUB
   grep -qi 'cannot answer a prompt' "$s"     # headless permissions
   grep -qi 'install nothing' "$s"            # generator, never a daemon
   grep -qF 'exists but is not a usable directory' "$s"
+  grep -qF 'Setup would propose artifact, refuse to print or install a job' "$s"
 
   perms="$(awk '/^## 3\./ { capture=1; next } /^## 4\./ { exit } capture' "$s")"
   printf '%s\n' "$perms" | grep -qF -- "--agent 'codex exec -s danger-full-access'"
@@ -231,6 +239,7 @@ STUB
 # One generator serves both hosts: the entry's runner is a parameter, defaulting to Claude's.
 @test "--agent swaps the headless runner in the generated entry" {
   p="$BATS_TEST_TMPDIR/proj"; mkdir -p "$p/.nightshift"
+  persist_artifact "$p"
   run "$SCHED" --project "$p" --at 04:05 --agent "codex exec -s danger-full-access"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF "codex exec -s danger-full-access '/nightshift:start'"
@@ -239,6 +248,7 @@ STUB
 
 @test "the default runner stays claude -p" {
   p="$BATS_TEST_TMPDIR/proj2"; mkdir -p "$p/.nightshift"
+  persist_artifact "$p"
   run "$SCHED" --project "$p" --at 04:05
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF "claude -p '/nightshift:start'"
@@ -309,6 +319,35 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'ns_receipts_usable_dir' "$SCHED"
 }
 
+@test "--preflight fails when work mode is unset and Setup would propose artifact" {
+  w="$BATS_TEST_TMPDIR/notes-unset-sched"
+  mkdir -p "$w/.nightshift" "$w/research"
+  cp "$RULES_TEMPLATE" "$w/.nightshift/rules.json"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$w/.nightshift/punch-list.md"
+  printf 'notes\n' >"$w/research/topic.md"
+  run "$SCHED" --project "$w" --preflight
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'
+  printf '%s' "$output" | grep -qF 'a scheduled start will refuse to arm'
+}
+
+@test "generate refuses when work mode is unset and Setup would propose artifact" {
+  w="$BATS_TEST_TMPDIR/notes-unset-gen"
+  mkdir -p "$w/.nightshift" "$w/research"
+  printf '## Items\n- [ ] **1. real work.**\n' >"$w/.nightshift/punch-list.md"
+  printf 'notes\n' >"$w/research/topic.md"
+  run "$SCHED" --project "$w" --at 04:05
+  [ "$status" -eq 1 ]
+  printf '%s' "$output$stderr" | grep -qF 'work mode is unset; Setup would propose artifact'
+}
+
+@test "Windows schedule names an unset artifact proposal" {
+  grep -qF 'work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm' "$SCHED"
+  grep -qF 'work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm' "$WIN"
+  grep -qF '3 unset artifact proposal' "$SCHED"
+  grep -qF '3 unset artifact proposal' "$WIN"
+}
+
 @test "--preflight fails closed on an empty punch list" {
   cp "$RULES_TEMPLATE" "$P/.nightshift/rules.json"
   printf '## Items\n' >"$P/.nightshift/punch-list.md"
@@ -357,6 +396,7 @@ EOF
 @test "--preflight covers spaced paths and a linked workspace" {
   ws="$BATS_TEST_TMPDIR/workspace with spaces"
   mkdir -p "$ws/.nightshift"
+  persist_artifact "$ws"
   cp "$RULES_TEMPLATE" "$ws/.nightshift/rules.json"
   printf '## Items\n- [ ] **1. real work.**\n' >"$ws/.nightshift/punch-list.md"
   host="$BATS_TEST_TMPDIR/host with spaces"
@@ -385,6 +425,7 @@ EOF
 @test "systemd target prints units and never runs systemctl" {
   p="$BATS_TEST_TMPDIR/unit proj %percent"
   mkdir -p "$p/.nightshift"
+  persist_artifact "$p"
   printf '## Items\n- [ ] **1. real work.**\n' >"$p/.nightshift/punch-list.md"
   home="$BATS_TEST_TMPDIR/sdhome"
   mkdir -p "$home"
@@ -407,6 +448,7 @@ EOF
   a="$BATS_TEST_TMPDIR/a/api"; b="$BATS_TEST_TMPDIR/b/api"
   for d in "$a" "$b"; do
     mkdir -p "$d/.nightshift"
+    persist_artifact "$d"
     printf '## Items\n- [ ] **1. work.**\n' >"$d/.nightshift/punch-list.md"
   done
   ida="$("$SCHED" --project "$a" --at 04:05 --target systemd | sed -n 's/.*nightshift-\([^ ]*\)\.timer.*/\1/p' | head -1)"
@@ -420,6 +462,7 @@ EOF
 @test "systemd generate refuses a second installed unit and invalid targets" {
   p="$BATS_TEST_TMPDIR/sdproj"
   mkdir -p "$p/.nightshift"
+  persist_artifact "$p"
   printf '## Items\n- [ ] **1. work.**\n' >"$p/.nightshift/punch-list.md"
   home="$BATS_TEST_TMPDIR/sdhome2"
   run env HOME="$home" XDG_CONFIG_HOME="$home/.config" \

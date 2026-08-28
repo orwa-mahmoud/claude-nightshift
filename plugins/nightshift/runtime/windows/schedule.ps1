@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
-# 0 ok · 1 unusable receipts path · 2 malformed work-mode
+# 0 ok · 1 unusable receipts path · 2 malformed work-mode · 3 unset artifact proposal
 function Test-NSScheduleArtifactReceipts {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     try {
@@ -23,6 +23,16 @@ function Test-NSScheduleArtifactReceipts {
     }
     catch {
         return 2
+    }
+    $modeRecord = Join-Path $Workspace '.nightshift/work-mode'
+    if (-not (Test-Path -LiteralPath $modeRecord -PathType Leaf)) {
+        try {
+            if ((Get-NSProposedWorkMode $Workspace) -eq 'artifact') {
+                return 3
+            }
+        }
+        catch {
+        }
     }
     if ($mode -eq 'artifact') {
         $recv = Get-NSReceiptsDir $Workspace
@@ -209,6 +219,10 @@ if ($Preflight) {
         $failures.Add('work-mode is malformed')
         'FAIL work-mode is malformed'
     }
+    elseif ($recvRc -eq 3) {
+        $failures.Add('work mode is unset; Setup would propose artifact')
+        'FAIL work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
+    }
     $rules = Get-NSRulesObject $workspace
     if ($null -eq $rules) {
         $failures.Add('rules.json is unreadable or is not a JSON object')
@@ -343,6 +357,9 @@ if ($recvRc -eq 1) {
 }
 if ($recvRc -eq 2) {
     throw 'schedule: work-mode is malformed'
+}
+if ($recvRc -eq 3) {
+    throw 'schedule: work mode is unset; Setup would propose artifact - a scheduled start will refuse to arm'
 }
 
 if ($AsJson) {
