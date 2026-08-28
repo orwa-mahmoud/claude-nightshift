@@ -11,6 +11,19 @@ $hostExecutable = (Get-Process -Id $PID).Path
 $failures = New-Object 'System.Collections.Generic.List[string]'
 $onWin32 = [Environment]::OSVersion.Platform -eq 'Win32NT'
 
+function New-ReparseDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Target
+    )
+    if ($onWin32) {
+        $null = New-Item -ItemType Junction -Path $Path -Target $Target
+    }
+    else {
+        $null = New-Item -ItemType SymbolicLink -Path $Path -Target $Target
+    }
+}
+
 function Expect-True {
     param([bool]$Condition, [string]$Message)
     if (-not $Condition) {
@@ -245,6 +258,24 @@ try {
         Expect-True ((Get-NSReceiptsFingerprint $symlinkCase) -eq $fpBefore) `
             'symlink receipt is not in the stall fingerprint'
     }
+
+    $linkWrite = Join-Path $root 'link-write-notes'
+    $linkWriteNs = Join-Path $linkWrite '.nightshift'
+    $outsideRecv = Join-Path $root 'outside-recv'
+    $null = New-Item -ItemType Directory -Path $linkWriteNs, $outsideRecv -Force
+    [IO.File]::WriteAllText((Join-Path $linkWriteNs 'work-mode'), "artifact`n")
+    New-ReparseDirectory (Join-Path $linkWriteNs 'receipts') $outsideRecv
+    $linkOut = Join-Path $linkWrite 'out.md'
+    [IO.File]::WriteAllText($linkOut, "ok`n")
+    $blocked = Invoke-WriteReceipt $linkWrite @(
+        '-Item', 'x', '-Verify', 'ok', '-Output', $linkOut
+    )
+    Expect-True ($blocked.ExitCode -eq 2) "symlink receipts dir exits 2 (got $($blocked.ExitCode) $($blocked.Stderr))"
+    Expect-True (@(Get-ChildItem -LiteralPath $outsideRecv -File -Force -ErrorAction SilentlyContinue).Count -eq 0) `
+        'does not write through a reparse receipts path'
+    Expect-True ((Get-NSReceiptsCount $linkWrite) -eq 0) 'symlink receipts dir is not counted'
+    Expect-True ($null -eq (Get-NSLatestReceipt $linkWrite)) 'symlink receipts dir is not latest'
+    Expect-True ((Get-NSReceiptsFingerprint $linkWrite) -eq 'none') 'symlink receipts dir has no stall fingerprint'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

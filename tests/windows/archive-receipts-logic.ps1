@@ -163,6 +163,18 @@ try {
     Expect-True ($refused.ExitCode -eq 2) "symlink archive path exits 2 (got $($refused.ExitCode) $($refused.Stderr))"
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $outside 'receipts/20260101T000000Z-real.md'))) `
         'does not write through a reparse archive path'
+
+    $srcLinked = Join-Path $root 'src-link-notes'
+    $srcLinkedNs = Join-Path $srcLinked '.nightshift'
+    $srcOutside = Join-Path $root 'src-outside'
+    $null = New-Item -ItemType Directory -Path $srcLinkedNs, $srcOutside -Force
+    [IO.File]::WriteAllText((Join-Path $srcLinkedNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $srcOutside '20260101T000000Z-real.md'), "real`n")
+    New-ReparseDirectory (Join-Path $srcLinkedNs 'receipts') $srcOutside
+    $srcRefused = Invoke-ArchiveReceipts $srcLinked @('-Date', '2026-08-28')
+    Expect-True ($srcRefused.ExitCode -eq 2) "symlink receipts dir exits 2 (got $($srcRefused.ExitCode) $($srcRefused.Stderr))"
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $srcLinkedNs 'archive/2026-08-28/receipts'))) `
+        'does not copy through a reparse receipts path'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

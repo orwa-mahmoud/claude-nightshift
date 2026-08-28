@@ -106,6 +106,16 @@ new_artifact() {
   [ ! -e "$p/outside/receipts/20260101T000000Z-real.md" ]
 }
 
+@test "archive-receipts refuses a symlink receipts directory" {
+  p="$(new_artifact symlink-recv-src)"
+  mkdir -p "$p/outside"
+  printf 'real\n' >"$p/outside/20260101T000000Z-real.md"
+  ln -s "$p/outside" "$p/.nightshift/receipts"
+  run bash "$ARCHIVE_SH" --project "$p" --date 2026-08-28
+  [ "$status" -eq 2 ]
+  [ ! -d "$p/.nightshift/archive/2026-08-28/receipts" ]
+}
+
 @test "Archive skill names the receipts helper on POSIX and Windows" {
   grep -qF 'runtime/archive-receipts.sh' "$ARCHIVE_SKILL"
   grep -qF 'runtime\windows\archive-receipts.ps1' "$ARCHIVE_SKILL"
@@ -121,6 +131,8 @@ new_artifact() {
   [ -f "$ARCHIVE_PS1" ]
   grep -qF 'Get-NSReceiptsDir' "$ARCHIVE_PS1"
   grep -qF "StartsWith('.')" "$ARCHIVE_PS1"
+  grep -qF 'symlink receipts path' "$ARCHIVE_SH"
+  grep -qF 'symlink receipts path' "$ARCHIVE_PS1"
 }
 
 @test "Windows archive-receipts logic passes when pwsh is present" {
@@ -132,6 +144,7 @@ new_artifact() {
   grep -qF 'does not copy a hidden file' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy a symlink receipt' "$ARCHIVE_LOGIC"
   grep -qF 'does not write through a reparse archive path' "$ARCHIVE_LOGIC"
+  grep -qF 'does not copy through a reparse receipts path' "$ARCHIVE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
   fi

@@ -348,6 +348,12 @@ function Get-NSReceiptsDir {
     return (Join-Path $Workspace '.nightshift/receipts')
 }
 
+function Test-NSUsableReceiptsDir {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $dir = Get-NSReceiptsDir $Workspace
+    return ((Test-Path -LiteralPath $dir -PathType Container) -and -not (Test-NSReparsePoint $dir))
+}
+
 function Get-NSFileSha256 {
     param([Parameter(Mandatory = $true)][string]$Path)
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -369,7 +375,7 @@ function Get-NSReceiptSlug {
 function Get-NSReceiptsCount {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     $dir = Get-NSReceiptsDir $Workspace
-    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+    if (-not (Test-NSUsableReceiptsDir $Workspace)) {
         return 0
     }
     return @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
@@ -382,7 +388,7 @@ function Get-NSReceiptsCount {
 function Get-NSLatestReceipt {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     $dir = Get-NSReceiptsDir $Workspace
-    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+    if (-not (Test-NSUsableReceiptsDir $Workspace)) {
         return $null
     }
     $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |
@@ -414,7 +420,7 @@ function Get-NSLatestReceipt {
 function Get-NSReceiptsFingerprint {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     $dir = Get-NSReceiptsDir $Workspace
-    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+    if (-not (Test-NSUsableReceiptsDir $Workspace)) {
         return 'none'
     }
     $files = @(Get-ChildItem -LiteralPath $dir -File -Force -ErrorAction SilentlyContinue |

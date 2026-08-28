@@ -51,6 +51,10 @@ if ($Date -notmatch '^\d{4}-\d{2}-\d{2}$') {
 
 $src = Get-NSReceiptsDir $workspace
 $dest = Join-Path $ns "archive/$Date/receipts"
+if ((Test-Path -LiteralPath $src) -and (Test-NSReparsePoint $src)) {
+    Write-NSArchiveReceiptsError 'archive-receipts: refuse to write through a symlink receipts path'
+    exit 2
+}
 foreach ($p in @((Join-Path $ns 'archive'), (Join-Path $ns "archive/$Date"), $dest)) {
     if (Test-Path -LiteralPath $p) {
         $item = Get-Item -LiteralPath $p -Force

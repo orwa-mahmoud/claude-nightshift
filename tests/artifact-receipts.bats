@@ -196,6 +196,30 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-real.md'
 }
 
+@test "receipts helpers ignore a symlink receipts directory" {
+  a="$(new_artifact symlink-recv-dir)"
+  mkdir -p "$a/outside"
+  printf 'ok\n' >"$a/outside/20260101T000000Z-outside.md"
+  ln -s "$a/outside" "$a/.nightshift/receipts"
+  ! bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a"
+  [ "$(bash -c '. "$1"; ns_receipts_count "$2"' _ "$LIB" "$a")" = 0 ]
+  [ "$(bash -c '. "$1"; ns_receipts_fingerprint "$2"' _ "$LIB" "$a")" = none ]
+  run bash "$DOCTOR" --project "$a"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'artifact receipts 0'
+}
+
+@test "write-receipt refuses a symlink receipts directory" {
+  p="$(new_artifact write-symlink-recv)"
+  printf 'ok\n' >"$p/out/topic.md"
+  mkdir -p "$p/outside"
+  ln -s "$p/outside" "$p/.nightshift/receipts"
+  run bash "$WRITE" --project "$p" --item 'x' --verify 'ok' --output "$p/out/topic.md"
+  [ "$status" -eq 2 ]
+  n="$(find "$p/outside" -type f ! -name '.*' | wc -l | tr -d ' ')"
+  [ "$n" = 0 ]
+}
+
 @test "receipts helpers ignore files nested under receipts/" {
   a="$(new_artifact nested-receipts)"
   mkdir -p "$a/.nightshift/receipts/nested"
@@ -342,6 +366,8 @@ new_artifact() {
 
 @test "Windows helpers pair the same receipt and stall token" {
   grep -qF 'function Get-NSReceiptsDir' "$PSM1"
+  grep -qF 'function Test-NSUsableReceiptsDir' "$PSM1"
+  grep -qF 'ns_receipts_usable_dir' "$STATE"
   grep -qF 'function Get-NSReceiptsCount' "$PSM1"
   grep -qF 'function Get-NSLatestReceipt' "$PSM1"
   grep -qF 'LastWriteTimeUtc.Ticks' "$PSM1"
@@ -362,6 +388,8 @@ new_artifact() {
   grep -qF 'Get-NSWorkMode' "$WRITE_PS1"
   grep -qF 'exit 3' "$WRITE_PS1"
   grep -qF 'exit 2' "$WRITE_PS1"
+  grep -qF 'symlink receipts path' "$WRITE"
+  grep -qF 'symlink receipts path' "$WRITE_PS1"
 }
 
 @test "Windows write-receipt logic passes when pwsh is present" {
@@ -373,6 +401,7 @@ new_artifact() {
   grep -qF 'symlink receipt is not latest' "$WRITE_LOGIC"
   grep -qF 'nested receipt is not counted' "$WRITE_LOGIC"
   grep -qF 'nested receipt is not latest' "$WRITE_LOGIC"
+  grep -qF 'does not write through a reparse receipts path' "$WRITE_LOGIC"
   grep -qF 'artifact mode has ticked items but no receipts' "$WRITE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0

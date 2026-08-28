@@ -134,7 +134,15 @@ foreach ($raw in $outputs) {
 }
 
 $dir = Get-NSReceiptsDir $workspace
+if ((Test-Path -LiteralPath $dir) -and (Test-NSReparsePoint $dir)) {
+    Write-NSReceiptError 'write-receipt: refuse to write through a symlink receipts path'
+    exit 2
+}
 $null = New-Item -ItemType Directory -Path $dir -Force
+if (Test-NSReparsePoint $dir) {
+    Write-NSReceiptError 'write-receipt: refuse to write through a symlink receipts path'
+    exit 2
+}
 $stamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
 $slug = Get-NSReceiptSlug $Item
 $dest = Join-Path $dir "$stamp-$slug.md"

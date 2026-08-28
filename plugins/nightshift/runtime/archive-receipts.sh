@@ -73,6 +73,10 @@ esac
 
 src="$(ns_receipts_dir "$WORKSPACE")"
 dest="$NS/archive/$DATE/receipts"
+if [ -L "$src" ]; then
+  printf 'archive-receipts: refuse to write through a symlink receipts path\n' >&2
+  exit 2
+fi
 if [ -L "$NS/archive" ] || [ -L "$NS/archive/$DATE" ] || [ -L "$dest" ]; then
   printf 'archive-receipts: refuse to write through a symlink archive path\n' >&2
   exit 2

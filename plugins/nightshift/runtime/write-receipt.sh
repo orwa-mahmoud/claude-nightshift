@@ -132,7 +132,15 @@ EOF
 }
 
 dir="$(ns_receipts_dir "$WORKSPACE")"
+if [ -L "$dir" ]; then
+  printf 'write-receipt: refuse to write through a symlink receipts path\n' >&2
+  exit 2
+fi
 mkdir -p "$dir" || exit 1
+if [ -L "$dir" ]; then
+  printf 'write-receipt: refuse to write through a symlink receipts path\n' >&2
+  exit 2
+fi
 stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
 slug="$(ns_receipt_slug "$ITEM")"
 dest="$dir/${stamp}-${slug}.md"
