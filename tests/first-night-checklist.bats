@@ -24,6 +24,7 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF 'runtime/windows/archive-receipts.ps1' "$CHECKLIST"
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$CHECKLIST"
   grep -qF 'most recently written' "$CHECKLIST"
+  grep -qF 'artifact receipts path is not a usable directory' "$CHECKLIST"
 }
 
 @test "first-night checklist relative links resolve" {
@@ -42,6 +43,7 @@ CHECKLIST="$BATS_TEST_DIRNAME/../docs/first-night-checklist.md"
   grep -qF 'runtime/archive-receipts.sh' "$README"
   grep -qF 'runtime/windows/archive-receipts.ps1' "$README"
   grep -qF 'Missing or empty receipts create no dated receipts folder' "$README"
+  grep -qF 'artifact receipts path is not a usable directory' "$README"
   how="$BATS_TEST_DIRNAME/../docs/how-it-works.md"
   grep -qF 'First run attended' "$how"
   grep -qF 'persistent folder' "$how"

@@ -33,7 +33,7 @@ Use this once before leaving Nightshift unattended in a project.
   [recovery handoff and upstream limitation](how-it-works.md#reopening-a-revived-thread).
 - **Leave pushing for morning.** Keep the default local-only commits, review the diff and receipts,
   then push or open a pull request yourself. In artifact mode there is no work-target git history:
-  review `$NS/receipts/` instead (Doctor names the most recently written file). Archive copies those
+  review `$NS/receipts/` instead (Doctor names the most recently written file). Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Archive copies those
   files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
   into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder.
 

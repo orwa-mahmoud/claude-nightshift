@@ -386,6 +386,7 @@ new_artifact() {
   grep -qF 'Do not `git init` a notes folder' "$WINDOC"
   grep -qF 'artifact receipts' "$README"
   grep -qF 'Doctor names the most recently written file' "$README"
+  grep -qF 'artifact receipts path is not a usable directory' "$README"
   grep -qF 'reviewable commits or artifact receipts' "$CODEX_PLUGIN"
   grep -qF 'Git repository or a local folder' "$CODEX_PLUGIN"
 }
