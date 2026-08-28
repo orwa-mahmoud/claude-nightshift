@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clock-out-gate.sh — Codex Stop hook. Same decisions as Claude's gate, in the same order;
+# clock-out-gate.sh — Cursor stop hook. Same decisions as Claude's gate, in the same order;
 # only the wire format differs, and that lives entirely in lib-io.sh.
 #
 # The punch list is the only truth. Release order on every stop attempt:
@@ -23,22 +23,22 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 . "$_here/../../lib/lib.sh" # pure-bash path: no dirname, so a hostile PATH cannot unsource the helpers
 # shellcheck source=plugins/nightshift/hooks/shared/gate-core.sh
 . "$_here/../shared/gate-core.sh"
-# shellcheck source=plugins/nightshift/hooks/codex/lib-io.sh
+# shellcheck source=plugins/nightshift/hooks/cursor/lib-io.sh
 . "$_here/lib-io.sh"
 
-codex_read_input
-SID="$CODEX_SESSION_ID"
-TPATH="$CODEX_TRANSCRIPT_PATH"
+cursor_read_input "$@"
+SID="$CURSOR_SESSION_ID"
+TPATH="$CURSOR_TRANSCRIPT_PATH"
 
-HOST_DIR="$(codex_project_dir)"
+HOST_DIR="$(cursor_project_dir)"
 if ! PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)"; then
-  codex_emit_block "DO NOT STOP — .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
+  cursor_emit_block "DO NOT STOP — .nightshift-link is invalid. Open the correct project task or repair the explicit link to an absolute workspace containing .nightshift/."
   exit 0
 fi
 STATE_KIND="$(ns_state_kind "$PROJECT_DIR")"
 case "$STATE_KIND" in
   malformed | future)
-    codex_emit_block "DO NOT STOP — $(ns_state_refuse_message "$STATE_KIND")"
+    cursor_emit_block "DO NOT STOP — $(ns_state_refuse_message "$STATE_KIND")"
     exit 0
     ;;
 esac
@@ -136,44 +136,53 @@ honor_stop() {
   fi
 }
 
-# Codex cannot vouch for interactive process ancestry, so those record lines remain empty.
+# Cursor cannot vouch for interactive process ancestry, so those record lines remain empty.
 # A shift exists because the owner started one, never because a list exists. Nightshift Start
 # writes .shift-armed; without it the punch list is a to-do file and every session stops freely —
 # including the one that just wrote the list while planning.
-if [ ! -f "$NS/.shift-armed" ]; then codex_emit_release; exit 0; fi
+if [ ! -f "$NS/.shift-armed" ]; then cursor_emit_release; exit 0; fi
+
+# Owner interrupt — live Stop button sends status "aborted" (Cursor 3.17.21).
+# Same meaning as Claude Esc: release, do not reinject, do not clock out.
+# "error" is not owner-stop.
+if [ "${CURSOR_STOP_STATUS:-}" = "aborted" ]; then
+  cursor_emit_release
+  exit 0
+fi
+
 
 # STOP is an owner capability, not a worker capability. Any Stop event may carry an existing
 # owner-issued order through clock-out; process ownership must never make emergency stop unusable.
 if [ -f "$STOP" ]; then
   if [ -d "$NS" ] && ns_lock "$NS"; then trap 'ns_unlock "$NS"' EXIT; fi
   honor_stop
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 
 LEASE_NONCE="${NIGHTSHIFT_LEASE_NONCE:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
-ns_shift_unbound codex gate
+ns_shift_unbound cursor gate
 own_rc=$?
 if [ "$own_rc" -eq 1 ]; then
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 if [ "$own_rc" -eq 2 ]; then
-  codex_emit_block "$NS_SHIFT_FAIL"
+  cursor_emit_block "$NS_SHIFT_FAIL"
   exit 0
 fi
 if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
-  ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" codex || true
+  ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" cursor || true
 fi
-ns_shift_ownership codex "" "" gate
+ns_shift_ownership cursor "" "" gate
 own_rc=$?
 if [ "$own_rc" -eq 1 ]; then
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 if [ "$own_rc" -eq 2 ]; then
-  codex_emit_block "$NS_SHIFT_FAIL"
+  cursor_emit_block "$NS_SHIFT_FAIL"
   exit 0
 fi
 
@@ -187,19 +196,19 @@ fi
 # 1. Stop-work order — honor at once; open boxes are left open on purpose.
 if [ -f "$STOP" ]; then
   honor_stop
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 
 # 2. Done — no punch list at all, or every box ticked.
 if [ ! -f "$PUNCH" ]; then
   end_shift "shift done: $TICKED/$TOTAL"
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 if [ "$OPEN" -eq 0 ]; then
   end_shift "shift done: $TICKED/$TOTAL"
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 
@@ -208,7 +217,7 @@ if [ -f "$DEADLINE" ] && deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
   end_shift "quitting time: $TICKED/$TOTAL done, items left open"
-  codex_emit_release
+  cursor_emit_release
   exit 0
 fi
 
@@ -235,7 +244,7 @@ if [ "$STALL_OK" -eq 1 ]; then
       log_line "stalled — auto-ended, $attempts attempts no progress, $TICKED/$TOTAL done, items left open"
       printf 'stalled\n' >"$STOP"
       end_shift "stalled: $TICKED/$TOTAL done, $attempts attempts no progress"
-      codex_emit_release
+      cursor_emit_release
       exit 0
     fi
   elif [ "$attempts" -ge "$STALL_WARN" ]; then
@@ -245,7 +254,7 @@ if [ "$STALL_OK" -eq 1 ]; then
   [ -L "$STALL" ] && rm -f "$STALL"
   printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 else
-  log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
+  log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex or Cursor)"
 fi
 
 # 4. Block, and re-inject the contract so the next turn resumes the shift. The reinjection
@@ -253,8 +262,8 @@ fi
 # escapes it, so the owner's text cannot break the decision. The block itself never depends
 # on config: an unreadable message still blocks, fail closed, with the repair named.
 if [ -n "$GATE_MESSAGE" ]; then
-  codex_emit_block "$GATE_MESSAGE"
+  cursor_emit_block "$GATE_MESSAGE"
   exit 0
 fi
-codex_emit_block "$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
+cursor_emit_block "$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
 exit 0

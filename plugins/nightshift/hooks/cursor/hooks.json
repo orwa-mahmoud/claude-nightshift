@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/hardhat.sh",
+        "matcher": "Shell|Read|Write|Grep|Delete|Task|MCP:.*"
+      }
+    ],
+    "stop": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/clock-out-gate.sh",
+        "loop_limit": null
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/session-end.sh"
+      }
+    ]
+  }
+}

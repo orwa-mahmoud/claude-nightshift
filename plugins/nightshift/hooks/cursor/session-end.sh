@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# session-end.sh — Cursor sessionEnd hook. Owner interrupt / clean close mid-shift.
+#
+# Cursor documents reason: completed | aborted | error | window_close | user_close.
+# Owner hand on the door: aborted or user_close. Those write .session-end so a future
+# Cursor watchman (not shipped until resume-of-this-chat is proven) can stand down.
+# Inert outside an active shift. Never arms Claude or Codex watchmen.
+set -u
+
+_here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+# shellcheck source=plugins/nightshift/lib/lib.sh
+. "$_here/../../lib/lib.sh"
+# shellcheck source=plugins/nightshift/hooks/cursor/lib-io.sh
+. "$_here/lib-io.sh"
+
+[ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] || exit 0
+
+cursor_read_input "$@"
+HOST_DIR="$(cursor_project_dir)"
+PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || exit 0
+STATE_KIND="$(ns_state_kind "$PROJECT_DIR")"
+case "$STATE_KIND" in
+  malformed | future) exit 0 ;;
+esac
+NS="$PROJECT_DIR/.nightshift"
+PUNCH="$NS/punch-list.md"
+
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } \
+  || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
+  exit 0
+fi
+
+SID="${CURSOR_SESSION_ID:-}"
+REASON="${CURSOR_SESSION_END_REASON:-unknown}"
+
+if [ -f "$NS/.shift-session" ] && [ ! -L "$NS/.shift-session" ]; then
+  REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
+  [ -n "$REC" ] && [ -n "$SID" ] && [ "$SID" != "$REC" ] && exit 0
+  HOST_LINE="$(sed -n 5p "$NS/.shift-session" 2>/dev/null)"
+  [ -z "$HOST_LINE" ] || [ "$HOST_LINE" = "cursor" ] || exit 0
+fi
+
+case "$REASON" in
+  aborted | user_close) ;;
+  *) exit 0 ;;
+esac
+
+[ -L "$NS/.session-end" ] && rm -f "$NS/.session-end"
+printf '%s · clean session end (%s)\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$REASON" >"$NS/.session-end"
+exit 0

@@ -1,0 +1,11 @@
+{
+  "conversation_id": "fixture-cursor-conversation",
+  "session_id": "fixture-cursor-conversation",
+  "transcript_path": "/Users/o/.cursor/projects/x/agent-transcripts/u/u.jsonl",
+  "cwd": "",
+  "hook_event_name": "preToolUse",
+  "tool_name": "Shell",
+  "tool_input": {
+    "command": "git push origin HEAD"
+  }
+}

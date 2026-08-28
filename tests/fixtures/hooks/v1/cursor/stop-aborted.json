@@ -1,0 +1,11 @@
+{
+  "conversation_id": "fixture-cursor-conversation",
+  "generation_id": "fixture-generation",
+  "session_id": "fixture-cursor-conversation",
+  "transcript_path": "",
+  "hook_event_name": "stop",
+  "status": "aborted",
+  "loop_count": 0,
+  "cursor_version": "3.17.21",
+  "workspace_roots": []
+}

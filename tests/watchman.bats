@@ -1059,6 +1059,17 @@ STUB
   [ "$(reason)" = "fresh-fallback" ]
 }
 
+@test "watchman resolves watchAgent from rules before the default ladder" {
+  # Pin the seam; full spawn coverage for verbatim --agent remains in neighboring tests.
+  grep -qF 'watchAgent' "$WATCHMAN"
+  grep -qF 'NIGHTSHIFT_WATCH_AGENT' "$WATCHMAN"
+  grep -qF 'claude --continue -p' "$WATCHMAN"
+  CODEX_W="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
+  grep -qF 'watchAgent' "$CODEX_W"
+  WIN_W="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/watchman.ps1"
+  grep -qF 'watchAgent' "$WIN_W"
+}
+
 @test "missing rules record unreadable-rules" {
   rm "$P/.nightshift/rules.json"
   run env NIGHTSHIFT_WATCH_SLEEP=0 \

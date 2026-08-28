@@ -6,12 +6,13 @@ the host-specific boundaries that are available, and local shell or PowerShell p
 scheduling and recovery when no live session can act.
 
 The workflow skills are shared, but their host boundaries are explicit. Each resolves the
-host-opened project through Claude Code's project path or, on Codex, a Nightshift recovery override
-or the launch directory captured before any shell call can change it. Both become one neutral
-task-root and workspace name. Bundled files follow the same pattern: Claude Code substitutes its
-plugin root, while Codex uses its plugin root when available or the absolute path attached to the
-loaded skill. From there the skill uses one neutral plugin-root name. Hooks, session signals,
-permissions, and watchmen remain separate where the hosts actually differ.
+host-opened project through Claude Code's project path, Cursor's project path, or, on Codex, a
+Nightshift recovery override or the launch directory captured before any shell call can change it.
+Those become one neutral task-root and workspace name. Bundled files follow the same pattern:
+Claude Code substitutes its plugin root, Cursor uses `CURSOR_PLUGIN_ROOT` when set, and Codex uses
+its plugin root when available or the absolute path attached to the loaded skill. From there the
+skill uses one neutral plugin-root name. Hooks, session signals, permissions, and watchmen remain
+separate where the hosts actually differ.
 
 ## The work contract
 
@@ -264,15 +265,28 @@ files small.
 
 ## Different strengths on each host
 
-Both hosts expose the Stop event Nightshift uses to refuse an early clock-out while open Items
-remain. Both also receive the persistent contract, owner rules, bounded shifts, recovery after a
-dead resumable session, isolated changes, and reviewable progress. Those capabilities ship as
-native skills and hook wiring from one package; Nightshift wraps and proxies nothing.
+Claude Code and Codex expose the Stop event Nightshift uses to refuse an early clock-out while
+open Items remain. Both also receive the persistent contract, owner rules, bounded shifts,
+recovery after a dead resumable session, isolated changes, and reviewable progress. Those
+capabilities ship as native skills and hook wiring from one package; Nightshift wraps and proxies
+nothing.
 
-The differences are in recovery evidence. Claude Code exposes Escape, clean session-end, process,
-transcript, and API-error signals. Codex exposes process and rollout activity but not an owner
-interrupt, clean close, or verified API-wedge signature. Same-conversation Codex recovery also
-depends on a resumable identity recorded before the original process disappears.
+Cursor is a third native front door (`.cursor-plugin`, shared skills, Cursor-shaped hooks). It
+shares the same `.nightshift/` site. Clock-out reads Cursor's `stop.status` (`completed` | `aborted` | `error`). A live
+Stop-button payload sends `aborted` — same owner interrupt as Claude Escape: the gate
+releases, the punch list stays, the shift stays armed. Agent completion with open boxes
+keeps the gate; `error` is not owner-stop.
+`sessionEnd` reasons `aborted` and `user_close` record a clean-close marker. Cursor does not yet
+arm a watchman — recovery after a dead Cursor chat is manual until resume-of-this-chat is proven.
+Do not arm the Claude or Codex watchman from a Cursor session. Install locally under
+`~/.cursor/plugins/local` first; marketplace listing waits on the same verified bar as the other
+hosts.
+
+The differences among Claude Code and Codex are in recovery evidence. Claude Code exposes Escape,
+clean session-end, process, transcript, and API-error signals. Codex exposes process and rollout
+activity but not an owner interrupt, clean close, or verified API-wedge signature.
+Same-conversation Codex recovery also depends on a resumable identity recorded before the original
+process disappears.
 
 Claude's initial interactive lease can include the CLI ancestor's pid and process start time.
 On POSIX, Codex's hook payload cannot prove equivalent process ancestry, so its initial lease is

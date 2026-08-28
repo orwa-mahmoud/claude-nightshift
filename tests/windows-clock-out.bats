@@ -17,10 +17,13 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/codex/clock-out-gate.sh"
 @test "Windows clock-out receipts commits match POSIX headless identity" {
   grep -qF 'user.email=nightshift@localhost' "$CORE"
   grep -qF 'commit.gpgsign=false' "$CORE"
+  grep -qF 'receiptsAutoCommit' "$CORE"
   grep -qF 'user.email=nightshift@localhost' "$CODEX"
   grep -qF 'commit.gpgsign=false' "$CODEX"
+  grep -qF 'receiptsAutoCommit' "$CODEX"
   grep -qF 'user.email=nightshift@localhost' "$HELPER"
   grep -qF 'commit.gpgsign=false' "$HELPER"
+  grep -qF 'receiptsAutoCommit' "$HELPER"
 }
 
 @test "Windows stall progress token pairs POSIX artifact receipts" {

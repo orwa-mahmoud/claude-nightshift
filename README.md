@@ -12,7 +12,7 @@ next action and verification still due.
 [Install](#install) · [Run a first shift](#run-a-first-shift) ·
 [Origin story](#the-screen-that-made-me-build-nightshift) ·
 [How it works](docs/how-it-works.md) · [Receipts](#receipts) ·
-[Contribute](docs/contribution-map.md) · [Overview and FAQ](https://orwamahmoud.com/nightshift/)
+[Contribute](docs/contribution-map.md) · [Overview and FAQ](https://nightshift.orwamahmoud.com/)
 
 ## Install
 

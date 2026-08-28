@@ -466,6 +466,11 @@ $retrySpacing = Get-NSRule $workspace 'watchRetrySeconds' ([string]$env:NIGHTSHI
 $revivalPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'revivalPrompt' ([string]$env:NIGHTSHIFT_REVIVAL_PROMPT))
 $freshPrompt = Expand-NSInjectedPaths $workspace (Get-NSRule $workspace 'freshRevivalPrompt' ([string]$env:NIGHTSHIFT_FRESH_PROMPT))
 $notify = Get-NSRule $workspace 'notifyCommand' ([string]$env:NIGHTSHIFT_NOTIFY_CMD)
+# Empty watchAgent keeps the host default resume ladder; non-empty is used verbatim.
+# --Agent / env wins when already set by the caller.
+if ([string]::IsNullOrEmpty($Agent)) {
+    $Agent = Get-NSRule $workspace 'watchAgent' ([string]$env:NIGHTSHIFT_WATCH_AGENT)
+}
 $downNotified = $false
 if ([string]::IsNullOrEmpty($retrySpacing) -or [string]::IsNullOrEmpty($revivalPrompt) `
     -or [string]::IsNullOrEmpty($freshPrompt)) {

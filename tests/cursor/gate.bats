@@ -1,0 +1,75 @@
+load ../helpers
+
+HOOKS="$BATS_TEST_DIRNAME/../../plugins/nightshift/hooks"
+CURSOR_HOOKS="$HOOKS/cursor"
+FIXTURES="$BATS_TEST_DIRNAME/../fixtures/hooks/v1/cursor"
+
+is_cursor_release() {
+  [ "$status" -eq 0 ]
+  [ -z "$output" ] || ! printf '%s' "$output" | grep -q 'followup_message'
+}
+
+is_cursor_block() {
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '.followup_message | type == "string" and length > 0' >/dev/null
+}
+
+cursor_gate() {
+  local p="$1" fixture="$FIXTURES/stop-completed.json"
+  shift
+  if [ -n "${1:-}" ] && [ -f "$1" ]; then
+    fixture="$1"
+    shift
+  fi
+  jq -nc --argjson base "$(cat "$fixture")" --arg p "$p" '$base + {cwd:$p}' |
+    env "$@" CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/clock-out-gate.sh"
+}
+
+@test "cursor gate blocks completed stop while a box is open" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_gate "$p" "$FIXTURES/stop-completed.json"
+  is_cursor_block
+}
+
+@test "cursor gate releases aborted stop with open boxes (owner interrupt)" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_gate "$p" "$FIXTURES/stop-aborted.json"
+  is_cursor_release
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
+}
+
+@test "cursor gate keeps error stop gated when boxes are open" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_gate "$p" "$FIXTURES/stop-error.json"
+  is_cursor_block
+}
+
+@test "cursor gate releases when every box is ticked" {
+  p="$(new_project)"
+  punch_done "$p"
+  run cursor_gate "$p" "$FIXTURES/stop-completed.json"
+  is_cursor_release
+  [ -f "$p/.nightshift/.ended" ]
+}
+
+@test "cursor gate records the shift session with cursor as its host" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_gate "$p" "$FIXTURES/stop-completed.json"
+  is_cursor_block
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "fixture-cursor-conversation" ]
+  [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "cursor" ]
+}
+
+@test "cursor abort fixture distinguishes status from completed" {
+  aborted="$(jq -r '.status' "$FIXTURES/stop-aborted.json")"
+  completed="$(jq -r '.status' "$FIXTURES/stop-completed.json")"
+  [ "$aborted" = "aborted" ]
+  [ "$completed" = "completed" ]
+  [ "$aborted" != "$completed" ]
+  [ "$(jq -r '.hook_event_name' "$FIXTURES/stop-aborted.json")" = "stop" ]
+}

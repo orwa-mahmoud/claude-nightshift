@@ -149,6 +149,8 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
  `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
  `.mutex-scope.tmp.*`, `.watchman`, `.watchman-tick`, `.lock.d/`, and `.lease-lock.d/`; preserve
  existing lines. Make one initial commit only when setup created the receipts repository.
+ Creating the repo does **not** turn on headless auto-commit — that is `receiptsAutoCommit`
+ in `rules.json`, shipped `false`; the owner commits the receipts tree when they want.
  **Never add a remote to it, never push it.**
  On native Windows, after a clear yes, rerun the bundled scaffold with the same `-Project` and
  `-WorkTarget` plus `-Receipts`; the idempotent pass creates only this local receipts repo.

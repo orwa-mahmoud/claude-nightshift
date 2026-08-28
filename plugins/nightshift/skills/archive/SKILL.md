@@ -94,9 +94,11 @@ run (create parents; re-running on the same day appends to that day's files).
 
 Best between shifts. During an active shift with open boxes, say so and ask before moving
 anything — the ticked lines are the night's scoreboard, and the owner may want the morning
-review to see them in place. If the receipts repo exists (`$NS/.git`), commit after
-archiving so the move itself has history. Use the same headless identity the clock-out gate
-uses, and turn signing off so a global `commit.gpgsign=true` cannot stall:
+review to see them in place. If the receipts repo exists (`$NS/.git`) **and**
+`receiptsAutoCommit` is true in `$NS/rules.json` (or `NIGHTSHIFT_RECEIPTS_AUTO_COMMIT=true`),
+commit after archiving so the move itself has history. Default is false — leave the tree dirty
+for the owner. When committing, use the same headless identity the clock-out gate uses, and
+turn signing off so a global `commit.gpgsign=true` cannot stall:
 
 ```bash
 git -C "$NS" add -A

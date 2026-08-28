@@ -108,6 +108,8 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   receipts_init "$p"
+  jq '.receiptsAutoCommit = true' "$p/.nightshift/rules.json" >"$p/.nightshift/rules.tmp"
+  mv "$p/.nightshift/rules.tmp" "$p/.nightshift/rules.json"
   wl="$BATS_TEST_TMPDIR/qt.log"
   echo $(($(date +%s) - 60)) >"$p/.nightshift/deadline"
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
@@ -121,6 +123,8 @@ load helpers
   p="$(new_project)"
   punch_open "$p"
   receipts_init "$p"
+  jq '.receiptsAutoCommit = true' "$p/.nightshift/rules.json" >"$p/.nightshift/rules.tmp"
+  mv "$p/.nightshift/rules.tmp" "$p/.nightshift/rules.json"
   wl="$BATS_TEST_TMPDIR/st.log"
   nc="printf '%s\\n' \"\$NIGHTSHIFT_SUMMARY\" >> $wl"
   run gate "$p" NIGHTSHIFT_NOTIFY_CMD="$nc" NIGHTSHIFT_STALL_MAX=2
@@ -346,11 +350,19 @@ load helpers
   grep -q 'shift ended' "$wl"
 }
 
-@test "a done release commits the receipts repo when one exists" {
+@test "a done release commits the receipts repo only when receiptsAutoCommit is true" {
   p="$(new_project)"
   punch_open "$p"
   receipts_init "$p"
   punch_done "$p"
+  run gate "$p"
+  is_release
+  # Default / missing key: receipts git stays at the Setup init commit only.
+  [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 1 ]
+  jq '.receiptsAutoCommit = true' "$p/.nightshift/rules.json" >"$p/.nightshift/rules.tmp"
+  mv "$p/.nightshift/rules.tmp" "$p/.nightshift/rules.json"
+  rm -f "$p/.nightshift/.ended" "$p/.nightshift/.notified"
+  : >"$p/.nightshift/.shift-armed"
   run gate "$p"
   is_release
   [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
@@ -358,10 +370,12 @@ load helpers
   ! git -C "$p/.nightshift" ls-tree -r --name-only HEAD | grep -qxF '.shift-lease'
 }
 
-@test "a stop-work release snapshots the receipts repo" {
+@test "a stop-work release snapshots the receipts repo when receiptsAutoCommit is true" {
   p="$(new_project)"
   punch_open "$p"
   receipts_init "$p"
+  jq '.receiptsAutoCommit = true' "$p/.nightshift/rules.json" >"$p/.nightshift/rules.tmp"
+  mv "$p/.nightshift/rules.tmp" "$p/.nightshift/rules.json"
   printf 'stopped by owner\n' >"$p/.nightshift/STOP"
   printf 'parked: pick the DB\n' >"$p/.nightshift/parking-lot.md"
   run gate "$p"
