@@ -86,7 +86,7 @@ Before leaving any run unattended, use the concise
 3. Start the shift.
 4. Check status later. If the site looks wrong, diagnose it first; Doctor reports and never
    repairs.
-5. Review the local commit or `$NS/receipts/` (Doctor names the most recently written file). Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Archive copies
+5. Review the local commit or `$NS/receipts/` (Doctor names the most recently written file). Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts. Archive copies
    those files with `runtime/archive-receipts.sh` (native Windows: `runtime/windows/archive-receipts.ps1`)
    into the dated folder and leaves the live copies in place. Missing or empty receipts create no dated receipts folder. Push only if this is a git repository.
 
