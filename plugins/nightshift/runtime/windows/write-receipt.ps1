@@ -134,9 +134,15 @@ foreach ($raw in $outputs) {
 }
 
 $dir = Get-NSReceiptsDir $workspace
-if ((Test-Path -LiteralPath $dir) -and (Test-NSReparsePoint $dir)) {
-    Write-NSReceiptError 'write-receipt: refuse to write through a symlink receipts path'
-    exit 2
+if (Test-Path -LiteralPath $dir) {
+    if (Test-NSReparsePoint $dir) {
+        Write-NSReceiptError 'write-receipt: refuse to write through a symlink receipts path'
+        exit 2
+    }
+    if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
+        Write-NSReceiptError 'write-receipt: receipts path is not a directory'
+        exit 2
+    }
 }
 $null = New-Item -ItemType Directory -Path $dir -Force
 if (Test-NSReparsePoint $dir) {

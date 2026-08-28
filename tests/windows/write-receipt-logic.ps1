@@ -276,6 +276,20 @@ try {
     Expect-True ((Get-NSReceiptsCount $linkWrite) -eq 0) 'symlink receipts dir is not counted'
     Expect-True ($null -eq (Get-NSLatestReceipt $linkWrite)) 'symlink receipts dir is not latest'
     Expect-True ((Get-NSReceiptsFingerprint $linkWrite) -eq 'none') 'symlink receipts dir has no stall fingerprint'
+
+    $fileWrite = Join-Path $root 'file-write-notes'
+    $fileWriteNs = Join-Path $fileWrite '.nightshift'
+    $null = New-Item -ItemType Directory -Path $fileWriteNs -Force
+    [IO.File]::WriteAllText((Join-Path $fileWriteNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $fileWriteNs 'receipts'), "not-a-dir`n")
+    $fileOut = Join-Path $fileWrite 'out.md'
+    [IO.File]::WriteAllText($fileOut, "ok`n")
+    $fileBlocked = Invoke-WriteReceipt $fileWrite @(
+        '-Item', 'x', '-Verify', 'ok', '-Output', $fileOut
+    )
+    Expect-True ($fileBlocked.ExitCode -eq 2) "file receipts path exits 2 (got $($fileBlocked.ExitCode) $($fileBlocked.Stderr))"
+    Expect-True ((Get-Content -LiteralPath (Join-Path $fileWriteNs 'receipts') -Raw) -match 'not-a-dir') `
+        'does not replace a file receipts path'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

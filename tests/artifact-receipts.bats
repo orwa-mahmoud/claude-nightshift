@@ -220,6 +220,16 @@ new_artifact() {
   [ "$n" = 0 ]
 }
 
+@test "write-receipt refuses a non-directory receipts path" {
+  p="$(new_artifact write-receipts-file)"
+  printf 'ok\n' >"$p/out/topic.md"
+  printf 'not-a-dir\n' >"$p/.nightshift/receipts"
+  run bash "$WRITE" --project "$p" --item 'x' --verify 'ok' --output "$p/out/topic.md"
+  [ "$status" -eq 2 ]
+  [ -f "$p/.nightshift/receipts" ]
+  grep -qF 'not-a-dir' "$p/.nightshift/receipts"
+}
+
 @test "receipts helpers ignore files nested under receipts/" {
   a="$(new_artifact nested-receipts)"
   mkdir -p "$a/.nightshift/receipts/nested"
@@ -391,6 +401,8 @@ new_artifact() {
   grep -qF 'exit 2' "$WRITE_PS1"
   grep -qF 'symlink receipts path' "$WRITE"
   grep -qF 'symlink receipts path' "$WRITE_PS1"
+  grep -qF 'receipts path is not a directory' "$WRITE"
+  grep -qF 'receipts path is not a directory' "$WRITE_PS1"
 }
 
 @test "Windows write-receipt logic passes when pwsh is present" {
@@ -403,6 +415,7 @@ new_artifact() {
   grep -qF 'nested receipt is not counted' "$WRITE_LOGIC"
   grep -qF 'nested receipt is not latest' "$WRITE_LOGIC"
   grep -qF 'does not write through a reparse receipts path' "$WRITE_LOGIC"
+  grep -qF 'does not replace a file receipts path' "$WRITE_LOGIC"
   grep -qF 'artifact mode has ticked items but no receipts' "$WRITE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0

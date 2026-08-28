@@ -136,6 +136,10 @@ if [ -L "$dir" ]; then
   printf 'write-receipt: refuse to write through a symlink receipts path\n' >&2
   exit 2
 fi
+if [ -e "$dir" ] && [ ! -d "$dir" ]; then
+  printf 'write-receipt: receipts path is not a directory\n' >&2
+  exit 2
+fi
 mkdir -p "$dir" || exit 1
 if [ -L "$dir" ]; then
   printf 'write-receipt: refuse to write through a symlink receipts path\n' >&2
