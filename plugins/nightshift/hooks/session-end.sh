@@ -43,7 +43,7 @@ if command -v jq >/dev/null 2>&1; then
 else
   SID="$(printf '%s' "$INPUT" | sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
 fi
-if [ -f "$NS/.shift-session" ]; then
+if [ -f "$NS/.shift-session" ] && [ ! -L "$NS/.shift-session" ]; then
   REC="$(sed -n 1p "$NS/.shift-session" 2>/dev/null)"
   [ -n "$REC" ] && [ "$SID" != "$REC" ] && exit 0
 fi

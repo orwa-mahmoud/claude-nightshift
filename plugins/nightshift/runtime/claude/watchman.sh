@@ -172,10 +172,10 @@ deadline_passed() {
 # The hooks write the shift's identity at first work: session id, transcript path, and the
 # claude ancestor's pid + start time. Read fresh each use — the record appears after the
 # watchman was armed.
-shift_session_id() { sed -n 1p "$NS/.shift-session" 2>/dev/null; }
-shift_transcript() { sed -n 2p "$NS/.shift-session" 2>/dev/null; }
-shift_pid() { sed -n 3p "$NS/.shift-session" 2>/dev/null; }
-shift_pid_start() { sed -n 4p "$NS/.shift-session" 2>/dev/null; }
+shift_session_id() { [ -L "$NS/.shift-session" ] && return; sed -n 1p "$NS/.shift-session" 2>/dev/null; }
+shift_transcript() { [ -L "$NS/.shift-session" ] && return; sed -n 2p "$NS/.shift-session" 2>/dev/null; }
+shift_pid() { [ -L "$NS/.shift-session" ] && return; sed -n 3p "$NS/.shift-session" 2>/dev/null; }
+shift_pid_start() { [ -L "$NS/.shift-session" ] && return; sed -n 4p "$NS/.shift-session" 2>/dev/null; }
 
 # Attempts of a wake walk a chain of rungs on the default agent: the recorded conversation
 # first, --continue next (and first when nothing was recorded), a fresh session last — each a

@@ -168,6 +168,7 @@ STUB
   ! grep -qF ' - clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
   grep -qF '[ -L "$NS/.session-end" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
   grep -qF 'Test-NSReparsePoint $sessionEnd' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  grep -qF '[ ! -L "$NS/.shift-session" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
 }
 
 @test "session-end hook writes the marker only during an active shift" {
@@ -915,6 +916,13 @@ reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
   printf 'sid\n/tmp/t.jsonl\n99999\nstart\ncodex\n' >"$P/.nightshift/.shift-session"
   run watch --agent "bash $BIN/tick.sh" --max-wakes 1
   [ "$(reason)" = "wrong-host" ]
+}
+
+@test "a symlink shift-session does not record a foreign host" {
+  printf 'sid\n/tmp/t.jsonl\n99999\nstart\ncodex\n' >"$P/.nightshift/session-plant"
+  ln -s session-plant "$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 1
+  [ "$(reason)" != "wrong-host" ]
 }
 
 @test "Esc standby records esc-standby without transcript content" {

@@ -130,10 +130,10 @@ fi
 printf '%s\n' "$$" >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
 
-sid()        { sed -n 1p "$NS/.shift-session" 2>/dev/null; }
-rollout()    { sed -n 2p "$NS/.shift-session" 2>/dev/null; }
-rec_pid()    { sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]'; }
-rec_start()  { sed -n 4p "$NS/.shift-session" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
+sid()        { [ -L "$NS/.shift-session" ] && return; sed -n 1p "$NS/.shift-session" 2>/dev/null; }
+rollout()    { [ -L "$NS/.shift-session" ] && return; sed -n 2p "$NS/.shift-session" 2>/dev/null; }
+rec_pid()    { [ -L "$NS/.shift-session" ] && return; sed -n 3p "$NS/.shift-session" 2>/dev/null | tr -d '[:space:]'; }
+rec_start()  { [ -L "$NS/.shift-session" ] && return; sed -n 4p "$NS/.shift-session" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
 open_boxes() { ns_open_boxes "$PUNCH"; }
 
 # The recorded pid counts only as the exact recorded process: pid + start time, a pair that pid

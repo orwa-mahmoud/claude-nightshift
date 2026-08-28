@@ -3,6 +3,8 @@ load helpers
 HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/watchman.ps1"
 CLAUDE="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/claude/watchman.sh"
 CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
+OWNERSHIP="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/ownership.sh"
+PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 
 @test "Windows watchman unreadable-rules names Setup like POSIX" {
   grep -qF 'watchMinutes missing or not whole minutes' "$CLAUDE"
@@ -35,4 +37,11 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/codex/watchman.sh"
 @test "watchmen skip a symlink session-end marker" {
   grep -qF '[ ! -L "$NS/.session-end" ]' "$CLAUDE"
   grep -qF 'function Test-NSRealSessionEnd' "$HELPER"
+}
+
+@test "watchmen skip a symlink shift-session" {
+  grep -qF '[ -L "$NS/.shift-session" ]' "$CLAUDE"
+  grep -qF '[ -L "$NS/.shift-session" ]' "$CODEX"
+  grep -qF '[ -L "$rec" ]' "$OWNERSHIP"
+  awk '/function Read-NSSession/,/^function Write-NSSession/' "$PSM1" | grep -qF 'Test-NSReparsePoint $path'
 }

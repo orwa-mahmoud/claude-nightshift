@@ -561,8 +561,12 @@ ns_claude_session_host() { # <transcript-path>
 # Which host owns this shift. Absent means a record written before hosts were distinguished,
 # and every such record is Claude's — nothing else could have written one.
 ns_session_host() {
-  local h
-  h="$(sed -n 5p "$1/.shift-session" 2>/dev/null | tr -d '[:space:]')"
+  local rec="$1/.shift-session" h
+  if [ -L "$rec" ]; then
+    printf 'claude'
+    return
+  fi
+  h="$(sed -n 5p "$rec" 2>/dev/null | tr -d '[:space:]')"
   printf '%s' "${h:-claude}"
 }
 
