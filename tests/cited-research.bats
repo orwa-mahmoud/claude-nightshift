@@ -114,6 +114,25 @@ EOF
   printf '%s' "$output$stderr" | grep -qi 'Executive summary'
 }
 
+@test "check-report rejects a symlink output" {
+  p="$(new_project cited-link)"
+  valid_bundle "$p"
+  ln -s "$p/report.md" "$p/alias.md"
+  run bash "$CHECK" --project "$p" --report "$p/report.md" --manifest "$p/sources.tsv" \
+    --output "$p/alias.md"
+  [ "$status" -eq 2 ]
+  printf '%s' "$output$stderr" | grep -qi 'missing output'
+}
+
+@test "check-report rejects a symlink report" {
+  p="$(new_project cited-link-report)"
+  valid_bundle "$p"
+  ln -s "$p/report.md" "$p/alias.md"
+  run bash "$CHECK" --project "$p" --report "$p/alias.md" --manifest "$p/sources.tsv"
+  [ "$status" -eq 2 ]
+  printf '%s' "$output$stderr" | grep -qi 'missing output'
+}
+
 @test "check-report rejects empty outputs" {
   p="$(new_project cited-empty)"
   valid_bundle "$p"
@@ -138,6 +157,9 @@ EOF
   grep -qF 'missing heading' "$CHECK_PS1"
   grep -qF 'fabricated citation' "$CHECK_PS1"
   grep -qF 'Test-NSSecretLine' "$CHECK_PS1"
+  grep -qF 'Test-NSReparsePoint' "$CHECK_PS1"
+  grep -qF '[ -L "$abs" ]' "$CHECK"
+  grep -qF 'symlink output is missing' "$CHECK_LOGIC"
   [ -f "$CHECK_LOGIC" ]
   grep -qF 'check-report-logic.ps1' "$RUN"
   if ! command -v pwsh >/dev/null 2>&1; then

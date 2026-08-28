@@ -7,6 +7,7 @@ $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $helper = Join-Path $repository 'plugins/nightshift/runtime/windows/check-report.ps1'
 $hostExecutable = (Get-Process -Id $PID).Path
 $failures = New-Object 'System.Collections.Generic.List[string]'
+$onWin32 = [Environment]::OSVersion.Platform -eq 'Win32NT'
 
 function Expect-True {
     param([bool]$Condition, [string]$Message)
@@ -118,6 +119,38 @@ try {
         '-Output', $blank
     )
     Expect-True ($empty.ExitCode -eq 2) "empty output exits 2 (got $($empty.ExitCode))"
+
+    $linkDir = Join-Path $root 'link'
+    Write-NSValidBundle $linkDir
+    $report = Join-Path $linkDir 'report.md'
+    $alias = Join-Path $linkDir 'alias.md'
+    $fileLinkCreated = $true
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $alias -Target $report -ErrorAction Stop
+    }
+    catch {
+        if ($onWin32) {
+            $fileLinkCreated = $false
+        }
+        else {
+            throw
+        }
+    }
+    if ($fileLinkCreated) {
+        $linkedOut = Invoke-CheckReport $linkDir @(
+            '-Report', $report,
+            '-Manifest', (Join-Path $linkDir 'sources.tsv'),
+            '-Output', $alias
+        )
+        Expect-True ($linkedOut.ExitCode -eq 2) "symlink output exits 2 (got $($linkedOut.ExitCode) $($linkedOut.Stderr))"
+        Expect-True ($linkedOut.Stderr -match 'missing output') 'symlink output is missing'
+        $linkedReport = Invoke-CheckReport $linkDir @(
+            '-Report', $alias,
+            '-Manifest', (Join-Path $linkDir 'sources.tsv')
+        )
+        Expect-True ($linkedReport.ExitCode -eq 2) "symlink report exits 2 (got $($linkedReport.ExitCode) $($linkedReport.Stderr))"
+        Expect-True ($linkedReport.Stderr -match 'missing output') 'symlink report is missing'
+    }
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

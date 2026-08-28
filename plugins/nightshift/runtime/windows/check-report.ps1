@@ -50,6 +50,9 @@ function Resolve-NSCheckFile {
 function Assert-NSOutputFile {
     param([string]$Raw)
     $abs = Resolve-NSCheckFile $Raw
+    if ((Test-NSReparsePoint $abs) -or -not (Test-Path -LiteralPath $abs -PathType Leaf)) {
+        Fail-NSCheck "missing output: $Raw"
+    }
     try {
         $abs = Resolve-NSCanonicalPath $abs
     }
