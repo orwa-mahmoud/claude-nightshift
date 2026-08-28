@@ -1,0 +1,9 @@
+{
+  "conversation_id": "fixture-cursor-conversation",
+  "session_id": "fixture-cursor-conversation",
+  "transcript_path": "",
+  "cwd": "",
+  "hook_event_name": "stop",
+  "status": "completed",
+  "loop_count": 0
+}

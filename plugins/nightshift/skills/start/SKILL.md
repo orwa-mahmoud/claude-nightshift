@@ -21,9 +21,10 @@ surrounding folders or guess. Print both paths when linked. The shell's working 
 between Bash calls, so never rely on a bare relative path.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
-`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
-it from the absolute path attached to this skill (`skills/start/SKILL.md`). Substitute that
-absolute path in every command below; never search for the plugin.
+`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available; on Cursor use
+`${CURSOR_PLUGIN_ROOT}` when available; otherwise derive it from the absolute path attached to
+this skill (`skills/start/SKILL.md`). Substitute that absolute path in every command below; never
+search for the plugin.
 
 On native Windows, use the PowerShell tool and native paths throughout. Resolve the same values
 from `$env:CLAUDE_PROJECT_DIR`, `$env:CODEX_PROJECT_DIR`, and `$env:PLUGIN_ROOT`, with
@@ -332,6 +333,11 @@ what the last shift parked — printed, never waited on. Append a `shift started
 Each host arms its own; both read their cadence from the rules file, and each stands down on a
 shift the other host owns. Unless the rules file's `watchMinutes` is `0` (or
 `NIGHTSHIFT_WATCH=0` overrides), arm it in the background.
+
+**Cursor:** do **not** arm the Claude or Codex watchman from a Cursor session. Record the Cursor
+conversation id in `.shift-session` (host line `cursor`). A Cursor watchman ships only after
+resume-of-this-chat is proven; until then recovery is manual. `watchMinutes` `0` still disarms
+every watchman. Say that plainly once, then continue to Work.
 
 On Claude Code:
 

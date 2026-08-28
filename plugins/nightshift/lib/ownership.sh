@@ -137,7 +137,7 @@ ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent 
   ns_lease_safe_line "$NS_LEASE_SID" && ns_lease_safe_line "$NS_LEASE_HOST" \
     && ns_lease_safe_line "$NS_LEASE_GENERATION" && ns_lease_safe_line "$NS_LEASE_NONCE" \
     && ns_lease_safe_line "$NS_LEASE_PID" && ns_lease_safe_line "$NS_LEASE_START" || return 1
-  case "$NS_LEASE_HOST" in claude | codex) ;; *) return 1 ;; esac
+  case "$NS_LEASE_HOST" in claude | codex | cursor) ;; *) return 1 ;; esac
   case "$NS_LEASE_GENERATION" in '' | *[!0-9]*) return 1 ;; esac
   [ "$NS_LEASE_GENERATION" -gt 0 ] 2>/dev/null || return 1
   case "$NS_LEASE_NONCE" in *[!A-Za-z0-9._-]*) return 1 ;; esac

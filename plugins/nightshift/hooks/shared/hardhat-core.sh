@@ -7,13 +7,13 @@ ns_hardhat_active() {
 }
 
 ns_hardhat_is_command_tool() {
-  case "$1" in Bash | PowerShell) return 0 ;; esac
+  case "$1" in Bash | PowerShell | Shell) return 0 ;; esac
   return 1
 }
 
 ns_hardhat_binding_probe() { # $1 = canonical tool name, $2 = command
   case "$1" in
-    Bash) [ "$2" = ": nightshift-binding-probe" ] ;;
+    Bash | Shell) [ "$2" = ": nightshift-binding-probe" ] ;;
     PowerShell) [ "$2" = "\$null = 'nightshift-binding-probe'" ] ;;
     *) return 1 ;;
   esac
@@ -86,7 +86,7 @@ ns_hardhat_lease_targeted() {
 ns_hardhat_payload_targets() { # $1 = tool, $2 = raw payload, $3 = command/patch, $4 = predicate
   local targets="" predicate="$4" decoder="" encoded record_type
   case "$1" in
-    Bash | PowerShell)
+    Bash | PowerShell | Shell)
       "$predicate" "$3"
       return
       ;;
