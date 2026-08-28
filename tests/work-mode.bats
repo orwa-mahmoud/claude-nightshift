@@ -120,3 +120,63 @@ call_lib() {
   grep -qF "ValidateSet('repository', 'artifact')" "$PSM1"
   grep -qF 'Mode "$WORK_MODE"' "$SETUP"
 }
+
+PATHS="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/paths.sh"
+GITLIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/git.sh"
+LOGIC="$BATS_TEST_DIRNAME/windows/work-mode-logic.ps1"
+RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
+
+planted_repo() {
+  local r="$1"
+  mkdir -p "$r"
+  git -C "$r" init -q
+  git -C "$r" config user.email dev@example.com
+  git -C "$r" config user.name tester
+  git -C "$r" commit -q --allow-empty -m init
+  (cd -P "$r" && pwd)
+}
+
+@test "proposed mode skips a symlink child git repository" {
+  notes="$BATS_TEST_TMPDIR/notes-symlink-child"
+  mkdir -p "$notes/research"
+  printf 'notes\n' >"$notes/research/topic.md"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-propose")"
+  ln -s "$planted" "$notes/decoy"
+  run bash -c '. "$1"; ns_propose_work_mode "$2"' _ "$LIB" "$notes"
+  [ "$status" -eq 0 ]
+  [ "$output" = artifact ]
+}
+
+@test "a real child git repository is still proposed as repository" {
+  w="$(new_workspace mode-real-child)"
+  run bash -c '. "$1"; ns_propose_work_mode "$2"' _ "$LIB" "$w"
+  [ "$status" -eq 0 ]
+  [ "$output" = repository ]
+}
+
+@test "proposed mode still finds a real child beside a planted symlink" {
+  w="$(new_workspace mode-decoy-beside)"
+  planted="$(planted_repo "$BATS_TEST_TMPDIR/planted-beside-propose")"
+  ln -s "$planted" "$w/decoy"
+  run bash -c '. "$1"; ns_propose_work_mode "$2"' _ "$LIB" "$w"
+  [ "$status" -eq 0 ]
+  [ "$output" = repository ]
+}
+
+@test "Windows CI runs the portable work-mode discovery suite" {
+  [ -f "$LOGIC" ]
+  grep -qF 'work-mode-logic.ps1' "$RUN"
+  grep -qF '[ -L "${child%/}" ]' "$PATHS"
+  awk '/^ns_work_target\(\)/,/^ns_record_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
+  ! awk '/^repo_root\(\)/,/^ns_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
+  awk '/function Get-NSProposedWorkMode/,/^function Resolve-NSWorkspaceRoot/' "$PSM1" | grep -qF 'ReparsePoint'
+  awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'ReparsePoint'
+}
+
+@test "Windows work-mode discovery logic passes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  [ "$status" -eq 0 ]
+}

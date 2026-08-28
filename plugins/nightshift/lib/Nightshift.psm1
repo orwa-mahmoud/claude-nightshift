@@ -133,6 +133,9 @@ function Get-NSProposedWorkMode {
         if ($child.Name.StartsWith('.')) {
             continue
         }
+        if ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
         $candidate = Invoke-NSGit $child.FullName @('rev-parse', '--show-toplevel')
         if (-not [string]::IsNullOrWhiteSpace($candidate)) {
             return 'repository'
@@ -293,6 +296,9 @@ function Resolve-NSWorkTarget {
     $found = $null
     foreach ($child in Get-ChildItem -LiteralPath $project -Directory -Force -ErrorAction SilentlyContinue) {
         if ($child.Name.StartsWith('.')) {
+            continue
+        }
+        if ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) {
             continue
         }
         $candidate = Invoke-NSGit $child.FullName @('rev-parse', '--show-toplevel')

@@ -442,6 +442,10 @@ try {
     $boxCountsLogicRun = Invoke-TestScript $boxCountsLogic
     Assert-Equal 0 $boxCountsLogicRun.ExitCode `
         "box counts heading scope: $($boxCountsLogicRun.Stdout) $($boxCountsLogicRun.Stderr)"
+    $workModeLogic = Join-Path $PSScriptRoot 'work-mode-logic.ps1'
+    $workModeLogicRun = Invoke-TestScript $workModeLogic
+    Assert-Equal 0 $workModeLogicRun.ExitCode `
+        "work-mode discovery skips: $($workModeLogicRun.Stdout) $($workModeLogicRun.Stderr)"
     $codexIdentityLogic = Join-Path $PSScriptRoot 'codex-identity-logic.ps1'
     $codexIdentityLogicRun = Invoke-TestScript $codexIdentityLogic
     Assert-Equal 0 $codexIdentityLogicRun.ExitCode `

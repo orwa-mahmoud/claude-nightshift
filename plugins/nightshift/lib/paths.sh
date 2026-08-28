@@ -199,6 +199,7 @@ ns_propose_work_mode() {
   for child in "$project"/*/; do
     base="${child%/}"; base="${base##*/}"
     case "$base" in .*) continue ;; esac
+    [ -L "${child%/}" ] && continue
     top="$(git -C "$child" rev-parse --show-toplevel 2>/dev/null)" || continue
     if [ -n "$found" ] && [ "$found" != "$top" ]; then
       printf 'repository'
