@@ -76,6 +76,7 @@ Read `$NS/` and print:
  UNIX epoch; compare with `date +%s` on POSIX, or `Get-NSUnixTime` after
  `Import-Module "$NIGHTSHIFT_PLUGIN_ROOT\lib\Nightshift.psm1" -Force` on native
  Windows). Otherwise "no deadline (finite list)".
+ When Doctor warns `deadline path is not a usable file`, say so — a planted symlink is not quitting time.
 - **State** — whether `$NS/STOP` is present (and its reason), and the current
  `$NS/.stall` attempt count if any. If a shift is running, the bound session from
  `$NS/.shift-session` (never print the session id). Also report

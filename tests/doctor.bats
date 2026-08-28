@@ -2,6 +2,7 @@ load helpers
 
 DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
+STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
 CODEX_PLUGIN="$BATS_TEST_DIRNAME/../plugins/nightshift/.codex-plugin/plugin.json"
 
@@ -241,6 +242,8 @@ with open(p,"w") as f: json.dump(d,f)
   printf '%s' "$output" | grep -qF 'deadline path is not a usable file'
   ! printf '%s' "$output" | grep -q 'deadline=none'
   ! printf '%s' "$output" | grep -q 'remaining=0s'
+  grep -qF 'deadline path is not a usable file' "$SKILL"
+  grep -qF 'deadline path is not a usable file' "$STATUS"
 }
 
 @test "the drafting-table item-shape example is not a staged draft" {
