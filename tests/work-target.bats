@@ -56,10 +56,14 @@ resolve_target() {
 @test "setup and start pin the same persisted work target contract" {
   setup_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/setup/SKILL.md"
   start_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
+  status_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
+  doctor_skill="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
   grep -qF '$NS/work-target' "$setup_skill"
   grep -qF '$NS/work-target' "$start_skill"
   grep -qF 'several child repositories' "$setup_skill"
   grep -qF 'refuse to arm' "$start_skill"
+  grep -qF 'work target could not be resolved; treating workspace as the code root' "$status_skill"
+  grep -qF 'work target could not be resolved; treating workspace as the code root' "$doctor_skill"
 }
 
 planted_repo() {

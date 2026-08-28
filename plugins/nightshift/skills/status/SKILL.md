@@ -40,6 +40,7 @@ Read `$NS/` and print:
  resolved work target from Doctor's `work mode` / `work target` facts. Artifact mode is a
  persistent folder, not a Git repository. When Doctor warns `work mode is unset; Setup would propose artifact`, say so. Name the confirm action to persist the proposed artifact mode with Setup.
  When Doctor warns `work mode is malformed; treating the site as unusable until Setup rewrites it`, say so.
+ When Doctor warns `work target could not be resolved; treating workspace as the code root`, say so.
  In artifact mode, also report Doctor's
  `artifact receipts N` fact — completion receipts under `$NS/receipts/`, not work-target commits.
  When Doctor prints `latest artifact receipt`, name that most recently written file; do not invent a git log.
