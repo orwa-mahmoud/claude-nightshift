@@ -44,7 +44,7 @@ instead. Future versions are `[blocked]` — never
 downgrade.
 
 Report `$NS/deadline` as `deadline=none` when the file is missing, remaining seconds when it is a
-UNIX epoch, or a warning when it is not integer seconds. When the deadline path is a symlink, Doctor warns `deadline path is not a usable file` and does not report remaining time. When `.ended` is a symlink, Doctor warns `ended path is not a usable file` and does not report that the gate clocked the shift out. Watchmen compare epoch seconds; do not
+UNIX epoch, or a warning when it is not integer seconds. When the deadline path is a symlink, Doctor warns `deadline path is not a usable file` and does not report remaining time. When `.ended` is a symlink, Doctor warns `ended path is not a usable file` and does not report that the gate clocked the shift out. When `.stall` is a symlink, Doctor warns `stall path is not a usable file` and does not report a stall count. Watchmen compare epoch seconds; do not
 rewrite the file.
 
 ## 1. Run the inspector

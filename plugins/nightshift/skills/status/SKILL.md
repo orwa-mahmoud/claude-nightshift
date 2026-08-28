@@ -79,7 +79,9 @@ Read `$NS/` and print:
  When Doctor warns `deadline path is not a usable file`, say so — a planted symlink is not quitting time.
  When Doctor warns `ended path is not a usable file`, say so — a planted symlink is not a clock-out.
 - **State** — whether `$NS/STOP` is present (and its reason), and the current
- `$NS/.stall` attempt count if any. If a shift is running, the bound session from
+ `$NS/.stall` attempt count if any.
+ When Doctor warns `stall path is not a usable file`, say so — a planted symlink is not a stall count.
+ If a shift is running, the bound session from
  `$NS/.shift-session` (never print the session id). Also report
  `$NS/.shift-lease` as absent, malformed, interactive, or recovered; for a valid lease
  show its host, generation, and whether its recorded process is alive. Obtain session
