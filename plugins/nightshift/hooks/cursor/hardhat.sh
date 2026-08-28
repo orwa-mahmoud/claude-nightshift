@@ -27,7 +27,7 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugins/nightshift/hooks/cursor/lib-io.sh
 . "$_here/lib-io.sh"
 
-cursor_read_input
+cursor_read_input "$@"
 TOOL="$CURSOR_TOOL_NAME"
 CMD="$CURSOR_TOOL_CMD"
 CWD="$CURSOR_CWD"

@@ -15,7 +15,7 @@ _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 
 [ "${NIGHTSHIFT_REVIVAL:-}" != "1" ] || exit 0
 
-cursor_read_input
+cursor_read_input "$@"
 HOST_DIR="$(cursor_project_dir)"
 PROJECT_DIR="$(ns_workspace_root "$HOST_DIR" 2>/dev/null)" || exit 0
 STATE_KIND="$(ns_state_kind "$PROJECT_DIR")"
