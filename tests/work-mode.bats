@@ -201,6 +201,8 @@ planted_repo() {
   ! awk '/^repo_root\(\)/,/^ns_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
   awk '/function Get-NSProposedWorkMode/,/^function Resolve-NSWorkspaceRoot/' "$PSM1" | grep -qF 'ReparsePoint'
   awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'ReparsePoint'
+  grep -qF 'pass -Mode artifact for a notes folder that is not a Git repository' \
+    "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/setup.ps1"
 }
 
 @test "Windows work-mode discovery logic passes when pwsh is present" {

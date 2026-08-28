@@ -5,6 +5,8 @@ $ErrorActionPreference = 'Stop'
 
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $repository 'plugins/nightshift/lib/Nightshift.psm1') -Force -DisableNameChecking
+$setup = Join-Path $repository 'plugins/nightshift/runtime/windows/setup.ps1'
+$hostExecutable = (Get-Process -Id $PID).Path
 $failures = New-Object 'System.Collections.Generic.List[string]'
 $onWin32 = [Environment]::OSVersion.Platform -eq 'Win32NT'
 
@@ -35,6 +37,36 @@ function New-GitRepo {
     & git -C $Path init --quiet
     if ($LASTEXITCODE -ne 0) {
         throw "git init failed in $Path"
+    }
+}
+
+function Invoke-Setup {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [string[]]$Extra = @()
+    )
+    $argList = @(
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+        '-File', $setup, '-Project', $Project
+    ) + $Extra
+    $stdout = [Collections.Generic.List[string]]::new()
+    $stderr = [Collections.Generic.List[string]]::new()
+    foreach ($item in @(& $hostExecutable @argList 2>&1)) {
+        if ($item -is [Management.Automation.ErrorRecord]) {
+            $stderr.Add([string]$item)
+        }
+        else {
+            $stdout.Add([string]$item)
+        }
+    }
+    $code = $LASTEXITCODE
+    if ($null -eq $code) {
+        $code = 1
+    }
+    return [pscustomobject]@{
+        ExitCode = [int]$code
+        Stdout = ($stdout -join "`n")
+        Stderr = ($stderr -join "`n")
     }
 }
 
@@ -100,6 +132,30 @@ try {
         Expect-True ($besideTarget -eq (Resolve-NSCanonicalPath $besideExpected)) `
             "unstored resolve ignores a planted sibling (got $besideTarget)"
     }
+
+    $unsetNotes = Join-Path $root 'setup-notes'
+    $null = New-Item -ItemType Directory -Path (Join-Path $unsetNotes 'research') -Force
+    [IO.File]::WriteAllText((Join-Path $unsetNotes 'research/topic.md'), "notes`n")
+    $defaultSetup = Invoke-Setup $unsetNotes
+    Expect-True ($defaultSetup.ExitCode -ne 0) `
+        "default setup on a notes folder exits non-zero (got $($defaultSetup.ExitCode))"
+    Expect-True (($defaultSetup.Stderr + $defaultSetup.Stdout) -match 'pass -Mode artifact for a notes folder') `
+        "default setup names -Mode artifact (got $($defaultSetup.Stderr) $($defaultSetup.Stdout))"
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $unsetNotes '.nightshift/work-mode') -PathType Leaf)) `
+        'failed default setup does not persist work-mode'
+
+    $artifactNotes = Join-Path $root 'setup-artifact'
+    $null = New-Item -ItemType Directory -Path (Join-Path $artifactNotes 'research') -Force
+    [IO.File]::WriteAllText((Join-Path $artifactNotes 'research/topic.md'), "notes`n")
+    $artifactSetup = Invoke-Setup $artifactNotes @('-Mode', 'artifact')
+    Expect-True ($artifactSetup.ExitCode -eq 0) `
+        "artifact setup on a notes folder exits 0 (got $($artifactSetup.ExitCode) $($artifactSetup.Stderr))"
+    Expect-True ((Get-NSWorkMode $artifactNotes) -eq 'artifact') 'artifact setup persists artifact mode'
+
+    $parentSetup = Invoke-Setup $parent
+    Expect-True ($parentSetup.ExitCode -eq 0) `
+        "default setup on a parent with a real child exits 0 (got $($parentSetup.ExitCode) $($parentSetup.Stderr))"
+    Expect-True ((Get-NSWorkMode $parent) -eq 'repository') 'parent setup persists repository mode'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

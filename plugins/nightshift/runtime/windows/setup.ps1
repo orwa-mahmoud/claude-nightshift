@@ -104,6 +104,15 @@ else {
         if ($_.Exception.Message -match 'several child repositories') {
             throw
         }
+        $proposed = $null
+        try {
+            $proposed = Get-NSProposedWorkMode $workspace
+        }
+        catch {
+        }
+        if ($proposed -eq 'artifact') {
+            throw 'setup: pass -Mode artifact for a notes folder that is not a Git repository'
+        }
     }
 }
 
