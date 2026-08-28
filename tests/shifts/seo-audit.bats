@@ -32,6 +32,7 @@ WIN="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/windows/check-report.ps
   grep -qF 'check-report.sh' "$E"
   grep -qF 'check-report.ps1' "$E"
   grep -qi 'item gate is green' "$E"
+  grep -qF '$NS/receipts/' "$E"
   [ -f "$WIN" ]
   grep -qF 'fabricated citation' "$WIN"
 }

@@ -37,5 +37,5 @@ and `check-report` verification. Typical hours: 2–4.
   - Verify: `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh" --project "$NIGHTSHIFT_WORKSPACE"
     --report <audit.md> --manifest <sources.tsv> --output <audit.md>` (native Windows:
     `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`); the item gate is green at
-    every commit or artifact receipt.
+    every commit or artifact receipt (artifact mode: `$NS/receipts/`).
 ```
