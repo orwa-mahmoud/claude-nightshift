@@ -66,6 +66,10 @@ foreach ($p in @((Join-Path $ns 'archive'), (Join-Path $ns "archive/$Date"), $de
             Write-NSArchiveReceiptsError 'archive-receipts: refuse to write through a symlink archive path'
             exit 2
         }
+        if (-not (Test-Path -LiteralPath $p -PathType Container)) {
+            Write-NSArchiveReceiptsError 'archive-receipts: refuse to write through a non-directory archive path'
+            exit 2
+        }
     }
 }
 

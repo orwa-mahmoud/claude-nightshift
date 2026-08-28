@@ -126,6 +126,16 @@ new_artifact() {
   [ ! -d "$p/.nightshift/archive/2026-08-28/receipts" ]
 }
 
+@test "archive-receipts refuses a non-directory archive dest" {
+  p="$(new_artifact dest-file)"
+  mkdir -p "$p/.nightshift/receipts" "$p/.nightshift/archive/2026-08-28"
+  printf 'real\n' >"$p/.nightshift/receipts/20260101T000000Z-real.md"
+  printf 'not-a-dir\n' >"$p/.nightshift/archive/2026-08-28/receipts"
+  run bash "$ARCHIVE_SH" --project "$p" --date 2026-08-28
+  [ "$status" -eq 2 ]
+  grep -qF 'not-a-dir' "$p/.nightshift/archive/2026-08-28/receipts"
+}
+
 @test "Archive skill names the receipts helper on POSIX and Windows" {
   grep -qF 'runtime/archive-receipts.sh' "$ARCHIVE_SKILL"
   grep -qF 'runtime\windows\archive-receipts.ps1' "$ARCHIVE_SKILL"
@@ -145,6 +155,8 @@ new_artifact() {
   grep -qF 'symlink receipts path' "$ARCHIVE_PS1"
   grep -qF 'receipts path is not a directory' "$ARCHIVE_SH"
   grep -qF 'receipts path is not a directory' "$ARCHIVE_PS1"
+  grep -qF 'non-directory archive path' "$ARCHIVE_SH"
+  grep -qF 'non-directory archive path' "$ARCHIVE_PS1"
 }
 
 @test "Windows archive-receipts logic passes when pwsh is present" {
@@ -158,6 +170,7 @@ new_artifact() {
   grep -qF 'does not write through a reparse archive path' "$ARCHIVE_LOGIC"
   grep -qF 'does not copy through a reparse receipts path' "$ARCHIVE_LOGIC"
   grep -qF 'does not replace a file receipts path' "$ARCHIVE_LOGIC"
+  grep -qF 'does not replace a file archive dest' "$ARCHIVE_LOGIC"
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
   fi

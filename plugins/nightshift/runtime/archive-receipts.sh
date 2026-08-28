@@ -85,6 +85,12 @@ if [ -L "$NS/archive" ] || [ -L "$NS/archive/$DATE" ] || [ -L "$dest" ]; then
   printf 'archive-receipts: refuse to write through a symlink archive path\n' >&2
   exit 2
 fi
+if { [ -e "$NS/archive" ] && [ ! -d "$NS/archive" ]; } \
+  || { [ -e "$NS/archive/$DATE" ] && [ ! -d "$NS/archive/$DATE" ]; } \
+  || { [ -e "$dest" ] && [ ! -d "$dest" ]; }; then
+  printf 'archive-receipts: refuse to write through a non-directory archive path\n' >&2
+  exit 2
+fi
 
 copied=0
 if [ -d "$src" ]; then

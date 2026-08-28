@@ -187,6 +187,19 @@ try {
         'does not replace a file receipts path'
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $fileSrcNs 'archive/2026-08-28/receipts'))) `
         'file receipts path creates no archive folder'
+
+    $fileDest = Join-Path $root 'file-dest-notes'
+    $fileDestNs = Join-Path $fileDest '.nightshift'
+    $fileDestRecv = Join-Path $fileDestNs 'receipts'
+    $fileDestDated = Join-Path $fileDestNs 'archive/2026-08-28'
+    $null = New-Item -ItemType Directory -Path $fileDestRecv, $fileDestDated -Force
+    [IO.File]::WriteAllText((Join-Path $fileDestNs 'work-mode'), "artifact`n")
+    [IO.File]::WriteAllText((Join-Path $fileDestRecv '20260101T000000Z-real.md'), "real`n")
+    [IO.File]::WriteAllText((Join-Path $fileDestDated 'receipts'), "not-a-dir`n")
+    $destRefused = Invoke-ArchiveReceipts $fileDest @('-Date', '2026-08-28')
+    Expect-True ($destRefused.ExitCode -eq 2) "file archive dest exits 2 (got $($destRefused.ExitCode) $($destRefused.Stderr))"
+    Expect-True ((Get-Content -LiteralPath (Join-Path $fileDestDated 'receipts') -Raw) -match 'not-a-dir') `
+        'does not replace a file archive dest'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
