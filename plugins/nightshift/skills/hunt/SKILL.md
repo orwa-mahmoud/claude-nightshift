@@ -44,7 +44,7 @@ Offer two first-class modes:
 
 - **Guided** — show one offer line per entry, with its ending marked. The owner may choose more
  than one.
-- **Automatic** — ask for hours, inspect the work target per `execution-modes.md`, determine which entries apply, deduplicate
+- **Automatic** — ask for hours, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
  their findings, and rank them using `execution-modes.md`. Show evidence only in review-first
  mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
