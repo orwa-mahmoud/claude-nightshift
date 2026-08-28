@@ -314,6 +314,7 @@ new_artifact() {
   grep -qF 'runtime\windows\write-receipt.ps1' "$COMMANDS"
   grep -qF 'runtime\windows\write-receipt.ps1' "$WINDOC"
   grep -qF 'runtime\windows\archive-receipts.ps1' "$WINDOC"
+  grep -qF 'Missing or empty receipts create no dated receipts folder' "$WINDOC"
   grep -qF 'persistent folder' "$WINDOC"
   grep -qF 'latest artifact receipt' "$WINDOC"
   grep -qF 'most recently written' "$WINDOC"
