@@ -99,6 +99,18 @@ Native Windows:
 plugins\nightshift\runtime\windows\write-receipt.ps1 -Project . -Item 'title' -Verify 'checks' -Output .\out.md
 ```
 
+Copy live artifact receipts into today's dated archive folder (leaves the live copies in place):
+
+```bash
+plugins/nightshift/runtime/archive-receipts.sh --project .
+```
+
+Native Windows:
+
+```powershell
+plugins\nightshift\runtime\windows\archive-receipts.ps1 -Project .
+```
+
 A cited research report against its source manifest:
 
 ```bash

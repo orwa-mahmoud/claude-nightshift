@@ -3,6 +3,7 @@ load helpers
 ARCHIVE_SH="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/archive-receipts.sh"
 ARCHIVE_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/archive-receipts.ps1"
 ARCHIVE_SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
+COMMANDS="$BATS_TEST_DIRNAME/../docs/commands.md"
 
 new_artifact() {
   local p="$BATS_TEST_TMPDIR/${1:-artifact}"
@@ -77,6 +78,8 @@ new_artifact() {
   grep -qF 'leave the live copies' "$ARCHIVE_SKILL"
   grep -qF 'Never delete live receipts' "$ARCHIVE_SKILL"
   grep -qF 'Never call `archive-receipts.sh`' "$ARCHIVE_SKILL"
+  grep -qF 'runtime/archive-receipts.sh' "$COMMANDS"
+  grep -qF 'runtime\windows\archive-receipts.ps1' "$COMMANDS"
   [ -f "$ARCHIVE_PS1" ]
   grep -qF 'Get-NSReceiptsDir' "$ARCHIVE_PS1"
   grep -qF "StartsWith('.')" "$ARCHIVE_PS1"
