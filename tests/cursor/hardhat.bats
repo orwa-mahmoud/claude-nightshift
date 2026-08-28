@@ -27,6 +27,30 @@ is_cursor_deny() {
   [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "cursor" ]
 }
 
+# ---- the site rules bind the shift's session; other conversations keep their tools ----
+
+@test "another conversation is untouched by the site rules" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  out="$(jq -nc --arg p "$p" \
+    '{tool_name:"Shell",conversation_id:"helper-tab",transcript_path:"",cwd:$p,tool_input:{command:"git push origin main"}}' |
+    env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh")"
+  [ -z "$out" ]
+}
+
+@test "the shift session itself still answers to the site rules" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  jq -nc --arg p "$p" \
+    '{tool_name:"Shell",conversation_id:"the-shift",transcript_path:"",cwd:$p,tool_input:{command:"git push origin main"}}' \
+    >"$BATS_TEST_TMPDIR/held-shell.json"
+  run env NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' CURSOR_PROJECT_DIR="$p" \
+    bash "$CURSOR_HOOKS/hardhat.sh" <"$BATS_TEST_TMPDIR/held-shell.json"
+  is_cursor_deny
+}
+
 @test "cursor binding probe is recognized on Shell" {
   p="$(new_project)"
   punch_open "$p"

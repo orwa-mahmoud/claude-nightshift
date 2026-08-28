@@ -90,6 +90,22 @@ load helpers
   done < <(jq -r '.. | .command? // empty' "$f")
 }
 
+@test "Cursor hooks.json wires hardhat, clock-out, and session-end" {
+  root="$BATS_TEST_DIRNAME/../plugins/nightshift"
+  f="$root/hooks/cursor/hooks.json"
+  [ "$(jq -r '.version' "$f")" = "1" ]
+  [ "$(jq -r '[.hooks.preToolUse[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.stop[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.sessionEnd[].command] | length' "$f")" -eq 1 ]
+  jq -e '.hooks.preToolUse[0].command | test("cursor/hardhat")' "$f" >/dev/null
+  jq -e '.hooks.stop[0].command | test("cursor/clock-out-gate")' "$f" >/dev/null
+  jq -e '.hooks.sessionEnd[0].command | test("cursor/session-end")' "$f" >/dev/null
+  while IFS= read -r cmd; do
+    path="${cmd/\$\{CURSOR_PLUGIN_ROOT\}/$root}"
+    [ -f "$path" ] || { echo "Cursor hooks.json names a missing file: $path"; return 1; }
+  done < <(jq -r '.. | .command? // empty' "$f")
+}
+
 @test "Codex catch-all wiring reaches configured MCP tools" {
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
   f="$root/hooks/codex/hooks.json"

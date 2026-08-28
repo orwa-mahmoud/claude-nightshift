@@ -6,17 +6,21 @@ CODEX_HOOKS="$HOOKS/codex"
 @test "both gate wrappers source one shared decision core" {
   grep -qF 'shared/gate-core.sh' "$HOOKS/clock-out-gate.sh"
   grep -qF '../shared/gate-core.sh' "$HOOKS/codex/clock-out-gate.sh"
+  grep -qF '../shared/gate-core.sh' "$HOOKS/cursor/clock-out-gate.sh"
   [ -f "$HOOKS/shared/gate-core.sh" ]
   grep -qF 'ns_gate_progress_token' "$HOOKS/shared/gate-core.sh"
   grep -qF 'ns_gate_progress_token' "$HOOKS/clock-out-gate.sh"
   grep -qF 'ns_gate_progress_token' "$HOOKS/codex/clock-out-gate.sh"
+  grep -qF 'ns_gate_progress_token' "$HOOKS/cursor/clock-out-gate.sh"
 }
 
 @test "both hardhat wrappers source one shared active-shift core" {
   grep -qF 'shared/hardhat-core.sh' "$HOOKS/hardhat.sh"
   grep -qF '../shared/hardhat-core.sh' "$HOOKS/codex/hardhat.sh"
+  grep -qF '../shared/hardhat-core.sh' "$HOOKS/cursor/hardhat.sh"
   grep -qF 'ns_hardhat_active' "$HOOKS/hardhat.sh"
   grep -qF 'ns_hardhat_active' "$HOOKS/codex/hardhat.sh"
+  grep -qF 'ns_hardhat_active' "$HOOKS/cursor/hardhat.sh"
 }
 
 @test "command, tool-deny, and scrub decisions live in the shared core" {
@@ -41,12 +45,17 @@ CODEX_HOOKS="$HOOKS/codex"
   grep -qF 'ns_shift_authorize claude' "$HOOKS/hardhat.sh"
   grep -qF 'ns_shift_unbound codex hardhat' "$HOOKS/codex/hardhat.sh"
   grep -qF 'ns_shift_authorize codex' "$HOOKS/codex/hardhat.sh"
+  grep -qF 'ns_shift_unbound cursor hardhat' "$HOOKS/cursor/hardhat.sh"
+  grep -qF 'ns_shift_authorize cursor' "$HOOKS/cursor/hardhat.sh"
   grep -qF 'ns_shift_unbound claude gate' "$HOOKS/clock-out-gate.sh"
   grep -qF 'ns_shift_ownership claude' "$HOOKS/clock-out-gate.sh"
   grep -qF 'ns_shift_unbound codex gate' "$HOOKS/codex/clock-out-gate.sh"
   grep -qF 'ns_shift_ownership codex' "$HOOKS/codex/clock-out-gate.sh"
+  grep -qF 'ns_shift_unbound cursor gate' "$HOOKS/cursor/clock-out-gate.sh"
+  grep -qF 'ns_shift_ownership cursor' "$HOOKS/cursor/clock-out-gate.sh"
   awk '/ns_shift_unbound/{u=NR} /ns_session_claim/{if(!c)c=NR} END{exit !(u && c && u<c)}' "$HOOKS/hardhat.sh"
   awk '/ns_shift_unbound/{u=NR} /ns_session_claim/{if(!c)c=NR} END{exit !(u && c && u<c)}' "$HOOKS/codex/hardhat.sh"
+  awk '/ns_shift_unbound/{u=NR} /ns_session_claim/{if(!c)c=NR} END{exit !(u && c && u<c)}' "$HOOKS/cursor/hardhat.sh"
   awk '/ns_hardhat_binding_probe/{p=NR} /ns_shift_authorize/{a=NR} END{exit !(p && a && p<a)}' "$HOOKS/hardhat.sh"
   awk '/ns_hardhat_binding_probe/{p=NR} /ns_shift_authorize/{a=NR} END{exit !(p && a && p<a)}' "$HOOKS/codex/hardhat.sh"
 }

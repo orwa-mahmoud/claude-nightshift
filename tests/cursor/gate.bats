@@ -65,6 +65,26 @@ cursor_gate() {
   [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "cursor" ]
 }
 
+# ---- the shift binds one session: everyone else stops freely ----
+
+@test "another conversation's stop is not the shift's business — released" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'the-shift\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  run cursor_gate "$p" "$FIXTURES/stop-completed.json"
+  is_cursor_release
+  [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "the-shift" ]
+  [ ! -f "$p/.nightshift/.ended" ]
+}
+
+@test "the recorded shift session itself is still held" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'fixture-cursor-conversation\n\n\n\ncursor\n' >"$p/.nightshift/.shift-session"
+  run cursor_gate "$p" "$FIXTURES/stop-completed.json"
+  is_cursor_block
+}
+
 @test "cursor abort fixture distinguishes status from completed" {
   aborted="$(jq -r '.status' "$FIXTURES/stop-aborted.json")"
   completed="$(jq -r '.status' "$FIXTURES/stop-completed.json")"
