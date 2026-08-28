@@ -296,6 +296,8 @@ with open(p,"w") as f: json.dump(d,f)
   ! printf '%s' "$output" | grep -qF 'recorded host planted-host'
   ! printf '%s' "$output" | grep -qF 'session id is present'
   ! printf '%s' "$output" | grep -qF 'no .shift-session yet'
+  grep -qF 'shift-session path is not a usable file' "$SKILL"
+  grep -qF 'shift-session path is not a usable file' "$STATUS"
 }
 
 @test "the drafting-table item-shape example is not a staged draft" {
