@@ -16,6 +16,11 @@
           "type": "json",
           "path": "plugins/nightshift/.codex-plugin/plugin.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/nightshift/.cursor-plugin/plugin.json",
+          "jsonpath": "$.version"
         }
       ]
     }
