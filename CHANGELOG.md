@@ -3,6 +3,13 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.18.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.18.0...v0.18.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* **cursor:** keep Claude marketplace hooks off Cursor leases ([9991770](https://github.com/orwa-mahmoud/nightshift/commit/999177069386b804a3f85ef4e9a66cee3c4b8312))
+
 ## [0.18.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.17.0...v0.18.0) (2026-08-29)
 
 
