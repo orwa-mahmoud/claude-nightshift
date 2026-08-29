@@ -39,7 +39,8 @@
       },
       "homepage": "https://nightshift.orwamahmoud.com/",
       "repository": "https://github.com/orwa-mahmoud/nightshift",
-      "license": "MIT"
+      "license": "MIT",
+      "logo": "./assets/nightshift-logo.png"
     }
   ]
 }

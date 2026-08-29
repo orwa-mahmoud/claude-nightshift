@@ -10,6 +10,7 @@
   "homepage": "https://nightshift.orwamahmoud.com/",
   "repository": "https://github.com/orwa-mahmoud/nightshift",
   "license": "MIT",
+  "logo": "./assets/nightshift-logo.png",
   "keywords": [
     "cursor",
     "agent-harness",
