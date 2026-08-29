@@ -146,7 +146,7 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
  not exist, run `git -C "$NS" init` rather than `cd`-ing there.
  Ensure `$NS/.gitignore` contains the
  transient markers `STOP`, `.stall`, `.notified`, `deadline`, `.session-end`, `.shift-session`,
- `.shift-session.tmp.*`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
+ `.shift-session.tmp.*`, `.shift-worker`, `.shift-lease`, `.shift-lease.tmp.*`, `.mutex-scope`,
  `.mutex-scope.tmp.*`, `.watchman`, `.watchman-tick`, `.lock.d/`, and `.lease-lock.d/`; preserve
  existing lines. Make one initial commit only when setup created the receipts repository.
  Creating the repo does **not** turn on headless auto-commit — that is `receiptsAutoCommit`
@@ -154,6 +154,17 @@ not rewrite or downgrade it, and do not continue scaffolding as if the site were
  **Never add a remote to it, never push it.**
  On native Windows, after a clear yes, rerun the bundled scaffold with the same `-Project` and
  `-WorkTarget` plus `-Receipts`; the idempotent pass creates only this local receipts repo.
+- **Cursor CLI file hooks — ask, default no.** The installed Cursor plugin already holds the
+ IDE Agent tab. The Cursor CLI (`agent`) currently ignores marketplace and local plugin hooks
+ and only runs project file hooks — a Cursor limitation, not a Nightshift skip. Ask —
+ *"write a project `.cursor/hooks.json` so the Cursor CLI is held by the same Nightshift
+ hooks?"* — and on anything but a clear yes, skip it. Present the question neutrally; the
+ default is no. The IDE plugin keeps working either way. On yes: if
+ `$NIGHTSHIFT_WORKSPACE/.cursor/hooks.json` does not exist, create `.cursor/` if needed and
+ copy `$NIGHTSHIFT_PLUGIN_ROOT/hooks/cursor/hooks.json` there. That file execs the same
+ plugin scripts via `${CURSOR_PLUGIN_ROOT}`. If a `.cursor/hooks.json` already exists, show
+ the diff against the shipped file and write only on an explicit yes to replace; never merge
+ unknown owner hooks silently. Never create a second `.nightshift/`.
 
 ## 3. Gates — ask, never impose
 

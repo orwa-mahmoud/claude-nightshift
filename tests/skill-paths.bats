@@ -119,6 +119,15 @@ PY
   grep -qF '`.lease-lock.d/`' "$SETUP"
 }
 
+@test "setup asks before writing Cursor CLI file hooks and defaults to skip" {
+  grep -qF 'Cursor CLI file hooks — ask, default no' "$SETUP"
+  grep -qF 'on anything but a clear yes, skip it' "$SETUP"
+  grep -qF '.cursor/hooks.json' "$SETUP"
+  grep -qF 'hooks/cursor/hooks.json' "$SETUP"
+  grep -qF 'a Cursor limitation, not a Nightshift skip' "$SETUP"
+  grep -qF 'Never create a second `.nightshift/`' "$SETUP"
+}
+
 @test "setup refuses disposable ChatGPT scratch before writing" {
   grep -qF '/workspace/scratch/' "$SETUP"
   grep -qF 'Before creating or changing any file' "$SETUP"
@@ -140,6 +149,7 @@ PY
   grep -qF '$NS/.shift-armed' "$START"
   grep -qF 'runtime/claude/watchman.sh' "$START"
   grep -qF 'runtime/codex/watchman.sh' "$START"
+  grep -qF 'runtime/cursor/watchman.sh' "$START"
   grep -qF 'start-watchman.ps1' "$START"
   grep -qF '### Bind this session' "$START"
   grep -qF '$NS/.shift-lease' "$START"
@@ -226,6 +236,8 @@ PY
       || { echo "missing Claude watchman: $f"; return 1; }
     grep -qF 'runtime/codex/watchman.sh' "$f" \
       || { echo "missing Codex watchman: $f"; return 1; }
+    grep -qF 'runtime/cursor/watchman.sh' "$f" \
+      || { echo "missing Cursor watchman: $f"; return 1; }
     grep -qF 'start-watchman.ps1' "$f" \
       || { echo "missing Windows watchman: $f"; return 1; }
   done

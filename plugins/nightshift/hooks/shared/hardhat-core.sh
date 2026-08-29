@@ -217,7 +217,7 @@ sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/de
 # Bound-worker control plane: forge/delete of the files the gate keys off.
 # punch-list.md may be edited; only a delete/rename of that file is denied.
 ns_hardhat_control_rewrite_path() {
-  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)(/|$|[^[:alnum:]_.-])'
+  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode)(/|$|[^[:alnum:]_.-])'
 }
 
 ns_hardhat_control_list_path() {
@@ -225,7 +225,7 @@ ns_hardhat_control_list_path() {
 }
 
 ns_hardhat_control_rewrite_name() {
-  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)([;&|()[:space:]]|$)'
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode)([;&|()[:space:]]|$)'
 }
 
 ns_hardhat_control_list_name() {

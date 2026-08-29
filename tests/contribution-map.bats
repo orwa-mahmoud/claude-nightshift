@@ -60,6 +60,7 @@ RECEIPTS="$ROOT/examples/README.md"
     plugins/nightshift/runtime plugins/nightshift/lib/lib.sh \
     plugins/nightshift/runtime/claude/watchman.sh \
     plugins/nightshift/runtime/codex/watchman.sh \
+    plugins/nightshift/runtime/cursor/watchman.sh \
     plugins/nightshift/runtime/windows/watchman.ps1 \
     plugins/nightshift/runtime/windows/start-watchman.ps1 \
     plugins/nightshift/lib/Nightshift.psm1 \
@@ -73,6 +74,7 @@ RECEIPTS="$ROOT/examples/README.md"
     tests/first-night-checklist.bats tests/shift-modes.bats tests/troubleshooting.bats \
     tests/bad-night-template.bats tests/github-templates.bats \
     tests/watchman.bats tests/codex/watchman.bats \
+    tests/cursor/watchman.bats \
     tests/process-evidence.bats tests/degradation.bats tests/watch-reason.bats \
     tests/e2e-lifecycle.bats tests/clock-out-gate.bats tests/hardhat.bats \
     tests/codex/gate.bats tests/codex/hardhat.bats \

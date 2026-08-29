@@ -276,11 +276,21 @@ shares the same `.nightshift/` site. Clock-out reads Cursor's `stop.status` (`co
 Stop-button payload sends `aborted` — same owner interrupt as Claude Escape: the gate
 releases, the punch list stays, the shift stays armed. Agent completion with open boxes
 keeps the gate; `error` is not owner-stop.
-`sessionEnd` reasons `aborted` and `user_close` record a clean-close marker. Cursor does not yet
-arm a watchman — recovery after a dead Cursor chat is manual until resume-of-this-chat is proven.
-Do not arm the Claude or Codex watchman from a Cursor session. Install locally under
-`~/.cursor/plugins/local` first; marketplace listing waits on the same verified bar as the other
-hosts.
+`sessionEnd` reasons `aborted` and `user_close` record a clean-close marker for the Cursor
+watchman. The bound conversation is the origin IDE tab (`conversation_id` under
+`~/.cursor/projects/.../agent-transcripts`). Cursor's CLI (`agent --resume`) uses a separate
+store (`~/.cursor/chats`). Those ids are not interchangeable: never pass the IDE
+`conversation_id` to `agent --resume` and call it the same chat. Start arms the Cursor
+watchman when `watchMinutes` is not `0`. After an IDE death it mints a CLI worker
+(`.shift-worker`) and resumes that id; later wakes resume the same worker. The origin IDE
+tab is denied with the attach command while that worker holds the shift. Other IDE tabs in
+the same project stay outside the gate. Closing the origin tab is not a clean session end
+once a worker is recorded. Do not arm the Claude or Codex watchman from a Cursor session.
+Install locally under `~/.cursor/plugins/local` first; marketplace listing waits on a
+verified Cursor shift with watchman recovery. The Cursor CLI (`agent`) currently ignores
+marketplace and local plugin hooks and only runs project `.cursor/hooks.json`. Setup can
+copy the shipped Cursor hook file there on an explicit yes; that is a Cursor limitation,
+not a Nightshift skip.
 
 The differences among Claude Code and Codex are in recovery evidence. Claude Code exposes Escape,
 clean session-end, process, transcript, and API-error signals. Codex exposes process and rollout

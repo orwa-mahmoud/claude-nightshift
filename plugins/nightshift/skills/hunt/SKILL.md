@@ -160,7 +160,8 @@ Windows: `Get-NSCodexIdentityKind` after
 item work, and arm the watchman as the Start skill requires. Unsupported or
 malformed identities refuse as Start requires — never resume them. Claude Code uses
 `$NIGHTSHIFT_PLUGIN_ROOT/runtime/claude/watchman.sh`; Codex uses
-`$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; native Windows uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`; Cursor uses
+`$NIGHTSHIFT_PLUGIN_ROOT/runtime/cursor/watchman.sh`; native Windows uses
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
 `-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`).
 The marker is what starts the shift — without it the list is written and nothing is holding it. From

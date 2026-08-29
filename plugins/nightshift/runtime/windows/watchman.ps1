@@ -1,7 +1,7 @@
 param(
     [string]$Project = [Environment]::CurrentDirectory,
     [Parameter(Mandatory = $true)]
-    [ValidateSet('claude', 'codex')]
+    [ValidateSet('claude', 'codex', 'cursor')]
     [string]$HostName,
     [int]$IntervalMinutes = -1,
     [string]$Agent = '',
@@ -179,7 +179,72 @@ function Get-NSRegistryState {
     }
 }
 
+function Get-NSCursorWorkerId {
+    $path = Join-Path $ns '.shift-worker'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Test-NSReparsePoint $path)) {
+        return ''
+    }
+    try {
+        $id = ([IO.File]::ReadAllLines($path) | Select-Object -First 1)
+        if ([string]::IsNullOrWhiteSpace($id)) { return '' }
+        return $id.Trim()
+    }
+    catch {
+        return ''
+    }
+}
+
+function Write-NSCursorWorkerId {
+    param([Parameter(Mandatory = $true)][string]$WorkerId)
+    if ($WorkerId -match '[\r\n/\\]') {
+        return $false
+    }
+    $path = Join-Path $ns '.shift-worker'
+    try {
+        return Write-NSAtomicLines -Path $path -Lines @($WorkerId) -Private
+    }
+    catch {
+        return $false
+    }
+}
+
+function Resolve-NSCursorWorkerId {
+    $existing = Get-NSCursorWorkerId
+    if (-not [string]::IsNullOrEmpty($existing)) {
+        return $existing
+    }
+    $transcript = Get-NSSessionValue 'Transcript'
+    $origin = Get-NSSessionValue 'SessionId'
+    if ($transcript -match '[/\\]\.cursor[/\\]chats([/\\]|$)' -and -not [string]::IsNullOrEmpty($origin)) {
+        if (Write-NSCursorWorkerId $origin) { return $origin }
+        return ''
+    }
+    if (-not [string]::IsNullOrEmpty($Agent)) {
+        $minted = if (-not [string]::IsNullOrEmpty($env:NIGHTSHIFT_CURSOR_TEST_WORKER)) {
+            $env:NIGHTSHIFT_CURSOR_TEST_WORKER
+        } else {
+            'minted-cli-worker'
+        }
+        if (Write-NSCursorWorkerId $minted) { return $minted }
+        return ''
+    }
+    try {
+        $minted = (& agent create-chat 2>$null | Out-String).Trim()
+    }
+    catch {
+        return ''
+    }
+    if ([string]::IsNullOrEmpty($minted) -or $minted -match '[\r\n/\\]') {
+        return ''
+    }
+    if (Write-NSCursorWorkerId $minted) { return $minted }
+    return ''
+}
+
 function Get-NSHostProcessState {
+    if ($HostName -eq 'cursor') {
+        return 'Absent'
+    }
     try {
         $processes = @(Get-Process -Name $HostName -ErrorAction SilentlyContinue)
         if ($processes.Count -gt 0) {
@@ -291,8 +356,21 @@ function Start-NSAgent {
         [Parameter(Mandatory = $true)][int]$TotalAttempts
     )
     $sessionId = Get-NSSessionValue 'SessionId'
+    $hadCursorWorker = $false
+    if ($HostName -eq 'cursor') {
+        $hadCursorWorker = -not [string]::IsNullOrEmpty((Get-NSCursorWorkerId))
+        $workerId = Resolve-NSCursorWorkerId
+        if ([string]::IsNullOrEmpty($workerId)) {
+            Write-NSLogLine 'watchman: could not mint a CLI worker - not passing the IDE conversation to agent --resume'
+            return $false
+        }
+        $sessionId = $workerId
+    }
     $fresh = $Attempt -ge $TotalAttempts -and $TotalAttempts -gt 1
     $prompt = if ($fresh) { $freshPrompt } else { $revivalPrompt }
+    if ($HostName -eq 'cursor' -and -not $hadCursorWorker) {
+        $prompt = $freshPrompt
+    }
     $lease = Takeover-NSLease $ns $sessionId $HostName
     if ($null -eq $lease) {
         Write-NSLogLine 'watchman: process lease transfer failed - not spawning beside an unfenced session'
@@ -315,6 +393,16 @@ function Start-NSAgent {
                 }
             }
         }
+        $commandArguments.Add($prompt)
+    }
+    elseif ($HostName -eq 'cursor') {
+        $commandName = 'agent'
+        $commandArguments.Add("--resume=$sessionId")
+        $commandArguments.Add('-p')
+        $commandArguments.Add('--trust')
+        $commandArguments.Add('--yolo')
+        $commandArguments.Add('--workspace')
+        $commandArguments.Add($workspace)
         $commandArguments.Add($prompt)
     }
     elseif ($HostName -eq 'claude') {
@@ -365,13 +453,16 @@ function Start-NSAgent {
     $arguments.Add('-Command')
     $arguments.Add($invocation)
 
-    $oldProject = if ($HostName -eq 'claude') { $env:CLAUDE_PROJECT_DIR } else { $env:CODEX_PROJECT_DIR }
+    $oldProject = if ($HostName -eq 'claude') { $env:CLAUDE_PROJECT_DIR } elseif ($HostName -eq 'cursor') { $env:CURSOR_PROJECT_DIR } else { $env:CODEX_PROJECT_DIR }
     $oldRevival = $env:NIGHTSHIFT_REVIVAL
     $oldGeneration = $env:NIGHTSHIFT_LEASE_GENERATION
     $oldNonce = $env:NIGHTSHIFT_LEASE_NONCE
     try {
         if ($HostName -eq 'claude') {
             $env:CLAUDE_PROJECT_DIR = $workspace
+        }
+        elseif ($HostName -eq 'cursor') {
+            $env:CURSOR_PROJECT_DIR = $workspace
         }
         else {
             $env:CODEX_PROJECT_DIR = $workspace
@@ -397,6 +488,9 @@ function Start-NSAgent {
         if ($HostName -eq 'claude') {
             $env:CLAUDE_PROJECT_DIR = $oldProject
         }
+        elseif ($HostName -eq 'cursor') {
+            $env:CURSOR_PROJECT_DIR = $oldProject
+        }
         else {
             $env:CODEX_PROJECT_DIR = $oldProject
         }
@@ -420,7 +514,7 @@ function Get-NSHoldReason {
     if (Test-NSDeadlinePassed) {
         return 'deadline passed'
     }
-    if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {
+    if (($HostName -eq 'claude' -or $HostName -eq 'cursor') -and (Test-NSRealSessionEnd)) {
         return 'clean session end'
     }
     $verdict = Get-NSSiteVerdict
@@ -578,7 +672,7 @@ try {
             exit 0
         }
 
-        if ($HostName -eq 'claude' -and (Test-NSRealSessionEnd)) {
+        if (($HostName -eq 'claude' -or $HostName -eq 'cursor') -and (Test-NSRealSessionEnd)) {
             Write-NSReason $ns 'clean-session-end'
             Write-NSLogLine 'watchman: clean session end - the owner closed it; standing down'
             exit 0
@@ -658,8 +752,12 @@ try {
                 }
                 $downNotified = $false
                 $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+                $cursorWorker = Get-NSCursorWorkerId
                 $notice = if (-not [string]::IsNullOrEmpty($sessionId) -and $HostName -eq 'claude') {
                     "- [notice] $stamp - the shift session died and the watchman revived it. One thread: claude --resume $sessionId · cursor://anthropic.claude-code/open?session=$sessionId · vscode://anthropic.claude-code/open?session=$sessionId"
+                }
+                elseif ($HostName -eq 'cursor' -and -not [string]::IsNullOrEmpty($cursorWorker)) {
+                    "- [notice] $stamp - the shift session died and the watchman revived it in a CLI worker. To see it, run this in a terminal: agent --resume=`"$cursorWorker`" --workspace `"$workspace`". To stop it, ask Nightshift to stop."
                 }
                 else {
                     "- [notice] $stamp - the shift session died and the watchman revived it (details in shift-log.md)."
