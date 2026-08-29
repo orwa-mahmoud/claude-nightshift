@@ -1131,6 +1131,18 @@ function Read-NSSession {
     }
 }
 
+function Test-NSClaudeForeignCursorSurface {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [AllowEmptyString()][string]$Transcript = ''
+    )
+    if ($Transcript -match '[/\\]\.cursor([/\\]|$)') {
+        return $true
+    }
+    $session = Read-NSSession $NightshiftDir
+    return ($null -ne $session -and $session.HostName -eq 'cursor')
+}
+
 function Write-NSSession {
     param(
         [Parameter(Mandatory = $true)][string]$NightshiftDir,
@@ -1958,6 +1970,21 @@ function Resolve-NSShiftAuthorize {
             return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: the shift process lease could not be created. Issue STOP from another session, then run Start again.'
         }
         return New-NSShiftDecision -Status Fail -Session $Session -Message 'DO NOT STOP - the shift process lease is unreadable. Issue STOP from another session, then run Start again.'
+    }
+    elseif ($HostName -eq 'cursor') {
+        $contaminated = Read-NSLease $NightshiftDir
+        if ($null -ne $contaminated `
+            -and $contaminated.HostName -eq 'claude' `
+            -and $contaminated.SessionId -eq $Session.SessionId `
+            -and [string]::IsNullOrEmpty($contaminated.Nonce) `
+            -and [string]::IsNullOrEmpty($Nonce)) {
+            if (-not (Write-NSLease $NightshiftDir $Session.SessionId 'cursor' 1 '' $ProcessId $ProcessStart)) {
+                if ($Mode -eq 'hardhat') {
+                    return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: the shift process lease could not be reclaimed for Cursor. Issue STOP from another session, then run Start again.'
+                }
+                return New-NSShiftDecision -Status Fail -Session $Session -Message 'DO NOT STOP - the shift process lease could not be reclaimed for Cursor. Issue STOP from another session, then run Start again.'
+            }
+        }
     }
     $checkSession = if ([string]::IsNullOrEmpty($SessionId)) { $Session.SessionId } else { $SessionId }
     $allow = Test-NSLeaseAllows $NightshiftDir $checkSession $HostName $ProcessId $ProcessStart $Nonce $Generation

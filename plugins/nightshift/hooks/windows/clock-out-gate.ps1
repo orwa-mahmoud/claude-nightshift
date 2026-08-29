@@ -248,6 +248,11 @@ if (Test-Path -LiteralPath $stop -PathType Leaf) {
     Write-Release
 }
 
+# Cursor IDE also runs this Claude gate; leave Cursor's gate as the only clock-out owner.
+if ($HostName -eq 'claude' -and (Test-NSClaudeForeignCursorSurface -NightshiftDir $ns -Transcript $transcript)) {
+    Write-Release
+}
+
 if ($null -eq $payload) {
     Write-Block 'DO NOT STOP - the hook payload is unreadable while a shift is active. Retry after the host can provide valid hook JSON.'
 }

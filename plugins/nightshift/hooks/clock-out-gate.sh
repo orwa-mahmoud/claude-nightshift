@@ -169,6 +169,11 @@ if [ -f "$STOP" ]; then
   exit 0
 fi
 
+# Cursor IDE also runs this Claude gate; leave Cursor's gate as the only clock-out owner.
+if ns_claude_foreign_cursor_surface "$NS" "${TPATH:-}"; then
+  exit 0
+fi
+
 LEASE_NONCE="${NIGHTSHIFT_LEASE_NONCE:-}"
 LEASE_GENERATION="${NIGHTSHIFT_LEASE_GENERATION:-}"
 ns_shift_unbound claude gate
