@@ -3,6 +3,18 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.18.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.17.0...v0.18.0) (2026-08-29)
+
+
+### Features
+
+* **cursor:** register the plugin in the repo-root marketplace file ([fe03d00](https://github.com/orwa-mahmoud/nightshift/commit/fe03d0092961bd15c101298d6f6c65c9c1f7dd86))
+
+
+### Bug Fixes
+
+* **cursor:** reuse the shipped Codex logo on the Cursor listing ([050747b](https://github.com/orwa-mahmoud/nightshift/commit/050747b6e5554dc480577ad3ebdc8faf47b863d0))
+
 ## [0.17.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.16.0...v0.17.0) (2026-08-29)
 
 
