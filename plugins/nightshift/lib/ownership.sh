@@ -450,6 +450,29 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
       fi
       return 2
     fi
+  elif [ "$host" = cursor ] && ns_lease_valid "$NS" \
+    && [ "$NS_LEASE_HOST" = claude ] && [ "$NS_LEASE_SID" = "$rec" ] \
+    && [ -z "$NS_LEASE_NONCE" ] && [ -z "${LEASE_NONCE:-}" ]; then
+    # Cursor IDE also ran Claude marketplace hooks, which leased as host claude while
+    # .shift-session already names cursor. Reclaim so the Cursor hardhat can own the shift.
+    ns_lease_lock "$NS" || {
+      if [ "$mode" = hardhat ]; then
+        NS_SHIFT_FAIL="BLOCKED: the shift process lease could not be reclaimed for Cursor. Issue STOP from another session, then run Start again."
+      else
+        NS_SHIFT_FAIL="DO NOT STOP — the shift process lease could not be reclaimed for Cursor. Issue STOP from another session, then run Start again."
+      fi
+      return 2
+    }
+    if ! ns_lease_write_unlocked "$NS" "$rec" cursor 1 "" "$pid" "$start"; then
+      ns_lease_unlock "$NS"
+      if [ "$mode" = hardhat ]; then
+        NS_SHIFT_FAIL="BLOCKED: the shift process lease could not be reclaimed for Cursor. Issue STOP from another session, then run Start again."
+      else
+        NS_SHIFT_FAIL="DO NOT STOP — the shift process lease could not be reclaimed for Cursor. Issue STOP from another session, then run Start again."
+      fi
+      return 2
+    fi
+    ns_lease_unlock "$NS"
   fi
 
   ns_lease_allows "$NS" "$check_sid" "$host" "$pid" "$start" \
@@ -606,6 +629,16 @@ ns_claude_session_host() { # <transcript-path>
     */.cursor/*) printf 'cursor' ;;
     *) printf 'claude' ;;
   esac
+}
+
+# Cursor IDE loads Claude marketplace plugins and runs their hooks in the same Agent tab.
+# Those Claude-entry hooks must not claim or fence a Cursor-owned shift. True when the
+# transcript lives under ~/.cursor, or .shift-session already records host cursor.
+ns_claude_foreign_cursor_surface() { # <ns-dir> <transcript-path>
+  case "$2" in
+    */.cursor/*) return 0 ;;
+  esac
+  [ "$(ns_session_host "$1")" = "cursor" ]
 }
 
 # True when .shift-session is a real file, not a planted symlink.

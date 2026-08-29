@@ -106,6 +106,12 @@ if ns_hardhat_is_command_tool "$TOOL"; then
   fi
 fi
 
+# Cursor IDE loads this Claude marketplace plugin beside the Cursor host plugin. Do not claim
+# or fence a Cursor conversation — Cursor hardhat owns that surface.
+if ns_claude_foreign_cursor_surface "$NS" "${TPATH:-}"; then
+  exit 0
+fi
+
 # The conversation record preserves continuity; the lease names the process generation allowed
 # to act on it. Initial work uses the Claude ancestor's pid + start time. Every watchman spawn
 # instead carries a unique nonce and generation, so an old IDE process with the same session id

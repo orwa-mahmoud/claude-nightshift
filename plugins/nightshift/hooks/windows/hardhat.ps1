@@ -668,6 +668,11 @@ if ($tool -in @('Bash', 'PowerShell')) {
     }
 }
 
+# Cursor IDE loads the Claude marketplace plugin beside the Cursor host plugin.
+if ($HostName -eq 'claude' -and (Test-NSClaudeForeignCursorSurface -NightshiftDir $ns -Transcript $transcript)) {
+    exit 0
+}
+
 $unbound = Resolve-NSShiftUnbound -NightshiftDir $ns -HostName $HostName `
     -Nonce $nonce -Generation $generation -Revival $revival -Mode hardhat
 if ($unbound.Status -eq 'Pass') { exit 0 }

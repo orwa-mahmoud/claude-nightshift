@@ -25,6 +25,22 @@ is_cursor_deny() {
     env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh"
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "cursor-tab" ]
   [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "cursor" ]
+  [ "$(sed -n 2p "$p/.nightshift/.shift-lease")" = "cursor" ]
+}
+
+@test "cursor hardhat reclaims a claude-contaminated lease for the same session" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '%s\n' cursor-tab \
+    '/Users/o/.cursor/projects/x/agent-transcripts/u/u.jsonl' '' '' cursor \
+    >"$p/.nightshift/.shift-session"
+  printf '%s\n' cursor-tab claude 1 '' '' '' >"$p/.nightshift/.shift-lease"
+  chmod 600 "$p/.nightshift/.shift-session" "$p/.nightshift/.shift-lease"
+  jq -nc --arg p "$p" \
+    '{tool_name:"Shell",conversation_id:"cursor-tab",transcript_path:"/Users/o/.cursor/projects/x/agent-transcripts/u/u.jsonl",cwd:$p,tool_input:{command:"echo hi"}}' |
+    env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh"
+  [ "$(sed -n 1p "$p/.nightshift/.shift-lease")" = "cursor-tab" ]
+  [ "$(sed -n 2p "$p/.nightshift/.shift-lease")" = "cursor" ]
 }
 
 # ---- the site rules bind the shift's session; other conversations keep their tools ----
