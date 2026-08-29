@@ -3,6 +3,19 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.17.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.16.0...v0.17.0) (2026-08-29)
+
+
+### Features
+
+* **cursor:** ask before writing CLI file hooks ([51389c6](https://github.com/orwa-mahmoud/nightshift/commit/51389c6c4778c9a191d2d2bc91b0fb01c85274b0))
+* **cursor:** revive dead shifts in a CLI worker ([3c1af44](https://github.com/orwa-mahmoud/nightshift/commit/3c1af448398e1183de7c39560510cd1e3df91a38))
+
+
+### Bug Fixes
+
+* **cursor:** tell the origin tab how to attach or stop ([d26a867](https://github.com/orwa-mahmoud/nightshift/commit/d26a8673ca489ef30c10982022759734f75956d1))
+
 ## [0.16.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.15.0...v0.16.0) (2026-08-28)
 
 
