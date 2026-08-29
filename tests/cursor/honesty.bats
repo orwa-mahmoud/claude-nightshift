@@ -7,6 +7,7 @@ START="$ROOT/plugins/nightshift/skills/start/SKILL.md"
 README="$ROOT/README.md"
 MARKET="$ROOT/.claude-plugin/marketplace.json"
 CODEX_MARKET="$ROOT/.agents/plugins/marketplace.json"
+CURSOR_MARKET="$ROOT/.cursor-plugin/marketplace.json"
 
 @test "docs name the Cursor IDE and CLI store split" {
   grep -qF '~/.cursor/projects/' "$HOW"
@@ -34,4 +35,18 @@ CODEX_MARKET="$ROOT/.agents/plugins/marketplace.json"
   grep -qF 'marketplace listing waits' "$HOW"
   ! grep -qi cursor "$MARKET"
   ! grep -qi cursor "$CODEX_MARKET"
+}
+
+@test "the Cursor marketplace file points at the shipped plugin" {
+  [ -f "$CURSOR_MARKET" ]
+  [ "$(jq -r '.plugins[0].name' "$CURSOR_MARKET")" = "nightshift" ]
+  [ "$(jq -r '.plugins[0].source' "$CURSOR_MARKET")" = "./plugins/nightshift" ]
+  [ -f "$ROOT/plugins/nightshift/.cursor-plugin/plugin.json" ]
+}
+
+@test "Release Please bumps the Cursor host manifest with the others" {
+  cfg="$ROOT/release-please-config.json"
+  jq -e '.packages["."]."extra-files" | map(.path) | index("plugins/nightshift/.claude-plugin/plugin.json")' "$cfg" >/dev/null
+  jq -e '.packages["."]."extra-files" | map(.path) | index("plugins/nightshift/.codex-plugin/plugin.json")' "$cfg" >/dev/null
+  jq -e '.packages["."]."extra-files" | map(.path) | index("plugins/nightshift/.cursor-plugin/plugin.json")' "$cfg" >/dev/null
 }

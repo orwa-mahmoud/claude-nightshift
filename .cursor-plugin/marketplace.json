@@ -1,0 +1,45 @@
+{
+  "name": "nightshift",
+  "owner": {
+    "name": "Orwa Mahmoud",
+    "url": "https://github.com/orwa-mahmoud"
+  },
+  "metadata": {
+    "description": "Home of nightshift: accountable engineering shifts with persistent state, enforced boundaries, recovery, and evidence-backed product evolution."
+  },
+  "plugins": [
+    {
+      "name": "nightshift",
+      "source": "./plugins/nightshift",
+      "displayName": "Nightshift",
+      "description": "Accountable, time-bounded engineering shifts with a persistent punch list, mechanical guards, and reviewable receipts.",
+      "category": "productivity",
+      "tags": [
+        "autonomous",
+        "overnight",
+        "unattended",
+        "punch-list",
+        "guardrails",
+        "hooks",
+        "crash-recovery",
+        "agent-harness"
+      ],
+      "keywords": [
+        "agent-harness",
+        "punch-list",
+        "hooks",
+        "overnight",
+        "autonomous-agents",
+        "crash-recovery",
+        "session-resume"
+      ],
+      "author": {
+        "name": "Orwa Mahmoud",
+        "url": "https://github.com/orwa-mahmoud"
+      },
+      "homepage": "https://nightshift.orwamahmoud.com/",
+      "repository": "https://github.com/orwa-mahmoud/nightshift",
+      "license": "MIT"
+    }
+  ]
+}

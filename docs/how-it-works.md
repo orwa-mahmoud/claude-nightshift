@@ -286,7 +286,9 @@ watchman when `watchMinutes` is not `0`. After an IDE death it mints a CLI worke
 tab is denied with the attach command while that worker holds the shift. Other IDE tabs in
 the same project stay outside the gate. Closing the origin tab is not a clean session end
 once a worker is recorded. Do not arm the Claude or Codex watchman from a Cursor session.
-Install locally under `~/.cursor/plugins/local` first; marketplace listing waits on a
+Add the public GitHub repo as a Cursor marketplace source
+(`.cursor-plugin/marketplace.json` at the repo root, same role as the Claude
+marketplace file). Official marketplace listing waits on a
 verified Cursor shift with watchman recovery. The Cursor CLI (`agent`) currently ignores
 marketplace and local plugin hooks and only runs project `.cursor/hooks.json`. Setup can
 copy the shipped Cursor hook file there on an explicit yes; that is a Cursor limitation,
