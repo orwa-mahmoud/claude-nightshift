@@ -161,6 +161,8 @@ if ($Receipts -or (Test-Path -LiteralPath $receiptRepo -PathType Container)) {
         '.notified',
         'deadline',
         '.session-end',
+        '.shift-pulse',
+        '.mint-failed',
         '.shift-session',
         '.shift-session.tmp.*',
         '.shift-worker',

@@ -173,6 +173,8 @@ ns_control_drop_runtime_markers() { # <ns>
   ns_control_drop "$ns/.shift-armed"
   ns_control_drop "$ns/.ended"
   ns_control_drop "$ns/.session-end"
+  ns_control_drop "$ns/.shift-pulse"
+  ns_control_drop "$ns/.mint-failed"
   ns_control_drop "$ns/.shift-session"
   ns_control_drop "$ns/.shift-worker"
   ns_control_drop "$ns/.stall"

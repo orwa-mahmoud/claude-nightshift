@@ -21,10 +21,15 @@
 #
 # Evidence, conservative by construction — revive only on strong positive evidence of death:
 #   ALIVE (stand by), any of:
+#     · a fresh .shift-pulse (epoch within 2 * watchMinutes)
+#     · a missing pulse still inside the first two wake intervals after arm
 #     · the recorded pid (line 3) exists and its start time matches line 4
+#     · an empty recorded pid — empty pid never decides death
 #     · the recorded transcript (line 2) grew since the last wake
-#   DEAD (revive): none of the above, boxes open, and the site armed.
-# Missing process evidence stands by. There is no Esc / roster / wedge ladder on Cursor.
+#     · a live .shift-lease pid+start (a recovered CLI that holds the lease)
+#   DEAD (mint/revive): pulse stale, no transcript growth, no .session-end, and
+#     the lease pid is missing or dead. Missing process evidence stands by.
+# There is no Esc / roster / wedge ladder on Cursor.
 #
 # Stand-down order, checked at every wake — never override a declared ending:
 #   1. stop-work order (.nightshift/STOP)             -> down
@@ -115,6 +120,7 @@ elif [ -f "$PIDFILE" ]; then
 fi
 printf '%s\n' "$$" >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
+WATCH_CLOCK="$(date +%s)"
 
 sid()        { [ -L "$NS/.shift-session" ] && return; sed -n 1p "$NS/.shift-session" 2>/dev/null; }
 transcript() { [ -L "$NS/.shift-session" ] && return; sed -n 2p "$NS/.shift-session" 2>/dev/null; }
@@ -127,6 +133,16 @@ recorded_process_alive() {
   p="$(rec_pid)"; s="$(rec_start)"
   [ -n "$p" ] || return 1
   ns_recorded_process "$p" "$s"
+}
+
+pulse_alive() {
+  ns_pulse_fresh "$NS" "$INTERVAL_MIN" && return 0
+  ns_pulse_stale "$NS" "$INTERVAL_MIN" "$WATCH_CLOCK" && return 1
+  return 0
+}
+
+lease_pid_live() {
+  ns_lease_pid_live "$NS"
 }
 
 TRANSCRIPT_SEEN=""
@@ -152,6 +168,9 @@ ensure_worker() {
     printf '%s' "$existing"
     return 0
   fi
+  if [ -f "$NS/.mint-failed" ] && [ ! -L "$NS/.mint-failed" ]; then
+    return 1
+  fi
   origin="$(sid)"
   kind="$(ns_cursor_store_kind "$(transcript)")"
   if [ "$kind" = cli ] && [ -n "$origin" ]; then
@@ -166,7 +185,12 @@ ensure_worker() {
     return 0
   fi
   minted="$(agent create-chat 2>/dev/null | tr -d '[:space:]')"
-  [ -n "$minted" ] || return 1
+  if [ -z "$minted" ]; then
+    log_line "watchman: could not mint a CLI worker — not passing the IDE conversation to agent --resume"
+    [ -L "$NS/.mint-failed" ] && rm -f "$NS/.mint-failed"
+    printf '%s\n' "$(date +%s)" >"$NS/.mint-failed"
+    return 1
+  fi
   ns_cursor_worker_write "$NS" "$minted" || return 1
   printf '%s' "$minted"
 }
@@ -178,10 +202,7 @@ spawn() {
   if ! ns_cursor_worker_present "$NS"; then
     freshly=1
   fi
-  worker="$(ensure_worker)" || {
-    log_line "watchman: could not mint a CLI worker — not passing the IDE conversation to agent --resume"
-    return 1
-  }
+  worker="$(ensure_worker)" || return 1
   if [ "$freshly" -eq 1 ] || [ "$1" -ge 2 ]; then
     prompt="$PROMPT_FRESH"
   else
@@ -290,9 +311,30 @@ while :; do
     if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
     continue
   fi
+  if lease_pid_live; then
+    note silent-standby
+    baseline_transcript
+    : >"$TICK" 2>/dev/null || true
+    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
+    continue
+  fi
+  if pulse_alive; then
+    note silent-standby
+    baseline_transcript
+    : >"$TICK" 2>/dev/null || true
+    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
+    continue
+  fi
   if [ "$rec_rc" -eq 3 ]; then
     note process-evidence-unavailable
     log_line "watchman: process evidence unavailable — standing down, not reviving"
+    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
+    continue
+  fi
+  if ! ns_cursor_worker_present "$NS" && [ -f "$NS/.mint-failed" ] && [ ! -L "$NS/.mint-failed" ]; then
+    note silent-standby
+    baseline_transcript
+    : >"$TICK" 2>/dev/null || true
     if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
     continue
   fi
@@ -304,7 +346,7 @@ while :; do
   total=$(( $# + 1 ))
   for gap in 0 $RETRY_SPACING; do
     [ "$gap" -gt 0 ] && sleep "$gap"
-    if recorded_process_alive || transcript_grew; then
+    if recorded_process_alive || transcript_grew || lease_pid_live || pulse_alive; then
       note silent-standby
       log_line "watchman: session activity during retries — holding the remaining attempts"
       break

@@ -7,10 +7,23 @@
         "matcher": "Shell|Read|Write|Grep|Delete|Task|MCP:.*"
       }
     ],
+    "postToolUse": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/pulse.sh"
+      }
+    ],
+    "afterAgentThought": [
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/pulse.sh"
+      }
+    ],
     "stop": [
       {
         "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/clock-out-gate.sh",
         "loop_limit": null
+      },
+      {
+        "command": "${CURSOR_PLUGIN_ROOT}/hooks/cursor/pulse.sh"
       }
     ],
     "sessionEnd": [

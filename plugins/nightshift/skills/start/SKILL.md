@@ -159,7 +159,7 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
 - **Clear every stale run-control marker first**, before anything writes a new one — last night's
  leftovers would otherwise end tonight's shift at its first stop attempt. Remove them all if
  present: `$NS/STOP`, `$NS/.stall`, `$NS/.notified`, `$NS/.ended`,
- `$NS/.session-end`, `$NS/.shift-session`, any
+ `$NS/.session-end`, `$NS/.shift-pulse`, `$NS/.mint-failed`, `$NS/.shift-session`, any
  `$NS/.shift-session.tmp.*`, `$NS/.shift-armed`, `$NS/.watchman-tick`, and
  `$NS/.lock.d/`. The reset above already removed the lease, its temporary files, and its
  internal mutex.

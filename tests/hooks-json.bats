@@ -90,16 +90,21 @@ load helpers
   done < <(jq -r '.. | .command? // empty' "$f")
 }
 
-@test "Cursor hooks.json wires hardhat, clock-out, and session-end" {
+@test "Cursor hooks.json wires hardhat, clock-out, session-end, and pulse" {
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
   f="$root/hooks/cursor/hooks.json"
   [ "$(jq -r '.version' "$f")" = "1" ]
   [ "$(jq -r '[.hooks.preToolUse[].command] | length' "$f")" -eq 1 ]
-  [ "$(jq -r '[.hooks.stop[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.postToolUse[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.afterAgentThought[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.stop[].command] | length' "$f")" -eq 2 ]
   [ "$(jq -r '[.hooks.sessionEnd[].command] | length' "$f")" -eq 1 ]
   [ "$(jq -r '[.hooks.beforeSubmitPrompt[].command] | length' "$f")" -eq 1 ]
   jq -e '.hooks.preToolUse[0].command | test("cursor/hardhat")' "$f" >/dev/null
+  jq -e '.hooks.postToolUse[0].command | test("cursor/pulse")' "$f" >/dev/null
+  jq -e '.hooks.afterAgentThought[0].command | test("cursor/pulse")' "$f" >/dev/null
   jq -e '.hooks.stop[0].command | test("cursor/clock-out-gate")' "$f" >/dev/null
+  jq -e '.hooks.stop[1].command | test("cursor/pulse")' "$f" >/dev/null
   jq -e '.hooks.sessionEnd[0].command | test("cursor/session-end")' "$f" >/dev/null
   jq -e '.hooks.beforeSubmitPrompt[0].command | test("cursor/before-submit")' "$f" >/dev/null
   while IFS= read -r cmd; do

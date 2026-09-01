@@ -1661,7 +1661,7 @@ function Stop-NSWatchman {
 
 function Clear-NSRuntimeMarkers {
     param([Parameter(Mandatory = $true)][string]$NightshiftDir)
-    foreach ($name in @('.shift-armed', '.ended', '.session-end', '.shift-session', '.stall', '.notified', '.watchman-tick', '.mutex-scope')) {
+    foreach ($name in @('.shift-armed', '.ended', '.session-end', '.shift-pulse', '.mint-failed', '.shift-session', '.stall', '.notified', '.watchman-tick', '.mutex-scope')) {
         Remove-NSPath (Join-Path $NightshiftDir $name)
     }
     Get-ChildItem -LiteralPath $NightshiftDir -Force -ErrorAction SilentlyContinue |
@@ -2070,6 +2070,77 @@ function Write-NSReason {
 function Get-NSUnixTime {
     return [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
 }
+
+function Get-NSPulseEpoch {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $path = Join-Path $NightshiftDir '.shift-pulse'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or (Test-NSReparsePoint $path)) {
+        return $null
+    }
+    try {
+        $line = ([IO.File]::ReadAllLines($path) | Select-Object -First 1)
+    }
+    catch {
+        return $null
+    }
+    if ([string]::IsNullOrWhiteSpace($line)) {
+        return $null
+    }
+    $epoch = ($line -split ' ', 2)[0]
+    if ($epoch -notmatch '^[0-9]+$') {
+        return $null
+    }
+    return [long]$epoch
+}
+
+function Test-NSPulseFresh {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][int]$IntervalMinutes
+    )
+    $epoch = Get-NSPulseEpoch $NightshiftDir
+    if ($null -eq $epoch) {
+        return $false
+    }
+    $window = [long]$IntervalMinutes * 120
+    return ((Get-NSUnixTime) - $epoch) -lt $window
+}
+
+function Test-NSPulseStale {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][int]$IntervalMinutes,
+        [long]$Clock = 0
+    )
+    $window = [long]$IntervalMinutes * 120
+    $now = Get-NSUnixTime
+    $epoch = Get-NSPulseEpoch $NightshiftDir
+    if ($null -ne $epoch) {
+        return ($now - $epoch) -ge $window
+    }
+    $armed = Join-Path $NightshiftDir '.shift-armed'
+    if ((Test-Path -LiteralPath $armed -PathType Leaf) -and -not (Test-NSReparsePoint $armed)) {
+        try {
+            $Clock = [DateTimeOffset]::new((Get-Item -LiteralPath $armed).LastWriteTimeUtc).ToUnixTimeSeconds()
+        }
+        catch {
+        }
+    }
+    if ($Clock -le 0) {
+        $Clock = $now
+    }
+    return ($now - $Clock) -ge $window
+}
+
+function Test-NSLeasePidLive {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $lease = Read-NSLease $NightshiftDir
+    if ($null -eq $lease -or [string]::IsNullOrEmpty([string]$lease.ProcessId)) {
+        return $false
+    }
+    return (Test-NSRecordedProcess $lease.ProcessId $lease.Start) -eq 'Alive'
+}
+
 
 function Get-NSStateVersion {
     param([Parameter(Mandatory = $true)][string]$Workspace)
