@@ -285,6 +285,19 @@ with open(p,"w") as f: json.dump(d,f)
   grep -qF 'session-end path is not a usable file' "$STATUS"
 }
 
+@test "Doctor warns when the shift-pulse path is a symlink" {
+  p="$(new_project)"
+  punch_open "$p"
+  : >"$p/.nightshift/pulse-plant"
+  ln -s pulse-plant "$p/.nightshift/.shift-pulse"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'shift-pulse path is not a usable file'
+  ! printf '%s' "$output" | grep -qF 'shift-pulse marker is present'
+  grep -qF 'shift-pulse path is not a usable file' "$SKILL"
+  grep -qF 'shift-pulse path is not a usable file' "$STATUS"
+}
+
 @test "Doctor warns when the shift-session path is a symlink" {
   p="$(new_project)"
   punch_open "$p"

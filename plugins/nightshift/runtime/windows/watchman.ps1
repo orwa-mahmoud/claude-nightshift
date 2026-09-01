@@ -308,6 +308,31 @@ function Get-NSSiteVerdict {
         return 'dead'
     }
 
+    if ($HostName -eq 'codex') {
+        $session = Read-NSSession $ns
+        $processState = 'Absent'
+        if ($null -ne $session -and -not [string]::IsNullOrEmpty($session.ProcessId)) {
+            $processState = Test-NSRecordedProcess $session.ProcessId $session.Start
+            if ($processState -eq 'Alive') {
+                return 'silent'
+            }
+        }
+        if (-not (Test-NSPulseStale $ns $IntervalMinutes $script:WatchStart)) {
+            return 'silent'
+        }
+        if ($processState -eq 'Unavailable') {
+            return 'unavailable'
+        }
+        $hostProcesses = Get-NSHostProcessState
+        if ($hostProcesses -eq 'Present') {
+            return 'tabs'
+        }
+        if ($hostProcesses -eq 'Unavailable') {
+            return 'unavailable'
+        }
+        return 'dead'
+    }
+
     $session = Read-NSSession $ns
     if ($null -ne $session -and -not [string]::IsNullOrEmpty($session.ProcessId)) {
         $processState = Test-NSRecordedProcess $session.ProcessId $session.Start
@@ -557,7 +582,7 @@ function Get-NSHoldReason {
     if (Test-NSDeadlinePassed) {
         return 'deadline passed'
     }
-    if (($HostName -eq 'claude' -or $HostName -eq 'cursor') -and (Test-NSRealSessionEnd)) {
+    if (Test-NSRealSessionEnd) {
         return 'clean session end'
     }
     $verdict = Get-NSSiteVerdict
@@ -716,7 +741,7 @@ try {
             exit 0
         }
 
-        if (($HostName -eq 'claude' -or $HostName -eq 'cursor') -and (Test-NSRealSessionEnd)) {
+        if (Test-NSRealSessionEnd) {
             Write-NSReason $ns 'clean-session-end'
             Write-NSLogLine 'watchman: clean session end - the owner closed it; standing down'
             exit 0

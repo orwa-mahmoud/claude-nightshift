@@ -205,6 +205,17 @@ else {
     'no'
 }
 $null = $lines.Add("session_end: $sessionEndLabel")
+$pulsePath = Join-Path $ns '.shift-pulse'
+$pulseLabel = if (Test-NSReparsePoint $pulsePath) {
+    'unusable'
+}
+elseif (Test-Path -LiteralPath $pulsePath -PathType Leaf) {
+    'yes'
+}
+else {
+    'no'
+}
+$null = $lines.Add("shift_pulse: $pulseLabel")
 $sessionPath = Join-Path $ns '.shift-session'
 $sessionRecordLabel = if (Test-NSReparsePoint $sessionPath) {
     'unusable'

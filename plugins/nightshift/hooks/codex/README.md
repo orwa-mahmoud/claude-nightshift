@@ -3,7 +3,7 @@
 The manifest at `../../.codex-plugin/plugin.json` points here, so Codex loads `hooks.json` in
 this directory instead of `../hooks.json` — the two hosts never read each other's wiring.
 
-`clock-out-gate.sh` and `hardhat.sh` make the same decisions as Claude's hooks, reading the
+`clock-out-gate.sh`, `hardhat.sh`, `session-end.sh`, and `pulse.sh` make the same decisions as Claude's hooks, reading the
 same punch list and the same `lib/lib.sh`. Everything Codex-specific — the stdin payload, the
 block/deny shapes on stdout, how a hook finds the project — lives in `lib-io.sh`, the one
 adaptation seam.
@@ -19,6 +19,12 @@ hardhat, where `toolDeny` uses the canonical `tool_name`: shell commands, includ
 arrive as `Bash`; file edits arrive as `apply_patch` with the patch text in
 `tool_input.command`, while `Edit` and `Write` are matcher aliases only. MCP and other local
 function tools reach this path; hosted tools do not.
+
+`session-end.sh` writes `.session-end` when the bound Codex session ends. Codex SessionEnd
+reason is always `other` (close, archive/delete, idle unload after about 30 minutes with no
+client). Closing the session is pause-recovery: the watchman stands down and Start re-arms.
+A crash that never fires SessionEnd still revives. `pulse.sh` overwrites `.shift-pulse` for
+the bound session so a quiet live tab is not guessed dead.
 
 Recovery ownership stays host-neutral too. The Codex watchman advances `.shift-lease` before each
 spawn and passes its generation/nonce through the child environment; the hardhat and Stop hook

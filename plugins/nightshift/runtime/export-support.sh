@@ -171,6 +171,11 @@ dest="$outdir/${stamp}.txt"
   else
     printf 'session_end: %s\n' "$( [ -f "$NS/.session-end" ] && printf yes || printf no )"
   fi
+  if [ -L "$NS/.shift-pulse" ]; then
+    printf 'shift_pulse: unusable\n'
+  else
+    printf 'shift_pulse: %s\n' "$( [ -f "$NS/.shift-pulse" ] && printf yes || printf no )"
+  fi
   if [ -L "$NS/.shift-session" ]; then
     printf 'session_record: unusable\n'
   else

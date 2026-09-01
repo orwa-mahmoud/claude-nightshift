@@ -164,10 +164,12 @@ Positive revival evidence is the inverse: a recorded process proved dead, a resp
 without the shift session, or an API-error event at the end of a live conversation with nobody
 acting.
 
-Codex has no equivalent Escape or clean-session-end signal. Closing an interactive Codex session
-with open Items therefore leaves the armed shift to its watchman. A growing rollout or live Codex
-process keeps it standing by. A live session that appears wedged on an API error is also left alone
-until a stable rollout signature has been captured and classified; see
+Codex SessionEnd stands the watchman down: closing, archiving, or an idle unload (about 30
+minutes with no client) is pause-recovery. The punch list stays; Start re-arms. A crash that
+never fires SessionEnd still revives. A fresh `.shift-pulse`, a live recorded process, or a
+growing rollout keeps the watchman standing by. Empty pid alone is not death. A live session
+that appears wedged on an API error is also left alone until a stable rollout signature has
+been captured and classified; see
 [#41](https://github.com/orwa-mahmoud/nightshift/issues/41).
 
 With the shipped rules, each Claude watchman wake makes up to three attempts when it has a session
@@ -295,8 +297,10 @@ copy the shipped Cursor hook file there on an explicit yes; that is a Cursor lim
 not a Nightshift skip.
 
 The differences among Claude Code and Codex are in recovery evidence. Claude Code exposes Escape,
-clean session-end, process, transcript, and API-error signals. Codex exposes process and rollout
-activity but not an owner interrupt, clean close, or verified API-wedge signature.
+clean session-end, process, transcript, pulse, and API-error signals. Codex exposes SessionEnd
+(reason `other`), pulse, process, and rollout activity, but not Escape or a verified API-wedge
+signature. Cursor liveness is pulse plus recorded pid plus transcript growth plus lease pid;
+an empty pid is never death by itself.
 Same-conversation Codex recovery also depends on a resumable identity recorded before the original
 process disappears.
 

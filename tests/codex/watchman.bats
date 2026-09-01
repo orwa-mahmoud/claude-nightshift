@@ -15,6 +15,8 @@ setup() {
   ROLLOUT="$BATS_TEST_TMPDIR/rollout.jsonl"
   printf '{"type":"session_meta"}\n' >"$ROLLOUT"
   printf 'dead-sid\n%s\n99999\nnever\ncodex\n' "$ROLLOUT" >"$P/.nightshift/.shift-session"
+  : >"$P/.nightshift/.shift-armed"
+  printf '%s dead-sid\n' "$(($(date +%s) - 100000))" >"$P/.nightshift/.shift-pulse"
 
   BIN="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$BIN"
@@ -371,4 +373,27 @@ STUB
     "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
   [ "$(reason)" = "non-resumable-session" ]
   [ ! -f "$P/.nightshift/agent-calls" ]
+}
+@test "a clean session end stands the Codex watchman down without reviving" {
+  echo 'clean session end (other)' >"$P/.nightshift/.session-end"
+  run watch --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  grep -q 'the owner closed it' "$P/.nightshift/shift-log.md"
+  [ "$(reason)" = "clean-session-end" ]
+}
+
+@test "a fresh pulse stands the Codex watchman by" {
+  printf '%s dead-sid\n' "$(date +%s)" >"$P/.nightshift/.shift-pulse"
+  run watch --max-wakes 2
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+}
+
+@test "a stale pulse with no growth and no session-end revives" {
+  printf '%s dead-sid\n' "$(($(date +%s) - 100000))" >"$P/.nightshift/.shift-pulse"
+  run watch --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -ge 1 ]
+  grep -q 'resume attempt 1' "$P/.nightshift/shift-log.md"
 }

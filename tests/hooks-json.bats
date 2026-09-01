@@ -73,12 +73,17 @@ load helpers
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
   f="$root/hooks/codex/hooks.json"
   [ "$(jq -r '[.hooks.PreToolUse[].matcher] | join(",")' "$f")" = "*" ]
-  [ "$(jq -r '[.. | .command? // empty] | length' "$f")" -eq 2 ]
-  [ "$(jq -r '[.. | .commandWindows? // empty] | length' "$f")" -eq 2 ]
+  [ "$(jq -r '[.. | .command? // empty] | length' "$f")" -eq 4 ]
+  [ "$(jq -r '[.. | .commandWindows? // empty] | length' "$f")" -eq 4 ]
   jq -e '.hooks.PreToolUse[0].hooks[0].command | test("codex/hardhat")' "$f" >/dev/null
+  jq -e '.hooks.PostToolUse[0].hooks[0].command | test("codex/pulse")' "$f" >/dev/null
+  jq -e '.hooks.SessionEnd[0].hooks[0].command | test("codex/session-end")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].command | test("codex/clock-out-gate")' "$f" >/dev/null
   jq -e '.hooks.PreToolUse[0].hooks[0].commandWindows | test("windows\\\\hardhat.ps1")' "$f" >/dev/null
+  jq -e '.hooks.PostToolUse[0].hooks[0].commandWindows | test("windows\\\\pulse.ps1")' "$f" >/dev/null
+  jq -e '.hooks.SessionEnd[0].hooks[0].commandWindows | test("windows\\\\session-end.ps1")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].commandWindows | test("windows\\\\clock-out-gate.ps1")' "$f" >/dev/null
+  jq -e '.hooks.SessionEnd[0].hooks[0].commandWindows | test("-HostName codex")' "$f" >/dev/null
   jq -e '[.. | .commandWindows? // empty]
     | all(contains("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File"))
     and all(contains("%PLUGIN_ROOT%"))' "$f" >/dev/null

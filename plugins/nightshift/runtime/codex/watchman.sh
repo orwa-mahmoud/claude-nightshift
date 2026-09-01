@@ -38,20 +38,28 @@
 #     · any process whose executable is exactly `codex` has this project as its cwd
 #     · the recorded rollout (line 2) grew since the last wake
 #   DEAD (revive): none of the above, boxes open, and the site armed.
-# There is no owner-interrupt tell on Codex yet: an owner who closes an interactive session with
-# open boxes is handing the night to the watchman — that is the product's stance, and the
-# stop-work order (.nightshift/STOP) is the off switch. The 500-wedge signature (an API error as
-# the rollout's last word) has not been observed on Codex and is deliberately not guessed at;
-# a live-but-erroring session reads as alive and is left alone.
+# Evidence, conservative by construction — revive only on strong positive evidence of death:
+#   ALIVE (stand by), any of:
+#     · a fresh .shift-pulse (epoch within 2 * watchMinutes)
+#     · a missing pulse still inside the first two wake intervals after arm
+#     · the recorded pid (line 3) exists and its start time matches line 4
+#     · an empty recorded pid — empty pid never decides death unless the pulse is stale
+#     · any process whose executable is exactly `codex` has this project as its cwd
+#     · the recorded rollout (line 2) grew since the last wake
+#   DEAD (revive): pulse stale, no rollout growth, no .session-end, boxes open, site armed.
+# Missing process evidence stands by. The 500-wedge signature (an API error as the rollout's
+# last word) has not been observed on Codex and is deliberately not guessed at; a
+# live-but-erroring session reads as alive and is left alone.
 #
 # Stand-down order, checked at every wake — never override a declared ending:
 #   1. stop-work order (.nightshift/STOP)             -> down
 #   2. shift ended (.nightshift/.ended, or no punch)  -> down
-#   3. another host's shift (.shift-session line 5)   -> down (its own watchman minds it)
-#   4. every box ticked                                -> one clock-out spawn if .ended missing,
+#   3. clean session end (.nightshift/.session-end)   -> down (owner closed it; Start re-arms)
+#   4. another host's shift (.shift-session line 5)   -> down (its own watchman minds it)
+#   5. every box ticked                                -> one clock-out spawn if .ended missing,
 #                                                        then down (a crash at the finish line
 #                                                        still gets receipts and the whistle)
-#   5. deadline passed                                 -> one clock-out spawn, then down
+#   6. deadline passed                                 -> one clock-out spawn, then down
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -135,6 +143,7 @@ elif [ -f "$PIDFILE" ]; then
 fi
 printf '%s\n' "$$" >"$PIDFILE"
 trap 'rm -f "$PIDFILE"' EXIT
+WATCH_CLOCK="$(date +%s)"
 
 sid()        { [ -L "$NS/.shift-session" ] && return; sed -n 1p "$NS/.shift-session" 2>/dev/null; }
 rollout()    { [ -L "$NS/.shift-session" ] && return; sed -n 2p "$NS/.shift-session" 2>/dev/null; }
@@ -149,6 +158,12 @@ recorded_process_alive() {
   p="$(rec_pid)"; s="$(rec_start)"
   [ -n "$p" ] || return 1
   ns_recorded_process "$p" "$s"
+}
+
+pulse_alive() {
+  ns_pulse_fresh "$NS" "$INTERVAL_MIN" && return 0
+  ns_pulse_stale "$NS" "$INTERVAL_MIN" "$WATCH_CLOCK" && return 1
+  return 0
 }
 
 # Any codex working in this project stands the watchman by — matched on the exact executable
@@ -232,6 +247,11 @@ while :; do
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
   if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
+  if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then
+    note clean-session-end
+    log_line "watchman: clean session end — the owner closed it; standing down (start re-arms)"
+    exit 0
+  fi
 
   # Another host's shift is another watchman's business: resuming it from here would spawn
   # codex against a conversation a different agent owns.
@@ -295,6 +315,13 @@ while :; do
     if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
     continue
   fi
+  if pulse_alive; then
+    note silent-standby
+    baseline_rollout
+    : >"$TICK" 2>/dev/null || true
+    if [ "$MAX_WAKES" -gt 0 ] && [ "$wake" -ge "$MAX_WAKES" ]; then exit 0; fi
+    continue
+  fi
   if [ "$rec_rc" -eq 3 ] || { [ "$in_rc" -eq 2 ] && [ "$rec_rc" -ne 1 ]; }; then
     note process-evidence-unavailable
     log_line "watchman: process evidence unavailable — standing down, not reviving"
@@ -323,7 +350,7 @@ while :; do
   total=$(( $# + 1 ))
   for gap in 0 $RETRY_SPACING; do
     [ "$gap" -gt 0 ] && sleep "$gap"
-    if recorded_process_alive || codex_in_project || rollout_grew; then
+    if recorded_process_alive || codex_in_project || rollout_grew || pulse_alive; then
       note silent-standby
       log_line "watchman: session activity during retries — holding the remaining attempts"
       break
