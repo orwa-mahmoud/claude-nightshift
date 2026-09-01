@@ -242,6 +242,6 @@ mv "$tmp" "$dest" || {
 
 printf 'Support bundle: %s\n' "$dest"
 printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, reason codes, sanitized runtime-log tail\n'
-printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities\n'
+printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output\n'
 printf 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
 exit 0

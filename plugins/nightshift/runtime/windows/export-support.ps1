@@ -299,6 +299,6 @@ catch {
 
 Write-Output "Support bundle: $dest"
 Write-Output 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, reason codes, sanitized runtime-log tail'
-Write-Output 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities'
+Write-Output 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output'
 Write-Output 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.'
 exit 0
