@@ -3,7 +3,7 @@
   Read-only capability detector for native Windows.
 
 .DESCRIPTION
-  Mirrors runtime/detect-capabilities.py. Prints one canonical JSON document on
+  Mirrors runtime/detect-capabilities.sh. Prints one canonical JSON document on
   stdout with LF line endings. Never writes, installs, or mutates the work target.
 #>
 param(

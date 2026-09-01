@@ -2516,7 +2516,7 @@ function Copy-NSOwnerTemplate {
 }
 
 # --- capability detection -------------------------------------------------
-# Native mirror of runtime/detect-capabilities.py. Read-only: nothing below
+# Native mirror of runtime/detect-capabilities.sh. Read-only: nothing below
 # creates, moves, or deletes anything inside a scanned project.
 
 function Sort-NSOrdinal {
@@ -2539,7 +2539,7 @@ function Get-NSAbsolutePath {
     }
     $full = [IO.Path]::GetFullPath($candidate)
     $sep = [IO.Path]::DirectorySeparatorChar
-    while ($full.Length -gt 1 -and $full[$full.Length - 1] -eq $sep -and -not $full.EndsWith(':' + $sep)) {
+    while ($full.Length -gt 1 -and $full[$full.Length - 1] -eq $sep -and -not $full.EndsWith(':' + $sep, [StringComparison]::Ordinal)) {
         $full = $full.Substring(0, $full.Length - 1)
     }
     return $full
@@ -2571,14 +2571,14 @@ function Get-NSRelativePath {
     $prefix = $Base.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
     foreach ($sep in @([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)) {
         $head = $prefix + $sep
-        if ($Path.StartsWith($head)) {
+        if ($Path.StartsWith($head, [StringComparison]::Ordinal)) {
             return $Path.Substring($head.Length)
         }
     }
     return $Path
 }
 
-# Python json.dump(doc, indent=2, sort_keys=True): recursively sorted keys,
+# The canonical capability document: recursively sorted keys,
 # two-space indent, "key": value, [] and {} for empties, \uXXXX for every
 # character outside printable ASCII, no escaped slash, LF only.
 function ConvertTo-NSJsonStringLiteral {
@@ -2733,7 +2733,7 @@ function Find-NSCommandPath {
         [AllowNull()][AllowEmptyString()][string]$Command,
         [AllowNull()][AllowEmptyString()][string]$SearchPath
     )
-    if ([string]::IsNullOrEmpty($Command) -or $Command.StartsWith('-')) {
+    if ([string]::IsNullOrEmpty($Command) -or $Command.StartsWith('-', [StringComparison]::Ordinal)) {
         return $null
     }
     if ([string]::IsNullOrEmpty($SearchPath)) {
@@ -2817,7 +2817,7 @@ function Get-NSCommandProbeResult {
         $detail = 'no version text'
     }
     $ladder = 'observed'
-    if ($probe['Status'] -eq 'available-and-verified') {
+    if ($probe['Status'] -ceq 'available-and-verified') {
         $ladder = 'measured'
     }
     return (New-NSCapabilityResult $probe['Status'] ('{0} -> {1} ({2})' -f $Command, $path, $detail) $path $ladder)
@@ -2867,10 +2867,10 @@ function Get-NSArtifactCapabilities {
         $entries = Get-NSDirectoryEntries $dir
         $slot = 0
         foreach ($name in $entries['Dirs']) {
-            if ($name -eq '.git' -or $name -eq 'node_modules') {
+            if ($name -ceq '.git' -or $name -ceq 'node_modules') {
                 continue
             }
-            if ($entries['Links'] -contains $name) {
+            if ($entries['Links'] -ccontains $name) {
                 continue
             }
             $pending.Insert($slot, (Join-NSPath $dir $name))
@@ -2878,10 +2878,10 @@ function Get-NSArtifactCapabilities {
         }
         foreach ($name in $entries['Files']) {
             $lower = $name.ToLowerInvariant()
-            if ($lower.EndsWith('.md') -or $lower.EndsWith('.markdown')) {
+            if ($lower.EndsWith('.md', [StringComparison]::Ordinal) -or $lower.EndsWith('.markdown', [StringComparison]::Ordinal)) {
                 $markdown.Add((Join-NSPath $dir $name))
             }
-            elseif ($lower.EndsWith('.html') -or $lower.EndsWith('.htm')) {
+            elseif ($lower.EndsWith('.html', [StringComparison]::Ordinal) -or $lower.EndsWith('.htm', [StringComparison]::Ordinal)) {
                 $html.Add((Join-NSPath $dir $name))
             }
         }
@@ -2889,7 +2889,7 @@ function Get-NSArtifactCapabilities {
             break
         }
     }
-    $caps = [ordered]@{}
+    $caps = New-Object -TypeName Collections.Specialized.OrderedDictionary -ArgumentList ([StringComparer]::Ordinal)
     if ($markdown.Count -gt 0) {
         $caps['local-markdown'] = New-NSCapabilityResult 'available-and-verified' ('{0} markdown files' -f $markdown.Count) $markdown[0] 'observed'
         $caps['source-export'] = New-NSCapabilityResult 'available-and-verified' 'local files can be cited' $markdown[0] 'observed'
@@ -2922,17 +2922,17 @@ function Get-NSScanFiles {
         $entries = Get-NSDirectoryEntries $dir
         $slot = 0
         foreach ($child in $entries['Dirs']) {
-            if ($pruned -contains $child) {
+            if ($pruned -ccontains $child) {
                 continue
             }
-            if ($entries['Links'] -contains $child) {
+            if ($entries['Links'] -ccontains $child) {
                 continue
             }
             $pending.Insert($slot, (Join-NSPath $dir $child))
             $slot++
         }
         foreach ($file in $entries['Files']) {
-            if ($file -eq $Name) {
+            if ($file -ceq $Name) {
                 $hits.Add((Join-NSPath $dir $file))
             }
         }
@@ -2956,7 +2956,7 @@ function Get-NSPackageList {
     catch {
         return , $found.ToArray()
     }
-    $byName = @{}
+    $byName = New-Object -TypeName 'Collections.Generic.Dictionary[string,object]' -ArgumentList ([StringComparer]::Ordinal)
     foreach ($item in $items) {
         $byName[$item.Name] = $item
     }
@@ -2971,7 +2971,7 @@ function Get-NSPackageList {
         '.codex-plugin'
     )
     foreach ($name in (Sort-NSOrdinal (@($byName.Keys)))) {
-        if ($name.StartsWith('.')) {
+        if ($name.StartsWith('.', [StringComparison]::Ordinal)) {
             continue
         }
         $item = $byName[$name]
@@ -3058,7 +3058,7 @@ function Get-NSMakefileTargets {
     $names = New-Object Collections.Generic.List[string]
     foreach ($match in [regex]::Matches($text, '^([A-Za-z0-9][^:\n]*):', [Text.RegularExpressions.RegexOptions]::Multiline)) {
         $name = $match.Groups[1].Value
-        if ($names -notcontains $name) {
+        if ($names -cnotcontains $name) {
             $names.Add($name)
         }
     }
@@ -3170,7 +3170,7 @@ function Get-NSRepositoryCapabilities {
     $stackSet = New-Object Collections.Generic.List[string]
     foreach ($package in $packages) {
         foreach ($stack in (Get-NSPackageStacks $package)) {
-            if ($stackSet -notcontains $stack) {
+            if ($stackSet -cnotcontains $stack) {
                 $stackSet.Add($stack)
             }
         }
@@ -3237,7 +3237,7 @@ function Get-NSRepositoryCapabilities {
         $found = New-Object Collections.Generic.List[object]
         foreach ($probe in @($commandMap[$cap])) {
             $stack = $probe['Stack']
-            if ($stack -and ($stacks -notcontains $stack) -and $cap -ne 'connector') {
+            if ($stack -and ($stacks -cnotcontains $stack) -and $cap -cne 'connector') {
                 continue
             }
             $found.Add((Get-NSCommandProbeResult $probe['Cmd'] $SearchPath $Target))
@@ -3246,7 +3246,7 @@ function Get-NSRepositoryCapabilities {
             $key = $scriptHints[$cap]
             $declared = $false
             foreach ($package in $packages) {
-                if ((Get-NSPackageScriptNames $package) -contains $key) {
+                if ((Get-NSPackageScriptNames $package) -ccontains $key) {
                     $declared = $true
                     break
                 }
@@ -3258,7 +3258,7 @@ function Get-NSRepositoryCapabilities {
         if ($cap -eq 'test') {
             $hasTestTarget = $false
             foreach ($package in $packages) {
-                if ((Get-NSMakefileTargets $package) -contains 'test') {
+                if ((Get-NSMakefileTargets $package) -ccontains 'test') {
                     $hasTestTarget = $true
                     break
                 }
@@ -3308,7 +3308,7 @@ function Get-NSContractEvaluation {
     )
     $fallback = Get-NSJsonProperty $Requirement 'fallback'
     $artifact = Get-NSJsonProperty $Requirement 'artifact'
-    if (($artifact -is [bool]) -and (-not $artifact) -and $WorkMode -eq 'artifact') {
+    if (($artifact -is [bool]) -and (-not $artifact) -and $WorkMode -ceq 'artifact') {
         return [ordered]@{
             applies  = $false
             reason   = 'contract is skipped in artifact mode'
@@ -3323,7 +3323,7 @@ function Get-NSContractEvaluation {
         if ($null -eq $item) {
             $item = New-NSCapabilityResult 'unavailable' 'not detected' '' 'declared'
         }
-        if ($item['status'] -eq 'unavailable' -or $item['status'] -eq 'provisionable') {
+        if ($item['status'] -ceq 'unavailable' -or $item['status'] -ceq 'provisionable') {
             $missing.Add($cap)
         }
     }
@@ -3335,7 +3335,7 @@ function Get-NSContractEvaluation {
             if ($null -eq $item) {
                 $item = New-NSCapabilityResult 'unavailable' 'not detected' '' 'declared'
             }
-            if ($present -contains $item['status']) {
+            if ($present -ccontains $item['status']) {
                 $anyOk = $true
                 break
             }
@@ -3378,7 +3378,7 @@ function Get-NSCapabilityDocument {
         $SearchPath = $null
     )
     $identifiers = Get-NSSchemaDocument 'identifiers.json'
-    if ($identifiers.hosts -notcontains $HostName) {
+    if ($identifiers.hosts -cnotcontains $HostName) {
         throw ('unknown host: {0}' -f $HostName)
     }
     if ($null -eq $SearchPath) {
@@ -3414,10 +3414,10 @@ function Get-NSCapabilityDocument {
         stacks   = @()
     }
     $capabilities = $null
-    if ($workMode -eq 'artifact') {
+    if ($workMode -ceq 'artifact') {
         $capabilities = Get-NSArtifactCapabilities $target
         foreach ($cap in (Get-NSSchemaDocument 'capabilities.json').capabilities) {
-            if ($cap -eq 'local-markdown' -or $cap -eq 'local-html' -or $cap -eq 'source-export') {
+            if ($cap -ceq 'local-markdown' -or $cap -ceq 'local-html' -or $cap -ceq 'source-export') {
                 continue
             }
             $capabilities[$cap] = New-NSCapabilityResult 'unavailable' 'artifact mode does not probe repository tools' $target 'declared'
@@ -3430,7 +3430,7 @@ function Get-NSCapabilityDocument {
     }
 
     $requirements = (Get-NSSchemaDocument 'catalog-requirements.json').contracts
-    $contracts = [ordered]@{}
+    $contracts = New-Object -TypeName Collections.Specialized.OrderedDictionary -ArgumentList ([StringComparer]::Ordinal)
     foreach ($id in (Sort-NSOrdinal (@($requirements.PSObject.Properties.Name)))) {
         $contracts[$id] = Get-NSContractEvaluation $requirements.PSObject.Properties[$id].Value $capabilities $workMode
     }

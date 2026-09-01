@@ -404,3 +404,21 @@ assert_all_engines_agree() {
     skip "pwsh not found on PATH; skipping PowerShell leg of cross-host/cross-engine normalization"
   fi
 }
+
+@test "parity: names that differ only by case are compared exactly" {
+  p="$(build_fixture_js parity-case)"
+  printf '%s\n' '{"name":"case","scripts":{"Build":"tsc","TEST":"node t.js","Lint":"eslint ."}}' >"$p/package.json"
+  mkdir -p "$p/.GIT" "$p/NODE_MODULES/x" "$p/Docs"
+  printf 'x\n' >"$p/.GIT/README.MD"
+  printf 'x\n' >"$p/NODE_MODULES/x/README.MD"
+  printf 'x\n' >"$p/Docs/Guide.MD"
+  printf 'x\n' >"$p/Docs/Index.HTM"
+  bin="$(controlled_bin parity-case-bin)"
+  fake_node "$bin"
+  assert_all_engines_agree "$p" "$bin:/usr/bin:/bin"
+  # The reference prunes only lower-case .git and node_modules, and a scripts.Build key is not
+  # scripts.build; every engine must agree on both.
+  out="$(env PATH="$bin:/usr/bin:/bin" bash "$DETECT" --project "$p" --normalize)"
+  printf '%s\n' "$out" | jq -e '.capabilities["local-markdown"].reason == "3 markdown files"' >/dev/null
+  printf '%s\n' "$out" | jq -e '.capabilities.build.reason | test("not on PATH")' >/dev/null
+}
