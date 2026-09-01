@@ -48,8 +48,9 @@ the second the service returns. So much for sleeping.
 
 Nightshift records the active session and keeps the work contract on disk. Its watchman can resume
 a session that has positive evidence of death. Both hosts stand down for completed shifts,
-stop-work orders, and deadlines. Claude Code also exposes Escape and clean-session-end signals;
-Codex does not, so its remaining recovery boundaries are documented separately.
+stop-work orders, and deadlines. Claude Code also exposes Escape and clean-session-end signals.
+Codex SessionEnd (reason `other`) is pause-recovery: Start re-arms, and a crash with no SessionEnd
+still revives. Cursor liveness is pulse plus pid plus transcript plus lease pid, not empty-pid-as-dead.
 
 ## The design response
 

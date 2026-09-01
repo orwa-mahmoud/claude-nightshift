@@ -9,9 +9,10 @@ form — not a paste of the transcript.
 
 Host differences that matter here: both Stop hooks refuse an early clock-out. Claude Code's
 watchman can revive a live session sitting on a host API-error event. A Codex session that is
-**alive but errored is stood by**, not revived, until that signature is captured. Codex also has
-no Escape or clean-session-end signal, so closing an interactive session with open Items hands the
-night to its watchman. `touch .nightshift/STOP` is the POSIX panic stop-work order;
+**alive but errored is stood by**, not revived, until that signature is captured. Codex SessionEnd
+(reason `other`) stands the watchman down — close, archive, or idle unload is pause-recovery;
+Start re-arms. A crash with no SessionEnd still revives. Cursor liveness is pulse + pid +
+transcript + lease pid; empty pid is not death. `touch .nightshift/STOP` is the POSIX panic stop-work order;
 `New-Item -ItemType File -Force .nightshift\STOP` is its native Windows PowerShell equivalent.
 Write it in the folder that contains `.nightshift/` — the workspace, or the target of
 `.nightshift-link`. A STOP next to the link file is not the order.
@@ -187,7 +188,7 @@ editing this file — change it yourself between sessions.
 
 ```sh
 ls -l .nightshift/STOP .nightshift/.shift-armed .nightshift/.ended \
-  .nightshift/.session-end .nightshift/.shift-lease .nightshift/.stall \
+  .nightshift/.session-end .nightshift/.shift-pulse .nightshift/.shift-lease .nightshift/.stall \
   .nightshift/.watchman 2>/dev/null
 sed -n '1,5p' .nightshift/STOP 2>/dev/null
 ```
@@ -199,12 +200,13 @@ Native Windows: `Get-Content -TotalCount 5 .nightshift\STOP`
 | `STOP` | Stop-work order. The gate releases at the **next stop attempt**; open boxes stay open. Site rules stay armed until then. |
 | `.shift-armed` | A shift was started. Without it, `punch-list.md` is only a to-do file. |
 | `.ended` | The gate already clocked the shift out. |
-| `.session-end` | Claude Code recorded a clean session end. Watchman stands down; start re-arms. |
+| `.session-end` | Owner closed the session (Claude, Cursor `aborted`/`user_close`, Codex reason `other`). Watchman stands down; Start re-arms. |
+| `.shift-pulse` | Overwrite-only liveness from the bound session. Fresh pulse keeps watchman standing by. |
 | `.shift-lease` | Transient process ownership for the bound shift. A watchman advances it before each recovery attempt; do not print or edit its capability line. |
 | `.mutex-scope` | Private Windows mutex identity. It persists across shifts so alternate paths and Windows logon sessions share the same lock; do not print, edit, or delete it. |
 | `.stall` | Stuck stop-attempt count. Not an ending. |
 
-A leftover `STOP`, `.ended`, `.session-end`, `.shift-session`, or `.shift-lease` from last night
+A leftover `STOP`, `.ended`, `.session-end`, `.shift-pulse`, `.shift-session`, or `.shift-lease` from last night
 will surprise tonight. Start clears stale run-control markers before it arms. Do not delete them by
 hand while a session is still working the list.
 

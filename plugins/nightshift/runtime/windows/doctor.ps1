@@ -199,6 +199,14 @@ if (Test-NSReparsePoint $sessionEndPath) {
 elseif (Test-Path -LiteralPath $sessionEndPath -PathType Leaf) {
     $sessionEnd = 1
 }
+$pulsePath = Join-Path $ns '.shift-pulse'
+$pulse = 0
+if (Test-NSReparsePoint $pulsePath) {
+    Add-NSWarn 'shift-pulse path is not a usable file'
+}
+elseif (Test-Path -LiteralPath $pulsePath -PathType Leaf) {
+    $pulse = 1
+}
 $stall = ''
 $stallPath = Join-Path $ns '.stall'
 if (Test-NSReparsePoint $stallPath) {
@@ -243,6 +251,7 @@ switch ($stateKind) {
 if ($ended -eq 1) { Add-NSFact 'gate has clocked the shift out (.ended)' }
 if ($stop -eq 1) { Add-NSFact 'STOP is present' }
 if ($sessionEnd -eq 1) { Add-NSFact 'clean session-end marker is present' }
+if ($pulse -eq 1) { Add-NSFact 'shift-pulse marker is present' }
 if (-not [string]::IsNullOrEmpty($stall)) { Add-NSFact "stall count $stall" }
 
 $deadlinePath = Join-Path $ns 'deadline'

@@ -91,6 +91,17 @@ bundle_mode() {
   ! grep -qF 'session_end: yes' "$bundle"
 }
 
+@test "export does not report a symlink shift-pulse marker as present" {
+  p="$(new_project)"
+  : >"$p/.nightshift/pulse-plant"
+  ln -s pulse-plant "$p/.nightshift/.shift-pulse"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'shift_pulse: unusable' "$bundle"
+  ! grep -qF 'shift_pulse: yes' "$bundle"
+}
+
 @test "export does not report a symlink shift-session as a recorded session" {
   p="$(new_project)"
   : >"$p/.nightshift/session-plant"
@@ -209,6 +220,8 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   grep -qF '[ -L "$NS/.session-end" ]' "$EXPORT"
   grep -qF 'Test-NSReparsePoint $sessionEndPath' "$WIN_EXPORT"
   grep -qF 'symlink session-end marker is unusable' "$LOGIC"
+  grep -qF '[ -L "$NS/.shift-pulse" ]' "$EXPORT"
+  grep -qF 'Test-NSReparsePoint $pulsePath' "$WIN_EXPORT"
   grep -qF '[ -L "$NS/.shift-session" ]' "$EXPORT"
   grep -qF 'Test-NSReparsePoint $sessionPath' "$WIN_EXPORT"
   grep -qF 'symlink shift-session is unusable' "$LOGIC"

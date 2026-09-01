@@ -36,6 +36,7 @@ PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 
 @test "watchmen skip a symlink session-end marker" {
   grep -qF '[ ! -L "$NS/.session-end" ]' "$CLAUDE"
+  grep -qF '[ ! -L "$NS/.session-end" ]' "$CODEX"
   grep -qF 'function Test-NSRealSessionEnd' "$HELPER"
 }
 

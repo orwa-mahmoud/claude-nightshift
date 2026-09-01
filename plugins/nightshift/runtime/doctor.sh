@@ -174,6 +174,12 @@ if [ -f "$NS/.session-end" ] && [ ! -L "$NS/.session-end" ]; then
 elif [ -L "$NS/.session-end" ]; then
   warn "session-end path is not a usable file"
 fi
+PULSE=0
+if [ -f "$NS/.shift-pulse" ] && [ ! -L "$NS/.shift-pulse" ]; then
+  PULSE=1
+elif [ -L "$NS/.shift-pulse" ]; then
+  warn "shift-pulse path is not a usable file"
+fi
 STALL=""
 if [ -L "$NS/.stall" ]; then
   warn "stall path is not a usable file"
@@ -207,6 +213,7 @@ esac
 [ "$ENDED" -eq 1 ] && fact "gate has clocked the shift out (.ended)"
 [ "$STOP" -eq 1 ] && fact "STOP is present"
 [ "$SESSION_END" -eq 1 ] && fact "clean session-end marker is present"
+[ "$PULSE" -eq 1 ] && fact "shift-pulse marker is present"
 [ -n "$STALL" ] && fact "stall count $STALL"
 
 DEADLINE="$NS/deadline"

@@ -43,6 +43,11 @@ watch() {
 
 calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
 
+stale_pulse() {
+  local sid="${1:-origin-ide}"
+  printf '%s %s\n' "$(($(date +%s) - 100000))" "$sid" >"$P/.nightshift/.shift-pulse"
+}
+
 @test "interval 0 is the disabled spelling: exits at once, arms nothing" {
   run "$WATCHMAN" --project "$P" --interval 0
   [ "$status" -eq 0 ]
@@ -65,7 +70,16 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   [ "$(calls)" -eq 0 ]
 }
 
-@test "a dead record with open boxes mints a CLI worker then resumes it" {
+@test "empty pid with no pulse on the first wake stands by" {
+  run watch --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  [ ! -f "$P/.nightshift/.shift-worker" ]
+  ! grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"
+}
+
+@test "a stale pulse with no growth and no session-end mints a CLI worker then resumes it" {
+  stale_pulse
   run watch --max-wakes 1
   [ "$status" -eq 0 ]
   [ "$(calls)" -ge 1 ]
@@ -77,7 +91,41 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   grep -q 'ask Nightshift to stop' "$P/.nightshift/parking-lot.md"
 }
 
+@test "a missing pulse with an old enough armed marker mints a CLI worker" {
+  touch -t 202001010000 "$P/.nightshift/.shift-armed"
+  run watch --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -ge 1 ]
+  [ "$(cat "$P/.nightshift/.shift-worker")" = "minted-cli-worker" ]
+  grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"
+}
+
+@test "a live lease pid stands by even if the pulse is stale" {
+  stale_pulse
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'origin-ide\ncursor\n1\n\n%s\n%s\n' "$$" "$start" >"$P/.nightshift/.shift-lease"
+  run watch --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  [ ! -f "$P/.nightshift/.shift-worker" ]
+}
+
+@test "mint-failed skips create-chat and still resumes an existing worker" {
+  stale_pulse
+  printf 'kept-cli-worker\n' >"$P/.nightshift/.shift-worker"
+  : >"$P/.nightshift/.mint-failed"
+  AGENT_LOG="$P/.nightshift/agent-argv"
+  run env PATH="$BIN:$PATH" AGENT_LOG="$AGENT_LOG" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(cat "$P/.nightshift/.shift-worker")" = "kept-cli-worker" ]
+  [ -f "$AGENT_LOG" ]
+  grep -q 'resume=kept-cli-worker' "$AGENT_LOG"
+  ! grep -q 'create-chat' "$AGENT_LOG"
+}
+
 @test "a second wake resumes the stored CLI worker instead of minting again" {
+  stale_pulse
   printf 'kept-cli-worker\n' >"$P/.nightshift/.shift-worker"
   run watch --max-wakes 1
   [ "$status" -eq 0 ]
@@ -87,6 +135,7 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
 }
 
 @test "the live agent binary never receives the origin IDE conversation id" {
+  stale_pulse
   AGENT_LOG="$P/.nightshift/agent-argv"
   run env PATH="$BIN:$PATH" AGENT_LOG="$AGENT_LOG" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
     "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
@@ -103,6 +152,7 @@ calls() { grep -c called "$P/.nightshift/agent-calls" 2>/dev/null || echo 0; }
   mkdir -p "$(dirname "$cli_transcript")"
   : >"$cli_transcript"
   printf 'cli-origin\n%s\n\n\ncursor\n' "$cli_transcript" >"$P/.nightshift/.shift-session"
+  stale_pulse cli-origin
   run watch --max-wakes 1
   [ "$status" -eq 0 ]
   [ "$(cat "$P/.nightshift/.shift-worker")" = "cli-origin" ]

@@ -213,6 +213,9 @@ function Resolve-NSCursorWorkerId {
     if (-not [string]::IsNullOrEmpty($existing)) {
         return $existing
     }
+    if (Test-NSMintFailed) {
+        return ''
+    }
     $transcript = Get-NSSessionValue 'Transcript'
     $origin = Get-NSSessionValue 'SessionId'
     if ($transcript -match '[/\\]\.cursor[/\\]chats([/\\]|$)' -and -not [string]::IsNullOrEmpty($origin)) {
@@ -232,9 +235,11 @@ function Resolve-NSCursorWorkerId {
         $minted = (& agent create-chat 2>$null | Out-String).Trim()
     }
     catch {
+        Write-NSMintFailed
         return ''
     }
     if ([string]::IsNullOrEmpty($minted) -or $minted -match '[\r\n/\\]') {
+        Write-NSMintFailed
         return ''
     }
     if (Write-NSCursorWorkerId $minted) { return $minted }
@@ -257,12 +262,75 @@ function Get-NSHostProcessState {
     }
 }
 
+function Test-NSMintFailed {
+    $path = Join-Path $ns '.mint-failed'
+    return ((Test-Path -LiteralPath $path -PathType Leaf) -and -not (Test-NSReparsePoint $path))
+}
+
+function Write-NSMintFailed {
+    $path = Join-Path $ns '.mint-failed'
+    if (Test-NSReparsePoint $path) {
+        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    }
+    $line = '{0}{1}' -f (Get-NSUnixTime), [Environment]::NewLine
+    [IO.File]::WriteAllText($path, $line, $utf8)
+}
+
 function Get-NSSiteVerdict {
     if (Test-NSOwnerPaused) {
         return 'esc'
     }
     if (Test-NSTranscriptPulse) {
         return 'alive'
+    }
+    if (Test-NSPulseFresh $ns $IntervalMinutes) {
+        return 'alive'
+    }
+
+    if ($HostName -eq 'cursor') {
+        $session = Read-NSSession $ns
+        $processState = 'Absent'
+        if ($null -ne $session -and -not [string]::IsNullOrEmpty($session.ProcessId)) {
+            $processState = Test-NSRecordedProcess $session.ProcessId $session.Start
+            if ($processState -eq 'Alive') {
+                return 'silent'
+            }
+        }
+        if (Test-NSLeasePidLive $ns) {
+            return 'silent'
+        }
+        if (-not (Test-NSPulseStale $ns $IntervalMinutes $script:WatchStart)) {
+            return 'silent'
+        }
+        if ($processState -eq 'Unavailable') {
+            return 'unavailable'
+        }
+        return 'dead'
+    }
+
+    if ($HostName -eq 'codex') {
+        $session = Read-NSSession $ns
+        $processState = 'Absent'
+        if ($null -ne $session -and -not [string]::IsNullOrEmpty($session.ProcessId)) {
+            $processState = Test-NSRecordedProcess $session.ProcessId $session.Start
+            if ($processState -eq 'Alive') {
+                return 'silent'
+            }
+        }
+        if (-not (Test-NSPulseStale $ns $IntervalMinutes $script:WatchStart)) {
+            return 'silent'
+        }
+        if ($processState -eq 'Unavailable') {
+            return 'unavailable'
+        }
+        $hostProcesses = Get-NSHostProcessState
+        if ($hostProcesses -eq 'Present') {
+            return 'tabs'
+        }
+        if ($hostProcesses -eq 'Unavailable') {
+            return 'unavailable'
+        }
+        return 'dead'
     }
 
     $session = Read-NSSession $ns
@@ -514,7 +582,7 @@ function Get-NSHoldReason {
     if (Test-NSDeadlinePassed) {
         return 'deadline passed'
     }
-    if (($HostName -eq 'claude' -or $HostName -eq 'cursor') -and (Test-NSRealSessionEnd)) {
+    if (Test-NSRealSessionEnd) {
         return 'clean session end'
     }
     $verdict = Get-NSSiteVerdict
@@ -617,6 +685,7 @@ try {
     $null = Write-NSAtomicLines -Path $pidFile -Lines @([string]$PID, (Get-NSProcessStart $PID))
 
     Write-NSLogLine "watchman ($HostName, Windows) armed - every ${IntervalMinutes}m"
+    $script:WatchStart = Get-NSUnixTime
     [IO.File]::WriteAllText($tick, '', $utf8)
     Set-NSTranscriptBaseline
 
@@ -672,7 +741,7 @@ try {
             exit 0
         }
 
-        if (($HostName -eq 'claude' -or $HostName -eq 'cursor') -and (Test-NSRealSessionEnd)) {
+        if (Test-NSRealSessionEnd) {
             Write-NSReason $ns 'clean-session-end'
             Write-NSLogLine 'watchman: clean session end - the owner closed it; standing down'
             exit 0
@@ -705,6 +774,15 @@ try {
         }
         else {
             $previousStandby = ''
+            if ($HostName -eq 'cursor' -and [string]::IsNullOrEmpty((Get-NSCursorWorkerId)) -and (Test-NSMintFailed)) {
+                Write-NSReason $ns 'silent-standby' 'mint-failed'
+                Set-NSTranscriptBaseline
+                [IO.File]::WriteAllText($tick, '', $utf8)
+                if ($MaxWakes -gt 0 -and $wake -ge $MaxWakes) {
+                    exit 7
+                }
+                continue
+            }
             $sessionId = Get-NSSessionValue 'SessionId'
             if ($HostName -eq 'codex' -and [string]::IsNullOrEmpty($Agent)) {
                 $kind = Get-NSCodexIdentityKind $sessionId

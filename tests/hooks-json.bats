@@ -5,7 +5,7 @@ load helpers
 
 @test "hooks.json declares every hook command" {
   n="$(jq -r '[.. | .command? // empty] | length' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hooks.json")"
-  [ "$n" -eq 3 ]
+  [ "$n" -eq 4 ]
 }
 
 @test "every hooks.json command quotes the plugin root (spaced-path safe)" {
@@ -46,7 +46,9 @@ load helpers
   [ "$(jq -r '[.hooks.PreToolUse[].matcher] | join(",")' "$f")" = "*" ]
   [ "$(jq -r '.hooks.Stop | length' "$f")" -eq 1 ]
   [ "$(jq -r '.hooks.SessionEnd | length' "$f")" -eq 1 ]
+  [ "$(jq -r '.hooks.PostToolUse | length' "$f")" -eq 1 ]
   jq -e '.hooks.SessionEnd[0].hooks[0].command | test("session-end")' "$f" >/dev/null
+  jq -e '.hooks.PostToolUse[0].hooks[0].command | test("pulse")' "$f" >/dev/null
   jq -e '.hooks.PreToolUse[] | select(.matcher=="*") | .hooks[0].command | test("hardhat")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].command | test("clock-out")' "$f" >/dev/null
 }
@@ -73,12 +75,17 @@ load helpers
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
   f="$root/hooks/codex/hooks.json"
   [ "$(jq -r '[.hooks.PreToolUse[].matcher] | join(",")' "$f")" = "*" ]
-  [ "$(jq -r '[.. | .command? // empty] | length' "$f")" -eq 2 ]
-  [ "$(jq -r '[.. | .commandWindows? // empty] | length' "$f")" -eq 2 ]
+  [ "$(jq -r '[.. | .command? // empty] | length' "$f")" -eq 4 ]
+  [ "$(jq -r '[.. | .commandWindows? // empty] | length' "$f")" -eq 4 ]
   jq -e '.hooks.PreToolUse[0].hooks[0].command | test("codex/hardhat")' "$f" >/dev/null
+  jq -e '.hooks.PostToolUse[0].hooks[0].command | test("codex/pulse")' "$f" >/dev/null
+  jq -e '.hooks.SessionEnd[0].hooks[0].command | test("codex/session-end")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].command | test("codex/clock-out-gate")' "$f" >/dev/null
   jq -e '.hooks.PreToolUse[0].hooks[0].commandWindows | test("windows\\\\hardhat.ps1")' "$f" >/dev/null
+  jq -e '.hooks.PostToolUse[0].hooks[0].commandWindows | test("windows\\\\pulse.ps1")' "$f" >/dev/null
+  jq -e '.hooks.SessionEnd[0].hooks[0].commandWindows | test("windows\\\\session-end.ps1")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].commandWindows | test("windows\\\\clock-out-gate.ps1")' "$f" >/dev/null
+  jq -e '.hooks.SessionEnd[0].hooks[0].commandWindows | test("-HostName codex")' "$f" >/dev/null
   jq -e '[.. | .commandWindows? // empty]
     | all(contains("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File"))
     and all(contains("%PLUGIN_ROOT%"))' "$f" >/dev/null
@@ -90,16 +97,21 @@ load helpers
   done < <(jq -r '.. | .command? // empty' "$f")
 }
 
-@test "Cursor hooks.json wires hardhat, clock-out, and session-end" {
+@test "Cursor hooks.json wires hardhat, clock-out, session-end, and pulse" {
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
   f="$root/hooks/cursor/hooks.json"
   [ "$(jq -r '.version' "$f")" = "1" ]
   [ "$(jq -r '[.hooks.preToolUse[].command] | length' "$f")" -eq 1 ]
-  [ "$(jq -r '[.hooks.stop[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.postToolUse[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.afterAgentThought[].command] | length' "$f")" -eq 1 ]
+  [ "$(jq -r '[.hooks.stop[].command] | length' "$f")" -eq 2 ]
   [ "$(jq -r '[.hooks.sessionEnd[].command] | length' "$f")" -eq 1 ]
   [ "$(jq -r '[.hooks.beforeSubmitPrompt[].command] | length' "$f")" -eq 1 ]
   jq -e '.hooks.preToolUse[0].command | test("cursor/hardhat")' "$f" >/dev/null
+  jq -e '.hooks.postToolUse[0].command | test("cursor/pulse")' "$f" >/dev/null
+  jq -e '.hooks.afterAgentThought[0].command | test("cursor/pulse")' "$f" >/dev/null
   jq -e '.hooks.stop[0].command | test("cursor/clock-out-gate")' "$f" >/dev/null
+  jq -e '.hooks.stop[1].command | test("cursor/pulse")' "$f" >/dev/null
   jq -e '.hooks.sessionEnd[0].command | test("cursor/session-end")' "$f" >/dev/null
   jq -e '.hooks.beforeSubmitPrompt[0].command | test("cursor/before-submit")' "$f" >/dev/null
   while IFS= read -r cmd; do

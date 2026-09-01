@@ -42,6 +42,7 @@
 # files can neither mute the owner's Esc nor mask a dead session as alive:
 #   1. interrupt marker in the transcript tail       -> owner pressed Esc; stand by
 #   2. the shift's transcript moved since last wake  -> alive (a session streams every turn)
+#      a fresh .shift-pulse (epoch within 2 * watchMinutes) is the same tell for a quiet tab
 #   3. recorded pid alive (start time verified)      -> transcript's last word is the host's own
 #                                                       API-error event? the 500 wedge: alive but
 #                                                       errored, nobody home — revive.
@@ -353,6 +354,7 @@ site_verdict() { # prints: esc | alive | silent | wedge | tabs | dead | unavaila
   local sid ps rg ph
   if owner_paused; then printf 'esc'; return; fi
   if transcript_pulse; then printf 'alive'; return; fi
+  if ns_pulse_fresh "$NS" "$INTERVAL_MIN"; then printf 'alive'; return; fi
   sid="$(shift_session_id)"
   if [ -n "$sid" ]; then
     shift_process_alive

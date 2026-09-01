@@ -754,3 +754,51 @@ ns_cursor_stop_request() { # <prompt>
   printf '%s' "${1:-}" | grep -qiE \
     'ask[[:space:]]+nightshift[[:space:]]+to[[:space:]]+stop|[[:space:]/]nightshift[[:space:]]+stop|/nightshift:stop|stop[[:space:]]+the[[:space:]]+shift'
 }
+
+
+# .shift-pulse — overwrite-only liveness: "epoch session-id" (unix seconds).
+# Fresh: epoch within 2 * watchMinutes. Stale: older than that, or never written
+# and at least two wake intervals have passed since arm (or the supplied clock).
+ns_pulse_epoch() { # <ns>
+  local f="$1/.shift-pulse" line epoch
+  [ -f "$f" ] && [ ! -L "$f" ] || return 0
+  IFS= read -r line <"$f" || true
+  epoch="${line%% *}"
+  case "$epoch" in '' | *[!0-9]*) return 0 ;; esac
+  printf '%s' "$epoch"
+}
+
+ns_pulse_fresh() { # <ns> <interval_min>
+  local epoch now window interval="${2:-0}"
+  epoch="$(ns_pulse_epoch "$1")"
+  [ -n "$epoch" ] || return 1
+  case "$interval" in '' | *[!0-9]*) interval=0 ;; esac
+  window=$((interval * 120))
+  now="$(date +%s)"
+  [ $((now - epoch)) -lt "$window" ]
+}
+
+ns_pulse_stale() { # <ns> <interval_min> [clock_epoch]
+  local ns="$1" interval="${2:-0}" clock="${3:-}" now epoch window armed
+  case "$interval" in '' | *[!0-9]*) interval=0 ;; esac
+  window=$((interval * 120))
+  now="$(date +%s)"
+  epoch="$(ns_pulse_epoch "$ns")"
+  if [ -n "$epoch" ]; then
+    [ $((now - epoch)) -ge "$window" ]
+    return
+  fi
+  armed="$ns/.shift-armed"
+  if [ -f "$armed" ] && [ ! -L "$armed" ]; then
+    clock="$(ns_mtime "$armed")"
+  fi
+  case "$clock" in '' | *[!0-9]*) clock="$now" ;; esac
+  [ $((now - clock)) -ge "$window" ]
+}
+
+# Live lease holder pid. Empty pid is not live and does not decide death.
+ns_lease_pid_live() { # <ns>
+  ns_lease_valid "$1" || return 1
+  [ -n "$NS_LEASE_PID" ] || return 1
+  ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+}

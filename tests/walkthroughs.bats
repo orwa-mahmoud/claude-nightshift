@@ -9,7 +9,7 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 # last night silently ended the next shift at its first stop attempt. Now only start cuts, so
 # only start clears — and it must still name every marker.
 @test "start clears every stale marker" {
-  for m in STOP .stall .notified .ended deadline .session-end .shift-session .watchman-tick .watchman .lock.d; do
+  for m in STOP .stall .notified .ended deadline .session-end .shift-pulse .mint-failed .shift-session .watchman-tick .watchman .lock.d; do
     grep -qF "$m" "$START" || { echo "start does not clear $m"; return 1; }
   done
 }
