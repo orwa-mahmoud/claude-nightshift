@@ -2515,4 +2515,936 @@ function Copy-NSOwnerTemplate {
     [IO.File]::WriteAllText($Destination, $text, $script:NSUtf8NoBom)
 }
 
+# --- capability detection -------------------------------------------------
+# Native mirror of runtime/detect-capabilities.py. Read-only: nothing below
+# creates, moves, or deletes anything inside a scanned project.
+
+function Sort-NSOrdinal {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Items)
+    $sorted = New-Object Collections.Generic.List[string]
+    if ($null -ne $Items) {
+        foreach ($item in $Items) {
+            $sorted.Add($item)
+        }
+    }
+    $sorted.Sort([StringComparer]::Ordinal)
+    return , $sorted.ToArray()
+}
+
+function Get-NSAbsolutePath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $candidate = $Path
+    if (-not [IO.Path]::IsPathRooted($candidate)) {
+        $candidate = Join-Path (Get-Location).ProviderPath $candidate
+    }
+    $full = [IO.Path]::GetFullPath($candidate)
+    $sep = [IO.Path]::DirectorySeparatorChar
+    while ($full.Length -gt 1 -and $full[$full.Length - 1] -eq $sep -and -not $full.EndsWith(':' + $sep)) {
+        $full = $full.Substring(0, $full.Length - 1)
+    }
+    return $full
+}
+
+function Join-NSPath {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Base,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Name
+    )
+    if ([string]::IsNullOrEmpty($Base) -or [IO.Path]::IsPathRooted($Name)) {
+        return $Name
+    }
+    $last = $Base[$Base.Length - 1]
+    if ($last -eq [IO.Path]::DirectorySeparatorChar -or $last -eq [IO.Path]::AltDirectorySeparatorChar) {
+        return ($Base + $Name)
+    }
+    return ($Base + [IO.Path]::DirectorySeparatorChar + $Name)
+}
+
+function Get-NSRelativePath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Base,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+    if ($Path -eq $Base) {
+        return '.'
+    }
+    $prefix = $Base.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    foreach ($sep in @([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)) {
+        $head = $prefix + $sep
+        if ($Path.StartsWith($head)) {
+            return $Path.Substring($head.Length)
+        }
+    }
+    return $Path
+}
+
+# Python json.dump(doc, indent=2, sort_keys=True): recursively sorted keys,
+# two-space indent, "key": value, [] and {} for empties, \uXXXX for every
+# character outside printable ASCII, no escaped slash, LF only.
+function ConvertTo-NSJsonStringLiteral {
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    $builder = New-Object Text.StringBuilder
+    $null = $builder.Append('"')
+    if (-not [string]::IsNullOrEmpty($Text)) {
+        foreach ($char in $Text.ToCharArray()) {
+            $code = [int]$char
+            if ($code -eq 34) { $null = $builder.Append('\"') }
+            elseif ($code -eq 92) { $null = $builder.Append('\\') }
+            elseif ($code -eq 8) { $null = $builder.Append('\b') }
+            elseif ($code -eq 9) { $null = $builder.Append('\t') }
+            elseif ($code -eq 10) { $null = $builder.Append('\n') }
+            elseif ($code -eq 12) { $null = $builder.Append('\f') }
+            elseif ($code -eq 13) { $null = $builder.Append('\r') }
+            elseif ($code -lt 32 -or $code -gt 126) { $null = $builder.Append(('\u{0:x4}' -f $code)) }
+            else { $null = $builder.Append($char) }
+        }
+    }
+    $null = $builder.Append('"')
+    return $builder.ToString()
+}
+
+function Write-NSCanonicalJsonValue {
+    param(
+        [Parameter(Mandatory = $true)]$Builder,
+        $Value,
+        [int]$Level = 0
+    )
+    if ($null -eq $Value) {
+        $null = $Builder.Append('null')
+        return
+    }
+    if ($Value -is [bool]) {
+        if ($Value) { $null = $Builder.Append('true') } else { $null = $Builder.Append('false') }
+        return
+    }
+    if ($Value -is [string]) {
+        $null = $Builder.Append((ConvertTo-NSJsonStringLiteral $Value))
+        return
+    }
+    if ($Value -is [int] -or $Value -is [long] -or $Value -is [int16] -or $Value -is [byte] -or $Value -is [uint16] -or $Value -is [uint32] -or $Value -is [uint64]) {
+        $null = $Builder.Append(([long]$Value).ToString([Globalization.CultureInfo]::InvariantCulture))
+        return
+    }
+    $pad = ' ' * (2 * ($Level + 1))
+    $tail = ' ' * (2 * $Level)
+    if ($Value -is [Collections.IDictionary]) {
+        $keys = Sort-NSOrdinal (@($Value.Keys))
+        if ($keys.Count -eq 0) {
+            $null = $Builder.Append('{}')
+            return
+        }
+        $null = $Builder.Append('{')
+        $index = 0
+        foreach ($key in $keys) {
+            if ($index -gt 0) { $null = $Builder.Append(',') }
+            $null = $Builder.Append("`n")
+            $null = $Builder.Append($pad)
+            $null = $Builder.Append((ConvertTo-NSJsonStringLiteral $key))
+            $null = $Builder.Append(': ')
+            Write-NSCanonicalJsonValue $Builder $Value[$key] ($Level + 1)
+            $index++
+        }
+        $null = $Builder.Append("`n")
+        $null = $Builder.Append($tail)
+        $null = $Builder.Append('}')
+        return
+    }
+    if ($Value -is [Collections.IEnumerable]) {
+        $items = @($Value)
+        if ($items.Count -eq 0) {
+            $null = $Builder.Append('[]')
+            return
+        }
+        $null = $Builder.Append('[')
+        $index = 0
+        foreach ($item in $items) {
+            if ($index -gt 0) { $null = $Builder.Append(',') }
+            $null = $Builder.Append("`n")
+            $null = $Builder.Append($pad)
+            Write-NSCanonicalJsonValue $Builder $item ($Level + 1)
+            $index++
+        }
+        $null = $Builder.Append("`n")
+        $null = $Builder.Append($tail)
+        $null = $Builder.Append(']')
+        return
+    }
+    $null = $Builder.Append((ConvertTo-NSJsonStringLiteral ([string]$Value)))
+}
+
+function ConvertTo-NSCanonicalJson {
+    param([AllowNull()]$InputObject)
+    $builder = New-Object Text.StringBuilder
+    Write-NSCanonicalJsonValue $builder $InputObject 0
+    return $builder.ToString()
+}
+
+function Get-NSSchemaDocument {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $dir = Join-Path (Split-Path -Parent $PSScriptRoot) 'skills/nightshift/references/schemas/v1'
+    $raw = [IO.File]::ReadAllText((Join-Path $dir $Name))
+    return ($raw | ConvertFrom-Json)
+}
+
+function Get-NSJsonProperty {
+    param($Object, [Parameter(Mandatory = $true)][string]$Name)
+    if ($null -eq $Object) {
+        return $null
+    }
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+    return $property.Value
+}
+
+function New-NSCapabilityResult {
+    param(
+        [Parameter(Mandatory = $true)][string]$Status,
+        [AllowEmptyString()][string]$Reason,
+        [AllowEmptyString()][string]$Locator,
+        [string]$EvidenceLadder = 'observed'
+    )
+    return [ordered]@{
+        status         = $Status
+        reason         = $Reason
+        locator        = $Locator
+        evidenceLadder = $EvidenceLadder
+    }
+}
+
+function Test-NSExecutableFile {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (Test-NSWindows) {
+        return $true
+    }
+    try {
+        $mode = [IO.File]::GetUnixFileMode($Path)
+        $bits = [IO.UnixFileMode]::UserExecute -bor [IO.UnixFileMode]::GroupExecute -bor [IO.UnixFileMode]::OtherExecute
+        return ([int]($mode -band $bits) -ne 0)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Find-NSCommandPath {
+    param(
+        [AllowNull()][AllowEmptyString()][string]$Command,
+        [AllowNull()][AllowEmptyString()][string]$SearchPath
+    )
+    if ([string]::IsNullOrEmpty($Command) -or $Command.StartsWith('-')) {
+        return $null
+    }
+    if ([string]::IsNullOrEmpty($SearchPath)) {
+        return $null
+    }
+    foreach ($directory in $SearchPath.Split([IO.Path]::PathSeparator)) {
+        if ([string]::IsNullOrEmpty($directory)) {
+            continue
+        }
+        $candidate = Join-NSPath $directory $Command
+        if ((Test-Path -LiteralPath $candidate -PathType Leaf) -and (Test-NSExecutableFile $candidate)) {
+            return $candidate
+        }
+        if (Test-NSWindows) {
+            foreach ($ext in @('.exe', '.cmd', '.bat')) {
+                $alt = $candidate + $ext
+                if (Test-Path -LiteralPath $alt -PathType Leaf) {
+                    return $alt
+                }
+            }
+        }
+    }
+    return $null
+}
+
+# Runs "<path> --version" and nothing else. Never the tool's real work command.
+function Invoke-NSVersionProbe {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $info = New-Object Diagnostics.ProcessStartInfo
+    $info.FileName = $Path
+    $info.Arguments = '--version'
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $utf8 = New-Object Text.UTF8Encoding($false)
+    $info.StandardOutputEncoding = $utf8
+    $info.StandardErrorEncoding = $utf8
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $info
+    try {
+        $null = $process.Start()
+    }
+    catch {
+        $process.Dispose()
+        return @{ Status = 'available-but-failing'; Detail = $_.Exception.Message }
+    }
+    $outTask = $process.StandardOutput.ReadToEndAsync()
+    $errTask = $process.StandardError.ReadToEndAsync()
+    $process.WaitForExit()
+    $text = $outTask.GetAwaiter().GetResult() + $errTask.GetAwaiter().GetResult()
+    $code = $process.ExitCode
+    $process.Dispose()
+    $trimmed = $text.Trim()
+    $first = ''
+    if ($trimmed.Length -gt 0) {
+        $first = ($trimmed -split "`r`n|`n|`r", 2)[0]
+    }
+    if ($first.Length -gt 200) {
+        $first = $first.Substring(0, 200)
+    }
+    if ($code -eq 0) {
+        return @{ Status = 'available-and-verified'; Detail = $first }
+    }
+    return @{ Status = 'available-but-failing'; Detail = ('exit {0}: {1}' -f $code, $first) }
+}
+
+function Get-NSCommandProbeResult {
+    param(
+        [Parameter(Mandatory = $true)][string]$Command,
+        [AllowNull()][AllowEmptyString()][string]$SearchPath,
+        [AllowEmptyString()][string]$Locator
+    )
+    $path = Find-NSCommandPath $Command $SearchPath
+    if ([string]::IsNullOrEmpty($path)) {
+        return (New-NSCapabilityResult 'unavailable' ('command {0} is not on PATH' -f $Command) $Locator 'observed')
+    }
+    $probe = Invoke-NSVersionProbe $path
+    $detail = $probe['Detail']
+    if ([string]::IsNullOrEmpty($detail)) {
+        $detail = 'no version text'
+    }
+    $ladder = 'observed'
+    if ($probe['Status'] -eq 'available-and-verified') {
+        $ladder = 'measured'
+    }
+    return (New-NSCapabilityResult $probe['Status'] ('{0} -> {1} ({2})' -f $Command, $path, $detail) $path $ladder)
+}
+
+# One directory listing: child directory names, which of them are links (never
+# descended, matching os.walk), and file names. Both lists ordinal sorted.
+function Get-NSDirectoryEntries {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $dirs = New-Object Collections.Generic.List[string]
+    $links = New-Object Collections.Generic.List[string]
+    $files = New-Object Collections.Generic.List[string]
+    $items = @()
+    try {
+        $items = @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop)
+    }
+    catch {
+        $items = @()
+    }
+    foreach ($item in $items) {
+        if ($item.PSIsContainer) {
+            $dirs.Add($item.Name)
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                $links.Add($item.Name)
+            }
+        }
+        else {
+            $files.Add($item.Name)
+        }
+    }
+    return @{
+        Dirs  = (Sort-NSOrdinal $dirs.ToArray())
+        Links = $links.ToArray()
+        Files = (Sort-NSOrdinal $files.ToArray())
+    }
+}
+
+function Get-NSArtifactCapabilities {
+    param([Parameter(Mandatory = $true)][string]$Target)
+    $markdown = New-Object Collections.Generic.List[string]
+    $html = New-Object Collections.Generic.List[string]
+    $pending = New-Object Collections.Generic.List[string]
+    $pending.Add($Target)
+    while ($pending.Count -gt 0) {
+        $dir = $pending[0]
+        $pending.RemoveAt(0)
+        $entries = Get-NSDirectoryEntries $dir
+        $slot = 0
+        foreach ($name in $entries['Dirs']) {
+            if ($name -eq '.git' -or $name -eq 'node_modules') {
+                continue
+            }
+            if ($entries['Links'] -contains $name) {
+                continue
+            }
+            $pending.Insert($slot, (Join-NSPath $dir $name))
+            $slot++
+        }
+        foreach ($name in $entries['Files']) {
+            $lower = $name.ToLowerInvariant()
+            if ($lower.EndsWith('.md') -or $lower.EndsWith('.markdown')) {
+                $markdown.Add((Join-NSPath $dir $name))
+            }
+            elseif ($lower.EndsWith('.html') -or $lower.EndsWith('.htm')) {
+                $html.Add((Join-NSPath $dir $name))
+            }
+        }
+        if (($markdown.Count + $html.Count) -gt 40) {
+            break
+        }
+    }
+    $caps = [ordered]@{}
+    if ($markdown.Count -gt 0) {
+        $caps['local-markdown'] = New-NSCapabilityResult 'available-and-verified' ('{0} markdown files' -f $markdown.Count) $markdown[0] 'observed'
+        $caps['source-export'] = New-NSCapabilityResult 'available-and-verified' 'local files can be cited' $markdown[0] 'observed'
+    }
+    else {
+        $caps['local-markdown'] = New-NSCapabilityResult 'unavailable' 'no markdown files' $Target 'observed'
+        $caps['source-export'] = New-NSCapabilityResult 'unavailable' 'no local source files' $Target 'observed'
+    }
+    if ($html.Count -gt 0) {
+        $caps['local-html'] = New-NSCapabilityResult 'available-and-verified' ('{0} html files' -f $html.Count) $html[0] 'observed'
+    }
+    else {
+        $caps['local-html'] = New-NSCapabilityResult 'unavailable' 'no html files' $Target 'observed'
+    }
+    return $caps
+}
+
+function Get-NSScanFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+    $hits = New-Object Collections.Generic.List[string]
+    $pruned = @('.git', 'node_modules', 'vendor', 'target')
+    $pending = New-Object Collections.Generic.List[string]
+    $pending.Add($Root)
+    while ($pending.Count -gt 0) {
+        $dir = $pending[0]
+        $pending.RemoveAt(0)
+        $entries = Get-NSDirectoryEntries $dir
+        $slot = 0
+        foreach ($child in $entries['Dirs']) {
+            if ($pruned -contains $child) {
+                continue
+            }
+            if ($entries['Links'] -contains $child) {
+                continue
+            }
+            $pending.Insert($slot, (Join-NSPath $dir $child))
+            $slot++
+        }
+        foreach ($file in $entries['Files']) {
+            if ($file -eq $Name) {
+                $hits.Add((Join-NSPath $dir $file))
+            }
+        }
+        if ($hits.Count -ge 20) {
+            break
+        }
+    }
+    return , $hits.ToArray()
+}
+
+# Root plus immediate child dirs that carry a package signal. Symlinked
+# children are skipped, exactly as the lstat check in the reference does.
+function Get-NSPackageList {
+    param([Parameter(Mandatory = $true)][string]$Target)
+    $found = New-Object Collections.Generic.List[string]
+    $found.Add($Target)
+    $items = @()
+    try {
+        $items = @(Get-ChildItem -LiteralPath $Target -Force -ErrorAction Stop)
+    }
+    catch {
+        return , $found.ToArray()
+    }
+    $byName = @{}
+    foreach ($item in $items) {
+        $byName[$item.Name] = $item
+    }
+    $signals = @(
+        'package.json',
+        'pyproject.toml',
+        'requirements.txt',
+        'go.mod',
+        'Cargo.toml',
+        'Makefile',
+        '.claude-plugin',
+        '.codex-plugin'
+    )
+    foreach ($name in (Sort-NSOrdinal (@($byName.Keys)))) {
+        if ($name.StartsWith('.')) {
+            continue
+        }
+        $item = $byName[$name]
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            continue
+        }
+        if (-not $item.PSIsContainer) {
+            continue
+        }
+        $path = Join-NSPath $Target $name
+        foreach ($signal in $signals) {
+            if (Test-Path -LiteralPath (Join-NSPath $path $signal)) {
+                $found.Add($path)
+                break
+            }
+        }
+    }
+    return , $found.ToArray()
+}
+
+function Get-NSPackageStacks {
+    param([Parameter(Mandatory = $true)][string]$Package)
+    $stacks = New-Object Collections.Generic.List[string]
+    if (Test-Path -LiteralPath (Join-NSPath $Package 'package.json') -PathType Leaf) {
+        $stacks.Add('javascript-typescript')
+    }
+    if ((Test-Path -LiteralPath (Join-NSPath $Package 'pyproject.toml') -PathType Leaf) -or (Test-Path -LiteralPath (Join-NSPath $Package 'requirements.txt') -PathType Leaf)) {
+        $stacks.Add('python')
+    }
+    if (Test-Path -LiteralPath (Join-NSPath $Package 'go.mod') -PathType Leaf) {
+        $stacks.Add('go')
+    }
+    if (Test-Path -LiteralPath (Join-NSPath $Package 'Cargo.toml') -PathType Leaf) {
+        $stacks.Add('rust')
+    }
+    $plugin = $false
+    foreach ($rel in @('.claude-plugin', '.codex-plugin', 'plugins')) {
+        if (Test-Path -LiteralPath (Join-NSPath $Package $rel)) {
+            $plugin = $true
+        }
+    }
+    if ($plugin) {
+        $stacks.Add('shell-plugin')
+    }
+    if (Test-Path -LiteralPath (Join-NSPath $Package 'Makefile') -PathType Leaf) {
+        $stacks.Add('make')
+    }
+    return , $stacks.ToArray()
+}
+
+function Get-NSPackageScriptNames {
+    param([Parameter(Mandatory = $true)][string]$Package)
+    $path = Join-NSPath $Package 'package.json'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return , @()
+    }
+    $data = $null
+    try {
+        $data = [IO.File]::ReadAllText($path) | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        return , @()
+    }
+    $scripts = Get-NSJsonProperty $data 'scripts'
+    if ($null -eq $scripts -or -not ($scripts -is [Management.Automation.PSCustomObject])) {
+        return , @()
+    }
+    return , (Sort-NSOrdinal (@($scripts.PSObject.Properties.Name)))
+}
+
+function Get-NSMakefileTargets {
+    param([Parameter(Mandatory = $true)][string]$Package)
+    $path = Join-NSPath $Package 'Makefile'
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        return , @()
+    }
+    $text = ''
+    try {
+        $text = [IO.File]::ReadAllText($path)
+    }
+    catch {
+        return , @()
+    }
+    $names = New-Object Collections.Generic.List[string]
+    foreach ($match in [regex]::Matches($text, '^([A-Za-z0-9][^:\n]*):', [Text.RegularExpressions.RegexOptions]::Multiline)) {
+        $name = $match.Groups[1].Value
+        if ($names -notcontains $name) {
+            $names.Add($name)
+        }
+    }
+    return , (Sort-NSOrdinal $names.ToArray())
+}
+
+function Get-NSOwnerGatesResult {
+    param([Parameter(Mandatory = $true)][string]$Nightshift)
+    $punch = Join-NSPath $Nightshift 'punch-list.md'
+    if (-not (Test-Path -LiteralPath $punch -PathType Leaf)) {
+        return (New-NSCapabilityResult 'unavailable' 'no punch-list.md' $punch 'declared')
+    }
+    $text = [IO.File]::ReadAllText($punch)
+    if ($text.IndexOf('## Gates', [StringComparison]::Ordinal) -lt 0) {
+        return (New-NSCapabilityResult 'unavailable' 'punch list has no Gates block' $punch 'declared')
+    }
+    return (New-NSCapabilityResult 'available-and-verified' 'owner Gates block present' $punch 'declared')
+}
+
+function Get-NSMergedCapability {
+    param($Results)
+    $rank = @{
+        'available-and-verified' = 5
+        'available-but-failing'  = 4
+        'fallback-only'          = 3
+        'provisionable'          = 2
+        'unavailable'            = 1
+    }
+    $best = $null
+    foreach ($item in $Results) {
+        if ($null -eq $best -or $rank[$item['status']] -gt $rank[$best['status']]) {
+            $best = $item
+        }
+    }
+    if ($null -eq $best) {
+        return (New-NSCapabilityResult 'unavailable' 'not probed' '' 'declared')
+    }
+    return $best
+}
+
+function Get-NSCommandProbeMap {
+    $map = [ordered]@{}
+    $map['lint'] = @(
+        @{ Cmd = 'eslint'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'ruff'; Stack = 'python' },
+        @{ Cmd = 'golangci-lint'; Stack = 'go' }
+    )
+    $map['typecheck'] = @(
+        @{ Cmd = 'tsc'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'mypy'; Stack = 'python' }
+    )
+    $map['test'] = @(
+        @{ Cmd = 'node'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'pytest'; Stack = 'python' },
+        @{ Cmd = 'go'; Stack = 'go' },
+        @{ Cmd = 'cargo'; Stack = 'rust' },
+        @{ Cmd = 'bats'; Stack = 'shell-plugin' }
+    )
+    $map['coverage'] = @(
+        @{ Cmd = 'c8'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'pytest'; Stack = 'python' },
+        @{ Cmd = 'go'; Stack = 'go' }
+    )
+    $map['dead-code'] = @(
+        @{ Cmd = 'knip'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'vulture'; Stack = 'python' }
+    )
+    $map['build'] = @(
+        @{ Cmd = 'tsc'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'go'; Stack = 'go' },
+        @{ Cmd = 'cargo'; Stack = 'rust' }
+    )
+    $map['security'] = @(
+        @{ Cmd = 'npm'; Stack = 'javascript-typescript' },
+        @{ Cmd = 'pip-audit'; Stack = 'python' },
+        @{ Cmd = 'govulncheck'; Stack = 'go' }
+    )
+    $map['documentation-link'] = @(
+        @{ Cmd = 'markdown-link-check'; Stack = $null }
+    )
+    $map['accessibility'] = @(
+        @{ Cmd = 'axe'; Stack = $null },
+        @{ Cmd = 'pa11y'; Stack = $null }
+    )
+    $map['api-schema'] = @()
+    $map['localization'] = @()
+    $map['benchmark'] = @()
+    $map['mutation-fuzz'] = @()
+    $map['seo-performance'] = @()
+    $map['browser'] = @(
+        @{ Cmd = 'chrome'; Stack = $null },
+        @{ Cmd = 'chromium'; Stack = $null }
+    )
+    $map['connector'] = @(
+        @{ Cmd = 'gh'; Stack = $null }
+    )
+    $map['structured-results'] = @()
+    return $map
+}
+
+function Get-NSRepositoryCapabilities {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string]$Nightshift,
+        [AllowNull()][AllowEmptyString()][string]$SearchPath
+    )
+    $caps = Get-NSArtifactCapabilities $Target
+    $packages = Get-NSPackageList $Target
+    $stackSet = New-Object Collections.Generic.List[string]
+    foreach ($package in $packages) {
+        foreach ($stack in (Get-NSPackageStacks $package)) {
+            if ($stackSet -notcontains $stack) {
+                $stackSet.Add($stack)
+            }
+        }
+    }
+    $stacks = Sort-NSOrdinal $stackSet.ToArray()
+    $topology = [ordered]@{
+        root     = $Target
+        packages = $packages
+        monorepo = ($packages.Count -gt 1)
+        stacks   = $stacks
+    }
+
+    $caps['owner-gates'] = Get-NSOwnerGatesResult $Nightshift
+
+    $scripts = New-Object Collections.Generic.List[string]
+    foreach ($package in $packages) {
+        $relative = Get-NSRelativePath $Target $package
+        foreach ($name in (Get-NSPackageScriptNames $package)) {
+            $scripts.Add(('{0}:{1}' -f $relative, $name))
+        }
+        foreach ($name in (Get-NSMakefileTargets $package)) {
+            $scripts.Add(('make:{0}' -f $name))
+        }
+    }
+    if ($scripts.Count -gt 0) {
+        $shown = New-Object Collections.Generic.List[string]
+        $limit = [Math]::Min(12, $scripts.Count)
+        for ($i = 0; $i -lt $limit; $i++) {
+            $shown.Add($scripts[$i])
+        }
+        $caps['scripts'] = New-NSCapabilityResult 'available-and-verified' ('declared scripts: {0}' -f ($shown -join ', ')) $Target 'declared'
+    }
+    else {
+        $caps['scripts'] = New-NSCapabilityResult 'unavailable' 'no package.json scripts or Makefile targets' $Target 'observed'
+    }
+    $caps['task-runner'] = $caps['scripts']
+
+    $ciHits = New-Object Collections.Generic.List[string]
+    foreach ($rel in @('.github/workflows', '.gitlab-ci.yml', 'azure-pipelines.yml')) {
+        $path = Join-NSPath $Target $rel
+        if (Test-Path -LiteralPath $path) {
+            $ciHits.Add($path)
+        }
+    }
+    if ($ciHits.Count -gt 0) {
+        $caps['ci'] = New-NSCapabilityResult 'available-and-verified' 'CI config present' $ciHits[0] 'observed'
+    }
+    else {
+        $caps['ci'] = New-NSCapabilityResult 'unavailable' 'no CI config' $Target 'observed'
+    }
+
+    # A package.json script name is a declaration, not proof of a binary; a
+    # PATH binary is what earns "measured".
+    $scriptHints = @{
+        'test'      = 'test'
+        'lint'      = 'lint'
+        'typecheck' = 'typecheck'
+        'coverage'  = 'coverage'
+        'build'     = 'build'
+    }
+
+    $commandMap = Get-NSCommandProbeMap
+    foreach ($cap in @($commandMap.Keys)) {
+        $found = New-Object Collections.Generic.List[object]
+        foreach ($probe in @($commandMap[$cap])) {
+            $stack = $probe['Stack']
+            if ($stack -and ($stacks -notcontains $stack) -and $cap -ne 'connector') {
+                continue
+            }
+            $found.Add((Get-NSCommandProbeResult $probe['Cmd'] $SearchPath $Target))
+        }
+        if ($scriptHints.ContainsKey($cap)) {
+            $key = $scriptHints[$cap]
+            $declared = $false
+            foreach ($package in $packages) {
+                if ((Get-NSPackageScriptNames $package) -contains $key) {
+                    $declared = $true
+                    break
+                }
+            }
+            if ($declared) {
+                $found.Add((New-NSCapabilityResult 'available-and-verified' ('package.json scripts.{0} is declared; not proof of a binary' -f $key) (Join-NSPath $packages[0] 'package.json') 'declared'))
+            }
+        }
+        if ($cap -eq 'test') {
+            $hasTestTarget = $false
+            foreach ($package in $packages) {
+                if ((Get-NSMakefileTargets $package) -contains 'test') {
+                    $hasTestTarget = $true
+                    break
+                }
+            }
+            if ($hasTestTarget) {
+                $found.Add((New-NSCapabilityResult 'available-and-verified' 'Makefile test target declared' $Target 'declared'))
+            }
+        }
+        if ($cap -eq 'structured-results') {
+            $hits = New-Object Collections.Generic.List[string]
+            foreach ($name in @('junit.xml', 'coverage.lcov', 'lcov.info')) {
+                foreach ($hit in (Get-NSScanFiles $Target $name)) {
+                    $hits.Add($hit)
+                }
+            }
+            if ($hits.Count -gt 0) {
+                $found.Add((New-NSCapabilityResult 'available-and-verified' 'structured result file present' $hits[0] 'observed'))
+            }
+        }
+        if ($cap -eq 'api-schema') {
+            foreach ($name in @('openapi.yaml', 'openapi.yml', 'openapi.json', 'schema.graphql')) {
+                $path = Join-NSPath $Target $name
+                if (Test-Path -LiteralPath $path -PathType Leaf) {
+                    $found.Add((New-NSCapabilityResult 'available-and-verified' 'schema file present' $path 'observed'))
+                }
+            }
+        }
+        if ($cap -eq 'localization') {
+            foreach ($rel in @('locales', 'i18n', 'translations')) {
+                $path = Join-NSPath $Target $rel
+                if (Test-Path -LiteralPath $path -PathType Container) {
+                    $found.Add((New-NSCapabilityResult 'available-and-verified' 'locale directory present' $path 'observed'))
+                }
+            }
+        }
+        $caps[$cap] = Get-NSMergedCapability $found
+    }
+
+    return @{ Capabilities = $caps; Topology = $topology }
+}
+
+function Get-NSContractEvaluation {
+    param(
+        $Requirement,
+        $Capabilities,
+        [Parameter(Mandatory = $true)][string]$WorkMode
+    )
+    $fallback = Get-NSJsonProperty $Requirement 'fallback'
+    $artifact = Get-NSJsonProperty $Requirement 'artifact'
+    if (($artifact -is [bool]) -and (-not $artifact) -and $WorkMode -eq 'artifact') {
+        return [ordered]@{
+            applies  = $false
+            reason   = 'contract is skipped in artifact mode'
+            missing  = @()
+            fallback = $fallback
+        }
+    }
+    $present = @('available-and-verified', 'available-but-failing', 'fallback-only')
+    $missing = New-Object Collections.Generic.List[string]
+    foreach ($cap in @(Get-NSJsonProperty $Requirement 'requires')) {
+        $item = $Capabilities[$cap]
+        if ($null -eq $item) {
+            $item = New-NSCapabilityResult 'unavailable' 'not detected' '' 'declared'
+        }
+        if ($item['status'] -eq 'unavailable' -or $item['status'] -eq 'provisionable') {
+            $missing.Add($cap)
+        }
+    }
+    $requiresAny = @(Get-NSJsonProperty $Requirement 'requiresAny')
+    if ($requiresAny.Count -gt 0) {
+        $anyOk = $false
+        foreach ($cap in $requiresAny) {
+            $item = $Capabilities[$cap]
+            if ($null -eq $item) {
+                $item = New-NSCapabilityResult 'unavailable' 'not detected' '' 'declared'
+            }
+            if ($present -contains $item['status']) {
+                $anyOk = $true
+                break
+            }
+        }
+        if (-not $anyOk) {
+            foreach ($cap in $requiresAny) {
+                $missing.Add($cap)
+            }
+        }
+    }
+    if ($missing.Count -gt 0) {
+        if ($fallback) {
+            return [ordered]@{
+                applies  = $true
+                reason   = ('fallback: {0}' -f $fallback)
+                missing  = $missing.ToArray()
+                fallback = $fallback
+                status   = 'fallback-only'
+            }
+        }
+        return [ordered]@{
+            applies  = $false
+            reason   = ('missing capabilities: {0}' -f ($missing -join ', '))
+            missing  = $missing.ToArray()
+            fallback = $null
+        }
+    }
+    return [ordered]@{
+        applies  = $true
+        reason   = 'required capabilities are present'
+        missing  = @()
+        fallback = $fallback
+    }
+}
+
+function Get-NSCapabilityDocument {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [string]$HostName = 'claude',
+        $SearchPath = $null
+    )
+    $identifiers = Get-NSSchemaDocument 'identifiers.json'
+    if ($identifiers.hosts -notcontains $HostName) {
+        throw ('unknown host: {0}' -f $HostName)
+    }
+    if ($null -eq $SearchPath) {
+        $SearchPath = $env:PATH
+    }
+    if ($null -eq $SearchPath) {
+        $SearchPath = ''
+    }
+    $SearchPath = [string]$SearchPath
+
+    $ns = Join-NSPath $Project '.nightshift'
+    $workMode = 'repository'
+    $modePath = Join-NSPath $ns 'work-mode'
+    if (Test-Path -LiteralPath $modePath -PathType Leaf) {
+        $recorded = ([IO.File]::ReadAllText($modePath)).Trim()
+        if (-not [string]::IsNullOrEmpty($recorded)) {
+            $workMode = $recorded
+        }
+    }
+    $target = $Project
+    $targetPath = Join-NSPath $ns 'work-target'
+    if (Test-Path -LiteralPath $targetPath -PathType Leaf) {
+        $recorded = ([IO.File]::ReadAllText($targetPath)).Trim()
+        if (-not [string]::IsNullOrEmpty($recorded)) {
+            $target = $recorded
+        }
+    }
+
+    $topology = [ordered]@{
+        root     = $target
+        packages = @($target)
+        monorepo = $false
+        stacks   = @()
+    }
+    $capabilities = $null
+    if ($workMode -eq 'artifact') {
+        $capabilities = Get-NSArtifactCapabilities $target
+        foreach ($cap in (Get-NSSchemaDocument 'capabilities.json').capabilities) {
+            if ($cap -eq 'local-markdown' -or $cap -eq 'local-html' -or $cap -eq 'source-export') {
+                continue
+            }
+            $capabilities[$cap] = New-NSCapabilityResult 'unavailable' 'artifact mode does not probe repository tools' $target 'declared'
+        }
+    }
+    else {
+        $repository = Get-NSRepositoryCapabilities $target $ns $SearchPath
+        $capabilities = $repository['Capabilities']
+        $topology = $repository['Topology']
+    }
+
+    $requirements = (Get-NSSchemaDocument 'catalog-requirements.json').contracts
+    $contracts = [ordered]@{}
+    foreach ($id in (Sort-NSOrdinal (@($requirements.PSObject.Properties.Name)))) {
+        $contracts[$id] = Get-NSContractEvaluation $requirements.PSObject.Properties[$id].Value $capabilities $workMode
+    }
+
+    return [ordered]@{
+        schemaVersion       = 1
+        host                = $HostName
+        workMode            = $workMode
+        workTarget          = $target
+        topology            = $topology
+        capabilities        = $capabilities
+        contracts           = $contracts
+        provisioningDefault = (Get-NSSchemaDocument 'capabilities.json').provisioningDefault
+    }
+}
+
 Export-ModuleMember -Function *

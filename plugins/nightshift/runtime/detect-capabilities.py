@@ -116,8 +116,8 @@ def file_cap(path, label):
 def scan_files(root, names):
     hits = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules", "vendor", "target")]
-        for name in filenames:
+        dirnames[:] = sorted(d for d in dirnames if d not in (".git", "node_modules", "vendor", "target"))
+        for name in sorted(filenames):
             if name in names:
                 hits.append(os.path.join(dirpath, name))
         if len(hits) >= 20:
@@ -206,8 +206,8 @@ def artifact_caps(target):
     caps = {}
     md, html = [], []
     for dirpath, dirnames, filenames in os.walk(target):
-        dirnames[:] = [d for d in dirnames if d not in (".git", "node_modules")]
-        for name in filenames:
+        dirnames[:] = sorted(d for d in dirnames if d not in (".git", "node_modules"))
+        for name in sorted(filenames):
             path = os.path.join(dirpath, name)
             lower = name.lower()
             if lower.endswith(".md") or lower.endswith(".markdown"):
