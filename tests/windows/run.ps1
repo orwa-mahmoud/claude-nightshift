@@ -871,7 +871,11 @@ try {
     $recoveryWorkspace = Join-Path $root 'recovery workspace'
     $recoveryTarget = Initialize-TestWorkspace $recoveryWorkspace
     Set-TestPunch $recoveryWorkspace $true
-    [IO.File]::WriteAllText((Join-Path $recoveryWorkspace '.nightshift/.shift-armed'), '')
+    $recoveryArmed = Join-Path $recoveryWorkspace '.nightshift/.shift-armed'
+    [IO.File]::WriteAllText($recoveryArmed, '')
+    # Codex revival now requires a stale pulse window (≥ 2 * IntervalMinutes). Age the
+    # arm marker so MaxWakes=1 fixtures still prove dead-session recovery.
+    (Get-Item -LiteralPath $recoveryArmed).LastWriteTimeUtc = [datetime]'2020-01-01T00:00:00Z'
     $recoverySession = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
     $recoveryProbe = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = "`$null = 'nightshift-binding-probe'" }
     Assert-Equal 0 $recoveryProbe.ExitCode 'recovery fixture binds'
@@ -925,7 +929,9 @@ exit 0
     $codexRecoveryWorkspace = Join-Path $root 'codex shim recovery workspace'
     $null = Initialize-TestWorkspace $codexRecoveryWorkspace
     Set-TestPunch $codexRecoveryWorkspace $true
-    [IO.File]::WriteAllText((Join-Path $codexRecoveryWorkspace '.nightshift/.shift-armed'), '')
+    $codexRecoveryArmed = Join-Path $codexRecoveryWorkspace '.nightshift/.shift-armed'
+    [IO.File]::WriteAllText($codexRecoveryArmed, '')
+    (Get-Item -LiteralPath $codexRecoveryArmed).LastWriteTimeUtc = [datetime]'2020-01-01T00:00:00Z'
     $codexRecoverySession = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
     $codexRecoveryProbe = Invoke-Hardhat $codexRecoveryWorkspace $codexRecoverySession 'Bash' @{
         command = "`$null = 'nightshift-binding-probe'"

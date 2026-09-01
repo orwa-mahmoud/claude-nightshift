@@ -1,11 +1,17 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet('claude', 'codex', 'cursor')]
-    [string]$HostName
+    [string]$HostName,
+    [Parameter(ValueFromPipeline = $true)]
+    [AllowEmptyString()]
+    [string]$HookJson = ''
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 if ($env:NIGHTSHIFT_REVIVAL -eq '1') {
     exit 0
@@ -14,7 +20,12 @@ if ($env:NIGHTSHIFT_REVIVAL -eq '1') {
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
-$raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
+# Same stdin shape as hardhat/pulse: piped JSON binds to -HookJson under the Windows
+# test host; nested -File launches still read Console stdin when HookJson is empty.
+$raw = Get-NSStdinText -Piped $HookJson
+if ([string]::IsNullOrWhiteSpace($raw)) {
+    $raw = Get-NSStdinText -Piped (($input | ForEach-Object { $_ }) -join "`n")
+}
 try {
     $payload = $raw | ConvertFrom-Json -ErrorAction Stop
 }
