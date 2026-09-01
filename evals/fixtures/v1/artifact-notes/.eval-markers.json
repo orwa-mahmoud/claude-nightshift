@@ -1,0 +1,12 @@
+{
+  "workMode": "artifact",
+  "applicable": [
+    "hunt",
+    "quality",
+    "seo-audit",
+    "research-synthesis",
+    "documentation-writing"
+  ],
+  "notApplicable": ["coverage-hunt", "defect-hunt"],
+  "evidence": ["local-markdown", "local-html", "source-list"]
+}

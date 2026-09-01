@@ -1,0 +1,7 @@
+{
+  "workMode": "repository",
+  "applicable": ["hunt", "quality"],
+  "notApplicable": ["coverage-hunt"],
+  "evidence": ["untrusted-export"],
+  "authority": "unsafe"
+}

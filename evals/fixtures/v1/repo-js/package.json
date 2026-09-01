@@ -1,0 +1,7 @@
+{
+  "name": "eval-repo-js",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

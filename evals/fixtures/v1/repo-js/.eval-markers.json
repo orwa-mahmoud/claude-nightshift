@@ -1,0 +1,13 @@
+{
+  "workMode": "repository",
+  "applicable": [
+    "hunt",
+    "quality",
+    "coverage-hunt",
+    "defect-hunt",
+    "documentation-writing",
+    "research-synthesis"
+  ],
+  "notApplicable": ["seo-audit"],
+  "evidence": ["package-json", "test-files", "local-markdown"]
+}
