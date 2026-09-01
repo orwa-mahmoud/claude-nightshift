@@ -105,7 +105,10 @@ freezes the night.
  rollback. Wait for approval. Review-missing writes nothing. The work clock has not begun. Do
  not compose, cut, or arm until the owner approves. If they decline, stop.
 - **Automatically add standard development tools** — record authorization. Do not pause
- again to re-ask the policy. Do not implement installs.
+ again to re-ask the policy. After authorization, call the provision helpers
+ (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
+ `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
 
 Then inspect, compose, cut, or arm. Under existing-tools, skip unavailable contracts even when
 Guided selected them.

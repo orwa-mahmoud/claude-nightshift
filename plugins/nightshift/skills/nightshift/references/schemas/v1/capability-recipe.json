@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "description": "Recipe contract for the provisioning engine. Keys and enums are stable; recipe bodies are registered separately.",
+  "requiredRecipeFields": [
+    "capabilityId",
+    "ecosystems",
+    "versionConstraints",
+    "detect",
+    "probe",
+    "packageManagerAdditions",
+    "allowedFiles",
+    "minimalConfig",
+    "smoke",
+    "rollback",
+    "enabledShifts",
+    "safetyClass",
+    "permissionRequirements",
+    "recipeVersion"
+  ],
+  "safetyClass": [
+    "local-dev-free",
+    "local-dev-with-config",
+    "forbidden"
+  ],
+  "transactionStages": [
+    "authorize",
+    "capture-baseline",
+    "apply",
+    "smoke",
+    "record",
+    "commit-tooling",
+    "rollback"
+  ],
+  "refusalReasons": [
+    "policy-not-auto-add",
+    "artifact-mode",
+    "global-or-system",
+    "paid-or-account",
+    "daemon-or-cloud",
+    "incompatible-ecosystem",
+    "permission-prompt-required",
+    "owner-dirty-conflict",
+    "safety-forbidden"
+  ],
+  "transactionStateFile": ".nightshift/provision-transaction.json",
+  "setupCommitSubjectPrefix": "chore(tooling):",
+  "preflightBudgetSecondsDefault": 120,
+  "never": [
+    "runtime-global-system-deps",
+    "create-accounts",
+    "paid-services",
+    "cloud-containers-databases-daemons",
+    "replace-existing-tools",
+    "broad-autofix",
+    "weaken-checks",
+    "guess-legal-privacy-spend-deploy-publish"
+  ]
+}

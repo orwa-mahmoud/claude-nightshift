@@ -60,8 +60,10 @@ mid-shift owner decision:
   (capability, selected tool, exact writes, commands, enabled shifts, risks, permissions, rollback).
   Wait for approval before arming. The work clock has not begun. Review-first must write nothing.
 - **Automatically add standard development tools** — explicit authorization for eligible local
-  development tooling. Do not pause again to re-ask the policy. Provisioning itself ships in a
-  later work package; until then record the authorization and still skip installs.
+  development tooling. Do not pause again to re-ask the policy. After authorization, call
+  `runtime/provision-preflight.sh` then `runtime/provision.sh` (native Windows:
+  `provision-preflight.ps1` then `provision.ps1`). Skills never embed install steps. Artifact
+  mode is never offered a repository-tool install.
 
 Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why;
 only existing-tools is valid there. A remembered policy in `$NS/capability-policy.json` is a

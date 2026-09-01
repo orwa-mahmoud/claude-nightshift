@@ -65,7 +65,10 @@ Ask three independent choices:
   nothing, and does not start the clock. Do not scan for findings, compose, cut, or arm until
   that plan is approved; if they decline, stop.
   **Automatically add standard development tools** records authorization and must not pause
-  again to re-ask; do not implement installs.
+  again to re-ask. After authorization, call the provision helpers
+  (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
+  `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
 
 Automatic mode requires hours. Guided mode asks for scope and requires hours only when an
 open-ended entry is selected. In review-first mode scanning is read-only and the clock starts only

@@ -231,6 +231,16 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  (`.git` is protected). A contract that does not commit needs only `workspace-write`; ticks
  alone finish a night. The guards remain the fence either way.
  Warn and proceed; the choice stays the owner's.
+- **Provision before product work.** Run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh" --project "$NIGHTSHIFT_WORKSPACE" check`
+ (native Windows:
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision-preflight.ps1" -Project "$NIGHTSHIFT_WORKSPACE" check`).
+ If `$NS/provision-transaction.json` exists, recover first with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" recover`
+ (native Windows:
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
+ If policy is auto-add and recipes are queued, provision under budget before the
+ deadline clock. Skip capabilities that would permission-prompt; never freeze.
 
 ## 2. Deadline — read, never asked
 
