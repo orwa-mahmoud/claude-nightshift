@@ -5,7 +5,7 @@ load helpers
 
 @test "hooks.json declares every hook command" {
   n="$(jq -r '[.. | .command? // empty] | length' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hooks.json")"
-  [ "$n" -eq 3 ]
+  [ "$n" -eq 4 ]
 }
 
 @test "every hooks.json command quotes the plugin root (spaced-path safe)" {
@@ -46,7 +46,9 @@ load helpers
   [ "$(jq -r '[.hooks.PreToolUse[].matcher] | join(",")' "$f")" = "*" ]
   [ "$(jq -r '.hooks.Stop | length' "$f")" -eq 1 ]
   [ "$(jq -r '.hooks.SessionEnd | length' "$f")" -eq 1 ]
+  [ "$(jq -r '.hooks.PostToolUse | length' "$f")" -eq 1 ]
   jq -e '.hooks.SessionEnd[0].hooks[0].command | test("session-end")' "$f" >/dev/null
+  jq -e '.hooks.PostToolUse[0].hooks[0].command | test("pulse")' "$f" >/dev/null
   jq -e '.hooks.PreToolUse[] | select(.matcher=="*") | .hooks[0].command | test("hardhat")' "$f" >/dev/null
   jq -e '.hooks.Stop[0].hooks[0].command | test("clock-out")' "$f" >/dev/null
 }

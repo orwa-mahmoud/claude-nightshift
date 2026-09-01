@@ -458,6 +458,23 @@ STUB
   [ "$(calls)" -eq 2 ] # revived despite the helper's noise, then clocked out
 }
 
+@test "a fresh shift-pulse keeps a quiet live tab standing by" {
+  printf '%s sid-shift\n' "$(date +%s)" >"$P/.nightshift/.shift-pulse"
+  printf 'sid-shift\n/tmp/t.jsonl\n99999\nnever\nclaude\n' >"$P/.nightshift/.shift-session"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 2
+  [ "$status" -eq 7 ]
+  [ "$(calls)" -eq 0 ]
+}
+
+@test "a helper session id does not write the shift-pulse" {
+  : >"$P/.nightshift/.shift-armed"
+  printf 'sid-shift\n\n\n\nclaude\n' >"$P/.nightshift/.shift-session"
+  jq -nc '{session_id:"helper-id"}' | CLAUDE_PROJECT_DIR="$P" bash "$HOOKS/pulse.sh"
+  [ ! -f "$P/.nightshift/.shift-pulse" ]
+  jq -nc '{session_id:"sid-shift"}' | CLAUDE_PROJECT_DIR="$P" bash "$HOOKS/pulse.sh"
+  grep -qE '^[0-9]+ sid-shift$' "$P/.nightshift/.shift-pulse"
+}
+
 # The process witness: the recorded pid alive with a quiet, unerrored transcript is long silent
 # work — a 25-minute test run writes nothing anywhere. Never spawn beside it.
 @test "the shift's own live process holds the watchman through a silent stretch" {
