@@ -3,6 +3,20 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.19.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.18.1...v0.19.0) (2026-09-01)
+
+
+### Features
+
+* **codex:** stand watchman down on SessionEnd and pulse the bound session ([8dc70eb](https://github.com/orwa-mahmoud/nightshift/commit/8dc70eb087eef3dccc15ef27c04f10141f26841d))
+
+
+### Bug Fixes
+
+* **claude:** pulse the bound session so a quiet live tab is not guessed dead ([38ba175](https://github.com/orwa-mahmoud/nightshift/commit/38ba175704f046cf5e0077289dbf08fae1728dfa))
+* **cursor:** keep a quiet IDE shift alive until the owner closes it ([3a91882](https://github.com/orwa-mahmoud/nightshift/commit/3a91882b84b6d25793306831664ba5ae475075fe))
+* **windows:** accept SessionEnd stdin and age Codex recovery fixtures ([431a200](https://github.com/orwa-mahmoud/nightshift/commit/431a200f388e2708dc3a3fe1d333d63bf63bfa8a))
+
 ## [0.18.1](https://github.com/orwa-mahmoud/nightshift/compare/v0.18.0...v0.18.1) (2026-08-29)
 
 
