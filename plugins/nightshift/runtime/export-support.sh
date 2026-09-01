@@ -90,6 +90,25 @@ else
   RULES_STATE="unreadable"
 fi
 
+CAP_SHOW="default"
+CAP_REFUSED="no"
+CAP_MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null || true)"
+[ -n "$CAP_MODE" ] || CAP_MODE="repository"
+if command -v python3 >/dev/null 2>&1; then
+  if CAP_JSON="$(python3 "$_here/capability-policy.py" --project "$WORKSPACE" --work-mode "$CAP_MODE" get 2>/dev/null)"; then
+    CAP_POL="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("policy","existing-tools"))' 2>/dev/null)" || CAP_POL="existing-tools"
+    CAP_SRC="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("source","default"))' 2>/dev/null)" || CAP_SRC="default"
+    CAP_REFUSED="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print("yes" if json.load(sys.stdin).get("refused") else "no")' 2>/dev/null)" || CAP_REFUSED="no"
+    case "$CAP_POL" in existing-tools | auto-add | review-missing) ;; *) CAP_POL="existing-tools" ;; esac
+    case "$CAP_SRC" in
+      malformed) CAP_SHOW="malformed" ;;
+      file) CAP_SHOW="$CAP_POL" ;;
+      *) CAP_SHOW="default" ;;
+    esac
+    [ "$CAP_REFUSED" = yes ] || CAP_REFUSED="no"
+  fi
+fi
+
 REASON="$(ns_reason_code "$NS")"
 REASON_LABEL=""
 [ -z "$REASON" ] || REASON_LABEL="$(ns_reason_label "$REASON")"
@@ -193,6 +212,11 @@ dest="$outdir/${stamp}.txt"
   printf '\n== rules ==\n'
   printf 'validity: %s\n' "$RULES_STATE"
   printf 'keys: %s\n' "${RULES_KEYS:-}"
+  printf '\n== capability policy ==\n'
+  printf 'policy: %s\n' "$CAP_SHOW"
+  if [ "$CAP_REFUSED" = yes ]; then
+    printf 'refused: yes\n'
+  fi
   printf '\n== watchman reason ==\n'
   if [ -n "$REASON" ]; then
     printf 'code: %s\n' "$REASON"
@@ -241,7 +265,7 @@ mv "$tmp" "$dest" || {
 }
 
 printf 'Support bundle: %s\n' "$dest"
-printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, reason codes, sanitized runtime-log tail\n'
-printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output\n'
+printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, capability policy name, reason codes, sanitized runtime-log tail\n'
+printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory\n'
 printf 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
 exit 0

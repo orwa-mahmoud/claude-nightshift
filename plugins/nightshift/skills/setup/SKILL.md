@@ -44,7 +44,8 @@ Bash. Once the workspace and work target are resolved, the bundled mechanical sc
 It copies only absent files, writes state version 1 for a new site, persists the work target and
 work mode (`-Mode repository` or `-Mode artifact`), and
 keeps `$NS/` private. It refuses a notes folder under default repository mode: `pass -Mode artifact for a notes folder that is not a Git repository`. The skill still owns every owner choice below; the script asks
-nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
+nothing and never invents gates, permissions, profiles, migration approval, a receipts choice, or a
+tooling policy.
 
 If the user explicitly identifies a different existing workspace containing `.nightshift/`, show
 both absolute paths and ask for confirmation. On yes, run
@@ -189,6 +190,17 @@ The `## Gates` block is plain markdown the owner may edit anytime — run Setup 
 (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex) to re-detect after a
 stack change. The contract's immutability binds the agent, not the owner.
 
+**Default tooling policy.** Independent from gates. Persist with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/capability-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" --policy <name> set`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\capability-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Command set -Policy <name>`).
+Write `$NS/capability-policy.json`; never put the policy in the punch list. Hunt and Quality may
+override it for one invocation.
+
+- **Artifact** — do not ask. Persist existing-tools only. A notes folder has no repository
+ toolchain to add; repository-tool policies (`auto-add` and `review-missing`) are invalid.
+- **Repository** — ask Existing tools only (default), Review missing tools first, or
+ Automatically add standard development tools, then persist the answer.
+
 ## 4. Permissions — the night cannot click Allow
 
 An unattended shift stalls forever on a permission prompt, and a watchman revival runs headless —
@@ -275,7 +287,8 @@ Never rewrite without an explicit yes.
 ## 6. Summarize
 
 Print the workspace-state path and resolved work target, what was scaffolded, whether a receipts
-repo was created, and the gates that were written (or that none were). Tell the user to draft items in `$NS/drafting-table.md`, promote them into
+repo was created, the gates that were written (or that none were), and the tooling policy stored
+in `$NS/capability-policy.json`. Tell the user to draft items in `$NS/drafting-table.md`, promote them into
 the punch list, then start the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start
 on Codex). Mention that the open-ended product-evolution shift keeps its evidence and ranked work in
 `$NS/product-research.md` and `$NS/opportunity-map.md`, while the quality skill can

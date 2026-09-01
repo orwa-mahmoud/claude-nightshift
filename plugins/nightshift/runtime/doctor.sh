@@ -131,6 +131,29 @@ else
   fi
 fi
 
+CAP_MODE="${MODE:-repository}"
+if CAP_JSON="$(python3 "$_here/capability-policy.py" --project "$WORKSPACE" --work-mode "$CAP_MODE" get 2>/dev/null)"; then
+  CAP_POL="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("policy","existing-tools"))' 2>/dev/null)" || CAP_POL="existing-tools"
+  CAP_REFUSED="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print("yes" if json.load(sys.stdin).get("refused") else "no")' 2>/dev/null)" || CAP_REFUSED="no"
+  CAP_SRC="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("source","default"))' 2>/dev/null)" || CAP_SRC="default"
+  case "$CAP_POL" in existing-tools | auto-add | review-missing) ;; *) CAP_POL="existing-tools" ;; esac
+  case "$CAP_SRC" in default | file | malformed) ;; *) CAP_SRC="default" ;; esac
+  [ "$CAP_REFUSED" = yes ] || CAP_REFUSED="no"
+  if [ "$CAP_SRC" = default ]; then
+    fact "capability policy existing-tools (default)"
+  else
+    fact "capability policy $CAP_POL"
+  fi
+  if [ "$CAP_SRC" = malformed ]; then
+    warn "capability policy is malformed; using existing-tools"
+  fi
+  if [ "$CAP_REFUSED" = yes ]; then
+    warn "artifact mode refuses repository-tool policy; using existing-tools"
+  fi
+else
+  fact "capability policy existing-tools (default)"
+fi
+
 PUNCH="$NS/punch-list.md"
 OPEN=0
 TICKED=0

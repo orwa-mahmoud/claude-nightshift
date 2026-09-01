@@ -44,7 +44,7 @@ Offer two first-class modes:
 
 - **Guided** — show one offer line per entry, with its ending marked. The owner may choose more
  than one.
-- **Automatic** — ask for hours, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
+- **Automatic** — ask for hours. Do not inspect yet. After the tooling policy is answered, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
  their findings, and rank them using `execution-modes.md`. Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Refuse to compose, cut, or arm when the work target cannot be resolved. Show evidence only in review-first
  mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
@@ -73,10 +73,44 @@ Never select tooling quality-debt entries when work mode is artifact.
 Ask **review first, or run directly?** This choice is independent from Guided or Automatic.
 
 - In **review first**, all discovery remains read-only and the clock starts only after approval.
-- In **run directly**, start the clock immediately and do not pause after discovery. Follow the
- direct-mode decision policy in `execution-modes.md`.
+- In **run directly**, start the clock immediately after the tooling policy is settled and do not
+ pause after discovery. Follow the direct-mode decision policy in `execution-modes.md`.
+ Review-missing holds the clock until that plan is approved.
 
-## 3. Establish the ending
+## 3. Ask the tooling policy
+
+Ask **before scanning**, and before any compose, cut, or arm. Independent from Guided or Automatic
+and from review-first or run-direct.
+
+Read `$NS/work-mode`. Show the remembered default with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/capability-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" --work-mode repository|artifact get`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\capability-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -WorkMode repository|artifact`).
+Missing or malformed `$NS/capability-policy.json` is existing-tools. Show it and ask whether to
+keep or override. Persist a remembered override with the same helper
+`--policy <name> set` (native Windows: `-Command set -Policy <name>`). Write
+`$NS/capability-policy.json`, never the punch list. An override for this invocation only is
+not written.
+
+Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why — a
+notes folder has no repository toolchain to add. Only existing-tools is valid there; if a
+remembered file holds a repository-tool policy, keep existing-tools.
+
+Report unsupported permission modes the same way Start does **before arming** — a mid-shift prompt
+freezes the night.
+
+- **Existing tools only** — skip contracts whose required capabilities are unavailable and spend
+ the time elsewhere. Default.
+- **Review missing tools first** — run a read-only capability scan and show one consolidated
+ plan: capability, selected tool, exact writes, commands, enabled shifts, risks, permissions,
+ rollback. Wait for approval. Review-missing writes nothing. The work clock has not begun. Do
+ not compose, cut, or arm until the owner approves. If they decline, stop.
+- **Automatically add standard development tools** — record authorization. Do not pause
+ again to re-ask the policy. Do not implement installs.
+
+Then inspect, compose, cut, or arm. Under existing-tools, skip unavailable contracts even when
+Guided selected them.
+
+## 4. Establish the ending
 
 Per the entry's declared ending:
 
@@ -90,7 +124,7 @@ One deadline governs the whole shift. Automatic mode always requires hours. On a
 say so plainly in one line: the finite
 work runs first, and the open-ended job soaks up whatever time is left.
 
-## 4. Ask for guided scope
+## 5. Ask for guided scope
 
 > Anything specific about scope or approach?
 
@@ -110,7 +144,7 @@ The entry's rules stay above it untouched. They enforce the shift contract — a
 rather than counts, gate green at every commit or artifact receipt, never silence instead of fixing — and owner text
 adds constraints rather than replacing them.
 
-## 5. Review or cut
+## 6. Review or cut
 
 In **review first**, print the items exactly as they will be written, with evidence, order, hours,
 and ending, then ask for one approval. This is the last look before anything is armed. Write
@@ -135,13 +169,16 @@ Hours: <N, or "none — finite">
 The hours are inert while a review-first order sits here — the clock starts only at the cut, after
 approval. In run-direct mode the order is cut immediately, so its clock starts now.
 
-## 6. Start or park after review
+## 7. Start or park after review
 
 After review-first approval, ask **start now, or park it for later?** Run-direct skips this question
 and always starts now; choosing it was already explicit authorization.
 
 On **now** — start the shift yourself, here, without making the owner type another command. Follow
-the Start skill exactly: clear the stale markers, **cut** the whole `## Work order` section
+the Start skill exactly. Before arming, report unsupported permission modes as Start does: Claude
+Code without `bypassPermissions` (or an allowlist covering the gates); Codex without unattended
+`codex -a never -s danger-full-access` when the contract commits. Warn and proceed. Then clear
+the stale markers, **cut** the whole `## Work order` section
 out of `$NS/work-orders.md` (heading, hours, and item — do not leave an empty
 order heading behind), put only the item under `## Items` in the punch list (a cut, never a
 copy — it must not exist in two places), write

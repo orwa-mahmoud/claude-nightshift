@@ -49,6 +49,28 @@ Guided + run directly still performs the selected entry's discovery, but it does
 showing the findings. Guided + review first does pause. Choosing a category is not by itself approval
 to implement; the launch choice decides that.
 
+## Tooling policy
+
+A third independent choice, asked **before scanning** so a direct unattended run never discovers a
+mid-shift owner decision:
+
+- **Existing tools only** — skip contracts whose required capabilities are unavailable and spend
+  the time elsewhere. This is the default, including when `$NS/capability-policy.json` is missing.
+- **Review missing tools first** — run a read-only capability scan and show one consolidated plan
+  (capability, selected tool, exact writes, commands, enabled shifts, risks, permissions, rollback).
+  Wait for approval before arming. The work clock has not begun. Review-first must write nothing.
+- **Automatically add standard development tools** — explicit authorization for eligible local
+  development tooling. Do not pause again to re-ask the policy. Provisioning itself ships in a
+  later work package; until then record the authorization and still skip installs.
+
+Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why;
+only existing-tools is valid there. A remembered policy in `$NS/capability-policy.json` is a
+default: the current invocation may override it, and the owner chooses whether to remember the
+override. Persist policy separately from the punch list. Inventory in `$NS/capabilities.json` is
+a cache: re-probe each new shift or branch.
+
+Unsupported permission modes must be reported before arming.
+
 ## Direct-mode decisions
 
 Run directly means make progress, not avoid judgment:

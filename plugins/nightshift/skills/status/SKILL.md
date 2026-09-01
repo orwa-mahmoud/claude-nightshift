@@ -49,6 +49,7 @@ Read `$NS/` and print:
  When Doctor warns `artifact receipts path is not a usable directory`, say so — a planted file or symlink is not an empty night. Name the confirm action to replace that path; do not also report empty ticks for it.
  Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Status reports.
  Missing or empty receipts create no dated receipts folder.
+- **Capability policy** — report Doctor's `capability policy` fact (`capability policy existing-tools (default)` when that is what Doctor prints, otherwise the named policy). When Doctor warns `capability policy is malformed; using existing-tools`, say so. When Doctor warns `artifact mode refuses repository-tool policy; using existing-tools`, say so — artifact mode keeps existing-tools. Do not print inventory command output, credentials, raw evidence, or rule values.
 - **Shift** — whether one is running: `$NS/.shift-armed` exists. Without it the punch list
  is a to-do file and nothing is holding it, however many boxes are open — say so plainly and name
  Start as what begins the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start on

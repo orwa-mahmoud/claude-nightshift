@@ -103,6 +103,7 @@ if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
 }
 
 $unusableRecv = $false
+$reportedMode = ''
 try {
     $reportedMode = Get-NSWorkMode $workspace
     Add-NSFact "work mode $reportedMode"
@@ -148,6 +149,59 @@ catch {
     else {
         Add-NSWarn 'work target could not be resolved; treating workspace as the code root'
     }
+}
+
+$capMode = 'repository'
+if (-not [string]::IsNullOrEmpty($reportedMode)) { $capMode = $reportedMode }
+$capPy = Join-Path $pluginRoot 'runtime/capability-policy.py'
+$capPython = Get-Command python3 -ErrorAction SilentlyContinue
+if ($null -eq $capPython) {
+    $capPython = Get-Command python -ErrorAction SilentlyContinue
+}
+$capFactDefault = $true
+if ($null -ne $capPython -and (Test-Path -LiteralPath $capPy -PathType Leaf)) {
+    try {
+        $capJson = & $capPython.Source $capPy --project $workspace --work-mode $capMode get 2>$null
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty([string]$capJson)) {
+            $cap = $capJson | ConvertFrom-Json
+            $capPol = 'existing-tools'
+            if ($null -ne $cap.PSObject.Properties['policy'] -and -not [string]::IsNullOrEmpty([string]$cap.policy)) {
+                $capPol = [string]$cap.policy
+            }
+            if ($capPol -notin @('existing-tools', 'auto-add', 'review-missing')) {
+                $capPol = 'existing-tools'
+            }
+            $capSrc = 'default'
+            if ($null -ne $cap.PSObject.Properties['source'] -and -not [string]::IsNullOrEmpty([string]$cap.source)) {
+                $capSrc = [string]$cap.source
+            }
+            if ($capSrc -notin @('default', 'file', 'malformed')) {
+                $capSrc = 'default'
+            }
+            $capRefused = $false
+            if ($null -ne $cap.PSObject.Properties['refused'] -and $cap.refused) {
+                $capRefused = $true
+            }
+            if ($capSrc -eq 'default') {
+                Add-NSFact 'capability policy existing-tools (default)'
+            }
+            else {
+                Add-NSFact "capability policy $capPol"
+            }
+            if ($capSrc -eq 'malformed') {
+                Add-NSWarn 'capability policy is malformed; using existing-tools'
+            }
+            if ($capRefused) {
+                Add-NSWarn 'artifact mode refuses repository-tool policy; using existing-tools'
+            }
+            $capFactDefault = $false
+        }
+    }
+    catch {
+    }
+}
+if ($capFactDefault) {
+    Add-NSFact 'capability policy existing-tools (default)'
 }
 
 $punch = Join-Path $ns 'punch-list.md'

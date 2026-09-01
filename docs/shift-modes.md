@@ -6,6 +6,10 @@ This page is one copyable walkthrough per combination. Setup must already have b
 project you want changed — a Git repository or a persistent folder, never a ChatGPT scratch
 workspace.
 
+A third independent choice is the tooling policy, asked before scanning: **Existing tools only**,
+**Review missing tools first**, or **Automatically add standard development tools**. Artifact mode
+keeps Existing tools only. Details live in the same modes contract.
+
 Morning review is local: work-target commits in repository mode, or files under
 `.nightshift/receipts/` in artifact mode (Doctor names the most recently written filename).
 Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts.

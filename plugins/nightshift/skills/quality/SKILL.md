@@ -44,18 +44,40 @@ GitHub issue hunts are catalogued under Hunt and start from imported drafts. Qua
 
 ## 1. Choose selection and launch
 
-Ask two independent choices:
+Ask three independent choices:
 
 1. **Guided** (the owner chooses quality areas) or **Automatic** (Nightshift selects every
   applicable high-value area that fits the hours).
 2. **Review first** or **Run directly**.
+3. **Existing tools only**, **Review missing tools first**, or **Automatically add standard
+  development tools** — asked before any scan, compose, cut, or arm, per `execution-modes.md`.
+  Independent from the two choices above. Read `$NS/work-mode`. Show the remembered default with
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/capability-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" --work-mode repository|artifact get`
+  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\capability-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -WorkMode repository|artifact`).
+  Missing or malformed `$NS/capability-policy.json` is existing-tools. Persist a remembered
+  override with `--policy <name> set` (native Windows: `-Command set -Policy <name>`). Write
+  `$NS/capability-policy.json`, never the punch list. An override for this invocation only is
+  not written. Artifact mode refuses repository-tool policies (`auto-add` and `review-missing`)
+  and explains why; only existing-tools is valid there.
+  **Existing tools only** skips contracts whose required capabilities are unavailable.
+  **Review missing tools first** shows one read-only consolidated plan (capability, selected
+  tool, exact writes, commands, enabled shifts, risks, permissions, rollback), waits, writes
+  nothing, and does not start the clock. Do not scan for findings, compose, cut, or arm until
+  that plan is approved; if they decline, stop.
+  **Automatically add standard development tools** records authorization and must not pause
+  again to re-ask; do not implement installs.
 
 Automatic mode requires hours. Guided mode asks for scope and requires hours only when an
 open-ended entry is selected. In review-first mode scanning is read-only and the clock starts only
-after approval. In run-direct mode the clock begins immediately and findings are implemented
-without another pause under the decision policy in `execution-modes.md`.
+after approval. In run-direct mode the clock begins immediately after the tooling policy is settled
+and findings are implemented without another pause under the decision policy in
+`execution-modes.md`. Review-missing holds the clock until that plan is approved.
 
 ## 2. Detect and scan
+
+Do not scan until the tooling policy is answered. Never install a tool merely to manufacture
+findings — including after auto-add authorization. Under existing-tools, skip contracts whose
+required capabilities are unavailable and do not pause to provision.
 
 Detect the stack from the gates catalog (monorepo-aware) when the work mode is repository,
 including a plugin or marketplace manifest at the work-target root or under `plugins/<name>/`,
@@ -115,6 +137,9 @@ clobber orders already sitting there), then enter the same Hunt cut and Start li
 **fix now**. Never write the punch list first. Follow
 Start's entire preflight before cutting or arming, including the one-shift check, state and work
 target validation, stale run-control markers, deadline handling, rules, and unattended permissions.
+Before arming, report unsupported permission modes as Start does: Claude Code without
+`bypassPermissions` (or an allowlist covering the gates); Codex without unattended
+`codex -a never -s danger-full-access` when the contract commits. Warn and proceed.
 Only after it passes, cut the order and arm one shift with
 `touch "$NS/.shift-armed"` on POSIX, or
 `New-Item -ItemType File -Force "$NS\.shift-armed"` in native
