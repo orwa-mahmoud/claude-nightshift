@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "contracts": {
+    "hunt": {
+      "requires": [],
+      "requiresAny": [],
+      "optional": ["owner-gates", "scripts"],
+      "fallback": "compose from catalog with honest inapplicable reasons",
+      "tooling": "none"
+    },
+    "quality": {
+      "requires": [],
+      "requiresAny": ["lint", "typecheck", "test", "owner-gates"],
+      "optional": ["coverage", "dead-code", "security"],
+      "fallback": "report that no quality toolchain applies",
+      "tooling": "existing-tools"
+    },
+    "clear-quality-debt": {
+      "requires": ["owner-gates"],
+      "requiresAny": ["lint", "typecheck", "test"],
+      "optional": [],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "coverage-hunt": {
+      "requires": ["test"],
+      "requiresAny": [],
+      "optional": ["coverage"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "defect-hunt": {
+      "requires": [],
+      "requiresAny": ["test", "lint", "owner-gates"],
+      "optional": [],
+      "fallback": "read-only review of tracked files",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "seo-audit": {
+      "requires": [],
+      "requiresAny": ["local-html", "local-markdown", "source-export"],
+      "optional": ["seo-performance"],
+      "fallback": "audit owner-supplied local files only",
+      "tooling": "files",
+      "artifact": true
+    },
+    "research-synthesis": {
+      "requires": [],
+      "requiresAny": ["local-markdown", "source-export"],
+      "optional": [],
+      "fallback": "synthesize owner-supplied files; record unavailable URLs",
+      "tooling": "files",
+      "artifact": true
+    },
+    "documentation-writing": {
+      "requires": [],
+      "requiresAny": ["local-markdown", "source-export"],
+      "optional": ["documentation-link"],
+      "fallback": "write from owner-supplied outline and local files",
+      "tooling": "files",
+      "artifact": true
+    },
+    "documentation-drift": {
+      "requires": ["local-markdown"],
+      "requiresAny": [],
+      "optional": ["documentation-link"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "todo-fixme-debt": {
+      "requires": [],
+      "requiresAny": ["scripts", "local-markdown"],
+      "optional": [],
+      "fallback": "scan tracked source for TODO/FIXME",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "github-issue-hunt": {
+      "requires": [],
+      "requiresAny": [],
+      "optional": ["connector"],
+      "fallback": null,
+      "tooling": "none",
+      "artifact": false,
+      "notes": "consumes imported drafts only; never searches GitHub"
+    },
+    "standing-loop": {
+      "requires": [],
+      "requiresAny": [],
+      "optional": ["owner-gates", "source-export"],
+      "fallback": "research and build from the opportunity map",
+      "tooling": "none",
+      "artifact": true
+    },
+    "owner-walkthrough": {
+      "requires": [],
+      "requiresAny": [],
+      "optional": ["owner-gates"],
+      "fallback": "pursue the owner-supplied objective",
+      "tooling": "none",
+      "artifact": true
+    },
+    "flaky-test-repair": {
+      "requires": ["test"],
+      "requiresAny": [],
+      "optional": ["ci"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "ci-warning-cleanup": {
+      "requires": ["ci"],
+      "requiresAny": [],
+      "optional": ["owner-gates"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "vulnerability-sweep": {
+      "requires": [],
+      "requiresAny": ["security", "scripts"],
+      "optional": [],
+      "fallback": "report that no advisory source is available",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "dead-code-cleanup": {
+      "requires": [],
+      "requiresAny": ["dead-code", "scripts"],
+      "optional": ["typecheck"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "dependency-upgrade-sweep": {
+      "requires": ["scripts"],
+      "requiresAny": [],
+      "optional": ["security"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "api-contract-drift": {
+      "requires": [],
+      "requiresAny": ["api-schema", "local-markdown"],
+      "optional": ["test"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "accessibility-repair": {
+      "requires": [],
+      "requiresAny": ["accessibility", "test", "local-html"],
+      "optional": [],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "localization-parity": {
+      "requires": [],
+      "requiresAny": ["localization", "local-markdown"],
+      "optional": [],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    }
+  }
+}
