@@ -1,0 +1,9 @@
+{
+  "baselineRef": "main",
+  "baselinePresent": true,
+  "source": "benchmark",
+  "environment": {"stable": true},
+  "baseline": {"sourceId": "bench/x", "unit": "ms", "samples": [10, 11, 10]},
+  "candidate": {"sourceId": "bench/x", "unit": "ms", "samples": [10, 11, 10]},
+  "correctness": {"baseline": "pass", "candidate": "fail"}
+}

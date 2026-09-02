@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/operational-evidence.json",
+  "title": "Nightshift operational evidence",
+  "description": "Structured outputs for measured performance, incident follow-up, runbook verification, observability, toil, and capacity guardrails.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "perf-compare",
+        "incident-actions",
+        "runbook-verify",
+        "observability-surface",
+        "toil-assess",
+        "capacity-guard",
+        "measured-summary"
+      ]
+    }
+  }
+}

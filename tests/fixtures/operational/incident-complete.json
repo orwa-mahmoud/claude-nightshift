@@ -1,0 +1,19 @@
+{
+  "suppliedEvidence": ["postmortem", "timeline", "logs", "issues"],
+  "timeline": [
+    {"at": "2026-03-01T10:00:00Z", "event": "elevated 5xx"},
+    {"at": "2026-03-01T10:15:00Z", "event": "rollback complete"}
+  ],
+  "impact": {"summary": "checkout degraded 18 minutes", "usersAffected": "partial"},
+  "factors": {
+    "root": ["connection pool exhaustion"],
+    "contributing": ["traffic spike"],
+    "detection": ["pager alert lag"],
+    "recovery": ["manual scale-up"]
+  },
+  "proposedActions": [
+    {"id": "a1", "summary": "add pool limit guard in repo", "target": "repository", "verified": true, "action": "implement"},
+    {"id": "a2", "summary": "rotate production credentials", "target": "owner", "verified": false, "action": "park"},
+    {"id": "a3", "summary": "vendor ticket for load balancer", "target": "system", "verified": false, "action": "park"}
+  ]
+}

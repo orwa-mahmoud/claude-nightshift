@@ -1,0 +1,10 @@
+{
+  "baselineRef": "main",
+  "baselinePresent": true,
+  "source": "benchmark",
+  "environment": {"stable": true, "description": "CI runner linux-amd64"},
+  "baseline": {"sourceId": "bench/api-list", "unit": "ms", "samples": [48, 50, 49, 51, 47]},
+  "candidate": {"sourceId": "bench/api-list", "unit": "ms", "samples": [62, 64, 63, 61, 65]},
+  "correctness": {"baseline": "pass", "candidate": "pass"},
+  "coherentCause": "removed index hint experiment"
+}

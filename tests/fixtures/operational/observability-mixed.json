@@ -1,0 +1,8 @@
+{
+  "signals": [
+    {"kind": "logs", "present": true, "sample": "error rate spike", "failureSurface": "checkout"},
+    {"kind": "metrics", "present": true, "reachedProduction": true, "failureSurface": "latency"},
+    {"kind": "traces", "present": false, "failureSurface": "upstream"},
+    {"kind": "metrics", "present": true, "reachedProduction": true, "failureSurface": "queue depth"}
+  ]
+}

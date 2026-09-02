@@ -1,0 +1,9 @@
+{
+  "baselineRef": null,
+  "baselinePresent": false,
+  "source": "benchmark",
+  "environment": {"stable": true},
+  "baseline": {"samples": [10, 11]},
+  "candidate": {"samples": [8, 9]},
+  "correctness": {"baseline": "pass", "candidate": "pass"}
+}

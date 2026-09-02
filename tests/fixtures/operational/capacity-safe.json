@@ -1,0 +1,5 @@
+{
+  "environment": {"name": "disposable", "safe": true, "disposable": true},
+  "requestedRps": 800,
+  "budgets": {"maxRps": 1000}
+}

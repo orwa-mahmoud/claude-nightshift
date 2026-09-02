@@ -1,0 +1,10 @@
+{
+  "procedureName": "restore-staging-cache",
+  "environment": {"name": "disposable", "safe": true},
+  "steps": [
+    {"name": "verify metrics baseline", "environment": "disposable", "evidence": ["metrics/export.json"]},
+    {"name": "flush cache", "environment": "disposable", "evidence": ["logs/flush.log"]},
+    {"name": "failover production", "environment": "production", "command": "emergency-failover", "destructive": true},
+    {"name": "drop database", "environment": "staging-approved", "command": "drop-database", "destructive": true, "ownerApproved": false}
+  ]
+}

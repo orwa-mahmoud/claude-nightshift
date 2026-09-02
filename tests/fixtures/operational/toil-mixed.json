@@ -1,0 +1,7 @@
+{
+  "tasks": [
+    {"name": "manual deploy checklist", "frequencyPerMonth": 12, "failureCost": "high", "manualMinutes": 25},
+    {"name": "one-off license paste", "oneTime": true, "manualMinutes": 5},
+    {"name": "rare audit export", "frequencyPerMonth": 0, "manualMinutes": 40}
+  ]
+}

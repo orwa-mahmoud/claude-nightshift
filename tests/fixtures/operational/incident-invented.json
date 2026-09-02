@@ -1,0 +1,9 @@
+{
+  "suppliedEvidence": [],
+  "inventedNarrative": true,
+  "timeline": [],
+  "impact": {},
+  "proposedActions": [
+    {"id": "x1", "summary": "guess a fix", "target": "repository", "verified": false}
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "environment": {"name": "production", "safe": false},
+  "requestedRps": 5000,
+  "budgets": {"maxRps": 1000},
+  "target": {"rps": 5000}
+}
