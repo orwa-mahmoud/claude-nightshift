@@ -247,6 +247,42 @@
       "fallback": "plan from owner-supplied data migration guidance only",
       "tooling": "existing-tools",
       "artifact": false
+    },
+    "performance-regression": {
+      "requires": [],
+      "requiresAny": ["benchmark", "owner-gates", "structured-results"],
+      "optional": ["ci", "test"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false,
+      "notes": "requires owner-supplied baseline measurements; no baseline means no faster/regression claim"
+    },
+    "incident-follow-up": {
+      "requires": [],
+      "requiresAny": ["owner-gates", "source-export", "local-markdown"],
+      "optional": ["ci", "connector"],
+      "fallback": null,
+      "tooling": "files",
+      "artifact": false,
+      "notes": "requires supplied postmortem, timeline, logs, issues, or owner narrative"
+    },
+    "runbook-verification": {
+      "requires": [],
+      "requiresAny": ["owner-gates", "scripts", "ci", "structured-results"],
+      "optional": ["source-export"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false,
+      "notes": "named safe procedure and existing logs/metrics/traces evidence"
+    },
+    "toil-reduction": {
+      "requires": [],
+      "requiresAny": ["owner-gates", "scripts", "ci"],
+      "optional": ["local-markdown"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false,
+      "notes": "requires evidence of repeated manual work; refuses one-time annoyances"
     }
   }
 }
