@@ -727,7 +727,7 @@ SH
   run gate "$p" NIGHTSHIFT_STALL_WARN=2
   run gate "$p" NIGHTSHIFT_STALL_WARN=2
   is_block "$output"
-  grep -q 'stall warning — session active, no tick or commit since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
+  grep -q 'stall warning — session active, no durable checkpoint since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
 }
 
 @test "the gate reads the stall cadence from the rules file" {
@@ -737,7 +737,7 @@ SH
   run gate "$p"
   run gate "$p"
   is_block "$output"
-  grep -q 'stall warning — session active, no tick or commit since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
+  grep -q 'stall warning — session active, no durable checkpoint since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
 }
 
 # The block never depends on config: unreadable knobs still gate, fail closed, repair named.

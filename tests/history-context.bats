@@ -59,6 +59,6 @@ SETUP="$ROOT/plugins/nightshift/skills/setup/SKILL.md"
 }
 
 @test "archive and setup skills reference history-context helper" {
-  grep -qF 'history-context.sh index-archive' "$ARCHIVE"
-  grep -qF 'history-context.sh preset-compose' "$SETUP"
+  grep -qF 'history-context.sh" index-archive' "$ARCHIVE"
+  grep -qF 'history-context.sh" preset-compose' "$SETUP"
 }

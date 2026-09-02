@@ -264,7 +264,7 @@ recover_seed_mutated() {
 
 @test "an exact-plan allowance binds the approved command and nothing else" {
   p="$(new_project prov-elev-plan)"
-  auto_add "$p" --exact-plan sudo --command 'sudo apt-get install -y nightshift-fixture'
+  auto_add "$p" --exact-plan sudo --command 'sudo install -m 644 /dev/null nightshift-fake.txt'
   run provision --project "$p" --recipe "$FIXTURES/elevated-sudo.json" plan
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | jq -e '.ok == true and .refusalReasons == []' >/dev/null

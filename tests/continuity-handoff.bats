@@ -50,8 +50,8 @@ DOCTOR="$ROOT/plugins/nightshift/skills/doctor/SKILL.md"
 }
 
 @test "start status and doctor skills reference continuity handoff" {
+  grep -qF 'runtime/continuity-handoff.sh" fence-check' "$START"
   grep -qF 'continuity-handoff.sh handoff-package' "$START"
-  grep -qF 'continuity-handoff.sh fence-check' "$START"
-  grep -qF 'continuity-handoff.sh transition-history' "$STATUS"
+  grep -qF 'runtime/continuity-handoff.sh" transition-history' "$STATUS"
   grep -qF 'continuity-handoff.sh transition-history' "$DOCTOR"
 }

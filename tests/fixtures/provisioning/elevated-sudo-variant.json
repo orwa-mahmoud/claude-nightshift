@@ -5,7 +5,7 @@
   "detect": {"command": "true"},
   "probe": {"command": "true"},
   "packageManagerAdditions": [
-    "sudo apt-get install -y nightshift-fixture --no-install-recommends"
+    "sudo cp /dev/null nightshift-fake.txt"
   ],
   "allowedFiles": ["nightshift-fake.txt"],
   "minimalConfig": {

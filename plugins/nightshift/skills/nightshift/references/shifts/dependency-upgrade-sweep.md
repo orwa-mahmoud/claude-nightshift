@@ -14,8 +14,7 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
   - Discovery: the project's own outdated report — `pnpm outdated` / `npm outdated`,
     `uv pip list --outdated`, `cargo outdated`, `go list -u -m all`. Batch with
     `runtime/engineering-evidence.sh dep-batch` into coherent ecosystem groups ordered patch,
-    minor, then major with lockfile comparison and install/build/smoke evidence. **Direct
-    dependencies only**: a transitive version is not yours to pin, and forcing one is the owner's call.
+    minor, then major with lockfile comparison and install/build/smoke evidence. **Direct dependencies only**: a transitive version is not yours to pin, and forcing one is the owner's call.
   - Order patches, then minors, then majors, so a night that ends early still landed the safe wins.
   - Per package: read the release notes and migration guide FIRST, upgrade, adapt the code the
     breaking changes require, run the item gate, commit. One package per commit — a failing gate
