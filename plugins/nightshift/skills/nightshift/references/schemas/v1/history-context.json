@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/history-context.json",
+  "title": "Nightshift history and project context",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "receipt-index",
+        "shift-comparison",
+        "project-preset",
+        "audience-handoff",
+        "source-adapter-boundary"
+      ]
+    }
+  }
+}

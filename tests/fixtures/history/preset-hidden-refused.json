@@ -1,0 +1,5 @@
+{
+  "preset": {"name": "hidden-bad", "hiddenPolicy": true},
+  "rules": {},
+  "shiftDefaults": {}
+}

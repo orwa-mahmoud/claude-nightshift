@@ -137,6 +137,22 @@ Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status
 the live punch list, drafting table, parking lot, rules, current shift files, or owner-authored
 files.
 
+## Index
+
+After filing, build a lightweight private index of archived shifts for later comparison. Run:
+
+```bash
+"$NIGHTSHIFT_PLUGIN_ROOT/runtime/history-context.sh" index-archive \
+  --input <archive-manifest.json>
+```
+
+The manifest lists each archived shift's objective, contracts, host, work target, outcome, evidence
+locators, verification, commits or artifacts, duration, and ending. Corrupt or missing fields are
+recorded in the index output — never invented. Compare prior shifts with
+`history-context.sh compare-prior` to reuse evidence locators and plans only; never replay side
+effects. Render audience-specific handoffs (owner, reviewer, release, maintainer, artifact) with
+`history-context.sh audience-render` from one evidence truth.
+
 ## Summarize
 
 Print the archive path and one line per file moved or trimmed — and what stayed live and why.
