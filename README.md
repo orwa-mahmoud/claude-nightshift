@@ -300,6 +300,8 @@ independent of that history. The precise boundaries are in
 
 - [**Evidence-aware capabilities**](docs/evidence-capabilities.md) — runtime helpers, profiles,
   artifact mode, source policies, and cross-host handoff.
+- [**Maintainer verification matrix**](docs/maintainer-verification-matrix.md) — schemas, host paths,
+  and authoritative tests for the shipped architecture.
 - [**Why Nightshift exists**](docs/why-nightshift.md) — the failure modes behind the contract.
 - [**How Nightshift works**](docs/how-it-works.md) — files, gates, recovery, host differences,
   workspace layouts, guarantees, and limits.
