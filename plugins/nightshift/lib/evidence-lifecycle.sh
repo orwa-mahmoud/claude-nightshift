@@ -118,7 +118,8 @@ ns_status_last_checkpoint() {
 
 # ns_status_stall_attempts <ns> — integer from .stall line 2
 ns_status_stall_attempts() {
-  local ns="${1:?}" stall="$ns/.stall" n=""
+  local ns="${1:?}" n=""
+  local stall="$ns/.stall"
   [ -f "$stall" ] && [ ! -L "$stall" ] || {
     printf '0'
     return 0

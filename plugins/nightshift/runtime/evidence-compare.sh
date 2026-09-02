@@ -657,13 +657,13 @@ _ec_row() {
     ROW_LOCT[NROW]="${R_LOCT[$cur]}"
     _ec_sources "$cur"
   fi
+  if [ "$SOURCE_UNAVAILABLE" -eq 1 ]; then
+    class=unavailable
+  fi
   ROW_IDJ[NROW]="$idj"
   ROW_CLASS[NROW]="$class"
   ROW_SRCJ[NROW]="$SRCJSON"
   ROW_SRCT[NROW]="$SRCTEXT"
-  if [ "$SOURCE_UNAVAILABLE" -eq 1 ]; then
-    class=unavailable
-  fi
   _ec_bump "$class"
   NROW=$((NROW + 1))
 }
