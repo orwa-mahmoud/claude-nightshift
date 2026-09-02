@@ -1,0 +1,186 @@
+[
+  {
+    "capabilityId": "coverage",
+    "ecosystem": "go",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/go/coverage.json",
+    "recipeVersion": "1",
+    "upstream": "https://pkg.go.dev/cmd/go#hdr-Testing_flags"
+  },
+  {
+    "capabilityId": "lint",
+    "ecosystem": "go",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/go/lint.json",
+    "recipeVersion": "1",
+    "upstream": "https://pkg.go.dev/cmd/vet"
+  },
+  {
+    "capabilityId": "test",
+    "ecosystem": "go",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/go/test.json",
+    "recipeVersion": "1",
+    "upstream": "https://pkg.go.dev/cmd/go#hdr-Test_packages"
+  },
+  {
+    "capabilityId": "typecheck",
+    "ecosystem": "go",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/go/typecheck.json",
+    "recipeVersion": "1",
+    "upstream": "https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies"
+  },
+  {
+    "capabilityId": "coverage",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/coverage.json",
+    "recipeVersion": "1",
+    "upstream": "https://vitest.dev/guide/coverage"
+  },
+  {
+    "capabilityId": "lint",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/lint.json",
+    "recipeVersion": "1",
+    "upstream": "https://eslint.org"
+  },
+  {
+    "capabilityId": "test",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/test.json",
+    "recipeVersion": "1",
+    "upstream": "https://vitest.dev"
+  },
+  {
+    "capabilityId": "typecheck",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/typecheck.json",
+    "recipeVersion": "1",
+    "upstream": "https://www.typescriptlang.org"
+  },
+  {
+    "capabilityId": "documentation-link",
+    "ecosystem": "make",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/make/documentation-link.json",
+    "recipeVersion": "1",
+    "upstream": "https://www.gnu.org/software/make/"
+  },
+  {
+    "capabilityId": "lint",
+    "ecosystem": "make",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/make/lint.json",
+    "recipeVersion": "1",
+    "upstream": "https://www.gnu.org/software/make/"
+  },
+  {
+    "capabilityId": "test",
+    "ecosystem": "make",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/make/test.json",
+    "recipeVersion": "1",
+    "upstream": "https://www.gnu.org/software/make/"
+  },
+  {
+    "capabilityId": "typecheck",
+    "ecosystem": "make",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/make/typecheck.json",
+    "recipeVersion": "1",
+    "upstream": "https://www.gnu.org/software/make/"
+  },
+  {
+    "capabilityId": "coverage",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/coverage.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/pytest-dev/pytest-cov"
+  },
+  {
+    "capabilityId": "documentation-link",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/documentation-link.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/sphinx-doc/sphinx"
+  },
+  {
+    "capabilityId": "lint",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/lint.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/astral-sh/ruff"
+  },
+  {
+    "capabilityId": "test",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/test.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/pytest-dev/pytest"
+  },
+  {
+    "capabilityId": "typecheck",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/typecheck.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/python/mypy"
+  },
+  {
+    "capabilityId": "documentation-link",
+    "ecosystem": "rust",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/rust/documentation-link.json",
+    "recipeVersion": "1",
+    "upstream": "https://doc.rust-lang.org/rustdoc/lints.html"
+  },
+  {
+    "capabilityId": "lint",
+    "ecosystem": "rust",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/rust/lint.json",
+    "recipeVersion": "1",
+    "upstream": "https://doc.rust-lang.org/clippy/"
+  },
+  {
+    "capabilityId": "test",
+    "ecosystem": "rust",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/rust/test.json",
+    "recipeVersion": "1",
+    "upstream": "https://doc.rust-lang.org/cargo/commands/cargo-test.html"
+  },
+  {
+    "capabilityId": "typecheck",
+    "ecosystem": "rust",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/rust/typecheck.json",
+    "recipeVersion": "1",
+    "upstream": "https://doc.rust-lang.org/cargo/commands/cargo-check.html"
+  },
+  {
+    "capabilityId": "lint",
+    "ecosystem": "shell-plugin",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/shell-plugin/lint.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/koalaman/shellcheck"
+  },
+  {
+    "capabilityId": "test",
+    "ecosystem": "shell-plugin",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/shell-plugin/test.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/bats-core/bats-core"
+  }
+]

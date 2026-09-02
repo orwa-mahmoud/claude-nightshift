@@ -1,0 +1,37 @@
+{
+  "capabilityId": "lint",
+  "ecosystems": ["make"],
+  "versionConstraints": {"make": ">=3.81"},
+  "detect": {
+    "manager": "make",
+    "signals": ["Makefile"],
+    "targets": ["lint", "fmt", "format"],
+    "command": "grep -Eq '^(lint|fmt|format)[[:space:]]*:' Makefile"
+  },
+  "probe": {
+    "command": "make -n lint >/dev/null 2>&1 || make -n fmt >/dev/null 2>&1 || make -n format >/dev/null 2>&1",
+    "provisionedWhen": "exit-zero"
+  },
+  "packageManagerAdditions": [],
+  "allowedFiles": [],
+  "minimalConfig": {},
+  "smoke": {
+    "command": "make --version >/dev/null 2>&1 || exit 127; for t in lint fmt format; do make -n \"$t\" >/dev/null 2>&1 && exec make -n \"$t\"; done; exit 127"
+  },
+  "rollback": {"command": "true", "removes": []},
+  "enabledShifts": ["quality", "clear-quality-debt", "defect-hunt"],
+  "safetyClass": "local-dev-free",
+  "permissionRequirements": [
+    "fallback: the Makefile target is the tool — nothing is installed, and a project with none of lint, fmt or format has no lint capability",
+    "fallback: the first target that resolves wins, in the order lint, fmt, format; the recipe never adds a target of its own",
+    "fallback: a dry run still expands the Makefile, so a variable defined through a shell call is evaluated when the target is read"
+  ],
+  "elevationCategories": [],
+  "recipeVersion": "1",
+  "lastVerified": "2026-09-02",
+  "upstream": "https://www.gnu.org/software/make/",
+  "maintenance": {
+    "check": "the recipe reads targets and dry-runs them; it breaks only if make drops -n or --version, so re-verify against the current make manual",
+    "resolves": "make --version"
+  }
+}

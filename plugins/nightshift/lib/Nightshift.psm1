@@ -3631,7 +3631,12 @@ function ConvertFrom-NSJsonNode {
     }
     $map = New-NSOrdinalMap
     foreach ($property in $Node.PSObject.Properties) {
-        $map[(Remove-NSJsonStringGuard $property.Name)] = ConvertFrom-NSJsonNode $property.Value
+        $name = Remove-NSJsonStringGuard $property.Name
+        if ($null -eq $property.Value -and ($property.TypeNameOfValue -ceq 'System.Object[]')) {
+            $map[$name] = @()
+            continue
+        }
+        $map[$name] = ConvertFrom-NSJsonNode $property.Value
     }
     return $map
 }
@@ -3648,7 +3653,7 @@ function Get-NSMapValue {
     param($Map, [Parameter(Mandatory = $true)][string]$Key)
     if (-not ($Map -is [Collections.IDictionary])) { return $null }
     if (-not $Map.Contains($Key)) { return $null }
-    return $Map[$Key]
+    return , $Map[$Key]
 }
 
 function Copy-NSMap {
@@ -5769,6 +5774,34 @@ function Get-NSProvisionRequiredFields {
     return , $names.ToArray()
 }
 
+function Get-NSJsonStringList {
+    param(
+        $Value,
+        [Parameter(Mandatory = $true)][string]$FieldName
+    )
+    $message = $FieldName + ' must be a list of relative paths'
+    if ($null -eq $Value) { return @() }
+    if ($Value -is [Collections.IDictionary]) { throw $message }
+    if ($Value -is [string]) {
+        if ($Value.Length -eq 0) { throw $message }
+        return @($Value)
+    }
+    if (-not ($Value -is [Collections.IEnumerable])) { throw $message }
+    $items = New-Object Collections.Generic.List[string]
+    foreach ($entry in @($Value)) {
+        if (($entry -is [Collections.IEnumerable]) -and -not ($entry -is [string])) {
+            foreach ($nested in @($entry)) {
+                if (-not ($nested -is [string]) -or $nested.Length -eq 0) { throw $message }
+                $items.Add($nested)
+            }
+            continue
+        }
+        if (-not ($entry -is [string]) -or $entry.Length -eq 0) { throw $message }
+        $items.Add($entry)
+    }
+    return , $items.ToArray()
+}
+
 function Read-NSProvisionRecipe {
     param([Parameter(Mandatory = $true)][string]$Path)
     $recipe = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($Path, $script:NSUtf8NoBom))
@@ -5778,15 +5811,7 @@ function Read-NSProvisionRecipe {
         if (-not $recipe.Contains($field)) { $missing.Add($field) }
     }
     if ($missing.Count -gt 0) { throw ('missing fields: ' + ($missing -join ', ')) }
-    $allowed = Get-NSMapValue $recipe 'allowedFiles'
-    if (($allowed -is [string]) -or ($allowed -is [Collections.IDictionary]) -or -not ($allowed -is [Collections.IEnumerable])) {
-        throw 'allowedFiles must be a list of relative paths'
-    }
-    foreach ($entry in @($allowed)) {
-        if (-not ($entry -is [string]) -or $entry.Length -eq 0) {
-            throw 'allowedFiles must be a list of relative paths'
-        }
-    }
+    $recipe['allowedFiles'] = Get-NSJsonStringList (Get-NSMapValue $recipe 'allowedFiles') 'allowedFiles'
     return $recipe
 }
 
@@ -6126,6 +6151,9 @@ function Get-NSProvisionPlanDocument {
     $document['capabilityId'] = Get-NSMapValue $Recipe 'capabilityId'
     $document['recipeVersion'] = Get-NSMapValue $Recipe 'recipeVersion'
     $document['allowedFiles'] = Get-NSPolicyField $Recipe 'allowedFiles'
+    $elevation = Get-NSPolicyField $Recipe 'elevationCategories'
+    if ($null -eq $elevation) { $elevation = @() }
+    $document['elevationCategories'] = $elevation
     $document['safetyClass'] = Get-NSMapValue $Recipe 'safetyClass'
     $document['enabledShifts'] = Get-NSPolicyField $Recipe 'enabledShifts'
     $document['packageManagerAdditions'] = Get-NSPolicyField $Recipe 'packageManagerAdditions'
@@ -6140,12 +6168,21 @@ function Get-NSProvisionPlanDocument {
 
 function Resolve-NSProvisionTarget {
     param([Parameter(Mandatory = $true)][string]$Project)
-    try {
-        return (Resolve-NSWorkTarget $Project)
+    $workspace = Get-NSAbsolutePath $Project
+    $record = Join-Path $workspace '.nightshift/work-target'
+    if (Test-Path -LiteralPath $record -PathType Leaf) {
+        $lines = [IO.File]::ReadAllLines($record)
+        if ($lines.Count -ge 1 -and -not [string]::IsNullOrWhiteSpace($lines[0])) {
+            $target = $lines[0].Trim()
+            if (-not [IO.Path]::IsPathRooted($target)) {
+                $target = Join-Path $workspace $target
+            }
+            if (Test-Path -LiteralPath $target -PathType Container) {
+                return (Get-NSAbsolutePath $target)
+            }
+        }
     }
-    catch {
-        return (Get-NSAbsolutePath $Project)
-    }
+    return $workspace
 }
 
 # plan reads: the recipe, the resolved shift policy, the work mode and the tree.

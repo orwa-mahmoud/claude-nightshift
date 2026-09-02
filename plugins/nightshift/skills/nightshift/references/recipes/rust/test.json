@@ -1,0 +1,44 @@
+{
+  "capabilityId": "test",
+  "detect": {
+    "manager": "cargo",
+    "manifest": "Cargo.toml"
+  },
+  "ecosystems": [
+    "rust"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    "api-contract-drift",
+    "clear-quality-debt",
+    "coverage-hunt",
+    "defect-hunt",
+    "flaky-test-repair",
+    "quality"
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "the cargo-test page for a change to harness selection or exit codes",
+    "resolves": "cargo test --help"
+  },
+  "minimalConfig": {},
+  "packageManagerAdditions": [],
+  "permissionRequirements": [],
+  "probe": {
+    "command": "cargo --version",
+    "presentOnExitZero": true
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "true"
+  },
+  "safetyClass": "local-dev-free",
+  "smoke": {
+    "command": "cargo test"
+  },
+  "upstream": "https://doc.rust-lang.org/cargo/commands/cargo-test.html",
+  "versionConstraints": {
+    "cargo": ">=1.70"
+  },
+  "allowedFiles": []
+}

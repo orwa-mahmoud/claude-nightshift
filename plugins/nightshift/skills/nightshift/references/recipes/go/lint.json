@@ -1,0 +1,41 @@
+{
+  "capabilityId": "lint",
+  "detect": {
+    "manager": "go",
+    "manifest": "go.mod"
+  },
+  "ecosystems": [
+    "go"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    "clear-quality-debt",
+    "defect-hunt",
+    "quality"
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "the Go release notes for a check added to `go vet` or a change to `gofmt -l`'s output",
+    "resolves": "go help vet"
+  },
+  "minimalConfig": {},
+  "packageManagerAdditions": [],
+  "permissionRequirements": [],
+  "probe": {
+    "command": "command -v gofmt >/dev/null && go version",
+    "presentOnExitZero": true
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "true"
+  },
+  "safetyClass": "local-dev-free",
+  "smoke": {
+    "command": "gofmt -l . && go vet ./..."
+  },
+  "upstream": "https://pkg.go.dev/cmd/vet",
+  "versionConstraints": {
+    "go": ">=1.21"
+  },
+  "allowedFiles": []
+}

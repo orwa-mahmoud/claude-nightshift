@@ -1,0 +1,41 @@
+{
+  "capabilityId": "typecheck",
+  "detect": {
+    "manager": "go",
+    "manifest": "go.mod"
+  },
+  "ecosystems": [
+    "go"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    "clear-quality-debt",
+    "dead-code-cleanup",
+    "quality"
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "the Go release notes for a change to `go build`'s package selection or error format",
+    "resolves": "go help build"
+  },
+  "minimalConfig": {},
+  "packageManagerAdditions": [],
+  "permissionRequirements": [],
+  "probe": {
+    "command": "go version",
+    "presentOnExitZero": true
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "true"
+  },
+  "safetyClass": "local-dev-free",
+  "smoke": {
+    "command": "go build ./..."
+  },
+  "upstream": "https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies",
+  "versionConstraints": {
+    "go": ">=1.21"
+  },
+  "allowedFiles": []
+}

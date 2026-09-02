@@ -1,0 +1,57 @@
+{
+  "allowedFiles": [
+    "poetry.lock",
+    "pyproject.toml",
+    "pytest.ini",
+    "requirements-dev.txt",
+    "uv.lock"
+  ],
+  "capabilityId": "test",
+  "detect": {
+    "command": "set -u\nlocks=0; mgr=none; signal=none; reason=ok\n[ -f uv.lock ] && { mgr=uv; signal=uv.lock; locks=$((locks + 1)); }\n[ -f poetry.lock ] && { mgr=poetry; signal=poetry.lock; locks=$((locks + 1)); }\nvenv=\"${VIRTUAL_ENV:-$PWD/.venv}\"\nif [ \"$locks\" -gt 1 ]; then\n  mgr=none; signal=none; reason=ambiguous-manager\nelif [ ! -x \"$venv/bin/python\" ] && [ ! -x \"$venv/bin/python3\" ]; then\n  mgr=none; signal=none; reason=no-virtualenv\nelif [ \"$locks\" -eq 0 ]; then\n  if [ -f requirements.txt ]; then\n    mgr=pip; signal=requirements.txt\n  elif [ -f pyproject.toml ]; then\n    mgr=pip; signal=pyproject.toml\n  else\n    mgr=none; signal=none; reason=no-python-manifest\n  fi\nfi\nprintf '{\"ecosystem\":\"python\",\"manager\":\"%s\",\"reason\":\"%s\",\"signal\":\"%s\"}\\n' \\\n  \"$mgr\" \"$reason\" \"$signal\""
+  },
+  "ecosystems": [
+    "python"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    "accessibility-repair",
+    "clear-quality-debt",
+    "coverage-hunt",
+    "defect-hunt",
+    "flaky-test-repair",
+    "quality"
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "lastVerified older than 180 days, or the pinned floor stops resolving on the index",
+    "resolves": "python3 -m pip install --dry-run --no-deps --quiet 'pytest>=8.0'"
+  },
+  "minimalConfig": {
+    "pytest.ini": "[pytest]\nminversion = 8.0\n"
+  },
+  "packageManagerAdditions": [
+    {
+      "command": "set -u\nvenv=\"${VIRTUAL_ENV:-$PWD/.venv}\"\npy=\"$venv/bin/python\"\n[ -x \"$py\" ] || py=\"$venv/bin/python3\"\n[ -x \"$py\" ] || { printf 'no project virtual environment at %s\\n' \"$venv\" >&2; exit 78; }\nVIRTUAL_ENV=\"$venv\"; PATH=\"$venv/bin:$PATH\"; export VIRTUAL_ENV PATH\nv=\"$(\"$py\" --version 2>&1)\"; v=\"${v#Python }\"\nmaj=\"${v%%.*}\"; rest=\"${v#*.}\"; min=\"${rest%%.*}\"\ncase \"$maj$min\" in\n  '' | *[!0-9]*)\n    printf 'cannot read an interpreter version from \"%s\"\\n' \"$v\" >&2\n    exit 78\n    ;;\nesac\nif [ \"$maj\" -lt 3 ] || { [ \"$maj\" -eq 3 ] && [ \"$min\" -lt 9 ]; }; then\n  printf 'python %s is below the 3.9 this recipe needs\\n' \"$v\" >&2\n  exit 78\nfi\nlocks=0; mgr=pip\n[ -f uv.lock ] && { mgr=uv; locks=$((locks + 1)); }\n[ -f poetry.lock ] && { mgr=poetry; locks=$((locks + 1)); }\nif [ \"$locks\" -gt 1 ]; then\n  printf 'uv.lock and poetry.lock are both here; one manager owns a project, never two\\n' >&2\n  exit 78\nfi\nif [ \"$locks\" -eq 0 ] && [ ! -f requirements.txt ] && [ ! -f pyproject.toml ]; then\n  printf 'no python manifest here to take a development dependency\\n' >&2\n  exit 78\nfi\nif [ \"$mgr\" != pip ] && ! command -v \"$mgr\" >/dev/null 2>&1; then\n  printf '%s owns this project but is not on PATH\\n' \"$mgr\" >&2\n  exit 78\nfi\nif [ -f pytest.ini ] || grep -qs '^\\[tool\\.pytest\\.ini_options\\]' pyproject.toml || grep -qs '^\\[tool:pytest\\]' setup.cfg || grep -qs '^\\[pytest\\]' tox.ini; then\n  printf 'pytest is already configured here; the repository tooling wins\\n' >&2\n  exit 78\nfi\ncase \"$mgr\" in\n  uv) uv add --dev 'pytest>=8.0' ;;\n  poetry) POETRY_VIRTUALENVS_CREATE=false poetry add --group dev 'pytest>=8.0' ;;\n  pip)\n    \"$py\" -m pip install 'pytest>=8.0' || exit 1\n    if [ -f requirements-dev.txt ] && ! grep -q '^pytest' requirements-dev.txt; then\n      printf 'pytest>=8.0\\n' >>requirements-dev.txt\n    fi\n    ;;\nesac"
+    }
+  ],
+  "permissionRequirements": [
+    "package-index-network"
+  ],
+  "probe": {
+    "command": "set -u\nvenv=\"${VIRTUAL_ENV:-$PWD/.venv}\"\npresent=false; via=none\nif [ -f pytest.ini ] || grep -qs '^\\[tool\\.pytest\\.ini_options\\]' pyproject.toml || grep -qs '^\\[tool:pytest\\]' setup.cfg || grep -qs '^\\[pytest\\]' tox.ini; then\n  present=true; via=configured\nelif [ -x \"$venv/bin/pytest\" ]; then\n  present=true; via=environment\nfi\nprintf '{\"capability\":\"test\",\"present\":%s,\"tool\":\"pytest\",\"via\":\"%s\"}\\n' \\\n  \"$present\" \"$via\""
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "set -u\nvenv=\"${VIRTUAL_ENV:-$PWD/.venv}\"\npy=\"$venv/bin/python\"\n[ -x \"$py\" ] || py=\"$venv/bin/python3\"\n[ -x \"$py\" ] || exit 0\nVIRTUAL_ENV=\"$venv\"; PATH=\"$venv/bin:$PATH\"; export VIRTUAL_ENV PATH\nif [ -f uv.lock ]; then\n  uv remove --dev pytest\nelif [ -f poetry.lock ]; then\n  POETRY_VIRTUALENVS_CREATE=false poetry remove --group dev pytest\nelse\n  \"$py\" -m pip uninstall -y pytest\nfi"
+  },
+  "safetyClass": "local-dev-with-config",
+  "smoke": {
+    "command": "set -u\nvenv=\"${VIRTUAL_ENV:-$PWD/.venv}\"\npy=\"$venv/bin/python\"\n[ -x \"$py\" ] || py=\"$venv/bin/python3\"\n[ -x \"$py\" ] || { printf 'no project virtual environment at %s\\n' \"$venv\" >&2; exit 127; }\nVIRTUAL_ENV=\"$venv\"; PATH=\"$venv/bin:$PATH\"; export VIRTUAL_ENV PATH\npytest -q -p no:cacheprovider\nrc=$?\nif [ \"$rc\" -eq 5 ]; then\n  printf 'test: the runner works, no tests are collected yet\\n'\n  exit 0\nfi\nexit \"$rc\""
+  },
+  "upstream": "https://github.com/pytest-dev/pytest",
+  "versionConstraints": {
+    "pytest": ">=8.0",
+    "python": ">=3.9"
+  }
+}

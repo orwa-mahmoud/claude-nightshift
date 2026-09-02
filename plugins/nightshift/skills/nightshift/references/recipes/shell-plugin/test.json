@@ -1,0 +1,41 @@
+{
+  "capabilityId": "test",
+  "ecosystems": ["shell-plugin"],
+  "versionConstraints": {"bats": ">=1.5.0"},
+  "detect": {
+    "manager": "none",
+    "signals": [".claude-plugin", ".codex-plugin"],
+    "command": "test -d .claude-plugin || test -d .codex-plugin"
+  },
+  "probe": {
+    "command": "command -v bats >/dev/null 2>&1 && test -d tests",
+    "provisionedWhen": "exit-zero"
+  },
+  "packageManagerAdditions": [],
+  "allowedFiles": [],
+  "minimalConfig": {},
+  "smoke": {
+    "command": "bats --version >/dev/null 2>&1 || exit 127; test -d tests || exit 127; bats --count -r tests"
+  },
+  "rollback": {"command": "true", "removes": []},
+  "enabledShifts": [
+    "quality",
+    "clear-quality-debt",
+    "coverage-hunt",
+    "defect-hunt",
+    "flaky-test-repair"
+  ],
+  "safetyClass": "local-dev-free",
+  "permissionRequirements": [
+    "fallback: bats must already be present — shell projects have no dev-scoped package manager, so nothing is installed and probe alone decides alreadyProvisioned",
+    "fallback: no tests/ directory means no test capability; the recipe reports it rather than writing a test suite"
+  ],
+  "elevationCategories": [],
+  "recipeVersion": "1",
+  "lastVerified": "2026-09-02",
+  "upstream": "https://github.com/bats-core/bats-core",
+  "maintenance": {
+    "check": "compare the bats on PATH with the latest bats-core release; the recipe pins only a floor, so a newer runner needs no change",
+    "resolves": "bats --version"
+  }
+}
