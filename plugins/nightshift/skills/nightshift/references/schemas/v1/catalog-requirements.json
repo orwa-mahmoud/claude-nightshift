@@ -167,6 +167,14 @@
       "fallback": null,
       "tooling": "existing-tools",
       "artifact": false
+    },
+    "release-readiness": {
+      "requires": [],
+      "requiresAny": ["test", "scripts", "owner-gates"],
+      "optional": ["security", "documentation-link", "benchmark", "api-schema"],
+      "fallback": "compare supplied baseline and candidate manifests only",
+      "tooling": "existing-tools",
+      "artifact": false
     }
   }
 }
