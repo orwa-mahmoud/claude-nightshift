@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "Recipe contract for the provisioning engine. Keys and enums are stable; recipe bodies are registered separately.",
+  "description": "Recipe contract for the provisioning engine. Keys and enums are stable; recipe bodies are registered separately. Elevation is authorized by the resolved shift policy, never by this file: a recipe declares the categories it needs in the optional elevationCategories array (absent or empty means none) and the engine asks the resolver for each one, then matches every command it may run against every category pattern.",
   "requiredRecipeFields": [
     "capabilityId",
     "ecosystems",
@@ -22,6 +22,13 @@
     "local-dev-with-config",
     "forbidden"
   ],
+  "elevationCategories": [
+    "sudo",
+    "containers",
+    "global-packages",
+    "daemons",
+    "external-services"
+  ],
   "transactionStages": [
     "authorize",
     "capture-baseline",
@@ -34,22 +41,28 @@
   "refusalReasons": [
     "policy-not-auto-add",
     "artifact-mode",
-    "global-or-system",
-    "paid-or-account",
-    "daemon-or-cloud",
+    "elevation-denied:sudo",
+    "elevation-denied:containers",
+    "elevation-denied:global-packages",
+    "elevation-denied:daemons",
+    "elevation-denied:external-services",
     "incompatible-ecosystem",
     "permission-prompt-required",
+    "provisioning-runtime-unavailable",
     "owner-dirty-conflict",
     "safety-forbidden"
+  ],
+  "skipReasons": [
+    "permission-prompt-required",
+    "provisioning-runtime-unavailable"
   ],
   "transactionStateFile": ".nightshift/provision-transaction.json",
   "setupCommitSubjectPrefix": "chore(tooling):",
   "preflightBudgetSecondsDefault": 120,
   "never": [
-    "runtime-global-system-deps",
+    "elevate-without-an-allowance",
     "create-accounts",
     "paid-services",
-    "cloud-containers-databases-daemons",
     "replace-existing-tools",
     "broad-autofix",
     "weaken-checks",

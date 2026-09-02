@@ -1,0 +1,11 @@
+{
+  "baseline": {},
+  "capabilityId": "fixture-recover",
+  "failed": false,
+  "recipePath": "__RECIPE_PATH__",
+  "stage": "authorize",
+  "startedAt": "2026-01-01T00:00:00Z",
+  "touched": [],
+  "updatedAt": "2026-01-01T00:00:01Z",
+  "workTarget": "__WORK_TARGET__"
+}

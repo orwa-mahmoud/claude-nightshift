@@ -154,6 +154,26 @@ if [ -f "$NS/capability-policy.json" ]; then
   warn "legacy capability-policy.json present; Setup removes it"
 fi
 
+# A provisioning transaction on disk means an install stopped mid-flight. The recovery helper
+# owns the reading and the proof; Doctor prints its one diagnosis line and never settles it.
+if [ -e "$NS/provision-transaction.json" ] || [ -L "$NS/provision-transaction.json" ]; then
+  PROVISION_TAB=$(printf '\t')
+  if PROVISION_LINE="$("$_here/provision-recover.sh" --project "$WORKSPACE" --diagnose 2>/dev/null)" &&
+    [ -n "$PROVISION_LINE" ]; then
+    PROVISION_KIND="${PROVISION_LINE%%"$PROVISION_TAB"*}"
+    PROVISION_TEXT="${PROVISION_LINE#*"$PROVISION_TAB"}"
+    if [ "$PROVISION_KIND" = provable ]; then
+      fact "$PROVISION_TEXT"
+    else
+      warn "$PROVISION_TEXT; Start will refuse to arm"
+      act confirm "inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again"
+    fi
+  else
+    warn "provision-transaction.json cannot be read; Start will refuse to arm"
+    act confirm "inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again"
+  fi
+fi
+
 PUNCH="$NS/punch-list.md"
 OPEN=0
 TICKED=0

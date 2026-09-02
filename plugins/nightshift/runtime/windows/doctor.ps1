@@ -181,6 +181,30 @@ if ($null -ne $resolution) {
     }
 }
 
+# An interrupted provisioning transaction is the one piece of state that can
+# leave a half-installed tool behind. Doctor reads the same diagnosis the
+# recovery helper prints, and restores nothing.
+$provisionRepair = 'inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.ps1 rollback after fixing the target, then Start again'
+$provision = $null
+try {
+    $provision = Get-NSProvisionDiagnosis $workspace
+}
+catch {
+    Add-NSWarn 'provision-transaction.json cannot be read; Start will refuse to arm'
+    Add-NSAct confirm $provisionRepair
+}
+if (($null -ne $provision) -and $provision['present']) {
+    $provisionLine = Get-NSProvisionDiagnosisLine $provision
+    if ((Get-NSProvisionDiagnosisClass $provision) -ceq 'provable') {
+        Add-NSFact $provisionLine
+        Add-NSAct confirm "run $(Join-Path $here 'provision.ps1') -Project $hostPath recover before the next Start; Doctor never recovers"
+    }
+    else {
+        Add-NSWarn ($provisionLine + '; Start will refuse to arm')
+        Add-NSAct confirm $provisionRepair
+    }
+}
+
 $punch = Join-Path $ns 'punch-list.md'
 $open = 0
 $ticked = 0

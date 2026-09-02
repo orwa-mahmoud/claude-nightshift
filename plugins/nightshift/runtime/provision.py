@@ -17,6 +17,8 @@ SCHEMA_PATH = os.path.join(
     PLUGIN, "skills", "nightshift", "references", "schemas", "v1", "capability-recipe.json"
 )
 POLICY_SH = os.path.join(HERE, "shift-policy.sh")
+LIB_SH = os.path.join(PLUGIN, "lib", "lib.sh")
+EVIDENCE_SH = os.path.join(HERE, "evidence.sh")
 
 REQUIRED = (
     "capabilityId",
@@ -62,47 +64,85 @@ STACK_SIGNALS = (
     ("shell-plugin", (".claude-plugin", ".codex-plugin")),
     ("make", ("Makefile",)),
 )
-GLOBAL_MARKS = (
-    "sudo ",
-    "npm i -g",
-    "npm install -g",
-    "pnpm add -g",
-    "yarn global",
-    "pip install --user",
-    "pip3 install --user",
-    "brew install",
-    "apt-get",
-    "apt install",
-    "dnf ",
-    "yum ",
-    "choco ",
-    "winget ",
-    "systemctl",
+ELEVATION_CATEGORIES = (
+    "sudo",
+    "containers",
+    "global-packages",
+    "daemons",
+    "external-services",
 )
-PAID_MARKS = ("paid", "account", "login", "subscription", "billing", "license-key")
-DAEMON_MARKS = (
-    "daemon",
-    "docker",
-    "container",
-    "compose",
-    "cloud",
-    "kubernetes",
-    "k8s",
-    "postgres",
-    "mysql",
-    "redis",
-    "mongodb",
-    "systemd",
+REFUSAL_REASONS = (
+    "policy-not-auto-add",
+    "artifact-mode",
+    "elevation-denied:sudo",
+    "elevation-denied:containers",
+    "elevation-denied:global-packages",
+    "elevation-denied:daemons",
+    "elevation-denied:external-services",
+    "incompatible-ecosystem",
+    "permission-prompt-required",
+    "provisioning-runtime-unavailable",
+    "owner-dirty-conflict",
+    "safety-forbidden",
 )
-PROMPT_MARKS = ("prompt", "interactive", "confirm", "tty")
+DENIED_PREFIX = "elevation-denied:"
+EVIDENCE_DOMAIN = "provisioning"
+EVIDENCE_SOURCE_CLASS = "provisioning-engine"
+
+# The engine authorizes elevation through the same shell functions the command guard uses, so
+# the two can never disagree about what a command needs or about what tonight allows.
+WORKSPACE_SH = '. "$1"; ns_workspace_root "$2"'
+MATCH_SH = r'''. "$1"
+patterns="$(ns_policy_elevation_patterns "$2")" || exit 3
+while IFS="$(printf '\t')" read -r category pattern; do
+  [ -n "$category" ] && [ -n "$pattern" ] || continue
+  if ! valid_ere "$pattern"; then
+    printf 'invalid\t%s\n' "$category"
+    continue
+  fi
+  printf '%s' "$3" | grep -qE "$pattern" || continue
+  ns_policy_allowed "$2" "$category" "$3"
+  printf '%s\t%s\n' "$?" "$category"
+done <<EOF
+$patterns
+EOF
+exit 0
+'''
 
 
 def utcnow():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+_WORKSPACE = {}
+
+
+def workspace_root(project):
+    """The workspace .nightshift belongs to: the project, or where a .nightshift-link points.
+
+    One authority answers — `ns_workspace_root` in lib/paths.sh, the same function the helpers
+    and the guards read — so a linked workspace cannot resolve two ways. A link file that is not
+    usable raises: Nightshift does not guess a workspace.
+    """
+    key = os.path.abspath(project)
+    if key in _WORKSPACE:
+        return _WORKSPACE[key]
+    try:
+        out = subprocess.check_output(
+            ["bash", "-c", WORKSPACE_SH, "provision", LIB_SH, key],
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        raise ValueError("invalid .nightshift-link — Nightshift will not guess a workspace")
+    root = out.decode("utf-8", "replace").strip()
+    if not root:
+        raise ValueError("invalid .nightshift-link — Nightshift will not guess a workspace")
+    _WORKSPACE[key] = root
+    return root
+
+
 def ns_dir(project):
-    return os.path.join(os.path.abspath(project), ".nightshift")
+    return os.path.join(workspace_root(project), ".nightshift")
 
 
 def tx_path(ns):
@@ -170,6 +210,22 @@ def default_budget():
         return DEFAULT_BUDGET
 
 
+def contract_list(key, fallback):
+    data = load_contract()
+    names = (data or {}).get(key)
+    if isinstance(names, list) and names and all(isinstance(n, str) and n for n in names):
+        return tuple(names)
+    return fallback
+
+
+def elevation_categories():
+    return contract_list("elevationCategories", ELEVATION_CATEGORIES)
+
+
+def refusal_order():
+    return contract_list("refusalReasons", REFUSAL_REASONS)
+
+
 def work_mode(project):
     path = os.path.join(ns_dir(project), "work-mode")
     if not os.path.isfile(path):
@@ -196,16 +252,60 @@ def work_target(project):
 
 
 def policy_get(project, mode):
-    """Tooling policy from the one resolved view (rules, shift defaults, one-shift policy)."""
+    """Tooling policy and elevation from the one resolved view (rules, defaults, tonight)."""
     out = subprocess.check_output(
         ["bash", POLICY_SH, "--project", project, "resolve", "--json"],
         stderr=subprocess.DEVNULL,
     )
     resolved = json.loads(out.decode())
-    setting = (resolved.get("settings") or {}).get("toolingPolicy")
+    settings = resolved.get("settings")
+    if not isinstance(settings, dict):
+        raise ValueError("resolved view has no settings")
+    setting = settings.get("toolingPolicy")
     if not isinstance(setting, dict) or not isinstance(setting.get("value"), str):
         raise ValueError("resolved view has no toolingPolicy")
-    return {"policy": setting["value"], "refused": False}
+    return {"policy": setting["value"], "refused": False, "settings": settings}
+
+
+def elevation_setting(settings, category):
+    """(value, provenance) for elevation.<category>: allow · deny · exact-plan."""
+    row = (settings or {}).get("elevation." + category)
+    value = row.get("value") if isinstance(row, dict) else None
+    source = row.get("source") if isinstance(row, dict) else None
+    if not isinstance(value, str) or not value:
+        value = "deny"
+    if not isinstance(source, str) or not source:
+        source = "built-in"
+    return value, source
+
+
+def command_categories(workspace, command):
+    """(status, category) for every elevation pattern this command text matches.
+
+    status is `ns_policy_allowed`'s status as text — 0 allowed, 1 denied, 2 no exact-plan
+    allowance binds this command — or `invalid` when the owner's pattern is not an extended
+    regular expression the guard can run. Only `0` authorizes the command. The pattern is
+    matched before the guard is asked, which is the guard's own contract.
+    """
+    try:
+        p = subprocess.Popen(
+            ["bash", "-c", MATCH_SH, "provision", LIB_SH, workspace, command],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        out, _ = p.communicate()
+    except OSError as exc:
+        raise RuntimeError("elevation guard unavailable: %s" % exc)
+    if p.returncode != 0:
+        raise RuntimeError("elevation guard unavailable: cannot read the elevation patterns")
+    rows = []
+    for line in out.decode("utf-8", "replace").splitlines():
+        if "\t" not in line:
+            continue
+        status, category = line.split("\t", 1)
+        if status and category:
+            rows.append((status, category))
+    return rows
 
 
 def inventory_path(project):
@@ -230,6 +330,20 @@ def inventory_set(project, doc):
     atomic_write(inventory_path(project), doc)
 
 
+def declared_categories(recipe):
+    """The elevation categories the recipe declares, in the contract's order. Absent is empty."""
+    raw = recipe.get("elevationCategories")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("elevationCategories must be an array of category names")
+    known = elevation_categories()
+    for name in raw:
+        if not isinstance(name, str) or name not in known:
+            raise ValueError("unknown elevation category: %s" % (name,))
+    return [name for name in known if name in raw]
+
+
 def load_recipe(path):
     data = read_json(path)
     if not isinstance(data, dict):
@@ -240,6 +354,7 @@ def load_recipe(path):
     allowed = data.get("allowedFiles")
     if not isinstance(allowed, list) or not all(isinstance(x, str) and x for x in allowed):
         raise ValueError("allowedFiles must be a list of relative paths")
+    declared_categories(data)
     return data
 
 
@@ -253,7 +368,20 @@ def digest_file(path):
 
 
 def norm_rel(rel):
-    return rel.replace("\\", "/").lstrip("./")
+    """One form for a recipe path: forward slashes, no `./` prefix, no leading slash.
+
+    A leading dot that belongs to the filename stays where it is: `.eslintrc.json` is a dotfile,
+    not `eslintrc.json`.
+    """
+    rel = rel.replace("\\", "/")
+    while True:
+        if rel.startswith("./"):
+            rel = rel[2:]
+            continue
+        if rel.startswith("/"):
+            rel = rel[1:]
+            continue
+        return rel
 
 
 def under_allowed(rel, allowed):
@@ -284,24 +412,17 @@ def text_blob(value):
     return value if isinstance(value, str) else str(value)
 
 
-def contains_any(text, marks):
-    low = text.lower()
-    return any(m in low for m in marks)
-
-
-def flatten_text(*parts):
-    chunks = []
-    for part in parts:
-        if part is None:
-            continue
-        if isinstance(part, str):
-            chunks.append(part)
-        else:
-            try:
-                chunks.append(json.dumps(part))
-            except (TypeError, ValueError):
-                chunks.append(str(part))
-    return " ".join(chunks)
+def command_text(spec):
+    """The command text of a step, however the recipe spells it. Empty when there is none."""
+    if isinstance(spec, dict):
+        if isinstance(spec.get("argv"), list):
+            return " ".join(str(a) for a in spec["argv"])
+        return spec.get("command") or spec.get("cmd") or ""
+    if isinstance(spec, list):
+        return " ".join(str(a) for a in spec)
+    if isinstance(spec, str):
+        return spec
+    return ""
 
 
 def addition_commands(recipe):
@@ -312,21 +433,23 @@ def addition_commands(recipe):
     if not isinstance(adds, list):
         return out
     for step in adds:
-        if isinstance(step, str):
-            out.append(step)
-        elif isinstance(step, dict):
-            cmd = step.get("command") or step.get("cmd")
-            if cmd:
-                out.append(cmd)
+        text = command_text(step)
+        if text:
+            out.append(text)
     return out
 
 
-def smoke_command(smoke):
-    if isinstance(smoke, dict):
-        return smoke.get("command") or smoke.get("cmd") or ""
-    if isinstance(smoke, str):
-        return smoke
-    return ""
+def recipe_commands(recipe):
+    """Every command the engine may run: package additions, smoke, rollback."""
+    out = []
+    for text in addition_commands(recipe):
+        if text not in out:
+            out.append(text)
+    for key in ("smoke", "rollback"):
+        text = command_text(recipe.get(key))
+        if text and text not in out:
+            out.append(text)
+    return out
 
 
 def detected_stacks(target):
@@ -390,7 +513,7 @@ def existing_setup_commit(target, capability_id):
 
 
 def emit(doc, code):
-    print(json.dumps(doc, sort_keys=True))
+    print(json.dumps(doc, sort_keys=True, separators=(",", ":")))
     return code
 
 
@@ -408,6 +531,49 @@ def refuse(code, detail=None, extra=None):
     return emit(doc, 2)
 
 
+def authorize_command(workspace, command):
+    """The elevation categories a command needs, once every one of them is authorized.
+
+    Raises ValueError("elevation-denied:<category>") for the first category tonight refuses,
+    so a category the recipe never declared cannot slip through on prose.
+    """
+    needed = []
+    for status, category in command_categories(workspace, command):
+        if status != "0":
+            raise ValueError(DENIED_PREFIX + category)
+        if category not in needed:
+            needed.append(category)
+    return needed
+
+
+def elevation_denials(recipe, settings, workspace):
+    """Elevation categories this shift does not authorize for this recipe.
+
+    Two gates, both from the resolver. Every command the engine may run is matched against every
+    category pattern and cleared through the guard, so an undeclared category is caught by the
+    command that needs it rather than by the words the recipe chose. Separately, a recipe declares
+    the categories it needs and the resolved view answers for each: `allow` runs, `deny` refuses
+    whether or not a command shows it, and `exact-plan` runs only while every command that needs
+    the category is one the owner's plan binds.
+    """
+    denied = []
+    matches = {}
+    for cmd in recipe_commands(recipe):
+        for status, category in command_categories(workspace, cmd):
+            matches.setdefault(category, []).append(status)
+    for category in declared_categories(recipe):
+        value, _ = elevation_setting(settings, category)
+        if value == "allow":
+            continue
+        if value == "exact-plan" and all(s == "0" for s in matches.get(category, [])):
+            continue
+        denied.append(category)
+    for category in matches:
+        if any(s != "0" for s in matches[category]) and category not in denied:
+            denied.append(category)
+    return [DENIED_PREFIX + c for c in denied]
+
+
 def collect_refusals(project, recipe, mode, pol, target):
     reasons = []
     if mode == "artifact":
@@ -419,17 +585,9 @@ def collect_refusals(project, recipe, mode, pol, target):
     if safety == "forbidden" or safety not in SAFE:
         reasons.append("safety-forbidden")
 
-    perm = flatten_text(recipe.get("permissionRequirements"), recipe.get("safetyClass"))
-    cmds = flatten_text(*addition_commands(recipe), smoke_command(recipe.get("smoke")))
-    blob = perm + " " + cmds
-    if contains_any(blob, GLOBAL_MARKS) or contains_any(blob, ("global", "system-wide")):
-        reasons.append("global-or-system")
-    if contains_any(perm, PAID_MARKS):
-        reasons.append("paid-or-account")
-    if contains_any(blob, DAEMON_MARKS):
-        reasons.append("daemon-or-cloud")
-    if contains_any(perm, PROMPT_MARKS):
-        reasons.append("permission-prompt-required")
+    reasons.extend(
+        elevation_denials(recipe, pol.get("settings"), workspace_root(project))
+    )
 
     ecosystems = recipe.get("ecosystems") or []
     if isinstance(ecosystems, str):
@@ -446,21 +604,13 @@ def collect_refusals(project, recipe, mode, pol, target):
     if dirty:
         reasons.append("owner-dirty-conflict")
 
-    # unique, stable order from the frozen enum
-    order = (
-        "policy-not-auto-add",
-        "artifact-mode",
-        "global-or-system",
-        "paid-or-account",
-        "daemon-or-cloud",
-        "incompatible-ecosystem",
-        "permission-prompt-required",
-        "owner-dirty-conflict",
-        "safety-forbidden",
-    )
+    # unique, stable order from the frozen enum; anything outside it keeps its own order
     seen = []
-    for code in order:
+    for code in refusal_order():
         if code in reasons and code not in seen:
+            seen.append(code)
+    for code in reasons:
+        if code not in seen:
             seen.append(code)
     return seen
 
@@ -478,6 +628,7 @@ def plan_doc(project, recipe, reasons):
         "capabilityId": recipe.get("capabilityId"),
         "recipeVersion": recipe.get("recipeVersion"),
         "allowedFiles": recipe.get("allowedFiles"),
+        "elevationCategories": recipe.get("elevationCategories") or [],
         "safetyClass": recipe.get("safetyClass"),
         "enabledShifts": recipe.get("enabledShifts"),
         "packageManagerAdditions": recipe.get("packageManagerAdditions"),
@@ -505,7 +656,10 @@ def cmd_plan(project, recipe_path, capability):
     if capability and recipe.get("capabilityId") != capability:
         return refuse("incompatible-ecosystem", "capability mismatch")
     target = work_target(project)
-    reasons = collect_refusals(project, recipe, mode, pol, target)
+    try:
+        reasons = collect_refusals(project, recipe, mode, pol, target)
+    except RuntimeError as exc:
+        return refuse("policy-not-auto-add", str(exc))
     doc = plan_doc(project, recipe, reasons)
     return emit(doc, 0 if not reasons else 2)
 
@@ -594,6 +748,91 @@ def run_cmd(cmd, cwd, budget):
         return p.returncode, out or ""
     except OSError as exc:
         return 127, str(exc)
+
+
+def host_name():
+    """Which host adapter is driving the shift, for the ledger's host column."""
+    env = os.environ
+    if env.get("CURSOR_PROJECT_DIR") or env.get("CURSOR_WORKSPACE_DIR"):
+        return "cursor"
+    if env.get("CODEX_PROJECT_DIR") or env.get("CODEX_SANDBOX") or env.get("CODEX_SANDBOX_MODE"):
+        return "codex"
+    if env.get("CLAUDE_PROJECT_DIR"):
+        return "claude"
+    return "unknown"
+
+
+def evidence_run(project, args):
+    p = subprocess.Popen(
+        ["bash", EVIDENCE_SH, "--project", project] + list(args),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    out, err = p.communicate()
+    if p.returncode != 0:
+        detail = err.decode("utf-8", "replace").strip() or out.decode("utf-8", "replace").strip()
+        raise RuntimeError("receipt refused: %s" % (detail or "evidence helper failed"))
+    return out.decode("utf-8", "replace").strip()
+
+
+def receipt_id(capability, category, index):
+    slug = "".join(c if (c.isalnum() or c in "._-") else "-" for c in (capability or "capability"))
+    return "provisioning-%s-%s-%d" % (slug, category, index)
+
+
+def record_elevated(ctx, category, command, rc):
+    """One ledger line for one elevated action: category, provenance, and the exact command.
+
+    The line is written the moment the command returns, pass or fail, so an elevated action can
+    never run unreceipted. The rung stays `observed` until the smoke verifies the change.
+    """
+    _, provenance = elevation_setting(ctx["settings"], category)
+    ident = receipt_id(ctx["capabilityId"], category, len(ctx["receipts"]) + 1)
+    outcome = "exit 0" if rc == 0 else "exit %s" % rc
+    record = {
+        "id": ident,
+        "domain": EVIDENCE_DOMAIN,
+        "sourceClass": EVIDENCE_SOURCE_CLASS,
+        "source": command,
+        "scope": "elevation." + category,
+        "category": category,
+        "provenance": provenance,
+        "severity": "info",
+        "confidence": "high",
+        "impact": "developer",
+        "status": "in-progress",
+        "ladder": "observed",
+        "locator": ctx["locator"],
+        "action": "ran an elevated %s command for %s under provenance %s (%s)"
+        % (category, ctx["capabilityId"], provenance, outcome),
+        "host": host_name(),
+        "workTarget": ctx["workTarget"],
+    }
+    ctx["receipts"].append(
+        evidence_run(ctx["workspace"], ["append", "--record", json.dumps(record, sort_keys=True)])
+        or ident
+    )
+
+
+def verify_receipts(ctx):
+    """Promote every elevated action's rung once the smoke has passed, and only then."""
+    for ident in ctx["receipts"]:
+        evidence_run(
+            ctx["workspace"],
+            ["disposition", ident, "smoke verified the elevated change", "verified-after-change"],
+        )
+
+
+def run_recipe_command(ctx, spec, text, cwd, budget):
+    """Authorize, run, and receipt one recipe command, in that order.
+
+    The gate sits where the command runs, so no path through the engine can run one ungated.
+    """
+    categories = authorize_command(ctx["workspace"], text)
+    rc, out = run_cmd(spec, cwd, budget)
+    for category in categories:
+        record_elevated(ctx, category, text, rc)
+    return rc, out
 
 
 def restore_bytes(ns, meta):
@@ -691,7 +930,7 @@ def merge_json_file(path, patch):
     atomic_write(path, current)
 
 
-def apply_package_adds(target, recipe, budget):
+def apply_package_adds(ctx, target, recipe, budget):
     adds = recipe.get("packageManagerAdditions") or []
     if isinstance(adds, dict):
         adds = [adds]
@@ -699,24 +938,15 @@ def apply_package_adds(target, recipe, budget):
         raise ValueError("packageManagerAdditions must be an array")
     allowed = recipe["allowedFiles"]
     for step in adds:
-        if isinstance(step, str):
-            cmd = step
-            low = cmd.lower()
-            if contains_any(low, GLOBAL_MARKS):
-                raise ValueError("global-or-system")
-            rc, out = run_cmd(cmd, target, budget)
-            if rc != 0:
-                raise RuntimeError("package add failed: %s" % out.strip())
-            continue
-        if not isinstance(step, dict):
+        if not isinstance(step, (str, dict)):
             raise ValueError("packageManagerAdditions entry must be a string or object")
-        cmd = step.get("command") or step.get("cmd")
+        cmd = command_text(step)
         if cmd:
-            if contains_any(cmd, GLOBAL_MARKS):
-                raise ValueError("global-or-system")
-            rc, out = run_cmd(cmd, target, budget)
+            rc, out = run_recipe_command(ctx, step, cmd, target, budget)
             if rc != 0:
                 raise RuntimeError("package add failed: %s" % out.strip())
+        if isinstance(step, str):
+            continue
         rel = step.get("file") or step.get("path") or step.get("manifest")
         patch = None
         for key in ("merge", "devDependencies", "dependencies", "fields"):
@@ -747,10 +977,10 @@ def changed_allowed(target, baseline):
     return touched
 
 
-def smoke_result(recipe, target, budget):
+def smoke_result(ctx, recipe, target, budget):
     """Red baseline (tool ran, reported findings) is success. Exit 127 is not."""
     smoke = recipe.get("smoke")
-    rc, out = run_cmd(smoke, target, budget)
+    rc, out = run_recipe_command(ctx, smoke, command_text(smoke), target, budget)
     if rc == 0:
         return
     if rc in (127, 124):
@@ -768,12 +998,7 @@ def record_inventory(project, recipe, setup_commit):
     items = [i for i in (data.get("items") or []) if isinstance(i, dict)]
     cap = recipe["capabilityId"]
     items = [i for i in items if i.get("capability") != cap]
-    smoke = recipe.get("smoke")
-    command = ""
-    if isinstance(smoke, dict):
-        command = smoke.get("command") or smoke.get("cmd") or ""
-    elif isinstance(smoke, str):
-        command = smoke
+    command = command_text(recipe.get("smoke"))
     items.append(
         {
             "capability": cap,
@@ -907,7 +1132,10 @@ def cmd_apply(project, recipe_path, capability, budget):
     if capability and recipe.get("capabilityId") != capability:
         return refuse("incompatible-ecosystem", "capability mismatch")
     target = work_target(project)
-    reasons = collect_refusals(project, recipe, mode, pol, target)
+    try:
+        reasons = collect_refusals(project, recipe, mode, pol, target)
+    except RuntimeError as exc:
+        return refuse("policy-not-auto-add", str(exc))
     if reasons:
         return emit(plan_doc(project, recipe, reasons), 2)
 
@@ -948,11 +1176,22 @@ def cmd_apply(project, recipe_path, capability, budget):
     }
     write_tx(ns, tx)
 
+    # The workspace, not the project: the guard reads its policy there and the ledger keeps its
+    # findings there, so a linked workspace lands both in the same place as the rest of the state.
+    ctx = {
+        "workspace": workspace_root(project),
+        "settings": pol.get("settings"),
+        "capabilityId": recipe["capabilityId"],
+        "locator": os.path.abspath(recipe_path),
+        "workTarget": target,
+        "receipts": [],
+    }
+
     try:
         tx["stage"] = "apply"
         tx["updatedAt"] = utcnow()
         write_tx(ns, tx)
-        apply_package_adds(target, recipe, budget)
+        apply_package_adds(ctx, target, recipe, budget)
         apply_config(target, recipe)
         touched = changed_allowed(target, baseline)
         tx["touched"] = touched
@@ -961,7 +1200,8 @@ def cmd_apply(project, recipe_path, capability, budget):
         tx["stage"] = "smoke"
         tx["updatedAt"] = utcnow()
         write_tx(ns, tx)
-        smoke_result(recipe, target, budget)
+        smoke_result(ctx, recipe, target, budget)
+        verify_receipts(ctx)
 
         tx["stage"] = "record"
         tx["updatedAt"] = utcnow()
@@ -986,15 +1226,12 @@ def cmd_apply(project, recipe_path, capability, budget):
             0,
         )
     except ValueError as exc:
-        code = str(exc) if str(exc) in (
-            "global-or-system",
-            "paid-or-account",
-            "daemon-or-cloud",
+        code = str(exc)
+        if not code.startswith(DENIED_PREFIX) and code not in (
             "owner-dirty-conflict",
             "safety-forbidden",
-        ) else "incompatible-ecosystem"
-        if str(exc) == "global-or-system":
-            code = "global-or-system"
+        ):
+            code = "incompatible-ecosystem"
         return fail_and_rollback(ns, target, tx, exc, code)
     except Exception as exc:
         return fail_and_rollback(ns, target, tx, exc)
@@ -1042,6 +1279,7 @@ def cmd_recover(project, budget):
             raise ValueError("missing recipe for recover")
         setup = finish_late_stages(project, recipe, tx, ns, target)
         clear_tx(ns)
+        clear_baseline_store(ns)
         return emit(
             {
                 "ok": True,
@@ -1118,6 +1356,11 @@ def main(argv):
     project = os.path.abspath(project)
     if not os.path.isdir(project):
         print("provision: not a directory: %s" % project, file=sys.stderr)
+        return 1
+    try:
+        workspace_root(project)
+    except ValueError as exc:
+        print("provision: %s" % exc, file=sys.stderr)
         return 1
     cmd = positional[0]
     if cmd == "plan":

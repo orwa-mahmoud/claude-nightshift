@@ -129,6 +129,9 @@ remembered default holds a repository-tool policy, keep existing-tools.
  (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
  `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
+ Auto-add work runs only under the elevation categories the shift policy allows for tonight; a
+ missing provisioning runtime is a skip reason and the shift continues under existing tools.
+ Recovery runs before Start, so a shift never opens on an unproven baseline.
 
 Report unsupported permission modes the same way Start does **before arming** — a mid-shift prompt
 freezes the night.

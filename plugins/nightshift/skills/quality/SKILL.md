@@ -83,6 +83,9 @@ Ask three independent choices:
   (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
   `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
   `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
+  Auto-add work runs only under the elevation categories the shift policy allows for tonight; a
+  missing provisioning runtime is a skip reason and the shift continues under existing tools.
+  Recovery runs before Start, so a shift never opens on an unproven baseline.
 
 Automatic mode requires hours. Guided mode asks for scope and requires hours only when an
 open-ended entry is selected. In review-first mode scanning is read-only and the clock starts only

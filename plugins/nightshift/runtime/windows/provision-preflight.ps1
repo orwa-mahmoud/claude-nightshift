@@ -5,13 +5,17 @@
 .DESCRIPTION
   Mirrors runtime/provision-preflight.sh. Prints JSON {ok, skipReasons,
   recoverNeeded}. Never writes the punch list. Never installs. A
-  permission-prompt risk is a skip, not a freeze.
+  permission-prompt risk is a skip, not a freeze. Skip reasons:
+  permission-prompt-required, and provisioning-runtime-unavailable when the
+  resolved tooling policy is auto-add on native Windows. With -Recipe the
+  elevation question narrows to the categories that recipe declares.
 #>
 param(
     [string]$Project = [Environment]::CurrentDirectory,
     [Parameter(Position = 0)]
     [ValidateSet('check')]
-    [string]$Command = ''
+    [string]$Command = '',
+    [string]$Recipe = ''
 )
 
 Set-StrictMode -Version 2.0
@@ -82,9 +86,22 @@ if ([string]$env:NIGHTSHIFT_REVIVAL -ne '1') {
     }
 }
 
+# The one resolver decides both skips: auto-add has no provisioning runtime on
+# this host, and an elevation tonight's shift permits without an elevated token
+# is a prompt waiting to freeze the night. A skip is never a freeze.
+$reasons = $null
+try {
+    $reasons = Get-NSProvisionSkipReasons -Workspace $workspace -RecipePath $Recipe `
+        -NativeWindows:(Test-NSWindows) -Elevated:(Test-NSProvisionElevatedToken) `
+        -PermissionGrant:$grant -Attended:$attended
+}
+catch {
+    [Console]::Error.WriteLine('provision-preflight: cannot resolve the shift policy')
+    exit 1
+}
 $skipReasons = New-Object System.Collections.Generic.List[string]
-if ((-not $grant) -and (-not $attended)) {
-    [void]$skipReasons.Add('permission-prompt-required')
+foreach ($reason in @($reasons)) {
+    [void]$skipReasons.Add([string]$reason)
 }
 
 $ok = ($skipReasons.Count -eq 0)
@@ -97,5 +114,7 @@ else {
 }
 $okJson = if ($ok) { 'true' } else { 'false' }
 $recoverJson = if ($recoverNeeded) { 'true' } else { 'false' }
-Write-Output ('{{"ok":{0},"skipReasons":{1},"recoverNeeded":{2}}}' -f $okJson, $reasonsJson, $recoverJson)
+# The report is bytes a caller parses, so it leaves here LF-terminated on every
+# host rather than through the console's line ending.
+Write-NSProvisionOut ('{{"ok":{0},"skipReasons":{1},"recoverNeeded":{2}}}' -f $okJson, $reasonsJson, $recoverJson)
 exit 0

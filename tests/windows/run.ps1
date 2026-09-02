@@ -506,6 +506,10 @@ try {
     $preflightNeedsLogicRun = Invoke-TestScript $preflightNeedsLogic
     Assert-Equal 0 $preflightNeedsLogicRun.ExitCode `
         "permission preflight and parking: $($preflightNeedsLogicRun.Stdout) $($preflightNeedsLogicRun.Stderr)"
+    $provisionRecoverLogic = Join-Path $PSScriptRoot 'provision-recover-logic.ps1'
+    $provisionRecoverLogicRun = Invoke-TestScript $provisionRecoverLogic
+    Assert-Equal 0 $provisionRecoverLogicRun.ExitCode `
+        "provisioning rollback, recovery and the honest refusal: $($provisionRecoverLogicRun.Stdout) $($provisionRecoverLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

@@ -5360,4 +5360,1146 @@ function Invoke-NSParkNeedsCommand {
     return 0
 }
 
+# ---------------------------------------------------------------------------
+# Provisioning - the transaction document, native rollback, and the late stages.
+# The engine that installs a capability is not on this host. What lives here is
+# the recovery every host owes an interrupted transaction, the read-only plan,
+# and the honest refusal.
+# ---------------------------------------------------------------------------
+
+$script:NSProvisionStages = @('authorize', 'capture-baseline', 'apply', 'smoke', 'record', 'commit-tooling')
+# Every stage but record and commit-tooling undoes rather than finishes.
+$script:NSProvisionRollbackStages = @('authorize', 'capture-baseline', 'apply', 'smoke', 'rollback')
+$script:NSProvisionSafeClasses = @('local-dev-free', 'local-dev-with-config')
+$script:NSProvisionSetupPrefix = 'chore(tooling):'
+$script:NSProvisionBudgetDefault = 120
+$script:NSProvisionRequiredFields = @(
+    'capabilityId', 'ecosystems', 'versionConstraints', 'detect', 'probe',
+    'packageManagerAdditions', 'allowedFiles', 'minimalConfig', 'smoke',
+    'rollback', 'enabledShifts', 'safetyClass', 'permissionRequirements', 'recipeVersion')
+$script:NSProvisionLockedNames = @(
+    'punch-list.md', 'parking-lot.md', 'drafting-table.md', 'work-orders.md',
+    'capability-policy.json', 'shift-policy.json', 'shift-defaults.json')
+$script:NSProvisionStackSignals = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
+$script:NSProvisionStackSignals['javascript-typescript'] = @('package.json')
+$script:NSProvisionStackSignals['python'] = @('pyproject.toml', 'requirements.txt', 'setup.cfg', 'setup.py')
+$script:NSProvisionStackSignals['go'] = @('go.mod')
+$script:NSProvisionStackSignals['rust'] = @('Cargo.toml')
+$script:NSProvisionStackSignals['shell-plugin'] = @('.claude-plugin', '.codex-plugin')
+$script:NSProvisionStackSignals['make'] = @('Makefile')
+
+function Write-NSProvisionOut {
+    param([AllowEmptyString()][string]$Text)
+    [Console]::Out.Write($Text)
+    [Console]::Out.Write("`n")
+}
+
+function Write-NSProvisionError {
+    param([AllowEmptyString()][string]$Text)
+    [Console]::Error.WriteLine($Text)
+}
+
+# One line of sorted, compact JSON with a single trailing newline - the bytes the
+# POSIX recovery helper prints, so every host answers on one wire format.
+function Write-NSProvisionJson {
+    param([Parameter(Mandatory = $true)]$Document)
+    Write-NSProvisionOut (ConvertTo-NSCanonicalJson $Document -Compact)
+}
+
+function Write-NSProvisionUsage {
+    Write-NSProvisionError ('usage: provision.ps1 -Project DIR plan|apply|recover|rollback ' +
+        '[-Recipe PATH] [-Capability ID] [-BudgetSeconds N]')
+    return 1
+}
+
+function Get-NSProvisionNow {
+    $fixed = $env:NIGHTSHIFT_PROVISION_NOW
+    if (-not [string]::IsNullOrEmpty($fixed)) { return $fixed }
+    return [DateTime]::UtcNow.ToString('yyyy-MM-dd\THH:mm:ss\Z', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-NSProvisionPaths {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $ns = Join-NSPath (Get-NSAbsolutePath $Project) '.nightshift'
+    $paths = New-NSOrdinalMap
+    $paths['ns'] = $ns
+    $paths['transaction'] = Join-NSPath $ns 'provision-transaction.json'
+    $paths['baseline'] = Join-NSPath $ns 'provision-baseline'
+    $paths['inventory'] = Join-NSPath $ns 'capabilities.json'
+    return $paths
+}
+
+function Get-NSProvisionRelPath {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Rel)
+    return ($Rel.Replace('\', '/')).TrimStart('.', '/')
+}
+
+function Get-NSProvisionByteSha256 {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash($Bytes)
+    }
+    finally {
+        $sha.Dispose()
+    }
+    $builder = New-Object Text.StringBuilder
+    foreach ($byte in $hash) { $null = $builder.Append($byte.ToString('x2')) }
+    return $builder.ToString()
+}
+
+# The blob file name is the digest of the normalized relative path, so the store
+# is addressable without reading the transaction.
+function Get-NSProvisionBlobId {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Rel)
+    return (Get-NSTextSha256 (Get-NSProvisionRelPath $Rel))
+}
+
+# Every path the engine touches is relative, inside the work target, and never an
+# owner file. A baseline that breaks any of the three is malformed, not repairable.
+function Resolve-NSProvisionPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Rel
+    )
+    $relative = Get-NSProvisionRelPath $Rel
+    if ([string]::IsNullOrEmpty($relative)) { throw ('path outside work target: ' + $Rel) }
+    if ($relative.StartsWith('/', [StringComparison]::Ordinal)) { throw ('path outside work target: ' + $Rel) }
+    foreach ($part in $relative.Split('/')) {
+        if ($part -ceq '..') { throw ('path outside work target: ' + $Rel) }
+    }
+    if ($script:NSProvisionLockedNames -ccontains ([IO.Path]::GetFileName($relative))) {
+        throw 'refuses to write Nightshift owner files'
+    }
+    $root = Get-NSAbsolutePath $Target
+    $full = Get-NSAbsolutePath (Join-NSPath $root $relative)
+    $head = $root + [string][IO.Path]::DirectorySeparatorChar
+    if (($full -cne $root) -and -not $full.StartsWith($head, [StringComparison]::Ordinal)) {
+        throw ('path outside work target: ' + $Rel)
+    }
+    return $full
+}
+
+function Read-NSProvisionTransaction {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+    return (ConvertFrom-NSJsonText ([IO.File]::ReadAllText($Path, $script:NSUtf8NoBom)))
+}
+
+function Write-NSProvisionTransaction {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)]$Document
+    )
+    Write-NSEvidenceFileAtomic -Path $Path -Text ((ConvertTo-NSCanonicalJson $Document) + "`n")
+}
+
+# The scalar gate on a transaction: every field recovery reads is present and of
+# the right type, or recovery names the field and touches nothing.
+function Test-NSProvisionTransaction {
+    param($Document)
+    if (-not ($Document -is [Collections.IDictionary])) { return 'document' }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Document 'stage') (@($script:NSProvisionStages) + @('rollback')))) {
+        return 'stage'
+    }
+    $capability = Get-NSMapValue $Document 'capabilityId'
+    if (-not ($capability -is [string]) -or $capability.Length -eq 0) { return 'capabilityId' }
+    $failed = Get-NSMapValue $Document 'failed'
+    if (($null -ne $failed) -and -not ($failed -is [bool])) { return 'failed' }
+    $target = Get-NSMapValue $Document 'workTarget'
+    if ($null -ne $target) {
+        if (-not ($target -is [string]) -or $target.Length -eq 0) { return 'workTarget' }
+    }
+    $touched = Get-NSMapValue $Document 'touched'
+    if ($null -ne $touched) {
+        if (($touched -is [string]) -or ($touched -is [Collections.IDictionary]) -or -not ($touched -is [Collections.IEnumerable])) {
+            return 'touched'
+        }
+        foreach ($entry in @($touched)) {
+            if (-not ($entry -is [string])) { return 'touched' }
+        }
+    }
+    $baseline = Get-NSMapValue $Document 'baseline'
+    if ($null -ne $baseline) {
+        if (-not ($baseline -is [Collections.IDictionary])) { return 'baseline' }
+    }
+    return ''
+}
+
+# The baseline gate needs the work target, so it runs once the target is known:
+# each entry is an object, says whether the file existed, carries a digest when
+# it did, names a blob the store can address, and stays inside the target. The
+# digest itself is compared, never shape-checked.
+function Test-NSProvisionBaseline {
+    param($Baseline, [Parameter(Mandatory = $true)][string]$Target)
+    if ($null -eq $Baseline) { return '' }
+    if (-not ($Baseline -is [Collections.IDictionary])) { return 'baseline' }
+    foreach ($rel in (Sort-NSOrdinal @($Baseline.Keys))) {
+        $label = 'baseline["' + [string]$rel + '"]'
+        $meta = $Baseline[$rel]
+        if (-not ($meta -is [Collections.IDictionary])) { return $label }
+        $existed = Get-NSMapValue $meta 'existed'
+        if (-not ($existed -is [bool])) { return ($label + '.existed') }
+        try {
+            $null = Resolve-NSProvisionPath $Target ([string]$rel)
+        }
+        catch {
+            return $label
+        }
+        $blob = Get-NSMapValue $meta 'blob'
+        if (($null -ne $blob) -and -not (Test-NSPolicyDigest $blob)) { return ($label + '.blob') }
+        if (-not [bool]$existed) { continue }
+        $digest = Get-NSMapValue $meta 'digest'
+        if (-not ($digest -is [string]) -or $digest.Length -eq 0) { return ($label + '.digest') }
+    }
+    return ''
+}
+
+function Get-NSProvisionTouched {
+    param($Transaction)
+    $touched = New-Object Collections.Generic.List[string]
+    $recorded = Get-NSMapValue $Transaction 'touched'
+    if ($null -ne $recorded) {
+        foreach ($entry in @($recorded)) { $touched.Add([string]$entry) }
+    }
+    return , $touched.ToArray()
+}
+
+# The blob store holds the original bytes; the base64 copy in the transaction is
+# the fallback when the store is gone. Neither one usable returns nothing, and a
+# restore with nothing to restore from leaves the file alone for the proof to
+# report - it never invents empty content.
+function Get-NSProvisionRestoreBytes {
+    param(
+        [Parameter(Mandatory = $true)][string]$BaselineDir,
+        [Parameter(Mandatory = $true)]$Meta
+    )
+    $blob = Get-NSMapValue $Meta 'blob'
+    if (($blob -is [string]) -and $blob.Length -gt 0) {
+        $blobPath = Join-NSPath $BaselineDir $blob
+        if (Test-Path -LiteralPath $blobPath -PathType Leaf) {
+            return , ([IO.File]::ReadAllBytes($blobPath))
+        }
+    }
+    $content = Get-NSMapValue $Meta 'content'
+    if (($content -is [string]) -and $content.Length -gt 0) {
+        $decoded = $null
+        try {
+            $decoded = [Convert]::FromBase64String($content)
+        }
+        catch {
+            return $null
+        }
+        return , $decoded
+    }
+    return $null
+}
+
+# A real directory where a file has to land is the owner's, not ours: the restore
+# steps over it and the proof names it.
+function Test-NSProvisionDirectoryBlock {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if (Test-NSReparsePoint $Path) { return $false }
+    return (Test-Path -LiteralPath $Path -PathType Container)
+}
+
+# The restore lands by rename, so a reader never sees half a file, and it
+# replaces a symlink rather than writing through it.
+function Write-NSProvisionRestoredFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes
+    )
+    $temp = $Path + '.nightshift-restore'
+    Remove-NSFile $temp
+    [IO.File]::WriteAllBytes($temp, $Bytes)
+    if (Test-NSReparsePoint $Path) {
+        try {
+            [IO.File]::Delete($Path)
+        }
+        catch {
+            [IO.Directory]::Delete($Path)
+        }
+    }
+    elseif (Test-Path -LiteralPath $Path -PathType Leaf) {
+        Remove-NSFile $Path
+    }
+    [IO.File]::Move($temp, $Path)
+}
+
+# rmdir up the tree: a directory the engine created and nothing else needs goes
+# away, and the walk stops at the work target itself.
+function Remove-NSProvisionEmptyParents {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+    $head = (Get-NSAbsolutePath $Target) + [string][IO.Path]::DirectorySeparatorChar
+    $parent = [IO.Path]::GetDirectoryName($Path)
+    while ((-not [string]::IsNullOrEmpty($parent)) -and $parent.StartsWith($head, [StringComparison]::Ordinal)) {
+        try {
+            [IO.Directory]::Delete($parent)
+        }
+        catch {
+            return
+        }
+        $parent = [IO.Path]::GetDirectoryName($parent)
+    }
+}
+
+function Invoke-NSProvisionRestore {
+    param(
+        [Parameter(Mandatory = $true)][string]$BaselineDir,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)]$Baseline
+    )
+    foreach ($rel in (Sort-NSOrdinal @($Baseline.Keys))) {
+        $meta = $Baseline[$rel]
+        $path = Resolve-NSProvisionPath $Target $rel
+        if (Test-NSPyTruthy (Get-NSMapValue $meta 'existed')) {
+            if (Test-NSProvisionDirectoryBlock $path) { continue }
+            $bytes = Get-NSProvisionRestoreBytes -BaselineDir $BaselineDir -Meta $meta
+            if ($null -eq $bytes) { continue }
+            $parent = [IO.Path]::GetDirectoryName($path)
+            if ((-not [string]::IsNullOrEmpty($parent)) -and -not (Test-Path -LiteralPath $parent -PathType Container)) {
+                $null = New-Item -ItemType Directory -Path $parent -Force
+            }
+            Write-NSProvisionRestoredFile -Path $path -Bytes ([byte[]]$bytes)
+            continue
+        }
+        if (Test-NSReparsePoint $path) {
+            try {
+                [IO.File]::Delete($path)
+            }
+            catch {
+                [IO.Directory]::Delete($path)
+            }
+        }
+        elseif (Test-Path -LiteralPath $path -PathType Leaf) {
+            Remove-NSFile $path
+        }
+        Remove-NSProvisionEmptyParents -Target $Target -Path $path
+    }
+}
+
+# The proof, after the restore: every file that existed hashes to its recorded
+# digest and every file the engine created is gone. The first failure is the one
+# reported, and it leaves the transaction and the store where they are.
+function Test-NSProvisionRestored {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        $Baseline
+    )
+    if ($null -eq $Baseline) { return '' }
+    foreach ($rel in (Sort-NSOrdinal @($Baseline.Keys))) {
+        $meta = $Baseline[$rel]
+        $path = Resolve-NSProvisionPath $Target $rel
+        if (Test-NSPyTruthy (Get-NSMapValue $meta 'existed')) {
+            if (Test-NSProvisionDirectoryBlock $path) {
+                return ('a directory blocks the baseline path: ' + [string]$rel)
+            }
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+                return ('baseline file missing after restore: ' + [string]$rel)
+            }
+            if ((Get-NSFileSha256 $path) -cne [string](Get-NSMapValue $meta 'digest')) {
+                return ('restored bytes do not match baseline digest: ' + [string]$rel)
+            }
+            continue
+        }
+        if (Test-NSPathEntry $path) { return ('created path still present: ' + [string]$rel) }
+    }
+    return ''
+}
+
+# Read-only twin of the proof: the bytes the store and the transaction hold for
+# every file that existed already hash to the recorded digest, so a rollback
+# would prove. Doctor and diagnose report this and restore nothing.
+function Test-NSProvisionProvable {
+    param(
+        [Parameter(Mandatory = $true)][string]$BaselineDir,
+        $Baseline
+    )
+    if ($null -eq $Baseline) { return $true }
+    foreach ($rel in (Sort-NSOrdinal @($Baseline.Keys))) {
+        $meta = $Baseline[$rel]
+        if (-not (Test-NSPyTruthy (Get-NSMapValue $meta 'existed'))) { continue }
+        $bytes = Get-NSProvisionRestoreBytes -BaselineDir $BaselineDir -Meta $meta
+        if ($null -eq $bytes) { return $false }
+        if ((Get-NSProvisionByteSha256 ([byte[]]$bytes)) -cne [string](Get-NSMapValue $meta 'digest')) { return $false }
+    }
+    return $true
+}
+
+function Get-NSProvisionRequiredFields {
+    $fields = $null
+    try {
+        $fields = Get-NSJsonProperty (Get-NSSchemaDocument 'capability-recipe.json') 'requiredRecipeFields'
+    }
+    catch {
+        $fields = $null
+    }
+    $names = New-Object Collections.Generic.List[string]
+    if (($null -ne $fields) -and -not ($fields -is [string])) {
+        foreach ($field in @($fields)) {
+            if ($field -is [string]) { $names.Add($field) }
+        }
+    }
+    if ($names.Count -eq 0) { return , @($script:NSProvisionRequiredFields) }
+    return , $names.ToArray()
+}
+
+function Read-NSProvisionRecipe {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $recipe = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($Path, $script:NSUtf8NoBom))
+    if (-not ($recipe -is [Collections.IDictionary])) { throw 'recipe must be an object' }
+    $missing = New-Object Collections.Generic.List[string]
+    foreach ($field in (Get-NSProvisionRequiredFields)) {
+        if (-not $recipe.Contains($field)) { $missing.Add($field) }
+    }
+    if ($missing.Count -gt 0) { throw ('missing fields: ' + ($missing -join ', ')) }
+    $allowed = Get-NSMapValue $recipe 'allowedFiles'
+    if (($allowed -is [string]) -or ($allowed -is [Collections.IDictionary]) -or -not ($allowed -is [Collections.IEnumerable])) {
+        throw 'allowedFiles must be a list of relative paths'
+    }
+    foreach ($entry in @($allowed)) {
+        if (-not ($entry -is [string]) -or $entry.Length -eq 0) {
+            throw 'allowedFiles must be a list of relative paths'
+        }
+    }
+    return $recipe
+}
+
+function Get-NSProvisionAllowedFiles {
+    param($Recipe)
+    $allowed = New-Object Collections.Generic.List[string]
+    $declared = Get-NSMapValue $Recipe 'allowedFiles'
+    if (($null -ne $declared) -and -not ($declared -is [string])) {
+        foreach ($entry in @($declared)) { $allowed.Add((Get-NSProvisionRelPath ([string]$entry))) }
+    }
+    elseif ($declared -is [string]) {
+        $allowed.Add((Get-NSProvisionRelPath $declared))
+    }
+    return , $allowed.ToArray()
+}
+
+function Test-NSProvisionUnderAllowed {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Rel,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Allowed
+    )
+    $candidate = Get-NSProvisionRelPath $Rel
+    foreach ($entry in $Allowed) {
+        $normalized = Get-NSProvisionRelPath $entry
+        if ($candidate -ceq $normalized) { return $true }
+        if ($candidate.StartsWith($normalized.TrimEnd('/') + '/', [StringComparison]::Ordinal)) { return $true }
+    }
+    return $false
+}
+
+function Get-NSProvisionCommandText {
+    param($Step)
+    if ($Step -is [Collections.IDictionary]) {
+        foreach ($key in @('command', 'cmd')) {
+            $value = Get-NSMapValue $Step $key
+            if (($value -is [string]) -and $value.Length -gt 0) { return $value }
+        }
+        return ''
+    }
+    if ($Step -is [string]) { return $Step }
+    return ''
+}
+
+# Every command the engine would run: the package-manager additions and the
+# smoke. Prose is not a command, and a command is never read from the tree.
+function Get-NSProvisionRecipeCommands {
+    param($Recipe)
+    $commands = New-Object Collections.Generic.List[string]
+    $additions = Get-NSMapValue $Recipe 'packageManagerAdditions'
+    if ($additions -is [Collections.IDictionary]) {
+        $additions = @($additions)
+    }
+    if (($null -ne $additions) -and -not ($additions -is [string])) {
+        foreach ($step in @($additions)) {
+            $text = Get-NSProvisionCommandText $step
+            if ($text.Length -gt 0) { $commands.Add($text) }
+        }
+    }
+    elseif ($additions -is [string]) {
+        $commands.Add($additions)
+    }
+    $smoke = Get-NSProvisionCommandText (Get-NSMapValue $Recipe 'smoke')
+    if ($smoke.Length -gt 0) { $commands.Add($smoke) }
+    return , $commands.ToArray()
+}
+
+function Get-NSProvisionElevationCategories {
+    param($Recipe)
+    $declared = New-Object Collections.Generic.List[string]
+    $value = Get-NSMapValue $Recipe 'elevationCategories'
+    if ($value -is [string]) {
+        if ($value.Length -gt 0) { $declared.Add($value) }
+        return , $declared.ToArray()
+    }
+    if (($null -eq $value) -or ($value -is [Collections.IDictionary]) -or -not ($value -is [Collections.IEnumerable])) {
+        return , $declared.ToArray()
+    }
+    foreach ($entry in @($value)) {
+        if (-not ($entry -is [string]) -or $entry.Length -eq 0) { continue }
+        if (-not ($declared -ccontains $entry)) { $declared.Add($entry) }
+    }
+    return , $declared.ToArray()
+}
+
+function Test-NSProvisionGitTarget {
+    param([Parameter(Mandatory = $true)][string]$Target)
+    $result = Invoke-NSGitCommand $Target @('rev-parse', '--is-inside-work-tree')
+    if ($result.ExitCode -ne 0) { return $false }
+    return (([string]$result.Text).Trim() -ceq 'true')
+}
+
+function Get-NSProvisionPorcelain {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Paths
+    )
+    $lines = New-Object Collections.Generic.List[string]
+    if ($Paths.Count -eq 0) { return , $lines.ToArray() }
+    if (-not (Test-NSProvisionGitTarget $Target)) { return , $lines.ToArray() }
+    $result = Invoke-NSGitCommand $Target (@('status', '--porcelain', '--') + $Paths)
+    if ($result.ExitCode -ne 0) { return , $lines.ToArray() }
+    foreach ($line in @($result.Lines)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$line)) { $lines.Add([string]$line) }
+    }
+    return , $lines.ToArray()
+}
+
+# A capability already carrying its setup commit is provisioned. The subject is
+# the whole record; nothing re-reads the tool.
+function Get-NSProvisionSetupCommit {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$CapabilityId
+    )
+    if ([string]::IsNullOrEmpty($CapabilityId)) { return '' }
+    if (-not (Test-NSProvisionGitTarget $Target)) { return '' }
+    $subject = $script:NSProvisionSetupPrefix + ' ' + $CapabilityId
+    $result = Invoke-NSGitCommand $Target @('log', '--format=%H %s', '-n', '80')
+    if ($result.ExitCode -ne 0) { return '' }
+    foreach ($line in @($result.Lines)) {
+        $text = [string]$line
+        $cut = $text.IndexOf(' ', [StringComparison]::Ordinal)
+        if ($cut -lt 1) { continue }
+        if (($text.Substring($cut + 1)) -ceq $subject) { return $text.Substring(0, $cut) }
+    }
+    return ''
+}
+
+function Get-NSProvisionStacks {
+    param([Parameter(Mandatory = $true)][string]$Target)
+    $found = New-Object Collections.Generic.List[string]
+    foreach ($name in @($script:NSProvisionStackSignals.Keys)) {
+        foreach ($signal in @($script:NSProvisionStackSignals[$name])) {
+            if (Test-NSPathEntry (Join-NSPath $Target $signal)) {
+                $found.Add([string]$name)
+                break
+            }
+        }
+    }
+    return , $found.ToArray()
+}
+
+function Get-NSProvisionInventory {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $path = (Get-NSProvisionPaths $Project)['inventory']
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $document = New-NSOrdinalMap
+        $document['schemaVersion'] = 1
+        $document['source'] = 'default'
+        $document['items'] = @()
+        $document['updatedAt'] = $null
+        $document['tickProof'] = $false
+        return $document
+    }
+    $document = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($path, $script:NSUtf8NoBom))
+    if (-not ($document -is [Collections.IDictionary])) { throw 'inventory must be an object' }
+    return $document
+}
+
+# One row per capability, replaced in place. schemaVersion, updatedAt and
+# tickProof are the writer's, never the caller's.
+function Write-NSProvisionInventory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)]$Recipe,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$SetupCommit
+    )
+    $paths = Get-NSProvisionPaths $Project
+    $document = $null
+    try {
+        $document = Get-NSProvisionInventory $Project
+    }
+    catch {
+        $document = New-NSOrdinalMap
+        $document['items'] = @()
+    }
+    $capability = [string](Get-NSMapValue $Recipe 'capabilityId')
+    $items = New-Object Collections.Generic.List[object]
+    $recorded = Get-NSMapValue $document 'items'
+    if (($null -ne $recorded) -and -not ($recorded -is [string])) {
+        foreach ($item in @($recorded)) {
+            if (-not ($item -is [Collections.IDictionary])) { continue }
+            if ([string](Get-NSMapValue $item 'capability') -ceq $capability) { continue }
+            $items.Add($item)
+        }
+    }
+    $row = New-NSOrdinalMap
+    $row['capability'] = $capability
+    $row['command'] = Get-NSProvisionCommandText (Get-NSMapValue $Recipe 'smoke')
+    $row['source'] = 'recipe'
+    $row['verifiedAt'] = Get-NSProvisionNow
+    $row['configFiles'] = Get-NSPolicyField $Recipe 'allowedFiles'
+    $row['recipeVersion'] = Get-NSMapValue $Recipe 'recipeVersion'
+    $row['setupCommit'] = $SetupCommit
+    $items.Add($row)
+    $document['items'] = $items.ToArray()
+    $document['schemaVersion'] = 1
+    $document['updatedAt'] = Get-NSProvisionNow
+    $document['tickProof'] = $false
+    Write-NSEvidenceFileAtomic -Path $paths['inventory'] -Text ((ConvertTo-NSCanonicalJson $document) + "`n")
+}
+
+# The setup commit: the allowed files the transaction actually touched, staged
+# and committed under one subject. Nothing staged is not a failure.
+function Invoke-NSProvisionCommitTooling {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)]$Recipe,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Touched
+    )
+    if (-not (Test-NSProvisionGitTarget $Target)) { return '' }
+    $allowed = [string[]](Get-NSProvisionAllowedFiles $Recipe)
+    $paths = New-Object Collections.Generic.List[string]
+    foreach ($rel in $Touched) {
+        if (Test-NSProvisionUnderAllowed -Rel $rel -Allowed $allowed) { $paths.Add((Get-NSProvisionRelPath $rel)) }
+    }
+    if ($paths.Count -eq 0) { return '' }
+    foreach ($rel in $paths) {
+        $null = Invoke-NSGitCommand $Target @('add', '--', $rel)
+    }
+    $subject = $script:NSProvisionSetupPrefix + ' ' + [string](Get-NSMapValue $Recipe 'capabilityId')
+    $commit = Invoke-NSGitCommand $Target (@('commit', '-m', $subject, '--') + $paths.ToArray())
+    if ($commit.ExitCode -ne 0) {
+        if ((Get-NSProvisionPorcelain -Target $Target -Paths $paths.ToArray()).Count -eq 0) { return '' }
+        throw 'commit-tooling failed'
+    }
+    $head = Invoke-NSGit $Target @('rev-parse', 'HEAD')
+    if ([string]::IsNullOrEmpty($head)) { return '' }
+    return $head
+}
+
+function Write-NSProvisionRefusal {
+    param(
+        [Parameter(Mandatory = $true)][string]$Code,
+        [AllowEmptyString()][string]$Detail = ''
+    )
+    $document = New-NSOrdinalMap
+    $document['ok'] = $false
+    $document['refused'] = $true
+    $document['reason'] = $Code
+    $document['refusalReasons'] = @($Code)
+    if (-not [string]::IsNullOrEmpty($Detail)) { $document['detail'] = $Detail }
+    Write-NSProvisionJson $document
+    return 2
+}
+
+# Authorization is the shift's, not the recipe's: a declared category must be
+# allowed for tonight, and every command the recipe would run is matched against
+# the five patterns so an undeclared category cannot slip through prose.
+function Get-NSProvisionRefusals {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)]$Recipe,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Mode,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$ToolingPolicy,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)]$Resolution
+    )
+    $reasons = New-Object Collections.Generic.List[string]
+    if ($ToolingPolicy -cne 'auto-add') { $reasons.Add('policy-not-auto-add') }
+    if ($Mode -ceq 'artifact') { $reasons.Add('artifact-mode') }
+
+    $settings = $Resolution['settings']
+    foreach ($category in (Get-NSProvisionElevationCategories $Recipe)) {
+        $value = 'deny'
+        if ($settings.Contains('elevation.' + $category)) {
+            $value = [string]$settings['elevation.' + $category]['value']
+        }
+        if (($value -ceq 'allow') -or ($value -ceq 'exact-plan')) { continue }
+        $code = 'elevation-denied:' + $category
+        if (-not ($reasons -ccontains $code)) { $reasons.Add($code) }
+    }
+    foreach ($command in (Get-NSProvisionRecipeCommands $Recipe)) {
+        foreach ($category in $script:NSPolicyCategories) {
+            $pattern = Get-NSElevationPattern $Workspace $category
+            if ([string]::IsNullOrEmpty($pattern)) { continue }
+            if (-not (New-NSPolicyRegex $pattern).IsMatch($command)) { continue }
+            if ((Test-NSPolicyAllowed -Workspace $Workspace -Category $category -Command $command) -eq 0) { continue }
+            $code = 'elevation-denied:' + $category
+            if (-not ($reasons -ccontains $code)) { $reasons.Add($code) }
+        }
+    }
+
+    $ecosystems = New-Object Collections.Generic.List[string]
+    $declared = Get-NSMapValue $Recipe 'ecosystems'
+    if ($declared -is [string]) {
+        $ecosystems.Add($declared)
+    }
+    elseif (($null -ne $declared) -and -not ($declared -is [Collections.IDictionary])) {
+        foreach ($entry in @($declared)) {
+            if ($entry -is [string]) { $ecosystems.Add($entry) }
+        }
+    }
+    if ($ecosystems.Count -gt 0) {
+        $wild = $false
+        foreach ($name in $ecosystems) {
+            if (($name -ceq '*') -or ($name -ceq 'any')) { $wild = $true }
+        }
+        $stacks = [string[]](Get-NSProvisionStacks $Target)
+        if ((-not $wild) -and $stacks.Count -gt 0) {
+            $shared = $false
+            foreach ($name in $ecosystems) {
+                if ($stacks -ccontains $name) { $shared = $true }
+            }
+            if (-not $shared) { $reasons.Add('incompatible-ecosystem') }
+        }
+    }
+
+    if ((Get-NSProvisionPorcelain -Target $Target -Paths ([string[]](Get-NSProvisionAllowedFiles $Recipe))).Count -gt 0) {
+        $reasons.Add('owner-dirty-conflict')
+    }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Recipe 'safetyClass') $script:NSProvisionSafeClasses)) {
+        $reasons.Add('safety-forbidden')
+    }
+    return , $reasons.ToArray()
+}
+
+function Get-NSProvisionPlanDocument {
+    param(
+        [Parameter(Mandatory = $true)]$Recipe,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Reasons,
+        [Parameter(Mandatory = $true)][string]$Target
+    )
+    $capability = [string](Get-NSMapValue $Recipe 'capabilityId')
+    $reason = $null
+    if ($Reasons -ccontains 'artifact-mode') {
+        $reason = 'artifact-mode'
+    }
+    elseif ($Reasons.Count -gt 0) {
+        $reason = [string]$Reasons[0]
+    }
+    $document = New-NSOrdinalMap
+    $document['ok'] = ($Reasons.Count -eq 0)
+    $document['refused'] = ($Reasons.Count -gt 0)
+    $document['refusalReasons'] = $Reasons
+    $document['reason'] = $reason
+    $document['capabilityId'] = Get-NSMapValue $Recipe 'capabilityId'
+    $document['recipeVersion'] = Get-NSMapValue $Recipe 'recipeVersion'
+    $document['allowedFiles'] = Get-NSPolicyField $Recipe 'allowedFiles'
+    $document['safetyClass'] = Get-NSMapValue $Recipe 'safetyClass'
+    $document['enabledShifts'] = Get-NSPolicyField $Recipe 'enabledShifts'
+    $document['packageManagerAdditions'] = Get-NSPolicyField $Recipe 'packageManagerAdditions'
+    $document['minimalConfig'] = Get-NSMapValue $Recipe 'minimalConfig'
+    $document['smoke'] = Get-NSMapValue $Recipe 'smoke'
+    $document['rollback'] = Get-NSMapValue $Recipe 'rollback'
+    $document['workTarget'] = $Target
+    $document['stages'] = $script:NSProvisionStages
+    $document['alreadyProvisioned'] = ((Get-NSProvisionSetupCommit -Target $Target -CapabilityId $capability).Length -gt 0)
+    return $document
+}
+
+function Resolve-NSProvisionTarget {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    try {
+        return (Resolve-NSWorkTarget $Project)
+    }
+    catch {
+        return (Get-NSAbsolutePath $Project)
+    }
+}
+
+# plan reads: the recipe, the resolved shift policy, the work mode and the tree.
+# It writes nothing and prints the same refusal codes on every host.
+function Invoke-NSProvisionPlan {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)][string]$RecipePath,
+        [AllowEmptyString()][string]$Capability = ''
+    )
+    $workspace = Get-NSAbsolutePath $Project
+    $mode = 'repository'
+    try {
+        $mode = Get-NSWorkMode $workspace
+    }
+    catch {
+        $mode = 'repository'
+    }
+    $resolution = $null
+    try {
+        $resolution = Get-NSPolicyResolution $workspace
+    }
+    catch {
+        return (Write-NSProvisionRefusal 'policy-not-auto-add' 'policy lookup failed')
+    }
+    $policy = [string]$resolution['settings']['toolingPolicy']['value']
+    $recipe = $null
+    try {
+        $recipe = Read-NSProvisionRecipe $RecipePath
+    }
+    catch {
+        return (Write-NSProvisionRefusal 'incompatible-ecosystem' ([string]$_.Exception.Message))
+    }
+    if ((-not [string]::IsNullOrEmpty($Capability)) -and -not ([string](Get-NSMapValue $recipe 'capabilityId') -ceq $Capability)) {
+        return (Write-NSProvisionRefusal 'incompatible-ecosystem' 'capability mismatch')
+    }
+    $target = Resolve-NSProvisionTarget $workspace
+    $reasons = [string[]](Get-NSProvisionRefusals -Workspace $workspace -Recipe $recipe -Mode $mode `
+            -ToolingPolicy $policy -Target $target -Resolution $resolution)
+    Write-NSProvisionJson (Get-NSProvisionPlanDocument -Recipe $recipe -Reasons $reasons -Target $target)
+    if ($reasons.Count -gt 0) { return 2 }
+    return 0
+}
+
+# There is no provisioning runtime on this host. apply says so and changes
+# nothing; recovery, rollback and the read-only plan are all native.
+function Invoke-NSProvisionApply {
+    $document = New-NSOrdinalMap
+    $document['ok'] = $false
+    $document['refused'] = $true
+    $document['refusalReasons'] = @('provisioning-runtime-unavailable')
+    Write-NSProvisionJson $document
+    return 3
+}
+
+function Invoke-NSProvisionRollback {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)]$Transaction,
+        [Parameter(Mandatory = $true)][string]$Target
+    )
+    $paths = Get-NSProvisionPaths $Project
+    $baseline = Get-NSMapValue $Transaction 'baseline'
+    $detail = ''
+    try {
+        if ($null -ne $baseline) {
+            Invoke-NSProvisionRestore -BaselineDir $paths['baseline'] -Target $Target -Baseline $baseline
+        }
+        $detail = Test-NSProvisionRestored -Target $Target -Baseline $baseline
+    }
+    catch {
+        $detail = [string]$_.Exception.Message
+    }
+    if ($detail.Length -gt 0) {
+        $document = New-NSOrdinalMap
+        $document['ok'] = $false
+        $document['rolledBack'] = $false
+        $document['proven'] = $false
+        $document['detail'] = $detail
+        Write-NSProvisionJson $document
+        return 3
+    }
+    Remove-NSPath $paths['baseline']
+    Remove-NSFile $paths['transaction']
+    $document = New-NSOrdinalMap
+    $document['ok'] = $true
+    $document['rolledBack'] = $true
+    $document['capabilityId'] = [string](Get-NSMapValue $Transaction 'capabilityId')
+    $document['touched'] = Get-NSProvisionTouched $Transaction
+    $document['proven'] = $true
+    Write-NSProvisionJson $document
+    return 0
+}
+
+# record and commit-tooling are the two stages that finish rather than undo: the
+# inventory row lands, the allowed files are committed under one subject, and the
+# transaction goes away.
+function Invoke-NSProvisionFinish {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)]$Transaction,
+        [Parameter(Mandatory = $true)][string]$Target,
+        [Parameter(Mandatory = $true)]$Recipe
+    )
+    $paths = Get-NSProvisionPaths $Project
+    $touched = [string[]](Get-NSProvisionTouched $Transaction)
+    if ([string](Get-NSMapValue $Transaction 'stage') -ceq 'record') {
+        Write-NSProvisionInventory -Project $Project -Recipe $Recipe -SetupCommit ''
+        $Transaction['stage'] = 'commit-tooling'
+        $Transaction['updatedAt'] = Get-NSProvisionNow
+        Write-NSProvisionTransaction -Path $paths['transaction'] -Document $Transaction
+    }
+    $setup = Invoke-NSProvisionCommitTooling -Target $Target -Recipe $Recipe -Touched $touched
+    if ($setup.Length -gt 0) {
+        Write-NSProvisionInventory -Project $Project -Recipe $Recipe -SetupCommit $setup
+    }
+    Remove-NSPath $paths['baseline']
+    Remove-NSFile $paths['transaction']
+    $document = New-NSOrdinalMap
+    $document['ok'] = $true
+    $document['recovered'] = $true
+    $document['finished'] = $true
+    $document['capabilityId'] = Get-NSMapValue $Recipe 'capabilityId'
+    $document['setupCommit'] = $setup
+    $document['touched'] = $touched
+    Write-NSProvisionJson $document
+    return 0
+}
+
+# The one recovery path, and Start runs it before any product work.
+#   0 nothing to recover, rolled back and proven, or late stages finished
+#   2 the transaction is malformed - the field is named and nothing is touched
+#   3 the restore could not be proven - the transaction and the store stay put
+# -Rollback forces the undo whatever the stage; -Diagnose only reports.
+# -BudgetSeconds is the engine's argument contract; recovery is bounded by the
+# work itself - the recorded files and at most two Git calls - and never
+# abandons a restore half done.
+function Invoke-NSProvisionRecover {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [int]$BudgetSeconds = 0,
+        [switch]$Rollback,
+        [switch]$Diagnose
+    )
+    $project = Get-NSAbsolutePath $Project
+    if ($Diagnose.IsPresent) { return (Invoke-NSProvisionDiagnose -Project $project) }
+    $paths = Get-NSProvisionPaths $project
+    if (-not (Test-Path -LiteralPath $paths['transaction'] -PathType Leaf)) {
+        $document = New-NSOrdinalMap
+        $document['ok'] = $true
+        $document['recovered'] = $false
+        $document['detail'] = 'no transaction'
+        Write-NSProvisionJson $document
+        return 0
+    }
+    $transaction = $null
+    # State is a file, never a link: a transaction reached through a reparse
+    # point is malformed, not followed.
+    if (-not (Test-NSReparsePoint $paths['transaction'])) {
+        try {
+            $transaction = Read-NSProvisionTransaction $paths['transaction']
+        }
+        catch {
+            $transaction = $null
+        }
+    }
+    $field = 'document'
+    if ($null -ne $transaction) { $field = Test-NSProvisionTransaction $transaction }
+    $target = ''
+    if ($field.Length -eq 0) {
+        $target = [string](Get-NSMapValue $transaction 'workTarget')
+        if ([string]::IsNullOrEmpty($target)) { $target = Resolve-NSProvisionTarget $project }
+        $field = Test-NSProvisionBaseline -Baseline (Get-NSMapValue $transaction 'baseline') -Target $target
+    }
+    if ($field.Length -gt 0) {
+        $document = New-NSOrdinalMap
+        $document['ok'] = $false
+        $document['recovered'] = $false
+        $document['malformed'] = $true
+        $document['detail'] = 'malformed transaction: ' + $field
+        Write-NSProvisionJson $document
+        return 2
+    }
+    $stage = [string](Get-NSMapValue $transaction 'stage')
+    $failed = Test-NSPyTruthy (Get-NSMapValue $transaction 'failed')
+    if ($Rollback.IsPresent -or $failed -or ($script:NSProvisionRollbackStages -ccontains $stage)) {
+        return (Invoke-NSProvisionRollback -Project $project -Transaction $transaction -Target $target)
+    }
+    $recipePath = [string](Get-NSMapValue $transaction 'recipePath')
+    $recipe = $null
+    if ($recipePath.Length -gt 0) {
+        try {
+            $recipe = Read-NSProvisionRecipe $recipePath
+        }
+        catch {
+            $recipe = $null
+        }
+    }
+    if ($null -eq $recipe) {
+        return (Invoke-NSProvisionRollback -Project $project -Transaction $transaction -Target $target)
+    }
+    try {
+        return (Invoke-NSProvisionFinish -Project $project -Transaction $transaction -Target $target -Recipe $recipe)
+    }
+    catch {
+        return (Invoke-NSProvisionRollback -Project $project -Transaction $transaction -Target $target)
+    }
+}
+
+# What Doctor reads: whether a transaction is open, at which stage, for which
+# capability, and whether its baseline would prove. Doctor never restores.
+function Get-NSProvisionDiagnosis {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $paths = Get-NSProvisionPaths $Project
+    $report = New-NSOrdinalMap
+    $report['present'] = $false
+    $report['malformed'] = ''
+    $report['stage'] = ''
+    $report['capabilityId'] = ''
+    $report['provable'] = $false
+    if (Test-NSReparsePoint $paths['transaction']) {
+        $report['present'] = $true
+        $report['malformed'] = 'document'
+        return $report
+    }
+    if (-not (Test-Path -LiteralPath $paths['transaction'] -PathType Leaf)) { return $report }
+    $report['present'] = $true
+    $transaction = $null
+    try {
+        $transaction = Read-NSProvisionTransaction $paths['transaction']
+    }
+    catch {
+        $transaction = $null
+    }
+    $field = 'document'
+    if ($null -ne $transaction) { $field = Test-NSProvisionTransaction $transaction }
+    if ($field.Length -gt 0) {
+        $report['malformed'] = $field
+        return $report
+    }
+    $report['stage'] = [string](Get-NSMapValue $transaction 'stage')
+    $report['capabilityId'] = [string](Get-NSMapValue $transaction 'capabilityId')
+    $target = [string](Get-NSMapValue $transaction 'workTarget')
+    if ([string]::IsNullOrEmpty($target)) { $target = Resolve-NSProvisionTarget $Project }
+    $baseline = Get-NSMapValue $transaction 'baseline'
+    $field = Test-NSProvisionBaseline -Baseline $baseline -Target $target
+    if ($field.Length -gt 0) {
+        $report['malformed'] = $field
+        return $report
+    }
+    $report['provable'] = (Test-NSProvisionProvable -BaselineDir $paths['baseline'] -Baseline $baseline)
+    return $report
+}
+
+# The class, then the sentence - one tab-separated line, the same on every host.
+function Get-NSProvisionDiagnosisClass {
+    param([Parameter(Mandatory = $true)]$Report)
+    if ([string]$Report['malformed'] -cne '') { return 'malformed' }
+    if ($Report['provable']) { return 'provable' }
+    return 'unprovable'
+}
+
+function Get-NSProvisionDiagnosisLine {
+    param([Parameter(Mandatory = $true)]$Report)
+    if ([string]$Report['malformed'] -cne '') {
+        return ('provision-transaction.json is malformed (' + [string]$Report['malformed'] + ')')
+    }
+    $state = 'unprovable'
+    if ($Report['provable']) { $state = 'provable' }
+    return ('provision transaction stage=' + [string]$Report['stage'] + ' capability=' +
+        [string]$Report['capabilityId'] + ' baseline=' + $state)
+}
+
+# Read-only: no transaction prints nothing at all.
+function Invoke-NSProvisionDiagnose {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $report = Get-NSProvisionDiagnosis $Project
+    if (-not $report['present']) { return 0 }
+    Write-NSProvisionOut ((Get-NSProvisionDiagnosisClass $report) + "`t" + (Get-NSProvisionDiagnosisLine $report))
+    return 0
+}
+
+# Preflight reports; it never installs and never lifts a category. On this host
+# auto-add has no runtime to run, and an elevation the shift permits without an
+# elevated token is a prompt waiting to freeze the night.
+function Get-NSProvisionSkipReasons {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [AllowEmptyString()][string]$RecipePath = '',
+        [switch]$NativeWindows,
+        [switch]$Elevated,
+        [switch]$PermissionGrant,
+        [switch]$Attended
+    )
+    $resolution = Get-NSPolicyResolution $Workspace
+    $settings = $resolution['settings']
+    $policy = [string]$settings['toolingPolicy']['value']
+    # Named a recipe, the elevation question narrows to the categories that
+    # recipe declares; without one, any category tonight permits is a prompt
+    # waiting to happen. An unreadable recipe narrows nothing.
+    $categories = @($script:NSPolicyCategories)
+    if (-not [string]::IsNullOrEmpty($RecipePath)) {
+        try {
+            $categories = @(Get-NSProvisionElevationCategories (Read-NSProvisionRecipe $RecipePath))
+        }
+        catch {
+            $categories = @($script:NSPolicyCategories)
+        }
+    }
+    $elevationRequested = $false
+    foreach ($category in $categories) {
+        if (-not $settings.Contains('elevation.' + $category)) { continue }
+        if ([string]$settings['elevation.' + $category]['value'] -cne 'deny') { $elevationRequested = $true }
+    }
+    $reasons = New-Object Collections.Generic.List[string]
+    $prompt = ((-not $PermissionGrant.IsPresent) -and (-not $Attended.IsPresent))
+    if ($NativeWindows.IsPresent -and $elevationRequested -and (-not $Elevated.IsPresent)) { $prompt = $true }
+    if ($prompt) { $reasons.Add('permission-prompt-required') }
+    if ($NativeWindows.IsPresent -and ($policy -ceq 'auto-add')) {
+        $reasons.Add('provisioning-runtime-unavailable')
+    }
+    return , $reasons.ToArray()
+}
+
+function Test-NSProvisionElevatedToken {
+    if (-not (Test-NSWindows)) { return $false }
+    try {
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+        return [bool]$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-NSProvisionCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$Command = '',
+        [AllowEmptyString()][string]$Recipe = '',
+        [AllowEmptyString()][string]$Capability = '',
+        [AllowEmptyString()][string]$BudgetSeconds = '',
+        [switch]$Rollback,
+        [switch]$Diagnose
+    )
+    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Command)) { return (Write-NSProvisionUsage) }
+    $budget = $script:NSProvisionBudgetDefault
+    if (-not [string]::IsNullOrEmpty($BudgetSeconds)) {
+        if ($BudgetSeconds -cnotmatch '^[0-9]+$') { return (Write-NSProvisionUsage) }
+        $budget = [int]$BudgetSeconds
+    }
+    $workspace = Get-NSAbsolutePath $Project
+    if (-not (Test-Path -LiteralPath $workspace -PathType Container)) {
+        Write-NSProvisionError ('provision: not a directory: ' + $workspace)
+        return 1
+    }
+    switch ($Command) {
+        'plan' {
+            if ([string]::IsNullOrEmpty($Recipe)) { return (Write-NSProvisionUsage) }
+            return (Invoke-NSProvisionPlan -Project $workspace -RecipePath $Recipe -Capability $Capability)
+        }
+        'apply' {
+            if ([string]::IsNullOrEmpty($Recipe)) { return (Write-NSProvisionUsage) }
+            return (Invoke-NSProvisionApply)
+        }
+        'recover' {
+            return (Invoke-NSProvisionRecover -Project $workspace -BudgetSeconds $budget `
+                    -Rollback:$Rollback -Diagnose:$Diagnose)
+        }
+        'rollback' {
+            return (Invoke-NSProvisionRecover -Project $workspace -BudgetSeconds $budget -Rollback)
+        }
+    }
+    return (Write-NSProvisionUsage)
+}
+
 Export-ModuleMember -Function *

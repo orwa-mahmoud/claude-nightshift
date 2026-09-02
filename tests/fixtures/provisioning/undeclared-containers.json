@@ -1,0 +1,18 @@
+{
+  "capabilityId": "fixture-container-lint",
+  "ecosystems": ["javascript-typescript"],
+  "versionConstraints": {"node": ">=18"},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["nightshift-fake.txt"],
+  "minimalConfig": {
+    "nightshift-fake.txt": "ok\n"
+  },
+  "smoke": {"command": "docker compose run --rm lint"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-free",
+  "permissionRequirements": [],
+  "recipeVersion": "1"
+}

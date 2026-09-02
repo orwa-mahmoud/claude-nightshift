@@ -1,11 +1,18 @@
 <#
 .SYNOPSIS
-  Forward Auto-add provisioning verbs on native Windows.
+  Auto-add provisioning verbs on native Windows.
 
 .DESCRIPTION
-  Mirrors runtime/provision.sh. Resolves the plugin root and calls runtime/provision.py.
-  The Python engine is authoritative; this wrapper does not implement plan, apply,
-  recover, or rollback.
+  Mirrors runtime/provision.sh. `plan` reads the recipe, the resolved shift
+  policy and the work target, prints the plan and touches nothing. `recover`
+  and `rollback` are native: they finish or undo an interrupted transaction
+  from .nightshift/provision-transaction.json and prove the restore against
+  the recorded digests before clearing anything. `recover -Rollback` forces the
+  undo whatever the stage; `recover -Diagnose` only reports, one tab-separated
+  line. `apply` reports that no provisioning runtime is available on this host
+  and changes nothing.
+  Exit: 0 ok - 1 usage/runtime failure - 2 refused or malformed - 3 unproven
+  or unavailable
 #>
 param(
     [string]$Project = [Environment]::CurrentDirectory,
@@ -14,34 +21,16 @@ param(
     [string]$Command,
     [string]$Recipe = '',
     [string]$Capability = '',
-    [string]$BudgetSeconds = ''
+    [string]$BudgetSeconds = '',
+    [switch]$Rollback,
+    [switch]$Diagnose
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
-$py = Join-Path $pluginRoot 'runtime/provision.py'
-$python = Get-Command python3 -ErrorAction SilentlyContinue
-if (-not $python) {
-    $python = Get-Command python -ErrorAction SilentlyContinue
-}
-if (-not $python) {
-    [Console]::Error.WriteLine('provision: python3 is required')
-    exit 1
-}
+Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
-$argsList = @($py, '--project', $Project)
-if ($Recipe) {
-    $argsList += @('--recipe', $Recipe)
-}
-if ($Capability) {
-    $argsList += @('--capability', $Capability)
-}
-if ($BudgetSeconds) {
-    $argsList += @('--budget-seconds', $BudgetSeconds)
-}
-$argsList += $Command
-
-& $python.Source @argsList
-exit $LASTEXITCODE
+exit (Invoke-NSProvisionCommand -Project $Project -Command $Command -Recipe $Recipe `
+        -Capability $Capability -BudgetSeconds $BudgetSeconds -Rollback:$Rollback -Diagnose:$Diagnose)

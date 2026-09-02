@@ -1,0 +1,19 @@
+{
+  "capabilityId": "fixture-elev-global-packages",
+  "ecosystems": ["*"],
+  "versionConstraints": {},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["elev-global-packages-config.txt"],
+  "minimalConfig": {
+    "elev-global-packages-config.txt": "ok\n"
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1",
+  "elevationCategories": ["global-packages"]
+}

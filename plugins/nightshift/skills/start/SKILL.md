@@ -235,10 +235,16 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh" --project "$NIGHTSHIFT_WORKSPACE" check`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision-preflight.ps1" -Project "$NIGHTSHIFT_WORKSPACE" check`).
- If `$NS/provision-transaction.json` exists, recover first with
+ If `$NS/provision-transaction.json` exists, recover before any product work with
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" recover`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
+ Exit 0 is settled — the transaction either finished its last stages or rolled back to a proven
+ baseline — and the shift continues. Exit 3 (the restore is unproven) or exit 2 (the transaction is
+ malformed) refuses to arm: print the helper's `detail` and the repair — inspect
+ .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run
+ provision.sh rollback after fixing the target, then Start again. A half-installed tool is never
+ reported and worked around.
 - **Resolve tonight's shift policy.** Run
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" get`
  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" get`).

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "stage": "apply",
+  "capabilityId": "fixture-recover",
+  "baseline": {
+    "recover-tool.json": {
+      "existed": "yes",
+      "digest": null,
+      "blob": null,
+      "content": null
+    }
+  },
+  "touched": [],
+  "failed": false
+}

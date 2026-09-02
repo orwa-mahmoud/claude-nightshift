@@ -1,0 +1,21 @@
+{
+  "capabilityId": "fixture-sudo-lint",
+  "ecosystems": ["javascript-typescript"],
+  "versionConstraints": {"node": ">=18"},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [
+    "sudo apt-get install -y nightshift-fixture"
+  ],
+  "allowedFiles": ["nightshift-fake.txt"],
+  "minimalConfig": {
+    "nightshift-fake.txt": "ok\n"
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-free",
+  "permissionRequirements": ["elevation.sudo"],
+  "elevationCategories": ["sudo"],
+  "recipeVersion": "1"
+}

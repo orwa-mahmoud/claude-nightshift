@@ -1,0 +1,19 @@
+{
+  "capabilityId": "fixture-elev-external-services",
+  "ecosystems": ["*"],
+  "versionConstraints": {},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["elev-external-services-config.txt"],
+  "minimalConfig": {
+    "elev-external-services-config.txt": "ok\n"
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1",
+  "elevationCategories": ["external-services"]
+}

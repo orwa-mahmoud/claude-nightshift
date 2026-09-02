@@ -1,0 +1,19 @@
+{
+  "capabilityId": "fixture-recover",
+  "ecosystems": ["javascript-typescript"],
+  "versionConstraints": {"node": ">=18"},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["recover-tool.json", "config/recover-tool.rc"],
+  "minimalConfig": {
+    "recover-tool.json": "{}\n",
+    "config/recover-tool.rc": "on\n"
+  },
+  "smoke": {"command": "recover-tool --version"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-free",
+  "permissionRequirements": [],
+  "recipeVersion": "1"
+}

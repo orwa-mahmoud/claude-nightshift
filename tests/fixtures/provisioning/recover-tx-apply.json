@@ -1,0 +1,34 @@
+{
+  "baseline": {
+    "generated/nested/nightshift-fake.txt": {
+      "blob": null,
+      "content": null,
+      "digest": null,
+      "existed": false
+    },
+    "nightshift-config.json": {
+      "blob": "11a14789a0a07f64fc468714f8144bb52760089bf8fa6ce5cffec38fd04215ae",
+      "content": "eyJvayI6dHJ1ZX0K",
+      "digest": "e5f1eb4d806641698a35efe20e098efd20d7d57a9b90ee69079d5bb650920726",
+      "existed": true
+    },
+    "nightshift-keep.txt": {
+      "blob": "d22353771ac1c7ecf8369be721b3e17fddc2c712bde82bc50146602c3f6fd00b",
+      "content": "YmFzZWxpbmUK",
+      "digest": "4b654bd1437066b13498661f3ca14774daf1066d072036beffaf06f0c014250e",
+      "existed": true
+    }
+  },
+  "capabilityId": "fixture-recover",
+  "failed": false,
+  "recipePath": "__RECIPE_PATH__",
+  "stage": "apply",
+  "startedAt": "2026-01-01T00:00:00Z",
+  "touched": [
+    "generated/nested/nightshift-fake.txt",
+    "nightshift-config.json",
+    "nightshift-keep.txt"
+  ],
+  "updatedAt": "2026-01-01T00:00:03Z",
+  "workTarget": "__WORK_TARGET__"
+}

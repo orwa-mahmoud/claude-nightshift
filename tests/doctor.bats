@@ -5,6 +5,9 @@ SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
 STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
 CODEX_PLUGIN="$BATS_TEST_DIRNAME/../plugins/nightshift/.codex-plugin/plugin.json"
+PROVISION_FIXTURES="$BATS_TEST_DIRNAME/fixtures/provisioning"
+
+. "$BATS_TEST_DIRNAME/fixtures/provisioning/recover-fixtures.sh"
 
 fingerprint() {
   (cd "$1" && find . \( -type f -o -type l \) -exec cksum {} \; | sort)
@@ -599,4 +602,57 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
   fi
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
   [ "$status" -eq 0 ]
+}
+
+# A provisioning transaction on disk is a diagnosis, not a repair: Doctor prints the recovery
+# helper's one line and never settles the transaction.
+
+stalled_provision() { # <project> <stage> — a transaction whose baseline is restorable
+  recover_reset
+  printf 'owner baseline\n' >"$1/recover-tool.json"
+  recover_keep "$1" "$1" recover-tool.json both
+  recover_touch recover-tool.json
+  printf 'engine rewrote this\n' >"$1/recover-tool.json"
+  recover_write_tx "$1" "$1" "$2" false
+}
+
+@test "Doctor names a stalled provisioning transaction, its stage, and a provable baseline" {
+  p="$(new_project)"
+  punch_open "$p"
+  stalled_provision "$p" apply
+  before="$(fingerprint "$p")"
+
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" |
+    grep -qF 'provision transaction stage=apply capability=fixture-recover baseline=provable'
+  ! printf '%s' "$output" | grep -qF 'Start will refuse to arm'
+  [ "$(fingerprint "$p")" = "$before" ]
+}
+
+@test "Doctor warns when a provisioning baseline cannot be proven and offers the repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  stalled_provision "$p" smoke
+  printf 'corrupted store\n' >"$(recover_store "$p")/$(recover_blob_id recover-tool.json)"
+
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" |
+    grep -qF 'provision transaction stage=smoke capability=fixture-recover baseline=unprovable; Start will refuse to arm'
+  printf '%s' "$output" |
+    grep -qF '[confirm] inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again'
+}
+
+@test "Doctor names the malformed field in a provisioning transaction" {
+  p="$(new_project)"
+  punch_open "$p"
+  cp "$PROVISION_FIXTURES/recover-malformed-stage.json" \
+    "$p/.nightshift/provision-transaction.json"
+
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" |
+    grep -qF 'provision-transaction.json is malformed (stage); Start will refuse to arm'
+  printf '%s' "$output" | grep -qF '[confirm] inspect .nightshift/provision-transaction.json'
 }

@@ -1,0 +1,18 @@
+{
+  "capabilityId": "fixture-undeclared-docker",
+  "ecosystems": ["*"],
+  "versionConstraints": {},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["undeclared-docker-config.txt"],
+  "minimalConfig": {
+    "undeclared-docker-config.txt": "ok\n"
+  },
+  "smoke": {"command": "docker compose ps"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1"
+}

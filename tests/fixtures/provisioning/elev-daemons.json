@@ -1,0 +1,19 @@
+{
+  "capabilityId": "fixture-elev-daemons",
+  "ecosystems": ["*"],
+  "versionConstraints": {},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["elev-daemons-config.txt"],
+  "minimalConfig": {
+    "elev-daemons-config.txt": "ok\n"
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1",
+  "elevationCategories": ["daemons"]
+}

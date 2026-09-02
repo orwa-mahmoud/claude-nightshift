@@ -63,7 +63,10 @@ three files" below) so a direct unattended run never discovers a mid-shift owner
   development tooling. Do not pause again to re-ask the policy. After authorization, call
   `runtime/provision-preflight.sh` then `runtime/provision.sh` (native Windows:
   `provision-preflight.ps1` then `provision.ps1`). Skills never embed install steps. Artifact
-  mode is never offered a repository-tool install.
+  mode is never offered a repository-tool install. Auto-add work runs only under the elevation
+  categories the shift policy allows for tonight; a missing provisioning runtime is a skip reason
+  and the shift continues under existing tools. Recovery runs before Start, so a shift never
+  opens on an unproven baseline.
 
 Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why;
 only existing-tools is valid there. Inventory in `$NS/capabilities.json` is a cache: re-probe each
