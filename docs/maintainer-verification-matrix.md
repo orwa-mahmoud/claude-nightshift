@@ -2,7 +2,8 @@
 
 Shipped architecture for the evidence-aware capability system on branch
 `feat/evidence-aware-capability-system`. Run these checks after changes that touch the listed
-surfaces. Full program verification is `bats -r tests/` (item 09A).
+surfaces. Full program verification is `tests/run-parallel.sh` or `bats -r tests/` (item 09A); CI
+runs the same partition via six parallel `tests/run-shard.sh` jobs.
 
 ## Policy and shift lifecycle
 

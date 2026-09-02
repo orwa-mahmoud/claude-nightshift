@@ -46,18 +46,20 @@ git clone https://github.com/orwa-mahmoud/nightshift.git
 ## Checks
 
 ```bash
-bats tests/                          # test suite — brew install bats-core / apt-get install bats
+tests/run-parallel.sh                # full suite in parallel (default 6 shards; ~wall-clock of slowest shard)
+tests/run-shard.sh 1 6               # one CI shard; use --list to print its files without running bats
+bats -r tests/                       # serial full suite (same coverage, slower)
 git ls-files '*.sh' | xargs shellcheck -x  # lint — the same set CI checks
 tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
 claude plugin validate . --strict    # manifest + marketplace validation
 ```
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
-on every push. The Bats suite runs on both Ubuntu and macOS; the macOS job keeps the system Bash
-3.2 first on `PATH`. A `windows-native` job runs `tests/windows/run.ps1` under Windows PowerShell
-5.1 and PowerShell 7. A `remote-ssh` job crosses an ephemeral OpenSSH connection; a `devcontainer`
-job starts the checked-in fixture. Both compare sanitized receipts — they do not load an
-authenticated host session.
+on every push. Bats runs as six parallel shards on both Ubuntu and macOS (same partition as
+`tests/run-shard.sh`); the macOS job keeps the system Bash 3.2 first on `PATH`. A `windows-native`
+job runs `tests/windows/run.ps1` under Windows PowerShell 5.1 and PowerShell 7. A `remote-ssh` job
+crosses an ephemeral OpenSSH connection; a `devcontainer` job starts the checked-in fixture. Both
+compare sanitized receipts — they do not load an authenticated host session.
 
 ## Releasing
 
