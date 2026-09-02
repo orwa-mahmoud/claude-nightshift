@@ -1,0 +1,18 @@
+{
+  "retests": [
+    {
+      "gapId": "focus-trap",
+      "passed": true,
+      "evidence": ["keyboard tab cycle verified"],
+      "browserUsed": true,
+      "humanObserved": false
+    },
+    {
+      "gapId": "submit-label",
+      "passed": true,
+      "evidence": ["axe clean on checkout"],
+      "browserUsed": false,
+      "humanObserved": false
+    }
+  ]
+}

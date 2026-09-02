@@ -1,0 +1,8 @@
+{
+  "availableContracts": [
+    "developer-onboarding",
+    "documentation-drift",
+    "ci-warning-cleanup",
+    "release-readiness"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "persona": "returning user",
+  "goal": "recover from payment failure",
+  "startingState": "checkout with invalid card",
+  "evidenceMode": "error-experience",
+  "browserEvidence": {
+    "available": true,
+    "surfaces": ["checkout"]
+  },
+  "steps": [
+    {
+      "action": "submit invalid card",
+      "expectedState": "inline error shown",
+      "expectsError": true,
+      "errorState": "card declined message",
+      "recoveryState": "retry with valid card succeeds"
+    }
+  ]
+}

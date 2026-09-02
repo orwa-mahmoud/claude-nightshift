@@ -1,0 +1,20 @@
+{
+  "documentationTree": [
+    {
+      "path": "docs/getting-started.md",
+      "audience": "developer",
+      "lastReviewed": "2026-06-01",
+      "freshnessPolicy": "90d",
+      "stale": false,
+      "orphan": false
+    },
+    {
+      "path": "docs/legacy/api-v1.md",
+      "audience": "developer",
+      "lastReviewed": "2024-01-01",
+      "freshnessPolicy": "90d",
+      "stale": true,
+      "orphan": true
+    }
+  ]
+}

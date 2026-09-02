@@ -1,0 +1,10 @@
+{
+  "specialistKind": "product-analytics",
+  "selectionMode": "guided",
+  "evidence": {
+    "ownerQuestion": "Did onboarding completion drop after the pricing page change?",
+    "exportScope": {
+      "exportPath": "exports/onboarding-funnel-q3.csv"
+    }
+  }
+}

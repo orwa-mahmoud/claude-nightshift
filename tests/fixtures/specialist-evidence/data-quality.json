@@ -1,0 +1,17 @@
+{
+  "domainRules": "orders-domain-v2.md",
+  "datasets": [
+    {
+      "name": "orders",
+      "rule": "status must be one of pending|shipped",
+      "status": "validated",
+      "inferredFromTypes": false
+    },
+    {
+      "name": "discounts",
+      "rule": "percent <= 100",
+      "status": "rejected",
+      "inferredFromTypes": true
+    }
+  ]
+}

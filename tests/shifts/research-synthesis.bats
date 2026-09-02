@@ -2,6 +2,15 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 CHECK="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/check-report.sh"
 FIXTURE="$BATS_TEST_DIRNAME/../fixtures/research-synthesis"
 
+@test "research synthesis competitive and analytics modes use specialist gates" {
+  grep -qi 'Competitive-landscape mode' "$E"
+  grep -qi 'Product-analytics investigation mode' "$E"
+  grep -qF 'runtime/specialist-evidence.sh specialist-gate' "$E"
+  grep -qF 'runtime/specialist-evidence.sh analytics-investigation' "$E"
+  grep -qi 'generic dashboard' "$E"
+  grep -qi 'causal claim from correlation' "$E"
+}
+
 @test "research synthesis compares sources and refuses filled-in gaps" {
   grep -qi 'Discovery' "$E"
   grep -qi 'agreement and contradiction' "$E"

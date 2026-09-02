@@ -1,0 +1,15 @@
+{
+  "ownerQuestion": "Which cohort dropped after the pricing change?",
+  "exportScope": {
+    "exportPath": "exports/pricing-cohort.csv"
+  },
+  "metrics": [
+    {
+      "name": "onboarding_complete",
+      "definition": "user reached /welcome within 24h of signup",
+      "source": "exports/pricing-cohort.csv"
+    }
+  ],
+  "cohorts": ["signup-week-32", "signup-week-33"],
+  "confounders": ["seasonality", "campaign overlap"]
+}

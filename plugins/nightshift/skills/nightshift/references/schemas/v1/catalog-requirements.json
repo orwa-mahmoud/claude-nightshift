@@ -175,6 +175,78 @@
       "fallback": "compare supplied baseline and candidate manifests only",
       "tooling": "existing-tools",
       "artifact": false
+    },
+    "product-journey": {
+      "requires": [],
+      "requiresAny": ["local-html", "test"],
+      "optional": ["accessibility"],
+      "fallback": "record unavailable browser surfaces honestly from owner-supplied steps",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "architecture-health": {
+      "requires": [],
+      "requiresAny": ["scripts", "test"],
+      "optional": ["dead-code", "typecheck"],
+      "fallback": "read-only dependency and boundary review from repository files",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "maintainer-health": {
+      "requires": [],
+      "requiresAny": ["scripts", "local-markdown", "test", "owner-gates"],
+      "optional": ["ci", "documentation-link"],
+      "fallback": "compose preset from available maintainer contracts only",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "build-reproducibility": {
+      "requires": [],
+      "requiresAny": ["scripts", "owner-gates", "local-markdown"],
+      "optional": ["test", "ci"],
+      "fallback": "compare owner-supplied build manifests only",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "developer-onboarding": {
+      "requires": [],
+      "requiresAny": ["scripts", "local-markdown", "test"],
+      "optional": ["owner-gates"],
+      "fallback": null,
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "pull-request-readiness": {
+      "requires": [],
+      "requiresAny": ["test", "scripts", "owner-gates"],
+      "optional": ["ci", "security", "documentation-link"],
+      "fallback": "review owner-supplied branch diff only",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "migration-compatibility": {
+      "requires": [],
+      "requiresAny": ["local-markdown", "scripts", "api-schema"],
+      "optional": ["test", "owner-gates"],
+      "fallback": "plan from owner-supplied migration guidance only",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "configuration-parity": {
+      "requires": [],
+      "requiresAny": ["local-markdown", "scripts"],
+      "optional": ["owner-gates"],
+      "fallback": "compare owner-supplied config manifests only",
+      "tooling": "existing-tools",
+      "artifact": false
+    },
+    "data-migration": {
+      "requires": [],
+      "requiresAny": ["scripts", "api-schema", "local-markdown"],
+      "optional": ["test", "owner-gates"],
+      "fallback": "plan from owner-supplied data migration guidance only",
+      "tooling": "existing-tools",
+      "artifact": false
     }
   }
 }

@@ -16,6 +16,11 @@ SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
   grep -qi 'Do not query the network' "$E"
 }
 
+@test "documentation drift content-architecture mode uses specialist helper" {
+  grep -qi 'Content-architecture mode' "$E"
+  grep -qF 'runtime/specialist-evidence.sh content-architecture' "$E"
+}
+
 @test "documentation drift public-claims mode uses release-readiness matrix" {
   grep -qi 'Public-claims mode' "$E"
   grep -qF 'release-readiness-evidence.sh public-claims-matrix' "$E"

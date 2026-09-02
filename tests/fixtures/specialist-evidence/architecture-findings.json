@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "id": "f1",
+      "summary": "packages/ui imports packages/server creating a cycle",
+      "dependency": "packages/ui -> packages/server",
+      "boundary": "ui/server",
+      "cycleCost": "3-package cycle in CI typecheck"
+    },
+    {
+      "id": "f2",
+      "summary": "should use microservices",
+      "tasteOnly": true
+    }
+  ],
+  "launchMode": "review-first",
+  "directEditRequested": true
+}

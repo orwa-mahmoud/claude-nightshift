@@ -6,6 +6,13 @@ against files that already exist here. The list is whatever a local pass reports
 Use when README, contrib, or skill docs disagree with the tree: a moved path, a renamed command, a
 version that only the docs still claim. Not a rewrite of positioning, voice, or product behaviour.
 
+## Content-architecture mode
+
+Select when the owner wants documentation structure and freshness reviewed under Documentation —
+not a separate catalog entry. Run `runtime/specialist-evidence.sh content-architecture` on the
+in-repo documentation tree, then repair orphan or stale pages the helper lists. Mechanical
+freshness fixes only; park audience, voice, and information-architecture tradeoffs.
+
 ## Public-claims mode
 
 Select when release or marketing surfaces must match shipped behavior: website pages, README,
@@ -22,8 +29,9 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 
 ```text
 - [ ] **Documentation drift — make in-repo docs match the current tree.**
-  - Discovery: walk tracked documentation (README, docs/, skill and command files, examples) and
-    build a claim-to-authority matrix with `runtime/product-truth-evidence.sh doc-claim-matrix`
+  - Discovery: walk tracked documentation (README, docs/, skill and command files, examples).
+    For content-architecture mode run `runtime/specialist-evidence.sh content-architecture` first.
+    Build a claim-to-authority matrix with `runtime/product-truth-evidence.sh doc-claim-matrix`
     across README, manifests, CLI/help, examples, versions, and released behavior. Collect local references — relative links, fenced commands, filenames, version strings that
     claim to describe this repository. Resolve each against the tree and the manifests that
     already exist here (plugin.json version, PATH commands the repo documents, files on disk).

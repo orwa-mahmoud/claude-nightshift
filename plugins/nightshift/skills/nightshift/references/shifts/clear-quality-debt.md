@@ -12,9 +12,17 @@ with `runtime/source-policy-evidence.sh redact-untrusted` before ranking finding
 `runtime/source-policy-evidence.sh artifact-receipt-plan` plus write-receipt into `$NS/receipts/`.
 Never require git, a package manager, or repository tooling. Do not `git init` a notes folder.
 
+## Data-quality mode
+
+Requires named domain rules the owner supplied. Run `runtime/specialist-evidence.sh data-quality-map`
+before ranking dataset issues. Validate against those rules only — never infer business data rules
+from type definitions alone.
+
 ```text
 - [ ] **Clear quality debt — fix what the project's own tooling reports.**
-  - Scan first: in repository mode run the item-gate commands from `## Gates` in report mode (lint,
+  - Scan first: in data-quality mode run `runtime/specialist-evidence.sh data-quality-map` with the
+    owner-supplied domain rules before the quality scan. In repository mode run the item-gate
+    commands from `## Gates` in report mode (lint,
     types, tests), per top-level package in a monorepo through `runtime/quality-scan.sh` and
     `runtime/quality-workflow.sh pipeline`. In artifact mode scan supplied documents through the
     source-policy helpers instead of inventing repository tools. Normalize to the evidence ledger,

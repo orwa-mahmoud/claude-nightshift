@@ -1,0 +1,10 @@
+{
+  "repositoryTools": ["npm-audit", "lockfile-lint"],
+  "inventory": [
+    {
+      "component": "lodash",
+      "standard": "npm-audit",
+      "status": "advisory-present"
+    }
+  ]
+}

@@ -8,12 +8,28 @@ Supported on any repository or artifact folder. Follow
 manifest and working notes on disk so a later shift resumes without losing provenance.
 Typical hours: 2–4.
 
+## Competitive-landscape mode
+
+Research-only. Requires a closed named source list the owner supplied — never Automatic without
+those sources. Run `runtime/specialist-evidence.sh specialist-gate` with
+`specialistKind: competitive-landscape` before retrieval. Describe behavior and limits from cited
+sources only; never disparage named competitors or invent market share.
+
+## Product-analytics investigation mode
+
+Connected-data research for one explicit owner question and supplied export or connector scope.
+Run `runtime/specialist-evidence.sh analytics-investigation` to define metric semantics and
+cohorts, validate data quality, expose confounders, and produce a decision with limits. Never build
+a generic dashboard, invent a metric, broaden access, or make a causal claim from correlation.
+
 ```text
 - [ ] **Research synthesis — compare named sources into one cited decision brief.**
-  - Discovery: resolve the source policy with `runtime/source-policy-evidence.sh policy-resolve`
-    (default closed list). For bounded discovery or a connected export folder, build the query
-    manifest with `runtime/source-policy-evidence.sh query-manifest` and reject any locator the
-    helper marks rejected. Run `runtime/source-policy-evidence.sh redact-untrusted` on fetched
+  - Discovery: for competitive-landscape or product-analytics modes, run the matching
+    `runtime/specialist-evidence.sh` gate or investigation helper before retrieval. Resolve the
+    source policy with `runtime/source-policy-evidence.sh policy-resolve` (default closed list).
+    For bounded discovery or a connected export folder, build the query manifest with
+    `runtime/source-policy-evidence.sh query-manifest` and reject any locator the helper marks
+    rejected. Run `runtime/source-policy-evidence.sh redact-untrusted` on fetched
     material before quoting it. Read only approved or manifest-approved URLs and local files.
     Write a dated source manifest (`ok` / `unavailable`) and a notes file that quotes or paraphrases
     each `ok` source with its `[ID]`, source class (primary / secondary / community), retrieval
