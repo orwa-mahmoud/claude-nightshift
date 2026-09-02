@@ -245,6 +245,174 @@ try {
         "an invalid elevation pattern fails closed: $broken"
     Expect-True ($broken -match 'so the guard it configures cannot run') `
         "an invalid elevation pattern uses the shared wording: $broken"
+
+# --- lease reclaim, live-holder fence, disarm-total (Windows twin of the POSIX ownership fence) ---
+# NIGHTSHIFT_HARDHAT_LIB is cleared above; these cases spawn the real hook so its full
+# permission decision - not just the library functions - is what gets checked.
+
+$hostExe = (Get-Process -Id $PID).Path
+
+function Invoke-NSLeaseHardhat {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$SessionId,
+        [Parameter(Mandatory = $true)][string]$Tool,
+        [Parameter(Mandatory = $true)][hashtable]$ToolInput
+    )
+    $payload = @{
+        session_id = $SessionId
+        transcript_path = ''
+        cwd = $Workspace
+        tool_name = $Tool
+        tool_input = $ToolInput
+    } | ConvertTo-Json -Compress -Depth 10
+    $managed = @('NIGHTSHIFT_HARDHAT_LIB', 'NIGHTSHIFT_REVIVAL', 'NIGHTSHIFT_LEASE_GENERATION', 'NIGHTSHIFT_LEASE_NONCE', 'CODEX_PROJECT_DIR', 'CLAUDE_PROJECT_DIR')
+    $saved = @{}
+    foreach ($key in $managed) {
+        $saved[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
+        [Environment]::SetEnvironmentVariable($key, $null, 'Process')
+    }
+    [Environment]::SetEnvironmentVariable('CODEX_PROJECT_DIR', $Workspace, 'Process')
+    try {
+        $output = @($payload | & $hostExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $hardhat -HostName codex 2>&1)
+        $code = $LASTEXITCODE
+        $stdoutLines = @($output | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] } | ForEach-Object { [string]$_ })
+        return [pscustomobject]@{ ExitCode = $code; Stdout = ($stdoutLines -join "`n") }
+    }
+    finally {
+        foreach ($key in $managed) {
+            [Environment]::SetEnvironmentVariable($key, $saved[$key], 'Process')
+        }
+    }
+}
+
+$leaseRoot = Join-Path ([IO.Path]::GetTempPath()) ("ns-hardhat-lease-" + [guid]::NewGuid().ToString('N'))
+$sleepProcess = $null
+try {
+    $leaseWorkspace = Join-Path $leaseRoot 'workspace'
+    $leaseNs = Join-Path $leaseWorkspace '.nightshift'
+    $null = New-Item -ItemType Directory -Path $leaseNs -Force
+    $rulesTemplate = Join-Path $repository 'plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json'
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $leaseNs 'rules.json') -Force
+    [IO.File]::WriteAllText((Join-Path $leaseNs 'punch-list.md'), "# Contract`n`n## Items`n- [ ] one`n")
+    [IO.File]::WriteAllText((Join-Path $leaseNs '.shift-armed'), '')
+
+    $recordedSession = 'lease-recorded-session'
+    $deadStart = '2000-01-01T00:00:00.0000000Z'
+    $deadPid = [string]$PID # a real, live pid - but this birthday can never match it, so it reads dead
+
+    $bind = Invoke-NSLeaseHardhat -Workspace $leaseWorkspace -SessionId $recordedSession -Tool 'PowerShell' `
+        -ToolInput @{ command = "`$null = 'nightshift-binding-probe'" }
+    Expect-True ($bind.ExitCode -eq 0 -and [string]::IsNullOrWhiteSpace($bind.Stdout)) `
+        "lease fixture binds the recorded conversation (exit=$($bind.ExitCode) stdout='$($bind.Stdout)')"
+
+    # A watchman revival attempt took the lease and then died before attaching a live pid to
+    # the recorded conversation's next tool call.
+    Expect-True (Write-NSLease -NightshiftDir $leaseNs -SessionId $recordedSession -HostName 'codex' `
+        -Generation 2 -Nonce 'lease-logic-dead-nonce' -ProcessId $deadPid -Start $deadStart) `
+        'dead-holder lease fixture writes'
+
+    $reclaim = Invoke-NSLeaseHardhat -Workspace $leaseWorkspace -SessionId $recordedSession -Tool 'PowerShell' `
+        -ToolInput @{ command = 'Get-Location' }
+    Expect-True ($reclaim.ExitCode -eq 0 -and [string]::IsNullOrWhiteSpace($reclaim.Stdout)) `
+        "the recorded conversation reclaims a dead-holder lease instead of being fenced (exit=$($reclaim.ExitCode) stdout='$($reclaim.Stdout)')"
+    $reclaimedLease = Read-NSLease $leaseNs
+    Expect-True ($null -ne $reclaimedLease -and $reclaimedLease.Generation -eq 3 -and [string]::IsNullOrEmpty($reclaimedLease.Nonce)) `
+        "the reclaim advances the generation and clears the nonce (generation=$($reclaimedLease.Generation) nonce='$($reclaimedLease.Nonce)')"
+    $logText = [IO.File]::ReadAllText((Join-Path $leaseNs 'shift-log.md'))
+    $expectedLogLine = "lease reclaimed by the recorded conversation after a dead recovery attempt (generation 2 $([char]0x2192) 3)"
+    Expect-True ($logText.Contains($expectedLogLine)) "the reclaim is recorded in the shift log: $logText"
+
+    # A live recovery worker still fences the recorded conversation - only a dead one reclaims.
+    # Diagnostics.Process (not Start-Process -WindowStyle) so this runs unchanged on macOS,
+    # where this suite is also expected to pass, and on Windows.
+    $sleepPsi = [Diagnostics.ProcessStartInfo]::new()
+    $sleepPsi.FileName = $hostExe
+    $sleepPsi.UseShellExecute = $false
+    $sleepPsi.CreateNoWindow = $true
+    foreach ($sleepArg in @('-NoProfile', '-NonInteractive', '-Command', 'Start-Sleep -Seconds 120')) {
+        $null = $sleepPsi.ArgumentList.Add($sleepArg)
+    }
+    $sleepProcess = [Diagnostics.Process]::Start($sleepPsi)
+    Start-Sleep -Milliseconds 500
+    $liveStart = Get-NSProcessStart $sleepProcess.Id
+    Expect-True (-not [string]::IsNullOrEmpty($liveStart)) 'live sleeping-process fixture reports a start time'
+    Expect-True (Write-NSLease -NightshiftDir $leaseNs -SessionId $recordedSession -HostName 'codex' `
+        -Generation 10 -Nonce 'lease-logic-live-nonce' -ProcessId ([string]$sleepProcess.Id) -Start $liveStart) `
+        'live-holder lease fixture writes'
+
+    $liveFence = Invoke-NSLeaseHardhat -Workspace $leaseWorkspace -SessionId $recordedSession -Tool 'PowerShell' `
+        -ToolInput @{ command = 'Get-Location' }
+    Expect-True ($liveFence.Stdout -match 'being recovered in another process') `
+        "a live recovery worker still fences the recorded conversation (exit=$($liveFence.ExitCode) stdout='$($liveFence.Stdout)')"
+
+    $stopHelper = Join-Path $repository 'plugins/nightshift/runtime/windows/stop-shift.ps1'
+    $liveStop = Invoke-NSLeaseHardhat -Workspace $leaseWorkspace -SessionId $recordedSession -Tool 'PowerShell' `
+        -ToolInput @{ command = "$stopHelper -Project $leaseWorkspace" }
+    Expect-True ($liveStop.ExitCode -eq 0 -and [string]::IsNullOrWhiteSpace($liveStop.Stdout)) `
+        "the Stop helper is allowed through a live foreign lease (exit=$($liveStop.ExitCode) stdout='$($liveStop.Stdout)')"
+    $liveLeaseUnchanged = Read-NSLease $leaseNs
+    Expect-True ($null -ne $liveLeaseUnchanged -and $liveLeaseUnchanged.Generation -eq 10 -and $liveLeaseUnchanged.Nonce -eq 'lease-logic-live-nonce') `
+        'checking a live fence never mutates the lease it inspects'
+
+    # A caller that is not the conversation named in .shift-session is still refused, never
+    # reclaims - direct call, since the full pipeline never routes a stranger this far.
+    $strangerNs = Join-Path $leaseRoot 'stranger/.nightshift'
+    $null = New-Item -ItemType Directory -Path $strangerNs -Force
+    Expect-True (Write-NSLease -NightshiftDir $strangerNs -SessionId 'stranger-recorded-conversation' -HostName 'codex' `
+        -Generation 4 -Nonce 'lease-logic-stranger-nonce' -ProcessId $deadPid -Start $deadStart) `
+        'stranger fixture writes a dead-holder lease'
+    $strangerSession = [pscustomobject]@{
+        SessionId = 'stranger-recorded-conversation'; Transcript = ''; ProcessId = ''; Start = ''; HostName = 'codex'
+    }
+    $strangerDecision = Resolve-NSShiftAuthorize -NightshiftDir $strangerNs -HostName 'codex' `
+        -SessionId 'a-third-party-conversation' -ProcessId '' -ProcessStart '' -Nonce '' -Generation '' `
+        -Revival $true -Mode hardhat -Session $strangerSession
+    Expect-True ($strangerDecision.Status -eq 'Fail' -and $strangerDecision.Message -match 'continued in a recovered process') `
+        "a conversation other than the recorded one is refused, not reclaimed ($($strangerDecision.Status): $($strangerDecision.Message))"
+    $strangerLeaseAfter = Read-NSLease $strangerNs
+    Expect-True ($null -ne $strangerLeaseAfter -and $strangerLeaseAfter.Generation -eq 4 -and $strangerLeaseAfter.Nonce -eq 'lease-logic-stranger-nonce') `
+        'a refused reclaim attempt leaves the foreign lease untouched'
+
+    # Liveness that cannot be classified (a malformed pid stands in for missing process
+    # evidence) keeps the fence - it never counts as proof of death.
+    $unclassifiedNs = Join-Path $leaseRoot 'unclassified/.nightshift'
+    $null = New-Item -ItemType Directory -Path $unclassifiedNs -Force
+    Expect-True (Write-NSLease -NightshiftDir $unclassifiedNs -SessionId 'unclassified-recorded-conversation' -HostName 'codex' `
+        -Generation 1 -Nonce 'lease-logic-unclassified-nonce' -ProcessId '0' -Start '') `
+        'unclassified-liveness fixture writes'
+    $unclassifiedSession = [pscustomobject]@{
+        SessionId = 'unclassified-recorded-conversation'; Transcript = ''; ProcessId = ''; Start = ''; HostName = 'codex'
+    }
+    $unclassifiedDecision = Resolve-NSShiftAuthorize -NightshiftDir $unclassifiedNs -HostName 'codex' `
+        -SessionId 'unclassified-recorded-conversation' -ProcessId '' -ProcessStart '' -Nonce '' -Generation '' `
+        -Revival $false -Mode hardhat -Session $unclassifiedSession
+    Expect-True ($unclassifiedDecision.Status -eq 'Fail' -and $unclassifiedDecision.Message -match 'continued in a recovered process') `
+        "liveness that cannot be classified keeps the fence ($($unclassifiedDecision.Status): $($unclassifiedDecision.Message))"
+
+    # Disarm is total: a missing armed marker holds nobody, even a foreign lease.
+    $disarmedWorkspace = Join-Path $leaseRoot 'disarmed'
+    $disarmedNs = Join-Path $disarmedWorkspace '.nightshift'
+    $null = New-Item -ItemType Directory -Path $disarmedNs -Force
+    [IO.File]::WriteAllText((Join-Path $disarmedNs 'punch-list.md'), "# Contract`n`n## Items`n- [ ] one`n")
+    # .shift-armed is deliberately absent.
+    Expect-True (Write-NSLease -NightshiftDir $disarmedNs -SessionId 'disarmed-someone-else' -HostName 'codex' `
+        -Generation 7 -Nonce 'lease-logic-disarmed-nonce' -ProcessId '' -Start '') `
+        'disarmed fixture writes a foreign lease'
+    $disarmedTool = Invoke-NSLeaseHardhat -Workspace $disarmedWorkspace -SessionId 'any-conversation-at-all' `
+        -Tool 'PowerShell' -ToolInput @{ command = 'Get-Location' }
+    Expect-True ($disarmedTool.ExitCode -eq 0 -and [string]::IsNullOrWhiteSpace($disarmedTool.Stdout)) `
+        "a disarmed site holds nobody, even against a foreign lease (exit=$($disarmedTool.ExitCode) stdout='$($disarmedTool.Stdout)')"
+    $disarmedLeaseUnchanged = Read-NSLease $disarmedNs
+    Expect-True ($null -ne $disarmedLeaseUnchanged -and $disarmedLeaseUnchanged.Generation -eq 7) `
+        'a disarmed pass-through never touches the lease'
+}
+finally {
+    if ($null -ne $sleepProcess) {
+        Stop-Process -Id $sleepProcess.Id -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $leaseRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
 }
 finally {
     Set-Location $repository

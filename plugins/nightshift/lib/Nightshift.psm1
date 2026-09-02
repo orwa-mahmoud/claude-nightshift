@@ -1481,6 +1481,46 @@ function Test-NSLeaseAllows {
     }
 }
 
+# The recorded conversation reclaims a lease a dead revival attempt left behind. The
+# generation and nonce it presented must still be the ones on disk and the recorded pid
+# must still read dead, re-checked under the lock, or a second caller could steal a lease
+# that changed underneath it. Returns the new generation, or $null when the reclaim lost
+# a race.
+function Reclaim-NSLeaseRecorded {
+    param(
+        [Parameter(Mandatory = $true)][string]$NightshiftDir,
+        [Parameter(Mandatory = $true)][ValidateSet('claude', 'codex', 'cursor')][string]$HostName,
+        [Parameter(Mandatory = $true)][string]$SessionId,
+        [Parameter(Mandatory = $true)][int]$OldGeneration,
+        [Parameter(Mandatory = $true)][string]$OldNonce,
+        [AllowEmptyString()][string]$ProcessId = '',
+        [AllowEmptyString()][string]$Start = ''
+    )
+    $mutex = Enter-NSMutex $NightshiftDir '.lease-lock.d'
+    if ($null -eq $mutex) {
+        return $null
+    }
+    try {
+        $lease = Read-NSLease $NightshiftDir
+        if ($null -eq $lease -or $lease.HostName -ne $HostName -or $lease.Generation -ne $OldGeneration `
+            -or $lease.Nonce -ne $OldNonce -or [string]::IsNullOrEmpty($lease.Nonce) `
+            -or [string]::IsNullOrEmpty($lease.ProcessId)) {
+            return $null
+        }
+        if ((Test-NSRecordedProcess $lease.ProcessId $lease.Start) -ne 'Dead') {
+            return $null
+        }
+        $newGeneration = $lease.Generation + 1
+        if (-not (Write-NSLease $NightshiftDir $SessionId $HostName $newGeneration '' $ProcessId $Start)) {
+            return $null
+        }
+        return $newGeneration
+    }
+    finally {
+        Exit-NSMutex $mutex
+    }
+}
+
 function Release-NSLease {
     param([Parameter(Mandatory = $true)][string]$NightshiftDir)
     $mutex = Enter-NSMutex $NightshiftDir '.lease-lock.d'
@@ -1995,13 +2035,30 @@ function Resolve-NSShiftAuthorize {
         if ($Mode -eq 'hardhat') {
             $held = Read-NSLease $NightshiftDir
             if ($null -ne $held -and -not [string]::IsNullOrEmpty($held.Nonce) `
-                -and -not [string]::IsNullOrEmpty($held.ProcessId) `
-                -and (Test-NSRecordedProcess $held.ProcessId $held.Start) -eq 'Alive') {
-                return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift is being recovered in another process. Wait or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease.'
+                -and -not [string]::IsNullOrEmpty($held.ProcessId)) {
+                $liveness = Test-NSRecordedProcess $held.ProcessId $held.Start
+                if ($liveness -eq 'Alive') {
+                    return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift is being recovered in another process. Wait or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease.'
+                }
+                if ($liveness -eq 'Dead' -and -not [string]::IsNullOrEmpty($checkSession) `
+                    -and $checkSession -eq $Session.SessionId) {
+                    $reclaimed = Reclaim-NSLeaseRecorded -NightshiftDir $NightshiftDir -HostName $HostName `
+                        -SessionId $Session.SessionId -OldGeneration $held.Generation -OldNonce $held.Nonce `
+                        -ProcessId $ProcessId -Start $ProcessStart
+                    if ($null -ne $reclaimed) {
+                        Write-NSControlLog -NightshiftDir $NightshiftDir -Line `
+                            "lease reclaimed by the recorded conversation after a dead recovery attempt (generation $($held.Generation) $([char]0x2192) $reclaimed)"
+                        $allow = 'Allow'
+                    }
+                }
             }
-            return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
+            if ($allow -ne 'Allow') {
+                return New-NSShiftDecision -Status Fail -Session $Session -Message 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.'
+            }
         }
-        return New-NSShiftDecision -Status Pass -Session $Session
+        else {
+            return New-NSShiftDecision -Status Pass -Session $Session
+        }
     }
     if ($allow -ne 'Allow') {
         if ($Mode -eq 'hardhat') {
@@ -2057,7 +2114,7 @@ function Write-NSReason {
         [AllowEmptyString()][string]$Detail = ''
     )
     $allowed = @(
-        'completed', 'owner-stop', 'stale-pid', 'invalid-session', 'exhausted-retry',
+        'completed', 'owner-stop', 'owner-disarm', 'stale-pid', 'invalid-session', 'exhausted-retry',
         'unknown-wedge', 'revived', 'stand-down', 'wrong-host', 'deadline',
         'clean-session-end', 'esc-standby', 'silent-standby', 'non-resumable-session',
         'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable',
@@ -2207,6 +2264,7 @@ function Get-NSReasonLabel {
     switch ($Code) {
         'completed' { return 'shift completed' }
         'owner-stop' { return 'owner stop-work order' }
+        'owner-disarm' { return 'shift disarmed - the armed marker is gone' }
         'stale-pid' { return 'recorded process is stale' }
         'invalid-session' { return 'session identity is missing or unreadable' }
         'exhausted-retry' { return 'revival retries exhausted this wake' }

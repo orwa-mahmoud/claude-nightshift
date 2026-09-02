@@ -125,6 +125,25 @@ function Test-NSErroredTail {
     return (Get-NSLastConversationLine) -match '[^\\]"isApiErrorMessage"\s*:\s*true'
 }
 
+# Host-general evidence for the watchman's own backoff, distinct from Test-NSErroredTail
+# (which only reads Claude's structured transcript field). Looks for the same signal words
+# the POSIX watchman keys its backoff on: a rate limit, a usage limit, HTTP 429/529, or a
+# bare mention of "api" in the transcript tail.
+function Test-NSApiFailureEvidence {
+    $transcript = Get-NSTranscript
+    if ([string]::IsNullOrEmpty($transcript)) {
+        return $false
+    }
+    try {
+        $tail = @(Get-Content -LiteralPath $transcript -Tail 25 -ErrorAction Stop)
+    }
+    catch {
+        return $false
+    }
+    $text = $tail -join [Environment]::NewLine
+    return $text -match '(?i)rate limit|usage limit|\b429\b|\b529\b|\bapi\b'
+}
+
 $script:TranscriptStamp = ''
 function Set-NSTranscriptBaseline {
     $transcript = Get-NSTranscript
@@ -689,19 +708,36 @@ try {
     [IO.File]::WriteAllText($tick, '', $utf8)
     Set-NSTranscriptBaseline
 
-    $sleepSeconds = $IntervalMinutes * 60
+    $sleepOverrideSeconds = $null
     if (-not [string]::IsNullOrEmpty([string]$env:NIGHTSHIFT_WATCH_SLEEP)) {
         if ([string]$env:NIGHTSHIFT_WATCH_SLEEP -notmatch '^[0-9]+$') {
             throw 'watchman: NIGHTSHIFT_WATCH_SLEEP must be whole seconds'
         }
-        $sleepSeconds = [int]$env:NIGHTSHIFT_WATCH_SLEEP
+        $sleepOverrideSeconds = [int]$env:NIGHTSHIFT_WATCH_SLEEP
     }
 
     $wake = 0
     $previousStandby = ''
+    $armedMarker = Join-Path $ns '.shift-armed'
+    # Doubles on an exhausted ladder with API evidence, capped at 60m; resets to
+    # IntervalMinutes on any live pulse or successful revival.
+    $currentIntervalMinutes = $IntervalMinutes
     while ($true) {
+        $sleepSeconds = if ($null -ne $sleepOverrideSeconds) { $sleepOverrideSeconds } else { $currentIntervalMinutes * 60 }
         Start-Sleep -Seconds $sleepSeconds
         $wake++
+
+        # Before anything else: a disarmed site or a replaced watchman stands down without
+        # touching any other state.
+        if (-not (Test-Path -LiteralPath $armedMarker -PathType Leaf)) {
+            Write-NSReason $ns 'owner-disarm'
+            Write-NSLogLine "watchman: the armed marker is gone $([char]0x2014) standing down"
+            exit 0
+        }
+        if (-not (Test-Path -LiteralPath $pidFile -PathType Leaf)) {
+            Write-NSLogLine "watchman: the watchman pidfile is gone $([char]0x2014) standing down"
+            exit 0
+        }
 
         if (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) {
             Write-NSReason $ns 'owner-stop'
@@ -750,6 +786,7 @@ try {
         $verdict = Get-NSSiteVerdict
         if ($verdict -eq 'alive') {
             $previousStandby = ''
+            $currentIntervalMinutes = $IntervalMinutes
         }
         elseif ($verdict -eq 'esc') {
             Write-NSReason $ns 'esc-standby'
@@ -811,6 +848,12 @@ try {
                         break
                     }
                 }
+                # The marker is the shift: gone mid-ladder means nothing is left to revive.
+                if (-not (Test-Path -LiteralPath $armedMarker -PathType Leaf)) {
+                    Write-NSReason $ns 'owner-disarm'
+                    Write-NSLogLine "watchman: the armed marker is gone $([char]0x2014) standing down"
+                    exit 0
+                }
                 Write-NSLogLine "watchman: site dead quiet with open boxes - resume attempt $attempt"
                 if (Start-NSAgent $attempt $totalAttempts) {
                     $revived = $true
@@ -819,6 +862,7 @@ try {
                 Set-NSTranscriptBaseline
             }
             if ($revived) {
+                $currentIntervalMinutes = $IntervalMinutes
                 if ($totalAttempts -gt 1 -and $attempt -ge $totalAttempts) {
                     Write-NSReason $ns 'fresh-fallback'
                 }
@@ -850,7 +894,17 @@ try {
             }
             elseif ([string]::IsNullOrEmpty($aborted)) {
                 Write-NSReason $ns 'exhausted-retry'
-                Write-NSLogLine "watchman: all $totalAttempts attempts failed - retrying next wake"
+                if (Test-NSApiFailureEvidence) {
+                    $currentIntervalMinutes = [Math]::Min($currentIntervalMinutes * 2, 60)
+                    Write-NSLogLine "watchman: all $totalAttempts attempts failed (api down?) $([char]0x2014) backing off, knocking again in ${currentIntervalMinutes}m"
+                }
+                else {
+                    Write-NSLogLine "watchman: all $totalAttempts attempts failed - retrying next wake"
+                }
+                # A failed ladder must not leave the origin fenced: hand the lease back so the
+                # next hook call in the recorded conversation is allowed without waiting on the
+                # hardhat backstop.
+                $null = Restore-NSLeaseInteractive $ns
                 if (-not [string]::IsNullOrEmpty($notify) -and -not $downNotified) {
                     $downNotified = $true
                     $summary = 'nightshift: the shift session is down and revival failed - it needs you'

@@ -27,6 +27,12 @@
 #   --max-wakes bound the number of wakes (0 = unbounded; tests use this)
 #
 # Stand-down order, checked at every wake — the watchman never overrides a declared ending:
+#   0. the armed marker is gone (.shift-armed)       -> down; a disarmed site has no shift to
+#                                                       revive, and the marker is never written
+#                                                       back from here. The pidfile going with
+#                                                       it — reset, purge, a takeover — is the
+#                                                       same answer: this loop is not the one
+#                                                       watching any more
 #   1. stop-work order (.nightshift/STOP)            -> down (STOP is the pause while armed)
 #   2. shift ended (.nightshift/.ended, or no punch) -> down
 #   3. every box ticked                              -> one clock-out spawn if .ended is missing
@@ -73,7 +79,11 @@
 #
 # API outages: per wake, spawn attempts = watchRetrySeconds values + 1
 # (shipped "30 120"; $NIGHTSHIFT_WATCH_RETRY overrides). A wake that fails entirely just waits
-# for the next one — the watchman knocks every interval, all night, until the API answers.
+# for the next one — the watchman knocks every interval, all night, until the API answers. When
+# the transcript's last error names the limit that refused the work (a rate or usage limit, 429,
+# 529, an api error), the wait doubles instead: an account with nothing left to spend is knocked
+# on less and less often, up to an hour apart, and the first pulse or revival puts the wait back
+# to the configured interval.
 # Exit: 0 stood down · 1 usage/lock · 7 wake cap (tests).
 set -u
 
@@ -153,12 +163,43 @@ NOTIFY="$(rule "$PROJECT" notifyCommand "${NIGHTSHIFT_NOTIFY_CMD:-}")" # empty =
 PUNCH="$NS/punch-list.md"
 PIDFILE="$NS/.watchman"
 SENTINEL="$NS/.watchman-tick"
+ARMED="$NS/.shift-armed" # read exactly as the hooks read it, so both agree on "a shift is running"
 
 # Claude Code keeps transcripts under ~/.claude/projects/<project path, non-alnum -> dashes>.
 TRANSCRIPTS="${NIGHTSHIFT_WATCH_TRANSCRIPTS:-$HOME/.claude/projects/$(printf '%s' "$PROJECT" | tr -c 'A-Za-z0-9' '-')}"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { printf '%s · %s\n' "$(ts)" "$1" >>"$NS/shift-log.md"; }
+
+# The marker is the shift. Without it there is nothing to revive, nothing to clock out, and no
+# reading to take — the owner ended the arming, and the watchman is the outside half of a shift
+# that no longer exists.
+armed() { [ -f "$ARMED" ]; }
+stand_down_disarmed() {
+  note owner-disarm
+  log_line "watchman: the armed marker is gone — standing down"
+  exit 0
+}
+
+# The pidfile is this loop's claim on the site. Reset and purge remove it; a takeover replaces
+# the pid inside it. Either way the watching is somebody else's now, and a pidfile that is no
+# longer ours is never cleaned up on the way out.
+stand_down_unclaimed() {
+  if [ -f "$PIDFILE" ] && [ ! -L "$PIDFILE" ]; then
+    trap - EXIT
+    note stand-down "watchman pidfile taken over"
+    log_line "watchman: another watchman owns this site — standing down"
+    exit 0
+  fi
+  note stand-down "watchman pidfile gone"
+  log_line "watchman: the watchman pidfile is gone — standing down"
+  exit 0
+}
+holds_pidfile() {
+  [ -f "$PIDFILE" ] || return 1
+  [ ! -L "$PIDFILE" ] || return 1
+  [ "$(sed -n 1p "$PIDFILE" 2>/dev/null)" = "$$" ]
+}
 
 # One watchman per site. A stale pidfile (dead pid) is taken over silently.
 # A planted symlink is not a live owner — replace it rather than follow it.
@@ -253,6 +294,57 @@ spawn() { # $1 optionally overrides the agent for this one attempt; $2 the order
   return "$rc"
 }
 
+# Ownership goes back where it came from. Every attempt of a wake took the lease for its own
+# child; a ladder that revived nothing leaves that generation held by a process which no longer
+# exists, and the recorded conversation is the one that has to be able to work. The recorded
+# process is named on the lease only while it is provably alive — an interactive lease is that
+# process's to hold — and left empty otherwise, so any process reopening the conversation is
+# served. A live holder is left alone: that is a worker, not a corpse.
+restore_recorded_lease() {
+  local host generation nonce holder holder_start sid recorded pid start rc
+  ns_lease_lock "$NS" || return 1
+  if ! ns_lease_valid "$NS"; then
+    ns_lease_unlock "$NS"
+    return 1
+  fi
+  host="$NS_LEASE_HOST"
+  generation="$NS_LEASE_GENERATION"
+  nonce="$NS_LEASE_NONCE"
+  holder="$NS_LEASE_PID"
+  holder_start="$NS_LEASE_START"
+  sid="$NS_LEASE_SID"
+  if [ -z "$nonce" ]; then # already interactive: nothing was taken, nothing to give back
+    ns_lease_unlock "$NS"
+    return 0
+  fi
+  if [ -n "$holder" ]; then
+    ns_recorded_process "$holder" "$holder_start"
+    rc=$?
+    if [ "$rc" -ne 1 ]; then
+      ns_lease_unlock "$NS"
+      return 1
+    fi
+  fi
+  recorded="$(shift_session_id)" # the record is the truth: a fresh rung may have rebound it
+  [ -z "$recorded" ] || sid="$recorded"
+  if [ -z "$sid" ]; then # no conversation to name; an unowned lease fences nobody
+    rm -f "$NS/.shift-lease"
+    rc=$?
+    ns_lease_unlock "$NS"
+    return "$rc"
+  fi
+  pid="$(shift_pid | tr -d '[:space:]')"
+  start="$(shift_pid_start)"
+  if ! ns_recorded_process "$pid" "$start"; then
+    pid=""
+    start=""
+  fi
+  ns_lease_write_unlocked "$NS" "$sid" "$host" "$((generation + 1))" "" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$NS"
+  return "$rc"
+}
+
 # The transcript the tells read: the shift's own, recorded by the hooks; the newest in the
 # project's transcript directory is the fallback before the record exists.
 resolve_transcript() {
@@ -299,6 +391,23 @@ errored_tail() {
       wedge = /[^\\]"isApiErrorMessage"[[:space:]]*:[[:space:]]*true/
     }
     END { exit wedge ? 0 : 1 }'
+}
+
+# The outage tell, read after a whole ladder of attempts has failed: the last error in the
+# transcript names the thing that refused the work. A rate or usage limit, a 429, a 529, or an
+# api error is an account or a service the next knock cannot argue with either — worth waiting
+# out. Anything else (a broken transcript, a bad agent command) is not, and keeps the interval.
+api_limited_tail() {
+  local t
+  t="$(resolve_transcript)"
+  [ -n "$t" ] || return 1
+  tail -n 25 "$t" 2>/dev/null | awk '
+    tolower($0) ~ /error|(rate|usage)[ _-]?limit/ { last = tolower($0) }
+    END {
+      exit (last ~ /(rate|usage)[ _-]?limit/ ||
+            last ~ /(^|[^0-9])(429|529)([^0-9]|$)/ ||
+            last ~ /(^|[^a-z])api([^a-z]|$)/) ? 0 : 1
+    }'
 }
 
 # Primary pulse: a live session streams every turn into its transcript, even when the work
@@ -415,10 +524,30 @@ down_notified=0
 # NIGHTSHIFT_WATCH_SLEEP overrides the base sleep in seconds — the test suite's speed lever.
 BASE_SLEEP="${NIGHTSHIFT_WATCH_SLEEP:-$((INTERVAL_MIN * 60))}"
 
+# The wait before the next wake, in minutes: the configured interval, doubled by every ladder
+# that failed on a limit, never past an hour — and never shorter than the interval the owner
+# configured, whatever that is.
+WAIT_MIN="$INTERVAL_MIN"
+WAIT_CAP=60
+[ "$WAIT_CAP" -ge "$INTERVAL_MIN" ] || WAIT_CAP="$INTERVAL_MIN"
+back_off() {
+  WAIT_MIN=$((WAIT_MIN * 2))
+  [ "$WAIT_MIN" -le "$WAIT_CAP" ] || WAIT_MIN="$WAIT_CAP"
+}
+# Seconds before the next wake: the base sleep, scaled by however far the wait has backed off.
+wake_wait() {
+  case "$BASE_SLEEP" in
+    '' | *[!0-9]*) printf '%s' "$BASE_SLEEP"; return ;; # not whole seconds — pass it through
+  esac
+  printf '%s' "$((BASE_SLEEP * WAIT_MIN / INTERVAL_MIN))"
+}
+
 while :; do
-  sleep "$BASE_SLEEP"
+  sleep "$(wake_wait)"
   wake=$((wake + 1))
 
+  armed || stand_down_disarmed
+  holds_pidfile || stand_down_unclaimed
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
   if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
@@ -471,6 +600,7 @@ while :; do
       alive)
         standby_prev=""
         down_notified=0
+        WAIT_MIN="$INTERVAL_MIN" # the site answered; knock at the configured cadence again
         ;;
       esc)
         note esc-standby
@@ -517,6 +647,9 @@ while :; do
               break
             fi
           fi
+          # Disarming mid-ladder ends it here: the fresh-session rung, which starts a worker on
+          # nothing but the punch list, must never fire at a site the owner just stood down.
+          armed || stand_down_disarmed
           log_line "watchman: site quiet ${INTERVAL_MIN}m+ with open boxes — resume attempt $attempt ($(rung_label "$attempt" "$total"))"
           if spawn "$(rung_agent "$attempt" "$total")" "$(rung_prompt "$attempt" "$total")"; then
             revived=0
@@ -528,12 +661,18 @@ while :; do
           [ -n "$spacing" ] || break
           sleep "$spacing"
         done
+        # A ladder that revived nothing hands ownership back before the wake ends, so the
+        # recorded conversation is never left waiting on a generation no process holds.
+        if [ "$revived" -ne 0 ] && [ "$attempt" -gt 0 ]; then
+          restore_recorded_lease || true
+        fi
         # A successful revival is morning news, not a page: it lands in the parking lot — the
         # file the owner reads — with the thread's handles. The page is reserved for the one
         # night event that needs the owner: a dead session no attempt could bring back, rung
         # once per outage, not once per wake.
         if [ "$revived" -eq 0 ]; then
           down_notified=0
+          WAIT_MIN="$INTERVAL_MIN"
           if [ "$AGENT_IS_DEFAULT" -eq 1 ] && [ "$attempt" -ge "$total" ] && [ "$total" -gt 1 ]; then
             note fresh-fallback
           elif [ -z "$sid" ]; then
@@ -551,7 +690,12 @@ while :; do
           fi
         elif [ -z "$aborted" ]; then
           note exhausted-retry
-          log_line "watchman: all $attempt attempts failed (api down?) — knocking again in ${INTERVAL_MIN}m"
+          if api_limited_tail; then
+            back_off
+            log_line "watchman: all $attempt attempts failed (api down?) — backing off, knocking again in ${WAIT_MIN}m"
+          else
+            log_line "watchman: all $attempt attempts failed (api down?) — knocking again in ${WAIT_MIN}m"
+          fi
           if [ -n "$NOTIFY" ] && [ "$down_notified" -eq 0 ]; then
             down_notified=1
             summary="nightshift: the shift session is down and revival failed — it needs you${sid:+: claude --resume $sid}"

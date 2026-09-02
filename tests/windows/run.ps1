@@ -941,6 +941,102 @@ exit 0
     Assert-True ((Get-Content -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/parking-lot.md') -Raw) `
         -match 'the watchman revived it') 'revival writes an owner-facing parking-lot notice'
 
+    Write-Host 'Checking watchman disarm-total, pidfile-gone, and backoff standdowns'
+    $disarmWatchWorkspace = Join-Path $root 'disarm watchman workspace'
+    $null = Initialize-TestWorkspace $disarmWatchWorkspace
+    Set-TestPunch $disarmWatchWorkspace $true
+    # .shift-armed is deliberately absent - disarm is total, even for the watchman's own loop.
+    $disarmWatch = Invoke-TestScript $watchman `
+        @('-Project', $disarmWatchWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-MaxWakes', '1') `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0' }
+    Assert-Equal 0 $disarmWatch.ExitCode "a disarmed site makes the watchman stand down cleanly: $($disarmWatch.Stderr)"
+    Assert-Equal 'owner-disarm' ([IO.File]::ReadAllLines((Join-Path $disarmWatchWorkspace '.nightshift/.watch-reason'))[0]) `
+        'disarm is recorded as the stand-down reason'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $disarmWatchWorkspace '.nightshift/shift-log.md') -Raw) `
+        -match 'the armed marker is gone') 'the disarm stand-down is logged'
+
+    $pidGoneWorkspace = Join-Path $root 'pidfile gone workspace'
+    $null = Initialize-TestWorkspace $pidGoneWorkspace
+    Set-TestPunch $pidGoneWorkspace $true
+    [IO.File]::WriteAllText((Join-Path $pidGoneWorkspace '.nightshift/.shift-armed'), '')
+    Write-NSSession (Join-Path $pidGoneWorkspace '.nightshift') 'pidfile-gone-session' '' `
+        ([string]$PID) (Get-NSProcessStart $PID) 'claude' | Out-Null
+    $pidGoneLaunch = Invoke-TestScript $startWatchman @('-Project', $pidGoneWorkspace, '-HostName', 'claude') `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '1' }
+    Assert-Equal 0 $pidGoneLaunch.ExitCode "pidfile-gone fixture launches: $($pidGoneLaunch.Stderr)"
+    $pidGoneMarker = Join-Path $pidGoneWorkspace '.nightshift/.watchman'
+    $pidGoneAttempts = 0
+    while ((-not (Test-Path -LiteralPath $pidGoneMarker -PathType Leaf)) -and $pidGoneAttempts -lt 100) {
+        Start-Sleep -Milliseconds 50
+        $pidGoneAttempts++
+    }
+    Assert-True (Test-Path -LiteralPath $pidGoneMarker -PathType Leaf) `
+        'pidfile-gone fixture writes its own pidfile before the test removes it'
+    Remove-Item -LiteralPath $pidGoneMarker -Force -ErrorAction SilentlyContinue
+    $pidGoneLog = Join-Path $pidGoneWorkspace '.nightshift/shift-log.md'
+    $pidGoneAttempts = 0
+    while ((-not (Test-Path -LiteralPath $pidGoneLog -PathType Leaf) `
+            -or ((Get-Content -LiteralPath $pidGoneLog -Raw) -notmatch 'the watchman pidfile is gone')) `
+            -and $pidGoneAttempts -lt 100) {
+        Start-Sleep -Milliseconds 50
+        $pidGoneAttempts++
+    }
+    Assert-True ((Test-Path -LiteralPath $pidGoneLog -PathType Leaf) `
+        -and ((Get-Content -LiteralPath $pidGoneLog -Raw) -match 'the watchman pidfile is gone')) `
+        'a watchman whose own pidfile disappears stands down and logs why'
+
+    $backoffWorkspace = Join-Path $root 'backoff workspace'
+    $null = Initialize-TestWorkspace $backoffWorkspace
+    Set-TestPunch $backoffWorkspace $true
+    $backoffArmed = Join-Path $backoffWorkspace '.nightshift/.shift-armed'
+    [IO.File]::WriteAllText($backoffArmed, '')
+    (Get-Item -LiteralPath $backoffArmed).LastWriteTimeUtc = [datetime]'2020-01-01T00:00:00Z'
+    $backoffSession = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
+    $backoffProbe = Invoke-Hardhat $backoffWorkspace $backoffSession 'Bash' @{ command = "`$null = 'nightshift-binding-probe'" }
+    Assert-Equal 0 $backoffProbe.ExitCode 'backoff fixture binds'
+    $apiTranscript = Join-Path $root 'backoff transcript.txt'
+    [IO.File]::WriteAllText($apiTranscript, "assistant hit a rate limit calling the api`n")
+    $backoffFailStub = Join-Path $root 'backoff fail stub.ps1'
+    @'
+param([string]$Prompt)
+exit 1
+'@ | Set-Content -LiteralPath $backoffFailStub -Encoding UTF8
+    $backoffWatch = Invoke-TestScript $watchman `
+        @('-Project', $backoffWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $backoffFailStub, '-MaxWakes', '1') `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_WATCH_RETRY = '0'; NIGHTSHIFT_WATCH_TRANSCRIPTS = $apiTranscript }
+    Assert-Equal 7 $backoffWatch.ExitCode "backoff fixture reaches its test cap: $($backoffWatch.Stderr)"
+    $backoffLog = Get-Content -LiteralPath (Join-Path $backoffWorkspace '.nightshift/shift-log.md') -Raw
+    Assert-True ($backoffLog -match [regex]::Escape('(api down?)') -and $backoffLog -match 'backing off, knocking again in 2m') `
+        "an exhausted ladder with API evidence backs off and logs the doubled interval: $backoffLog"
+    $backoffLease = [IO.File]::ReadAllLines((Join-Path $backoffWorkspace '.nightshift/.shift-lease'))
+    Assert-True ([string]::IsNullOrEmpty($backoffLease[3])) `
+        'an exhausted API-evidenced ladder hands the lease back to the recorded conversation'
+    $backoffTool = Invoke-Hardhat $backoffWorkspace $backoffSession 'Bash' @{ command = 'Get-Location' }
+    Assert-True ([string]::IsNullOrWhiteSpace($backoffTool.Stdout)) `
+        "the recorded conversation is not fenced after an exhausted, restored ladder ($(Format-HookResult $backoffTool))"
+
+    $freshGuardWorkspace = Join-Path $root 'fresh guard workspace'
+    $null = Initialize-TestWorkspace $freshGuardWorkspace
+    Set-TestPunch $freshGuardWorkspace $true
+    $freshGuardArmed = Join-Path $freshGuardWorkspace '.nightshift/.shift-armed'
+    [IO.File]::WriteAllText($freshGuardArmed, '')
+    (Get-Item -LiteralPath $freshGuardArmed).LastWriteTimeUtc = [datetime]'2020-01-01T00:00:00Z'
+    $freshGuardSession = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+    $freshGuardProbe = Invoke-Hardhat $freshGuardWorkspace $freshGuardSession 'Bash' @{ command = "`$null = 'nightshift-binding-probe'" }
+    Assert-Equal 0 $freshGuardProbe.ExitCode 'fresh-rung guard fixture binds'
+    $freshGuardStub = Join-Path $root 'fresh guard stub.ps1'
+    @'
+param([string]$Prompt)
+Remove-Item -LiteralPath (Join-Path $env:CODEX_PROJECT_DIR '.nightshift/.shift-armed') -Force -ErrorAction SilentlyContinue
+exit 1
+'@ | Set-Content -LiteralPath $freshGuardStub -Encoding UTF8
+    $freshGuardWatch = Invoke-TestScript $watchman `
+        @('-Project', $freshGuardWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $freshGuardStub, '-MaxWakes', '1') `
+        '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_WATCH_RETRY = '0' }
+    Assert-Equal 7 $freshGuardWatch.ExitCode "fresh-rung guard fixture reaches its test cap: $($freshGuardWatch.Stderr)"
+    $freshGuardLog = Get-Content -LiteralPath (Join-Path $freshGuardWorkspace '.nightshift/shift-log.md') -Raw
+    Assert-True ($freshGuardLog -match 'the armed marker is gone - holding the remaining attempts') `
+        "the fresh-session rung is skipped once the armed marker disappears mid-ladder: $freshGuardLog"
     Write-Host 'Checking default Codex recovery through an npm-style command shim'
     $codexRecoveryWorkspace = Join-Path $root 'codex shim recovery workspace'
     $null = Initialize-TestWorkspace $codexRecoveryWorkspace

@@ -354,6 +354,17 @@ with open(p,"w") as f: json.dump(d,f)
   ! printf '%s' "$output" | grep -qF 'the recorded conversation can operate'
 }
 
+@test "Doctor names a dead recovery attempt as reclaimable by the recorded conversation" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'shift-session\n\n%s\n\nclaude\n' "$$" >"$p/.nightshift/.shift-session"
+  printf 'shift-session\nclaude\n2\nnonce1\n%s\n2000-01-01\n' "$$" >"$p/.nightshift/.shift-lease"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF "lease held by a dead recovery attempt (generation 2, pid $$); the recorded conversation reclaims it on its next tool call"
+  ! printf '%s' "$output" | grep -qF 'recovery worker is alive'
+}
+
 @test "the drafting-table item-shape example is not a staged draft" {
   p="$(new_project)"
   rm -f "$p/.nightshift/.shift-armed"

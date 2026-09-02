@@ -37,7 +37,8 @@ CODEX_HOOKS="$HOOKS/codex"
 
 @test "both hardhats and gates share one ownership protocol" {
   LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
-  for fn in ns_shift_unbound ns_shift_rebind ns_shift_authorize ns_shift_ownership; do
+  for fn in ns_shift_unbound ns_shift_rebind ns_shift_authorize ns_shift_ownership \
+    ns_lease_reclaim_recorded; do
     grep -qF "$fn() {" "$LIB_DIR"/*.sh || { echo "missing $fn"; return 1; }
   done
   grep -qF 'ns_shift_unbound claude hardhat' "$HOOKS/hardhat.sh"
@@ -58,6 +59,12 @@ CODEX_HOOKS="$HOOKS/codex"
   awk '/ns_shift_unbound/{u=NR} /ns_session_claim/{if(!c)c=NR} END{exit !(u && c && u<c)}' "$HOOKS/cursor/hardhat.sh"
   awk '/ns_hardhat_binding_probe/{p=NR} /ns_shift_authorize/{a=NR} END{exit !(p && a && p<a)}' "$HOOKS/hardhat.sh"
   awk '/ns_hardhat_binding_probe/{p=NR} /ns_shift_authorize/{a=NR} END{exit !(p && a && p<a)}' "$HOOKS/codex/hardhat.sh"
+  # The owner's Stop, reset, and purge helpers are reachable from a fenced conversation only
+  # if that allowance is consulted before the ownership protocol runs. Every host, every time.
+  for h in "$HOOKS/hardhat.sh" "$HOOKS/codex/hardhat.sh" "$HOOKS/cursor/hardhat.sh"; do
+    awk '/ns_hardhat_trusted_shift_control/{t=NR} /ns_shift_unbound/{u=NR} END{exit !(t && u && t<u)}' "$h" \
+      || { echo "the helper allowance runs after the ownership protocol: $h"; return 1; }
+  done
 }
 
 @test "both watchmen spawn through one child runner" {

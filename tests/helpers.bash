@@ -83,6 +83,15 @@ hardhat_bash() {
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
 }
 
+# hardhat_sid_bash <project> <session-id> <command> [ENV=VAL ...]
+hardhat_sid_bash() {
+  local p="$1" sid="$2" c="$3"
+  shift 3
+  jq -nc --arg sid "$sid" --arg c "$c" \
+    '{tool_name:"Bash",session_id:$sid,tool_input:{command:$c}}' |
+    env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+}
+
 # hardhat_bash_cwd <project> <cwd> <command> [ENV=VAL ...]
 hardhat_bash_cwd() {
   local p="$1" w="$2" c="$3"
@@ -97,6 +106,55 @@ hardhat_ask() {
   shift
   jq -nc '{tool_name:"AskUserQuestion",tool_input:{}}' |
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+}
+
+# ---------------------------------------------------------------------------------------------
+# Shift-ownership fixtures. The conversation record and the process lease are line-oriented
+# files the runtime reads by position, so a test that plants one states every line. These write
+# the file directly — a fixture must be able to describe states the write helpers refuse.
+
+# session_record <project> <sid> <transcript> <pid> <start> <host>
+session_record() {
+  local f="$1/.nightshift/.shift-session"
+  printf '%s\n%s\n%s\n%s\n%s\n' "$2" "$3" "$4" "$5" "$6" >"$f"
+  chmod 600 "$f"
+}
+
+# lease_record <project> <sid> <host> <generation> <nonce> <pid> <start>
+lease_record() {
+  local f="$1/.nightshift/.shift-lease"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$2" "$3" "$4" "$5" "$6" "$7" >"$f"
+  chmod 600 "$f"
+}
+
+lease_scope()      { sed -n 1p "$1/.nightshift/.shift-lease"; }
+lease_generation() { sed -n 3p "$1/.nightshift/.shift-lease"; }
+lease_nonce()      { sed -n 4p "$1/.nightshift/.shift-lease"; }
+lease_holder_pid() { sed -n 5p "$1/.nightshift/.shift-lease"; }
+
+# process_start <pid> — the start-time line the runtime pairs with a pid, in its own format.
+process_start() {
+  ps -o lstart= -p "$1" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+# reaped_pid — a pid whose process has exited and been waited for: provably dead.
+reaped_pid() {
+  local pid
+  bash -c ':' &
+  pid=$!
+  wait "$pid" 2>/dev/null || true
+  printf '%s' "$pid"
+}
+
+# reclaim_log_count <project> [old-generation new-generation]
+# How many times the shift log records a lease reclaim: any reclaim with no generations given,
+# or the exact sentence for that one transition when both are.
+reclaim_log_count() {
+  local log="$1/.nightshift/shift-log.md"
+  local needle='lease reclaimed by the recorded conversation after a dead recovery attempt'
+  [ -f "$log" ] || { printf '0'; return 0; }
+  if [ "$#" -eq 3 ]; then needle="$needle (generation $2 → $3)"; fi
+  grep -cF "$needle" "$log" || true
 }
 
 is_block() { printf '%s' "$1" | grep -q '"decision":"block"' && printf '%s' "$1" | jq -e . >/dev/null; }

@@ -458,6 +458,12 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
     elif [ -n "$LEASE_NONCE" ] && [ -n "$LEASE_PID" ] && ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
       fact "recovery worker is alive; the recorded conversation cannot reclaim yet"
       act confirm "wait until the recovery worker exits, or run $_here/stop-shift.sh --project $HOST; reopening the recorded conversation stays blocked while that worker holds the lease"
+    elif [ -n "$LEASE_NONCE" ] && [ -n "$LEASE_PID" ] && [ -n "$SID" ]; then
+      ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"
+      rc=$?
+      if [ "$rc" -eq 1 ]; then
+        fact "lease held by a dead recovery attempt (generation $LEASE_GENERATION, pid $LEASE_PID); the recorded conversation reclaims it on its next tool call"
+      fi
     fi
   else
     LEASE_STATE="malformed"

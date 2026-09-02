@@ -886,6 +886,136 @@ STUB
   [ -z "$out" ]
 }
 
+# ---- the owner's emergency helpers outrank the process fence ----
+
+PLUGIN_ROOT="$(cd -P "$BATS_TEST_DIRNAME/../plugins/nightshift" && pwd -P)"
+FOREIGN_NONCE=claude.2.4711.8.9
+
+# shift_helper_passes <project> <session-id> — the three owner helpers, each once.
+shift_helper_passes() {
+  local p="$1" sid="$2" helper out
+  for helper in "stop-shift.sh --project $p" "reset-shift.sh --project $p" \
+    "purge-workspace.sh --project $p --confirm-path $p"; do
+    out="$(hardhat_sid_bash "$p" "$sid" "bash $PLUGIN_ROOT/runtime/$helper")"
+    [ -z "$out" ] || { echo "helper refused: [$sid] $helper -> $out"; return 1; }
+  done
+  return 0
+}
+
+@test "the owner helpers run from any conversation while a live worker holds the lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" shift-session "" "" "" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+
+  shift_helper_passes "$p" shift-session
+  shift_helper_passes "$p" helper-tab
+  shift_helper_passes "$p" ""
+
+  # The allowance is exactly those helpers; ordinary work in the fenced conversation is not.
+  out="$(hardhat_sid_bash "$p" shift-session "echo hi")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "being recovered in another process"
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+@test "the owner helpers run from any conversation while the lease holder is dead" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" shift-session "" "" "" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+
+  shift_helper_passes "$p" shift-session
+  shift_helper_passes "$p" helper-tab
+  [ "$(reclaim_log_count "$p")" -eq 0 ] # a helper is not a claim on the shift
+}
+
+# ---- disarm is total ----
+#
+# Every rule hardhat can apply, run once against a site that is no longer armed. The lease is
+# deliberately left behind, live holder and dead holder both: a disarmed site has no fence to
+# stand, no tool to deny, and no command to guard.
+
+# every_rule_passes <project> <session-id>
+every_rule_passes() {
+  local p="$1" sid="$2" command out
+  while IFS= read -r command; do
+    [ -n "$command" ] || continue
+    out="$(hardhat_sid_bash "$p" "$sid" "$command" \
+      NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' NIGHTSHIFT_PROTECTED_DIRS='ai_docs')"
+    [ -z "$out" ] || { echo "rule applied to a disarmed site: [$sid] $command -> $out"; return 1; }
+  done <<'CMDS'
+echo hi
+git push
+git add ai_docs/x
+sudo apt-get install -y jq
+rm -f .nightshift/.shift-lease
+touch .nightshift/STOP
+unlink .nightshift/.shift-armed
+printf '{}' > .nightshift/rules.json
+CMDS
+  out="$(jq -nc --arg sid "$sid" '{tool_name:"AskUserQuestion",session_id:$sid,tool_input:{}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the question rule applied to a disarmed site: [$sid] -> $out"; return 1; }
+  out="$(jq -nc --arg sid "$sid" --arg fp "$p/.nightshift/.shift-session" \
+    '{tool_name:"Write",session_id:$sid,tool_input:{file_path:$fp,content:"forged"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the control rule applied to a disarmed site: [$sid] -> $out"; return 1; }
+  out="$(jq -nc --arg sid "$sid" '{tool_name:"Read",session_id:$sid,tool_input:{file_path:"README.md"}}' |
+    env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the fence applied to a disarmed site: [$sid] -> $out"; return 1; }
+  return 0
+}
+
+@test "an unarmed site applies no rule, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" shift-session "" "" "" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+  rm "$p/.nightshift/.shift-armed"
+
+  every_rule_passes "$p" shift-session
+  every_rule_passes "$p" helper-tab
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ] # and nothing reclaimed a shift that is over
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+
+  q="$(new_project unarmed-dead-holder)"
+  punch_open "$q"
+  dead="$(reaped_pid)"
+  session_record "$q" shift-session "" "" "" claude
+  lease_record "$q" shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+  rm "$q/.nightshift/.shift-armed"
+
+  every_rule_passes "$q" shift-session
+  [ "$(reclaim_log_count "$q")" -eq 0 ]
+}
+
+# The Stop helper writes STOP and drops the armed marker in one act, so a stopped shift is a
+# disarmed one from the next tool call — no Stop event needed. (A stop-work order that is
+# merely pending, marker still in place, keeps the site rules armed; that is its own test.)
+@test "a stopped shift applies no rule, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" shift-session "" "" "" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  rm "$p/.nightshift/.shift-armed"
+
+  every_rule_passes "$p" shift-session
+  every_rule_passes "$p" helper-tab
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+}
+
 # No readable rules is a fault, never permission to invent an ask policy.
 @test "a missing rules file denies the question and names the repair" {
   p="$(new_project)"

@@ -108,6 +108,7 @@ ns_reason_label() {
   case "$1" in
     completed) printf 'shift completed' ;;
     owner-stop) printf 'owner stop-work order' ;;
+    owner-disarm) printf 'shift disarmed - the armed marker is gone' ;;
     stale-pid) printf 'recorded process is stale' ;;
     invalid-session) printf 'session identity is missing or unreadable' ;;
     exhausted-retry) printf 'revival retries exhausted this wake' ;;
@@ -133,7 +134,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable|clock-out-failed) ;;
+    completed|owner-stop|owner-disarm|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable|clock-out-failed) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
@@ -142,6 +143,14 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
 
 ns_reason_code() { sed -n 1p "$1/.watch-reason" 2>/dev/null | tr -d '[:space:]'; }
 ns_reason_detail() { sed -n 2p "$1/.watch-reason" 2>/dev/null; }
+
+# The shift log is the owner's record of what the runtime did. Append-only, one line per
+# event, in the format the gate and the control helpers already write. Hooks do not load
+# the control module, so this is the writer they share.
+ns_shift_log() { # <nightshift-dir> <line>
+  [ -d "$1" ] || return 0
+  printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$2" >>"$1/shift-log.md"
+}
 
 # Workspace schema. One integer in .nightshift/state-version is the authority. This plugin
 # supports version 1. A missing marker is legacy version 0 — existing files stay compatible,

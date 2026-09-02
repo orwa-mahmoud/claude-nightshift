@@ -281,6 +281,39 @@ ns_lease_reclaim_interactive() { # <ns> <sid> <host> <old-generation> <pid> <sta
   return "$rc"
 }
 
+# Take back a lease whose recovery holder is gone. A revival carries a nonce and the pid of
+# the process it fenced the site for; when that process is provably dead the site has no owner,
+# and the conversation the record names may resume it at the next generation with an empty
+# nonce and its own process. Provable death only, under the lease lock: an unreadable pid, an
+# empty one, or a process the host cannot classify all leave the lease alone.
+ns_lease_reclaim_recorded() { # <ns> <sid> <host> <pid> <start>
+  local ns="$1" sid="$2" host="$3" pid="$4" start="$5" generation reclaimed rc
+  [ -n "$sid" ] || return 1
+  ns_lease_lock "$ns" || return 1
+  if ! ns_lease_valid "$ns"; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  if [ "$NS_LEASE_HOST" != "$host" ] || [ -z "$NS_LEASE_NONCE" ] || [ -z "$NS_LEASE_PID" ]; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+  rc=$?
+  if [ "$rc" -ne 1 ]; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  generation="$NS_LEASE_GENERATION"
+  reclaimed=$((generation + 1))
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$reclaimed" "" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$ns"
+  [ "$rc" -eq 0 ] || return 1
+  ns_shift_log "$ns" "lease reclaimed by the recorded conversation after a dead recovery attempt (generation $generation → $reclaimed)"
+  return 0
+}
+
 ns_lease_allows() { # <ns> <sid> <host> <pid> <start> <nonce> <generation>
   local ns="$1" sid="$2" host="$3" pid="$4" start="$5" nonce="$6" generation="$7"
   local lease_sid lease_host lease_generation lease_nonce lease_pid lease_start rc
@@ -478,6 +511,14 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   ns_lease_allows "$NS" "$check_sid" "$host" "$pid" "$start" \
     "$LEASE_NONCE" "$LEASE_GENERATION"
   lease_rc=$?
+  # A recovery attempt that died holds nothing. The conversation the record names takes the
+  # lease back here rather than waiting for a worker that will never report; a live holder,
+  # a scope the record no longer names, and a process the host cannot classify keep the fence.
+  if [ "$lease_rc" -eq 1 ] && [ -n "${SID:-}" ] && [ "$SID" = "$rec" ] \
+    && [ -z "$LEASE_NONCE" ] \
+    && ns_lease_reclaim_recorded "$NS" "$rec" "$host" "$pid" "$start"; then
+    lease_rc=0
+  fi
   if [ "$lease_rc" -eq 1 ]; then
     if [ "$mode" = hardhat ]; then
       if ns_lease_load "$NS" && [ -n "$NS_LEASE_NONCE" ] \

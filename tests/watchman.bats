@@ -11,6 +11,7 @@ setup() {
   mkdir -p "$P/.nightshift"
   cp "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json" "$P/.nightshift/rules.json"
   printf '## Items\n- [ ] **1.**\n' >"$P/.nightshift/punch-list.md"
+  : >"$P/.nightshift/.shift-armed" # as start does — the watchman only works an armed site
 
   BIN="$BATS_TEST_TMPDIR/bin"
   mkdir -p "$BIN"
@@ -1093,4 +1094,240 @@ STUB
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 2
   [ "$(reason)" = "unreadable-rules" ]
   printf '%s' "$output" | grep -qF '/nightshift:setup on Claude Code; ask Nightshift to set up on Codex'
+}
+
+# ---- disarm is total, and a dead attempt never keeps the lease ----
+#
+# The armed marker is the shift itself. Once it is gone the watchman holds no opinion about the
+# site: no liveness reading, no spawn, no clock-out — and it never writes the marker back. The
+# lease is the other half: every attempt takes it, so a ladder that revives nothing has to give
+# it back, or the conversation the record names is fenced out of its own project.
+
+lease_line() { sed -n "$1p" "$P/.nightshift/.shift-lease"; }
+
+# A host roster that lists nobody: the registry witness saying the recorded session is gone.
+empty_roster() {
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in agents*) echo "[]" ;; esac
+exit 0
+STUB
+  chmod +x "$BIN/claude"
+}
+
+@test "a missing armed marker stands the watchman down at the first tick" {
+  rm -f "$P/.nightshift/.shift-armed"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  grep -qF 'watchman: the armed marker is gone — standing down' "$P/.nightshift/shift-log.md"
+  [ "$(reason)" = "owner-disarm" ]
+  [ ! -e "$P/.nightshift/.shift-armed" ] # never created, never touched
+}
+
+@test "a disarmed site is stood down before the clock-out and the deadline" {
+  printf '## Items\n- [x] **1.**\n' >"$P/.nightshift/punch-list.md"
+  printf '%s' "$(( $(date +%s) - 60 ))" >"$P/.nightshift/deadline"
+  rm -f "$P/.nightshift/.shift-armed"
+  run watch --agent "bash $BIN/tick.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  [ ! -f "$P/.nightshift/.ended" ]
+  [ "$(reason)" = "owner-disarm" ]
+}
+
+# The fresh-session rung starts a session that carries only the punch list. It is the strongest
+# claim on the night and the last one to make, so it needs the marker at the moment it fires.
+@test "a marker removed mid-ladder stops before the fresh-session fallback" {
+  printf 'abc-123\n\n\n\n' >"$P/.nightshift/.shift-session"
+  cat >"$BIN/claude" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  agents*) echo "[]"; exit 0 ;;
+  *--resume*) echo resume >>.nightshift/agent-calls ;;
+  *--continue*) echo continue >>.nightshift/agent-calls ;;
+  *) echo fresh >>.nightshift/agent-calls ;;
+esac
+rm -f .nightshift/.shift-armed
+exit 1
+STUB
+  chmod +x "$BIN/claude"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(sed -n 1p "$P/.nightshift/agent-calls")" = "resume" ]
+  [ "$(wc -l <"$P/.nightshift/agent-calls" | tr -d ' ')" -eq 1 ]
+  ! grep -q fresh "$P/.nightshift/agent-calls"
+  ! grep -q 'fresh-session fallback' "$P/.nightshift/shift-log.md"
+  grep -qF 'watchman: the armed marker is gone — standing down' "$P/.nightshift/shift-log.md"
+  [ "$(reason)" = "owner-disarm" ]
+}
+
+# An account that has hit a usage limit fails every attempt of every wake. The knock doubles its
+# wait instead of arriving every interval until morning, and life on the site puts it back.
+@test "an API-limited ladder doubles the wait and a pulse puts it back" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"assistant","message":{"content":[{"type":"text","text":"working"}]}}\n' >"$T/shift.jsonl"
+  printf 'sid-shift\n%s\n\n\nclaude\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  empty_roster
+  # Fails the way a rate-limited host fails: nothing done, the limit recorded in the transcript.
+  cat >"$BIN/limited.sh" <<STUB
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+printf '%s\n' '{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"API Error: 429 rate_limit_error"}]},"error":"rate_limit_error","isApiErrorMessage":true,"apiErrorStatus":429}' >>"$T/shift.jsonl"
+exit 1
+STUB
+  # The wake sleep is the watchman's own clock. This stub records every wait and scripts the
+  # site's timeline with it: a pulse before wake 2, gone again before wake 3.
+  cat >"$BIN/sleep" <<STUB
+#!/usr/bin/env bash
+printf '%s\n' "\$1" >>"$BATS_TEST_TMPDIR/sleeps"
+case "\$1" in 0 | 0.*) exit 0 ;; esac
+n=\$(( \$(cat "$BATS_TEST_TMPDIR/wakes" 2>/dev/null || echo 0) + 1 ))
+printf '%s\n' "\$n" >"$BATS_TEST_TMPDIR/wakes"
+[ "\$n" != 2 ] || printf '%s sid-shift\n' "\$(date +%s)" >"$P/.nightshift/.shift-pulse"
+[ "\$n" != 3 ] || rm -f "$P/.nightshift/.shift-pulse"
+exit 0
+STUB
+  chmod +x "$BIN/limited.sh" "$BIN/sleep"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=1 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/limited.sh" --max-wakes 3
+  [ "$status" -eq 7 ]
+  [ "$(reason)" = "exhausted-retry" ]
+  [ "$(grep -cF 'watchman: all 3 attempts failed (api down?) — backing off, knocking again in 40m' \
+    "$P/.nightshift/shift-log.md")" -eq 2 ] # doubled on wake 1, reset by the pulse, doubled again
+  ! grep -qF 'knocking again in 80m' "$P/.nightshift/shift-log.md"
+  # The waits themselves: the interval, twice the interval, then the interval again.
+  [ "$(grep -v '^0' "$BATS_TEST_TMPDIR/sleeps" | tr '\n' ' ')" = "1 2 1 " ]
+}
+
+@test "the API backoff never waits longer than an hour" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf 'sid-shift\n%s\n\n\nclaude\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  empty_roster
+  cat >"$BIN/limited.sh" <<STUB
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+printf '%s\n' '{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"Claude usage limit reached"}]},"error":"usage_limit","isApiErrorMessage":true}' >>"$T/shift.jsonl"
+exit 1
+STUB
+  chmod +x "$BIN/limited.sh"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 40 --agent "bash $BIN/limited.sh" --max-wakes 2
+  [ "$status" -eq 7 ]
+  [ "$(grep -cF 'backing off, knocking again in 60m' "$P/.nightshift/shift-log.md")" -eq 2 ]
+  ! grep -qF 'knocking again in 80m' "$P/.nightshift/shift-log.md"
+}
+
+# A failure with no limit behind it is not an outage: the knock keeps its interval, in the
+# wording the morning already knows.
+@test "a failure without API evidence keeps the interval and the existing line" {
+  empty_roster
+  printf 'sid-shift\n\n\n\nclaude\n' >"$P/.nightshift/.shift-session"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 2
+  [ "$status" -eq 7 ]
+  [ "$(grep -cF 'watchman: all 3 attempts failed (api down?) — knocking again in 20m' \
+    "$P/.nightshift/shift-log.md")" -eq 2 ]
+  ! grep -q 'backing off' "$P/.nightshift/shift-log.md"
+}
+
+# Every attempt takes the lease for its own child. When the whole ladder fails, the lease goes
+# back to the recorded conversation, so reopening it needs nothing from the owner.
+@test "an exhausted ladder hands the lease back to the recorded conversation" {
+  bash -c ':' &
+  deadpid=$!
+  wait "$deadpid" 2>/dev/null || true
+  printf 'test-shift-session\n\n%s\n\nclaude\n' "$deadpid" >"$P/.nightshift/.shift-session"
+  empty_roster
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  [ "$status" -eq 7 ]
+  [ "$(lease_line 1)" = "test-shift-session" ]
+  [ "$(lease_line 2)" = "claude" ]
+  [ "$(lease_line 3)" -ge 2 ] # every attempt advanced the generation; the restore advances it too
+  [ -z "$(lease_line 4)" ]    # no recovery nonce
+  [ -z "$(lease_line 5)" ]    # and no dead holder pid to fence the conversation with
+  run recorded_read "$P" test-shift-session
+  is_allow
+}
+
+# The restored lease names the recorded process while that process is alive — the wedge case,
+# where the conversation still has a host but nobody at the keyboard.
+@test "the restored lease names the recorded process while it is alive" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '%s\n' \
+    '{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"API Error: 500 Internal server error"}]},"error":"server_error","isApiErrorMessage":true,"apiErrorStatus":500}' \
+    >"$T/shift.jsonl"
+  start="$(ps -o lstart= -p $$ | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  printf 'test-shift-session\n%s\n%s\n%s\nclaude\n' "$T/shift.jsonl" "$$" "$start" >"$P/.nightshift/.shift-session"
+  empty_roster
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
+    NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  [ "$status" -eq 7 ]
+  [ "$(lease_line 1)" = "test-shift-session" ]
+  [ -z "$(lease_line 4)" ]
+  [ "$(lease_line 5)" = "$$" ]
+  [ "$(lease_line 6)" = "$start" ]
+}
+
+# A site that came back mid-ladder is not left holding a dead attempt's lease either.
+@test "a ladder held by returning session activity hands the lease back" {
+  T="$BATS_TEST_TMPDIR/transcripts"
+  mkdir -p "$T"
+  printf '{"type":"message","content":"working"}\n' >"$T/shift.jsonl"
+  printf 'test-shift-session\n%s\n\n\nclaude\n' "$T/shift.jsonl" >"$P/.nightshift/.shift-session"
+  empty_roster
+  RDY="$BATS_TEST_TMPDIR/.return-ready"
+  ( : >"$RDY"; sleep 1
+    while :; do printf '{"type":"message","content":"back"}\n' >>"$T/shift.jsonl"; sleep 0.3; done ) &
+  appender=$!
+  wait_writer "$RDY"
+  run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="2" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  kill "$appender" 2>/dev/null || true
+  [ "$status" -eq 7 ]
+  grep -q 'during retries — holding the remaining attempts' "$P/.nightshift/shift-log.md"
+  [ "$(lease_line 1)" = "test-shift-session" ]
+  [ -z "$(lease_line 4)" ]
+}
+
+# The pidfile is the watchman's claim on the site. Reset and purge take it away; a second
+# watchman replaces the pid inside it. Neither leaves this loop anything to watch.
+@test "a removed watchman pidfile stands the watchman down at the tick" {
+  cat >"$BIN/unclaim.sh" <<'STUB'
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+rm -f .nightshift/.watchman
+exit 1
+STUB
+  chmod +x "$BIN/unclaim.sh"
+  run watch --agent "bash $BIN/unclaim.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 3 ] # the wake that lost the pidfile still finished its own ladder
+  grep -qF 'watchman: the watchman pidfile is gone — standing down' "$P/.nightshift/shift-log.md"
+  [ "$(reason)" = "stand-down" ]
+}
+
+@test "a pidfile taken over by another watchman stands this one down and leaves it alone" {
+  cat >"$BIN/takeover.sh" <<'STUB'
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+printf '999999\n' >.nightshift/.watchman
+exit 1
+STUB
+  chmod +x "$BIN/takeover.sh"
+  run watch --agent "bash $BIN/takeover.sh" --max-wakes 3
+  [ "$status" -eq 0 ]
+  grep -qF 'watchman: another watchman owns this site — standing down' "$P/.nightshift/shift-log.md"
+  [ "$(sed -n 1p "$P/.nightshift/.watchman")" = "999999" ] # the other claim survives the exit
 }

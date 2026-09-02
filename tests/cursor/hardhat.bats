@@ -165,3 +165,123 @@ cursor_shell() {
   run cursor_shell "$p" "git commit -m 'sudo apt-get install jq'"
   is_allow
 }
+
+# ---- the owner's emergency helpers outrank the process fence; disarm is total ----
+
+PLUGIN_ROOT="$(cd -P "$BATS_TEST_DIRNAME/../../plugins/nightshift" && pwd -P)"
+FOREIGN_NONCE=cursor.2.4711.8.9
+
+# cursor_sid_shell <project> <conversation-id> <command> [ENV=VAL ...]
+cursor_sid_shell() {
+  local p="$1" sid="$2" c="$3"
+  shift 3
+  jq -nc --arg p "$p" --arg sid "$sid" --arg c "$c" \
+    '{tool_name:"Shell",conversation_id:$sid,transcript_path:"",cwd:$p,tool_input:{command:$c}}' |
+    env "$@" CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh"
+}
+
+# cursor_shift_helper_passes <project> <conversation-id>
+cursor_shift_helper_passes() {
+  local p="$1" sid="$2" helper out
+  for helper in "stop-shift.sh --project $p" "reset-shift.sh --project $p" \
+    "purge-workspace.sh --project $p --confirm-path $p"; do
+    out="$(cursor_sid_shell "$p" "$sid" "bash $PLUGIN_ROOT/runtime/$helper")"
+    [ -z "$out" ] || { echo "helper refused: [$sid] $helper -> $out"; return 1; }
+  done
+  return 0
+}
+
+@test "cursor runs the owner helpers from any conversation while a live worker holds the lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" cursor-tab "" "" "" cursor
+  lease_record "$p" cursor-tab cursor 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+
+  cursor_shift_helper_passes "$p" cursor-tab
+  cursor_shift_helper_passes "$p" helper-tab
+
+  run cursor_sid_shell "$p" cursor-tab "echo hi"
+  is_cursor_deny
+  printf '%s' "$output" | grep -q "being recovered in another process"
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+# cursor_every_rule_passes <project> <conversation-id>
+cursor_every_rule_passes() {
+  local p="$1" sid="$2" command out
+  while IFS= read -r command; do
+    [ -n "$command" ] || continue
+    out="$(cursor_sid_shell "$p" "$sid" "$command" \
+      NIGHTSHIFT_FORBIDDEN_COMMANDS='git .*push' NIGHTSHIFT_PROTECTED_DIRS='ai_docs')"
+    [ -z "$out" ] || { echo "rule applied to a disarmed site: [$sid] $command -> $out"; return 1; }
+  done <<'CMDS'
+echo hi
+git push origin main
+git add ai_docs/x
+sudo apt-get install -y jq
+rm -f .nightshift/.shift-lease
+touch .nightshift/STOP
+printf '{}' > .nightshift/rules.json
+CMDS
+  out="$(jq -nc --arg p "$p" --arg sid "$sid" \
+    '{tool_name:"request_user_input",conversation_id:$sid,transcript_path:"",cwd:$p,tool_input:{}}' |
+    env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the question rule applied to a disarmed site: [$sid] -> $out"; return 1; }
+  out="$(jq -nc --arg p "$p" --arg sid "$sid" --arg fp "$p/.nightshift/.shift-session" \
+    '{tool_name:"Write",conversation_id:$sid,transcript_path:"",cwd:$p,tool_input:{file_path:$fp,content:"forged"}}' |
+    env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the control rule applied to a disarmed site: [$sid] -> $out"; return 1; }
+  out="$(jq -nc --arg p "$p" --arg sid "$sid" \
+    '{tool_name:"Read",conversation_id:$sid,transcript_path:"",cwd:$p,tool_input:{file_path:"README.md"}}' |
+    env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the fence applied to a disarmed site: [$sid] -> $out"; return 1; }
+  return 0
+}
+
+@test "cursor applies no rule on an unarmed site, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" cursor-tab "" "" "" cursor
+  lease_record "$p" cursor-tab cursor 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+  rm "$p/.nightshift/.shift-armed"
+
+  cursor_every_rule_passes "$p" cursor-tab
+  cursor_every_rule_passes "$p" helper-tab
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+@test "cursor applies no rule on a stopped shift, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" cursor-tab "" "" "" cursor
+  lease_record "$p" cursor-tab cursor 2 "$FOREIGN_NONCE" "$dead" ""
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  rm "$p/.nightshift/.shift-armed"
+
+  cursor_every_rule_passes "$p" cursor-tab
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+}
+
+@test "cursor reclaims a lease left by a dead recovery attempt for the recorded tab" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" cursor-tab "" "" "" cursor
+  lease_record "$p" cursor-tab cursor 2 "$FOREIGN_NONCE" "$dead" ""
+
+  run cursor_sid_shell "$p" cursor-tab "echo hi"
+  is_allow
+  [ "$(lease_generation "$p")" = "3" ]
+  [ -z "$(lease_nonce "$p")" ]
+  [ "$(reclaim_log_count "$p" 2 3)" -eq 1 ]
+}

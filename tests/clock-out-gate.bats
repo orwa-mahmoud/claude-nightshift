@@ -586,3 +586,73 @@ write_policy_with_deadline() { # <project> <deadlineEpoch-or-null>
   printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
   grep -q 'stall guard down' "$p/.nightshift/shift-log.md"
 }
+
+# ---- a dead recovery attempt never decides the clock-out ----
+
+FOREIGN_NONCE=claude.2.4711.8.9
+
+@test "the recorded conversation takes its shift back at clock-out and is held to the list" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" test-shift-session "" "$$" "$(process_start "$$")" claude
+  lease_record "$p" test-shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+
+  run gate "$p"
+  is_block "$output"
+  [ "$(lease_generation "$p")" = "3" ]
+  [ -z "$(lease_nonce "$p")" ]
+  [ "$(reclaim_log_count "$p" 2 3)" -eq 1 ]
+  [ ! -f "$p/.nightshift/.ended" ]
+}
+
+@test "a live recovery worker still keeps the recorded conversation out of the clock-out" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" test-shift-session "" "$$" "$(process_start "$$")" claude
+  lease_record "$p" test-shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+
+  run gate "$p"
+  is_release
+  [ "$(lease_generation "$p")" = "2" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+# Disarm is total on this side too: the gate holds nobody once the marker is gone, and a
+# leftover lease — live holder or dead — is not a reason to hold a session or to end a shift.
+@test "an unarmed site holds nobody at clock-out, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" test-shift-session "" "" "" claude
+  lease_record "$p" test-shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+  rm "$p/.nightshift/.shift-armed"
+
+  run gate "$p"
+  is_release
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+
+  q="$(new_project unarmed-dead-holder)"
+  punch_open "$q"
+  dead="$(reaped_pid)"
+  session_record "$q" test-shift-session "" "" "" claude
+  lease_record "$q" test-shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+  rm "$q/.nightshift/.shift-armed"
+
+  run gate "$q"
+  is_release
+  [ ! -f "$q/.nightshift/.ended" ]
+  [ "$(reclaim_log_count "$q")" -eq 0 ]
+}

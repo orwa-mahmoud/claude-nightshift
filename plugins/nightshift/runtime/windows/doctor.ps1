@@ -502,6 +502,8 @@ if (Test-NSPathEntry $leasePath) {
         $noncePresent = -not [string]::IsNullOrEmpty([string]$lease.Nonce)
         $holderAlive = -not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
             -and ((Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)) -eq 'Alive')
+        $holderDead = -not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
+            -and ((Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)) -eq 'Dead')
         if ($rcodeEarly -eq 'clock-out-failed') {
             Add-NSWarn 'terminal clock-out failed without releasing the shift'
             if ($noncePresent) {
@@ -521,6 +523,9 @@ if (Test-NSPathEntry $leasePath) {
         elseif ($noncePresent -and $holderAlive) {
             Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
             Add-NSAct confirm "wait until the recovery worker exits, or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; reopening the recorded conversation stays blocked while that worker holds the lease"
+        }
+        elseif ($noncePresent -and $holderDead -and -not [string]::IsNullOrEmpty($sid)) {
+            Add-NSFact "lease held by a dead recovery attempt (generation $leaseGeneration, pid $($lease.ProcessId)); the recorded conversation reclaims it on its next tool call"
         }
     }
     else {

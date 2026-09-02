@@ -287,7 +287,10 @@ Stand-down is success when the night already reached a declared ending. Matching
 | `a claude session is live in this project` | Claude Code | Another Claude process in the project; revival refused to avoid two writers. |
 | Codex process or rollout still growing | Codex | Alive; stood by. A live-but-errored Codex session is **not** revived. |
 | `watchMinutes missing` / `cannot arm` | both | Unreadable rules. See §4. |
-| `all N attempts failed` | Claude Code | API still down; knocks again next wake. |
+| `all N attempts failed` | Claude Code | Revival failed; the next knock comes at the interval. |
+| `backing off, knocking again in Mm` | Claude Code | The last error named a limit. The wait doubles, up to an hour; a pulse or a revival puts it back to the interval. |
+| `the armed marker is gone` | both | `.shift-armed` is no longer there. Nothing is armed, so nothing is watched. Start re-arms. |
+| `the watchman pidfile is gone` / `another watchman owns this site` | Claude Code | `.nightshift/.watchman` was removed or claimed by another loop. |
 | `resumed session returned` / `revival returned` | both | Revival succeeded. |
 
 **Repair.** None, if the line is a declared ending. If rules cannot arm, fix `rules.json` and
