@@ -485,6 +485,7 @@ def main(argv: List[str]) -> int:
         "compatibility-assess",
         "config-parity",
         "data-safety",
+        "production-refusal",
         "recovery-plan",
         "verdict",
     ):
@@ -499,6 +500,7 @@ def main(argv: List[str]) -> int:
         "compatibility-assess": compatibility_assess,
         "config-parity": config_parity,
         "data-safety": data_safety,
+        "production-refusal": production_refusal,
         "recovery-plan": recovery_plan,
         "verdict": verdict,
     }

@@ -45,8 +45,8 @@ approved that exact environment in the punch-list scope.
     repo-owned files, staged code changes with compatibility tests, then item gate and commit.
     Park breaking, irreversible, production-only, or legal/data-authority questions in
     parking-lot.md with rollback and exact owner decision required.
-  - Review-first is the default for breaking or broad migrations. Run-direct may perform only
-    bounded, reversible repository changes with compatibility tests, explicit non-goals, and a
+  - Review-first is the default for breaking or broad migrations. run-direct may perform only bounded,
+    reversible repository changes with compatibility tests, explicit non-goals, and a
     documented rollback path.
   - Never guess legal, privacy, or data-retention authority. Never retrieve or copy secret values.
     Never run destructive or production data operations without explicit owner approval for that

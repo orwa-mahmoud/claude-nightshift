@@ -93,7 +93,29 @@ SCHEMA="$ROOT/plugins/nightshift/skills/nightshift/references/schemas/v1/migrati
   run bash "$ME" verdict --input "$FIX/verdict-blocked-breaking.json"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | jq -e '.status == "blocked" and .reviewFirstRequired == true' >/dev/null
-  printf '%s' "$output" | jq -e '.productionAuthorityRefused == true and .legalAuthorityGuessed == false' >/dev/null
+  printf '%s' "$output" | jq -e '.runDirectAllowed == false and .legalAuthorityGuessed == false' >/dev/null
+}
+
+@test "production refusal verdict stays refused without owner approval" {
+  run bash "$ME" production-refusal --input "$FIX/data-safety-production-refused.json"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '.kind == "production-refusal" and .productionRefused == true' >/dev/null
+
+  f="$BATS_TEST_TMPDIR/verdict-production-refused.json"
+  cat >"$f" <<'EOF'
+{
+  "inventory": {"action": "proceed", "inventory": {"rollbackSteps": ["restore-v1-read"]}},
+  "compatibility": {"breaking": [], "reviewFirstRequired": false},
+  "configParity": {"parityMaintained": true},
+  "dataSafety": {"productionRefused": true, "action": "refuse", "blockers": []},
+  "recovery": {"migrationState": "in-progress", "midMigrationRecoveryAvailable": true},
+  "reviewFirstDefault": true,
+  "runDirectBounded": false
+}
+EOF
+  run bash "$ME" verdict --input "$f"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '.status == "refused" and .productionAuthorityRefused == true' >/dev/null
 }
 
 @test "migration evidence outputs validate against schema" {
