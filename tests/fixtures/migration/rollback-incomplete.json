@@ -1,0 +1,7 @@
+{
+  "reversibleOnlyInDirectMode": true,
+  "steps": [
+    {"id": "a", "requiresRollback": true, "rollback": "revert a"},
+    {"id": "b", "requiresRollback": true}
+  ]
+}

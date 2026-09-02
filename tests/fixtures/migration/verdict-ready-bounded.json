@@ -1,0 +1,9 @@
+{
+  "inventory": {"action": "proceed", "inventory": {"rollbackSteps": ["restore-v1-read"]}},
+  "compatibility": {"breaking": [], "reviewFirstRequired": false},
+  "configParity": {"parityMaintained": true},
+  "dataSafety": {"productionRefused": false, "action": "proceed", "blockers": []},
+  "recovery": {"migrationState": "in-progress", "midMigrationRecoveryAvailable": true, "rollbackSteps": ["restore-v1-read"]},
+  "reviewFirstDefault": false,
+  "runDirectBounded": true
+}

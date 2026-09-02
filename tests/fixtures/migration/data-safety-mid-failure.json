@@ -1,0 +1,16 @@
+{
+  "environment": "staging",
+  "disposableEnvironment": false,
+  "ownerApprovedEnvironment": true,
+  "operations": [
+    {
+      "id": "legacy-enum",
+      "kind": "schema",
+      "supported": false
+    }
+  ],
+  "midMigrationFailure": {
+    "failedAt": "backfill-users",
+    "rollbackAvailable": false
+  }
+}

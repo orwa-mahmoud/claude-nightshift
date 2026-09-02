@@ -1,0 +1,8 @@
+{
+  "environment": "disposable",
+  "destructive": false,
+  "dataOperations": [
+    {"name": "backfill-display-name", "requiresProduction": false}
+  ],
+  "legalAuthorityRequired": false
+}

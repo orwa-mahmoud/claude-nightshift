@@ -1,0 +1,25 @@
+{
+  "keys": [
+    {
+      "name": "DATABASE_URL",
+      "environment": "staging",
+      "expectedShape": "postgres-url",
+      "actualShape": "postgres-url",
+      "secretPresent": true
+    },
+    {
+      "name": "DATABASE_URL",
+      "environment": "production",
+      "expectedShape": "postgres-url",
+      "actualShape": "missing",
+      "secretPresent": false
+    },
+    {
+      "name": "FEATURE_FLAG_X",
+      "environment": "staging",
+      "expectedShape": "boolean-string",
+      "actualShape": "boolean-string",
+      "secretPresent": false
+    }
+  ]
+}

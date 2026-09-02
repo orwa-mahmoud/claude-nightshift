@@ -1,0 +1,18 @@
+{
+  "environments": [
+    {
+      "name": "dev",
+      "variables": {
+        "DATABASE_URL": {"present": true, "shape": "postgres-url"},
+        "API_TOKEN": {"present": true, "shape": "jwt", "secret": true}
+      }
+    },
+    {
+      "name": "staging",
+      "variables": {
+        "DATABASE_URL": {"present": true, "shape": "postgres-url"},
+        "API_TOKEN": {"present": true, "shape": "jwt", "secret": true}
+      }
+    }
+  ]
+}

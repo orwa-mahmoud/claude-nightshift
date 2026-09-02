@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/migration-evidence.json",
+  "title": "Nightshift migration evidence",
+  "description": "Structured outputs for guarded migration, configuration parity, and data migration shifts.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "migration-inventory",
+        "compatibility-assess",
+        "config-parity",
+        "data-safety",
+        "production-refusal",
+        "recovery-plan",
+        "verdict"
+      ]
+    }
+  }
+}

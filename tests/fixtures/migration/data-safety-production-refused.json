@@ -1,0 +1,10 @@
+{
+  "environment": "production",
+  "destructive": true,
+  "dataOperations": [
+    {"name": "drop-legacy-column", "requiresProduction": true}
+  ],
+  "ownerApprovedProduction": false,
+  "legalAuthorityRequired": true,
+  "legalAuthority": ""
+}
