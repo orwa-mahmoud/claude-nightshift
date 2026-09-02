@@ -25,6 +25,11 @@ licensing decisions remain outside the coding-work authorization.
     branch. In artifact mode do not `git init` the folder; write receipts under `$NS/receipts/` instead of commits. Never merge,
     push, open a PR, deploy, publish, or mutate an external service unless the owner explicitly
     authorized that exact action.
+  - Plan before cutting: derive acceptance criteria, dependencies, checkpoints, evidence,
+    non-goals, and a time-fit unit plan with
+    `runtime/owner-work-evidence.sh walkthrough-plan` from the verbatim objective and work-target
+    evidence. Underspecified areas choose reversible defaults within the coding-work authority
+    boundary and record them — never silently expand scope.
   - Establish the continuation record before implementation: use the single `Status: building`
     entry in opportunity-map.md. Preserve the owner objective in Scope, derive observable
     Acceptance from it and the work target, and record Current phase, Completed, Decisions,

@@ -23,9 +23,14 @@ or a substantial feature, but never merges its own branch and never leaves a hal
     unpublished plans, or proprietary text to a search service; never copy a competitor's wording,
     assets, or implementation. If browsing is unavailable, say so in the record and continue from
     work-target evidence rather than pretending research happened.
-  - Maintain opportunity-map.md. Rank each opportunity by user value, evidence/confidence,
-    differentiation, effort, reversibility, and regression risk. Mark it candidate, building,
-    shipped, rejected, or parked, with the evidence behind the disposition.
+  - Maintain opportunity-map.md. Turn each opportunity into a hypothesis with user, problem,
+    evidence, expected outcome, reversibility, measurement, and rejection reason using
+    `runtime/owner-work-evidence.sh evolution-hypothesis`. Prefer small validated slices that can
+    confirm or reject the hypothesis inside the remaining time; record rejected alternatives and
+    avoid areas disproved by prior receipts rather than re-exploring them.
+  - Rank each opportunity by user value, evidence/confidence, differentiation, effort,
+    reversibility, and regression risk. Mark it candidate, building, shipped, rejected, or parked,
+    with the evidence behind the disposition.
   - Resume before exploring: if opportunity-map.md has a building entry, read its scope,
     acceptance, completed work, decisions, rejected paths, exact next action, and remaining
     verification; continue that opportunity first. Never open a second building opportunity.
