@@ -53,9 +53,11 @@ CONTRACT="$ROOT/plugins/nightshift/skills/nightshift/references/shifts/seo-audit
   grep -qi 'evidence mode' "$CONTRACT"
 }
 
-@test "seo audit contract names planned helper without requiring runtime script" {
-  grep -qi 'planned helper' "$CONTRACT"
-  ! grep -qF 'runtime/seo-evidence.sh' "$CONTRACT"
+@test "seo audit contract references seo-evidence runtime helper" {
+  grep -qF 'runtime/seo-evidence.sh' "$CONTRACT"
+  grep -qF 'local-inventory' "$CONTRACT"
+  grep -qF 'live-crawl' "$CONTRACT"
+  grep -qF 'connected-export' "$CONTRACT"
 }
 
 @test "seo audit discovery documents mode selection" {
