@@ -234,6 +234,20 @@ SH
   [ -f "$p/.nightshift/archive/$today/shift-policy-9f2c40ab77e51d63.json" ]
 }
 
+@test "clock-out archives non-empty findings and truncates the live ledger" {
+  p="$(new_project)"
+  punch_done "$p"
+  write_policy_with_deadline "$p" null
+  mkdir -p "$p/.nightshift/evidence"
+  printf '{"schemaVersion":1,"id":"f1","domain":"test","severity":"low","confidence":"medium","impact":"local","status":"open","ladder":"declared","locator":"x","source":"fixture","sourceClass":"test","host":"local"}\n' \
+    >"$p/.nightshift/evidence/findings.jsonl"
+  today="$(date '+%Y-%m-%d')"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/archive/$today/findings-9f2c40ab77e51d63.jsonl" ]
+  [ ! -s "$p/.nightshift/evidence/findings.jsonl" ]
+}
+
 @test "clock-out releases normally when there is no shift policy to archive" {
   p="$(new_project)"
   punch_done "$p"

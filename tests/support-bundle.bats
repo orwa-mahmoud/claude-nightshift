@@ -224,6 +224,20 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -qF '== capability policy ==' "$bundle"
 }
 
+@test "the support bundle includes a redacted evidence summary without raw ledger output" {
+  p="$(new_project sb-evidence)"
+  mkdir -p "$p/.nightshift/evidence"
+  printf '{"schemaVersion":1,"id":"f1","domain":"test","severity":"low","confidence":"medium","impact":"local","status":"open","ladder":"declared","locator":"secret-token=abc","source":"fixture","sourceClass":"test","host":"local"}\n' \
+    >"$p/.nightshift/evidence/findings.jsonl"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF '== evidence summary ==' "$bundle"
+  grep -qF 'findings=1' "$bundle"
+  grep -qF 'liveness:' "$bundle"
+  ! grep -qF 'secret-token=abc' "$bundle"
+}
+
 @test "a non-empty free-form pattern is redacted to its length, never its text" {
   p="$(new_project)"
   python3 -c '

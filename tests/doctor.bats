@@ -488,6 +488,18 @@ EOF
   grep -qF 'ns_policy_resolve_table' "$DOCTOR"
 }
 
+@test "Doctor reports evidence counts and lifecycle facts" {
+  p="$(new_project doc-evidence)"
+  mkdir -p "$p/.nightshift/evidence"
+  printf '{"schemaVersion":1,"id":"f1","domain":"test","severity":"low","confidence":"medium","impact":"local","status":"open","ladder":"declared","locator":"x","source":"fixture","sourceClass":"test","host":"local"}\n' \
+    >"$p/.nightshift/evidence/findings.jsonl"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'evidence findings=1'
+  printf '%s' "$output" | grep -qF 'last checkpoint none'
+  printf '%s' "$output" | grep -qF 'stall attempts'
+}
+
 @test "Doctor prints the resolved policy block between Facts and Warnings" {
   p="$(new_project)"
   punch_open "$p"

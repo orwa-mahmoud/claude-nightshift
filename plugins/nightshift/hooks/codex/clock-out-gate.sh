@@ -56,6 +56,7 @@ LOG="$NS/shift-log.md"
 # loudly and the block carries the repair.
 STALL_MAX="$(rule "$PROJECT_DIR" stallMax "${NIGHTSHIFT_STALL_MAX:-}")"
 STALL_WARN="$(rule "$PROJECT_DIR" stallWarnEvery "${NIGHTSHIFT_STALL_WARN:-}")"
+LONG_UNIT_WARN="$(rule "$PROJECT_DIR" longUnitWarnMinutes "${NIGHTSHIFT_LONG_UNIT_WARN:-}")"
 STALL_OK=1
 case "$STALL_MAX" in '' | *[!0-9]*) STALL_OK=0 ;; esac
 case "$STALL_WARN" in '' | *[!0-9]* | 0) STALL_OK=0 ;; esac
@@ -128,6 +129,16 @@ render_morning_receipt() {
   log_line "morning receipt render failed: $(printf '%s' "$err" | head -n1)"
 }
 
+archive_findings_ledger() {
+  local archiver="$_here/../../runtime/evidence-archive.sh" err
+  [ -f "$archiver" ] || {
+    log_line "findings archive skipped: runtime/evidence-archive.sh is not installed"
+    return 0
+  }
+  err="$(bash "$archiver" --project "$PROJECT_DIR" --shift-id "$1" 2>&1)" && return 0
+  log_line "findings archive failed: $(printf '%s' "$err" | head -n1)"
+}
+
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
@@ -144,6 +155,7 @@ end_shift() {
   # A shift that never wrote a policy files its receipt as unknown.
   shift_id="$(ns_policy_shift_id "$PROJECT_DIR" 2>/dev/null)" || shift_id=""
   [ -n "$shift_id" ] || shift_id=unknown
+  archive_findings_ledger "$shift_id"
   render_morning_receipt "$shift_id"
   receipts_commit "$1"
   whistle "$1"
@@ -267,13 +279,17 @@ if [ "$STALL_OK" -eq 1 ]; then
       exit 0
     fi
   elif [ "$attempts" -ge "$STALL_WARN" ]; then
-    log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
+    log_line "stall warning — session active, no durable checkpoint since the last $attempts stop attempts, $TICKED/$TOTAL done; keeping shift open"
     attempts=0
   fi
   [ -L "$STALL" ] && rm -f "$STALL"
   printf '%s\n%s\n' "$FP" "$attempts" >"$STALL"
 else
   log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
+fi
+
+if ns_long_unit_warn_due "$PROJECT_DIR" "$LONG_UNIT_WARN"; then
+  log_line "long unit warning — live unit has run ${LONG_UNIT_WARN}m without a durable checkpoint; keeping shift open"
 fi
 
 # 4. Block, and re-inject the contract so the next turn resumes the shift. The reinjection

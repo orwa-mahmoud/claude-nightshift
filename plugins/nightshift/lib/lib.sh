@@ -34,4 +34,6 @@ _ns_lib_dir="${BASH_SOURCE[0]%/*}"
 . "$_ns_lib_dir/process.sh"
 # shellcheck source=plugins/nightshift/lib/ownership.sh
 . "$_ns_lib_dir/ownership.sh"
+# shellcheck source=plugins/nightshift/lib/evidence-lifecycle.sh
+. "$_ns_lib_dir/evidence-lifecycle.sh"
 unset _ns_lib_dir

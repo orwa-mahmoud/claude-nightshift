@@ -161,6 +161,11 @@
       "minimum": 0,
       "description": "Minutes between watchman wakes. 0 disarms the watchman."
     },
+    "longUnitWarnMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "0 disables (default). When positive, warn in the shift log that a live unit has run this many minutes without a durable checkpoint. Never resets or replaces the stall counter."
+    },
     "watchRetrySeconds": {
       "type": "string",
       "pattern": "^([0-9]+( [0-9]+)*)?$",

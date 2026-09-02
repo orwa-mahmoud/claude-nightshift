@@ -32,6 +32,7 @@
   },
   "stallMax": 0,
   "stallWarnEvery": 3,
+  "longUnitWarnMinutes": 0,
   "watchMinutes": 10,
   "watchRetrySeconds": "30 120",
   "watchAgent": "",

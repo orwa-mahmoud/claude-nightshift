@@ -527,6 +527,24 @@ if [ "$ARMED" -eq 1 ] && [ "$OPEN" -gt 0 ] && [ -z "$WPID" ] && [ "$WATCHMAN_UNU
   act confirm "re-run start so the host watchman is armed, or work the list in the live session"
 fi
 
+fact "evidence $(ns_evidence_counts "$WORKSPACE")"
+fact "liveness $(ns_status_liveness "$NS" "$(rule "$WORKSPACE" watchMinutes "${NIGHTSHIFT_WATCH:-}")")"
+activity="$(ns_status_last_activity "$NS")"
+[ -n "$activity" ] && fact "last activity epoch $activity" || fact "last activity none"
+fact "last checkpoint $(ns_status_last_checkpoint "$WORKSPACE")"
+fact "stall attempts $(ns_status_stall_attempts "$NS")"
+
+DET="$(ns_evidence_detection_path "$WORKSPACE")"
+if [ -f "$DET" ] && [ ! -L "$DET" ] && command -v jq >/dev/null 2>&1; then
+  while IFS=$'\t' read -r cap status reason; do
+    [ -n "$cap" ] || continue
+    fact "capability $cap status=$status reason=${reason:-ok}"
+  done < <(jq -r '.detection.capabilities | to_entries[] | [.key, .value.status, (.value.reason // "")] | @tsv' "$DET" 2>/dev/null)
+elif [ -f "$NS/capabilities.json" ] && [ ! -L "$NS/capabilities.json" ]; then
+  inv_n="$(jq '.items | length' "$NS/capabilities.json" 2>/dev/null || printf 0)"
+  fact "inventory items=$inv_n (detection cache absent; run refresh-inventory at Start)"
+fi
+
 [ -n "$TPATH" ] && [ ! -f "$TPATH" ] && warn "recorded transcript/rollout path is not a readable file"
 
 act confirm "export a redacted local support bundle with $_here/export-support.sh — written under $NS/support/, never uploaded"

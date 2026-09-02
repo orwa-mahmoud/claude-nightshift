@@ -236,6 +236,19 @@ dest="$outdir/${stamp}.txt"
   if [ -n "$POLICY_LINES" ]; then
     printf '%s\n' "$POLICY_LINES"
   fi
+  printf '\n== evidence summary ==\n'
+  printf '%s\n' "$(ns_evidence_counts "$WORKSPACE")"
+  printf 'liveness: %s\n' "$(ns_status_liveness "$NS" "$(rule "$WORKSPACE" watchMinutes "${NIGHTSHIFT_WATCH:-}")")"
+  activity="$(ns_status_last_activity "$NS")"
+  printf 'last activity: %s\n' "${activity:-none}"
+  printf 'last checkpoint: %s\n' "$(ns_status_last_checkpoint "$WORKSPACE")"
+  printf 'stall attempts: %s\n' "$(ns_status_stall_attempts "$NS")"
+  inv="$NS/capabilities.json"
+  if [ -f "$inv" ] && [ ! -L "$inv" ] && command -v jq >/dev/null 2>&1; then
+    printf 'inventory items: %s\n' "$(jq '.items | length' "$inv" 2>/dev/null || printf 0)"
+  else
+    printf 'inventory items: omitted\n'
+  fi
   printf '\n== watchman reason ==\n'
   if [ -n "$REASON" ]; then
     printf 'code: %s\n' "$REASON"
@@ -284,7 +297,7 @@ mv "$tmp" "$dest" || {
 }
 
 printf 'Support bundle: %s\n' "$dest"
-printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, the resolved policy view, reason codes, sanitized runtime-log tail\n'
-printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory, policy files\n'
+printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, the resolved policy view, redacted evidence summary, reason codes, sanitized runtime-log tail\n'
+printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory contents, policy files\n'
 printf 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
 exit 0

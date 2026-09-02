@@ -483,10 +483,218 @@ function Get-NSProgressToken {
     catch {
         $mode = 'repository'
     }
-    if ($mode -eq 'artifact') {
-        return Get-NSReceiptsFingerprint $Workspace
+    $token = if ($mode -eq 'artifact') {
+        Get-NSReceiptsFingerprint $Workspace
     }
-    return Get-NSWorkTargetHead $Workspace
+    else {
+        Get-NSWorkTargetHead $Workspace
+    }
+    $checkpoint = Get-NSGateCheckpointToken $Workspace
+    return ($token + ':' + $checkpoint)
+}
+
+function Get-NSGateCheckpointToken {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $last = ''
+    foreach ($record in (Get-NSEvidenceLedgerRecords $Workspace)) {
+        if ((Get-NSRecordText $record 'domain') -ceq 'checkpoint') {
+            $id = Get-NSRecordText $record 'id'
+            if ($id.Length -gt 0) { $last = $id }
+        }
+    }
+    if ($last.Length -eq 0) { return 'none' }
+    return $last
+}
+
+function Get-NSEvidenceCountSummary {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $findings = 0; $open = 0; $baseline = 0; $checkpoint = 0
+    foreach ($record in (Get-NSEvidenceLedgerRecords $Workspace)) {
+        $findings++
+        switch (Get-NSRecordText $record 'domain') {
+            'baseline' { $baseline++ }
+            'checkpoint' { $checkpoint++ }
+        }
+        if ((Get-NSRecordText $record 'status') -ceq 'open') { $open++ }
+    }
+    return ('findings={0} open={1} baseline={2} checkpoint={3}' -f $findings, $open, $baseline, $checkpoint)
+}
+
+function Get-NSStatusLiveness {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [int]$WatchMinutes = 0
+    )
+    $ns = Join-Path $Workspace '.nightshift'
+    $pulse = Join-Path $ns '.shift-pulse'
+    if (-not (Test-NSPathEntry $pulse)) { return 'absent' }
+    if (Test-NSReparsePoint $pulse) { return 'absent' }
+    try {
+        $line = ([IO.File]::ReadAllText($pulse, $script:NSUtf8NoBom)).Trim()
+        $epochText = ($line -split '\s+', 2)[0]
+        if ($epochText -notmatch '^\d+$') { return 'absent' }
+        $epoch = [long]$epochText
+        $window = $WatchMinutes * 120
+        if ($window -le 0) { $window = 1200 }
+        if ((Get-NSUnixTime) - $epoch -lt $window) { return 'fresh' }
+        return 'stale'
+    }
+    catch {
+        return 'absent'
+    }
+}
+
+function Get-NSStatusLastActivity {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $ns = Join-Path $Workspace '.nightshift'
+    $pulse = Join-Path $ns '.shift-pulse'
+    if (-not (Test-NSPathEntry $pulse) -or (Test-NSReparsePoint $pulse)) { return '' }
+    try {
+        $line = ([IO.File]::ReadAllText($pulse, $script:NSUtf8NoBom)).Trim()
+        return ($line -split '\s+', 2)[0]
+    }
+    catch {
+        return ''
+    }
+}
+
+function Get-NSStatusStallAttempts {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $stall = Join-Path (Join-Path $Workspace '.nightshift') '.stall'
+    if (-not (Test-NSPathEntry $stall) -or (Test-NSReparsePoint $stall)) { return 0 }
+    try {
+        $lines = [IO.File]::ReadAllLines($stall, $script:NSUtf8NoBom)
+        if ($lines.Length -lt 2) { return 0 }
+        $n = $lines[1].Trim()
+        if ($n -match '^\d+$') { return [int]$n }
+    }
+    catch {
+    }
+    return 0
+}
+
+function Test-NSLongUnitWarnDue {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [int]$Minutes = 0
+    )
+    if ($Minutes -le 0) { return $false }
+    $armed = Join-Path (Join-Path $Workspace '.nightshift') '.shift-armed'
+    if (-not (Test-NSPathEntry $armed) -or (Test-NSReparsePoint $armed)) { return $false }
+    if ((Get-NSGateCheckpointToken $Workspace) -cne 'none') { return $false }
+    try {
+        $start = ([IO.File]::GetLastWriteTimeUtc($armed) - [datetime]'1970-01-01Z').TotalSeconds
+        if ((Get-NSUnixTime) - $start -lt ($Minutes * 60)) { return $false }
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-NSEvidenceArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [AllowEmptyString()][string]$ShiftId = ''
+    )
+    $paths = Get-NSEvidencePaths $Workspace
+    $jsonl = $paths['jsonl']
+    if (-not (Test-NSPathEntry $jsonl) -or (Test-NSReparsePoint $jsonl)) { return 0 }
+    $info = Get-Item -LiteralPath $jsonl
+    if ($info.Length -le 0) { return 0 }
+    if ([string]::IsNullOrEmpty($ShiftId)) {
+        $state = Get-NSShiftPolicyState $Workspace
+        if ($state['state'] -ceq 'valid') { $ShiftId = [string]$state['policy']['shiftId'] }
+    }
+    if ([string]::IsNullOrEmpty($ShiftId)) { $ShiftId = 'unknown' }
+    $date = (Get-Date -Format 'yyyy-MM-dd')
+    $archiveRoot = Join-NSPath (Join-Path $Workspace '.nightshift') 'archive'
+    $directory = Join-NSPath $archiveRoot $date
+    foreach ($candidate in @($archiveRoot, $directory)) {
+        if (Test-NSReparsePoint $candidate) { return 2 }
+    }
+    $null = [IO.Directory]::CreateDirectory($directory)
+    $destination = Join-NSPath $directory ('findings-' + $ShiftId + '.jsonl')
+    Copy-Item -LiteralPath $jsonl -Destination $destination -Force
+    [IO.File]::WriteAllText($jsonl, '', $script:NSUtf8NoBom)
+    Write-Output $destination
+    return 0
+}
+
+function Write-NSStatusReport {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $ns = Join-Path $Workspace '.nightshift'
+    if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
+        Write-Output 'Nightshift Status'
+        Write-Output ('Nightshift: missing at ' + $Workspace)
+        return 0
+    }
+    $punch = Join-Path $ns 'punch-list.md'
+    $open = 0; $ticked = 0
+    if (Test-NSPathEntry $punch) {
+        $counts = Get-NSBoxCounts $punch
+        $open = [int]$counts.Open
+        $ticked = [int]$counts.Ticked
+    }
+    $armed = Test-NSPathEntry (Join-Path $ns '.shift-armed')
+    $watch = 0
+    try { $watch = [int](Get-NSRule $Workspace 'watchMinutes' '') } catch { $watch = 0 }
+    Write-Output 'Nightshift Status'
+    Write-Output ('Workspace:   ' + $Workspace)
+    Write-Output ('Shift:       ' + ($(if ($armed) { 'armed' } else { 'not armed' })))
+    Write-Output ('Items:       open=' + $open + ' ticked=' + $ticked)
+    Write-Output ('evidence:    ' + (Get-NSEvidenceCountSummary $Workspace))
+    Write-Output ('liveness:    ' + (Get-NSStatusLiveness $Workspace $watch))
+    $activity = Get-NSStatusLastActivity $Workspace
+    Write-Output ('last activity: ' + ($(if ($activity.Length -gt 0) { $activity } else { 'none' })))
+    Write-Output ('last checkpoint: ' + (Get-NSGateCheckpointToken $Workspace))
+    Write-Output ('stall attempts: ' + (Get-NSStatusStallAttempts $Workspace))
+    Write-Output ''
+    Write-Output 'resolved policy'
+    $table = Resolve-NSPolicy -Workspace $Workspace -Table
+    if ([string]::IsNullOrEmpty($table)) { Write-Output 'none' }
+    else { Write-Output $table }
+    Write-Output ''
+    Write-Output 'preflight gaps'
+    $preflight = Get-NSPreflightNeeds $Workspace
+    if ([string]::IsNullOrEmpty($preflight)) { Write-Output 'none' }
+    else { Write-Output $preflight }
+    return 0
+}
+
+function Invoke-NSRefreshInventory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [AllowEmptyString()][string]$HostLabel = 'claude'
+    )
+    $pluginRoot = Split-Path $PSScriptRoot -Parent
+    $detect = Join-Path $pluginRoot 'runtime/windows/detect-capabilities.ps1'
+    if (-not (Test-Path -LiteralPath $detect -PathType Leaf)) {
+        Write-NSEvidenceError 'refresh-inventory: detect-capabilities.ps1 is not installed'
+        return 2
+    }
+    $tmp = [IO.Path]::GetTempFileName()
+    try {
+        $rc = & $detect -Project $Workspace -Host $HostLabel -Normalize *> $tmp
+        if ($LASTEXITCODE -ne 0) {
+            Write-NSEvidenceError 'refresh-inventory: detection failed'
+            return 2
+        }
+        $detection = Get-Content -LiteralPath $tmp -Raw | ConvertFrom-Json
+        $dest = Join-NSPath (Join-Path $Workspace '.nightshift') 'capability-detection.json'
+        $doc = [ordered]@{
+            schemaVersion = 1
+            updatedAt     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            source        = 'detect-capabilities'
+            detection     = $detection
+        }
+        Write-NSEvidenceFileAtomic -Path $dest -Text ((ConvertTo-NSCanonicalJson $doc) + "`n")
+        Write-Output $dest
+        return 0
+    }
+    finally {
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Get-NSStateKind {
@@ -1755,6 +1963,12 @@ function Stop-NSShift {
 
 function Reset-NSShift {
     param([Parameter(Mandatory = $true)][string]$Project)
+    $ctx = Resolve-NSControlWorkspace $Project
+    $tx = Join-NSPath $ctx.NightshiftDir 'provision-transaction.json'
+    if (Test-NSPathEntry $tx) {
+        Write-Error 'reset-shift: refuse while provision-transaction.json is open; run provision recover or rollback first'
+        return 1
+    }
     Stop-NSShift -Project $Project -Reason 'reset by owner'
     $ctx = Resolve-NSControlWorkspace $Project
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'STOP')

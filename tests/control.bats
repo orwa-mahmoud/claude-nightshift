@@ -224,6 +224,16 @@ stop_cmd() { # <project>
   [ "$status" -eq 0 ]
 }
 
+@test "Reset refuses while provision-transaction.json is open" {
+  p="$(new_project)"
+  printf '{"schemaVersion":1,"stage":"apply","capabilityId":"test","failed":false}\n' \
+    >"$p/.nightshift/provision-transaction.json"
+  run "$RESET" --project "$p"
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -qF 'provision-transaction.json'
+  [ -f "$p/.nightshift/provision-transaction.json" ]
+}
+
 @test "Stop preserves tonight's shift policy; only Reset clears it" {
   p="$(new_project)"
   punch_open "$p"

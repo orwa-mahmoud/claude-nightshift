@@ -94,6 +94,26 @@ function Save-NSPolicyArchive {
     }
 }
 
+function Save-NSEvidenceArchive {
+    $originalOut = [Console]::Out
+    $originalErr = [Console]::Error
+    $swallow = New-Object IO.StringWriter
+    try {
+        [Console]::SetOut($swallow)
+        [Console]::SetError($swallow)
+        $shiftId = 'unknown'
+        $state = Get-NSShiftPolicyState $workspace
+        if ($state['state'] -ceq 'valid') { $shiftId = [string]$state['policy']['shiftId'] }
+        $null = Invoke-NSEvidenceArchive -Workspace $workspace -ShiftId $shiftId
+    }
+    catch {
+    }
+    finally {
+        [Console]::SetOut($originalOut)
+        [Console]::SetError($originalErr)
+    }
+}
+
 function Save-NSMorningReceipt {
     # Best effort, never blocks the release: render the owner view to
     # receipts/morning-<YYYY-MM-DD>-<shiftId>.md. Runs before the policy archive so the
@@ -186,6 +206,7 @@ function Complete-NSShift {
     }
     Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue
     Release-NSLeaseWithRetry
+    Save-NSEvidenceArchive
     Save-NSMorningReceipt
     Save-NSPolicyArchive
     Save-NSReceipt $Summary

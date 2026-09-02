@@ -34,6 +34,12 @@ Bash.
 
 Read `$NS/` and print:
 
+Run `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/status.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\status.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
+for the native summary: evidence counts, resolved policy, preflight gaps, and the separate
+`liveness`, `last activity`, `last checkpoint`, and `stall attempts` lines. Then read the files
+below for punch-list titles, parking lot, and product evolution detail Doctor does not fold in.
+
 - **Schema** — `$NS/state-version`: missing means legacy `0`, `1` is current. Report a
  newer or malformed marker and stop there; never rewrite it and never run migration from status.
 - **Work mode** — `$NS/work-mode` (`repository` or `artifact`; missing means repository) and the

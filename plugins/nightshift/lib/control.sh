@@ -242,6 +242,11 @@ ns_control_stop() { # <host-path> [reason]
 # reset exactly like the punch list and parking lot do.
 ns_control_reset() { # <host-path>
   local host="$1" rc=0
+  ns_control_resolve "$host" || return $?
+  if [ -e "$NS_CONTROL_NS/provision-transaction.json" ] || [ -L "$NS_CONTROL_NS/provision-transaction.json" ]; then
+    printf 'reset-shift: refuse while provision-transaction.json is open; run provision recover or rollback first\n' >&2
+    return 1
+  fi
   ns_control_stop "$host" "reset by owner" || {
     rc=$?
     [ "$rc" -eq 2 ] || return "$rc"

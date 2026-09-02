@@ -239,6 +239,12 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" recover`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
+- **Refresh capability detection.** Run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/refresh-inventory.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ (native Windows:
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\refresh-inventory.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`).
+ The helper caches read-only detection in `$NS/capability-detection.json`; provisioning inventory in
+ `$NS/capabilities.json` is preserved.
 - **Resolve tonight's shift policy.** Run
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" get`
  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" get`).
