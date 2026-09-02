@@ -1,0 +1,7 @@
+{
+  "id": "d-001",
+  "locator": "packages/api/src/orders.js:88",
+  "evidenceKind": "reproduced",
+  "summary": "double-submit creates duplicate order rows under concurrency",
+  "containingSuites": ["npm test -- packages/api/src/orders.test.js"]
+}

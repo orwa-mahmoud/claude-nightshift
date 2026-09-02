@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/coverage-risk-map.json",
+  "title": "Nightshift coverage risk map",
+  "description": "Explainable behavior-risk clusters for Coverage hunt. Reports risk protected, not percentage points purchased.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workTarget", "clusters"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "workTarget": { "type": "string" },
+    "mappedAt": { "type": "string" },
+    "mutationAllowed": { "type": "boolean" },
+    "misleadingCoverageRejected": { "type": "boolean" },
+    "clusters": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/cluster" }
+    },
+    "unsupportedSurfaces": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "definitions": {
+    "cluster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "riskCategory",
+        "behaviorProtected",
+        "regressionCaught",
+        "testLevel",
+        "locator",
+        "priority",
+        "evidence"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "riskCategory": {
+          "type": "string",
+          "enum": [
+            "public-api",
+            "auth",
+            "error-handling",
+            "retry-timeout",
+            "validation",
+            "persistence",
+            "concurrency",
+            "migration",
+            "parser",
+            "state-machine",
+            "calculation",
+            "transformation",
+            "changed-code",
+            "low-coverage"
+          ]
+        },
+        "behaviorProtected": { "type": "string" },
+        "regressionCaught": { "type": "string" },
+        "testLevel": {
+          "type": "string",
+          "enum": ["unit", "integration", "e2e"]
+        },
+        "locator": { "type": "string" },
+        "priority": { "type": "integer", "minimum": 1 },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "redStatePossible": { "type": "boolean" },
+        "redStateNote": { "type": ["string", "null"] },
+        "containingSuites": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "coveragePct": { "type": ["number", "null"] },
+        "misleadingCoverage": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "workTarget": "/fixture/misleading-coverage",
+  "mutationAllowed": false,
+  "coverage": [
+    {
+      "path": "packages/util/src/helpers.js",
+      "lines": {"found": 50, "hit": 48, "pct": 96},
+      "branches": {"found": 8, "hit": 8, "pct": 100}
+    }
+  ],
+  "flows": []
+}

@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "workTarget": "/fixture/coverage-repo",
+  "mappedAt": "2026-09-02T19:00:00Z",
+  "mutationAllowed": false,
+  "mutationDetected": true,
+  "recentChanges": ["packages/api/src/auth.js"],
+  "bugHistory": [
+    {"path": "packages/api/src/auth.js", "note": "retry timeout mishandled in 2026-01"}
+  ],
+  "packages": [
+    {
+      "name": "api",
+      "path": "packages/api",
+      "publicExports": ["login", "createUser"]
+    }
+  ],
+  "coverage": [
+    {
+      "path": "packages/api/src/auth.js",
+      "lines": {"found": 120, "hit": 40, "pct": 33},
+      "branches": {"found": 24, "hit": 6, "pct": 25}
+    },
+    {
+      "path": "packages/util/src/helpers.js",
+      "lines": {"found": 80, "hit": 76, "pct": 95},
+      "branches": {"found": 10, "hit": 9, "pct": 90}
+    }
+  ],
+  "flows": [
+    {
+      "id": "login",
+      "path": "packages/api/src/auth.js",
+      "category": "auth",
+      "critical": true,
+      "publicExport": "login",
+      "behaviorProtected": "failed login does not leak session token on retry timeout",
+      "regressionCaught": "auth retry leaves partial session after timeout",
+      "redStatePossible": true,
+      "containingSuites": ["npm test -- packages/api/src/auth.test.js", "npm test -- packages/api"]
+    },
+    {
+      "id": "validate-input",
+      "path": "packages/api/src/auth.js",
+      "category": "validation",
+      "critical": false,
+      "behaviorProtected": "invalid credentials return stable error without throwing",
+      "regressionCaught": "validation error crashes request handler",
+      "redStatePossible": true,
+      "containingSuites": ["npm test -- packages/api"]
+    }
+  ]
+}

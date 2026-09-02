@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/defect-cycle.json",
+  "title": "Nightshift defect hunt cycle state",
+  "description": "Private lens rotation and finding history for Defect hunt convergence without paraphrasing old risks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "shiftId", "cycle", "currentLens", "lenses"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "shiftId": { "type": "string" },
+    "updatedAt": { "type": "string" },
+    "cycle": { "type": "integer", "minimum": 1 },
+    "currentLens": { "type": "string" },
+    "lenses": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "lensesUsedThisCycle": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/finding" }
+    },
+    "rejected": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/rejected" }
+    },
+    "exploredSurfaces": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "converged": { "type": "boolean" }
+  },
+  "definitions": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "lens", "locator", "evidenceKind", "summary"],
+      "properties": {
+        "id": { "type": "string" },
+        "lens": { "type": "string" },
+        "locator": { "type": "string" },
+        "evidenceKind": {
+          "type": "string",
+          "enum": ["reproduced", "code-path", "observed"]
+        },
+        "summary": { "type": "string" },
+        "containingSuites": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "fixed", "rejected", "duplicate"]
+        },
+        "duplicateOf": { "type": ["string", "null"] }
+      }
+    },
+    "rejected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "reason"],
+      "properties": {
+        "id": { "type": "string" },
+        "reason": { "type": "string" },
+        "lens": { "type": ["string", "null"] }
+      }
+    }
+  }
+}
