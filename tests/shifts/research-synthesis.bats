@@ -9,6 +9,17 @@ FIXTURE="$BATS_TEST_DIRNAME/../fixtures/research-synthesis"
   grep -qi 'confidence and limits' "$E"
 }
 
+@test "research synthesis resolves source policy and redacts untrusted material" {
+  grep -qF 'source-policy-evidence.sh policy-resolve' "$E"
+  grep -qF 'source-policy-evidence.sh query-manifest' "$E"
+  grep -qF 'source-policy-evidence.sh redact-untrusted' "$E"
+  grep -qF 'source-policy-evidence.sh artifact-receipt-plan' "$E"
+  grep -qi 'primary' "$E"
+  grep -qi 'secondary' "$E"
+  grep -qi 'community' "$E"
+  grep -qF 'git init' "$E"
+}
+
 @test "research synthesis keeps resumable notes and artifact receipts" {
   grep -qi 'notes file' "$E"
   grep -qi 'resume' "$E"

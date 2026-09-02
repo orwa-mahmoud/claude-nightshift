@@ -68,6 +68,20 @@ EOF
   grep -qi 'owner supplies the URLs' "$CONTRACT" || grep -qi 'owner-approved' "$CONTRACT"
 }
 
+@test "the contract names three source policies and the resolve helper" {
+  grep -qi 'Closed list' "$CONTRACT"
+  grep -qi 'Bounded discovery' "$CONTRACT"
+  grep -qi 'Connected corpus' "$CONTRACT"
+  grep -qF 'source-policy-evidence.sh policy-resolve' "$CONTRACT"
+  grep -qF 'source-policy-evidence.sh query-manifest' "$CONTRACT"
+  grep -qF 'source-policy-evidence.sh redact-untrusted' "$CONTRACT"
+  grep -qF 'source-policy-evidence.sh connector-boundary' "$CONTRACT"
+  grep -qi 'primary' "$CONTRACT"
+  grep -qi 'secondary' "$CONTRACT"
+  grep -qi 'community' "$CONTRACT"
+  grep -qi 'untrusted' "$CONTRACT"
+}
+
 @test "check-report accepts a complete cited report" {
   p="$(new_project cited-ok)"
   valid_bundle "$p"

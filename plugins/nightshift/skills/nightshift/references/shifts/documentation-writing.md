@@ -9,19 +9,25 @@ Supported on any repository or artifact folder that can hold the deliverable. Fo
 
 ```text
 - [ ] **Documentation writing — turn named sources into a scoped, cited deliverable.**
-  - Discovery: read only the owner-approved outline, URL list, and local files. Shape the deliverable
-    with `runtime/product-truth-evidence.sh doc-outline` from audience, decision/action,
-    prerequisites, architecture, source hierarchy, and verified examples; run a fresh-reader pass
-    for ambiguity. Write a dated source manifest (`ok` / `unavailable`) first. Repository evidence is files in the work
-    target; do not invent flags, commands, or behaviour those files do not show.
+  - Discovery: resolve the source policy with `runtime/source-policy-evidence.sh policy-resolve`
+    (default closed list). For bounded discovery or a connected export folder, validate locators
+    with `runtime/source-policy-evidence.sh query-manifest` and redact fetched material with
+    `runtime/source-policy-evidence.sh redact-untrusted` before citing it. Read only the
+    owner-approved outline, URL list, and local files. Shape the deliverable with
+    `runtime/product-truth-evidence.sh doc-outline` from audience, decision/action, prerequisites,
+    architecture, source hierarchy, and verified examples; run a fresh-reader pass for ambiguity.
+    Write a dated source manifest (`ok` / `unavailable`) first. Repository evidence is files in the
+    work target; do not invent flags, commands, or behaviour those files do not show.
   - Work one deliverable: create, revise, consolidate, or write a gap analysis. Every important
     claim is cited `[ID]`. Observations stay in Observations; policy or UX recommendations stay
     in Inferences. Never silently change project policy, licensing, or safety wording.
   - Verify relative links, fenced examples, and commands against `ok` sources and the tree.
     Project-native doc checks (the item gate) run before each commit or artifact receipt.
     A command that only appeared in an `unavailable` source is a gap, not a documented feature.
-  - Repository mode: one conventional commit in the work target. Artifact mode: write-receipt into `$NS/receipts/`
-    for the deliverable and manifest. Both leave the cited-research report beside the doc.
+  - Repository mode: one conventional commit in the work target. Artifact mode: plan completion with
+    `runtime/source-policy-evidence.sh artifact-receipt-plan`, then write-receipt into
+    `$NS/receipts/` for the deliverable and manifest. Never `git init` or invent repository tooling.
+    Both leave the cited-research report beside the doc.
   - Review first writes the deliverable only. Direct mode may edit authorized local doc files
     named in the report; it never publishes or deploys.
   - Inherit cited-research.md. Keep private code, secrets, customer data, and unpublished

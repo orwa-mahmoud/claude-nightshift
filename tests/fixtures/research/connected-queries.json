@@ -1,0 +1,22 @@
+{
+  "policyRequest": {
+    "policy": "connected-corpus",
+    "corpusPath": "exports/research",
+    "exportPath": "exports/gsc"
+  },
+  "entries": [
+    {
+      "locator": "file:exports/research/page-report.csv",
+      "sourceClass": "primary",
+      "authorDate": "2026-07-15T00:00:00Z"
+    },
+    {
+      "locator": "file:exports/gsc/queries.csv",
+      "sourceClass": "secondary"
+    },
+    {
+      "locator": "file:private/notes.txt",
+      "sourceClass": "primary"
+    }
+  ]
+}

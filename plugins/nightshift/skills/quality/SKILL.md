@@ -108,8 +108,11 @@ use the same helpers under `runtime/windows/` when present, otherwise the POSIX 
 Git Bash). Compose Automatic plan input with
 `quality-workflow.sh compose-discovery --scan …` before calling `shift-planner.sh`.
 In artifact mode inspect the persistent
-folder's files and any existing manifests or reports; do not require git history or stack
-detection that needs a repository. Completion in that folder is `$NS/receipts/`, not a git log.
+folder's files and any existing manifests or reports; resolve source policy with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/source-policy-evidence.sh policy-resolve"` and plan artifact
+receipts with `artifact-receipt-plan` when the shift completes cited research or documentation work.
+Do not require git history or stack detection that needs a repository. Completion in that folder is
+`$NS/receipts/`, not a git log.
 Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory.
 If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder.
 Refuse to compose, cut, or arm when work-mode is malformed.

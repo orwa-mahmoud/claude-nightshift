@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/source-policy-evidence.json",
+  "title": "Nightshift source policy evidence",
+  "description": "Structured outputs for closed-list, bounded-discovery, and connected-corpus source workflows.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "source-policy",
+        "query-manifest",
+        "redacted-untrusted",
+        "artifact-receipt-plan",
+        "connector-boundary"
+      ]
+    }
+  }
+}

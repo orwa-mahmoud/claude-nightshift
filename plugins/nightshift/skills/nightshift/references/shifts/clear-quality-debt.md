@@ -5,12 +5,21 @@ that list is clear. Quality uses this entry in either launch mode: Review first 
 and waits for an explicit disposition; Run directly composes, arms, and works the findings without
 a second pause.
 
+In **artifact mode** (a non-Git folder with supplied documents or reports), inspect owner files
+only. Resolve the source policy with `runtime/source-policy-evidence.sh policy-resolve`, validate
+supplied exports with `runtime/source-policy-evidence.sh query-manifest`, redact untrusted material
+with `runtime/source-policy-evidence.sh redact-untrusted` before ranking findings, and complete with
+`runtime/source-policy-evidence.sh artifact-receipt-plan` plus write-receipt into `$NS/receipts/`.
+Never require git, a package manager, or repository tooling. Do not `git init` a notes folder.
+
 ```text
 - [ ] **Clear quality debt — fix what the project's own tooling reports.**
-  - Scan first: run the item-gate commands from `## Gates` in report mode (lint, types, tests),
-    per top-level package in a monorepo through `runtime/quality-scan.sh` and
-    `runtime/quality-workflow.sh pipeline`. Normalize to the evidence ledger, dedupe by root cause
-    while retaining every source, and rank into one coherent queue. Record unavailable tools honestly.
+  - Scan first: in repository mode run the item-gate commands from `## Gates` in report mode (lint,
+    types, tests), per top-level package in a monorepo through `runtime/quality-scan.sh` and
+    `runtime/quality-workflow.sh pipeline`. In artifact mode scan supplied documents through the
+    source-policy helpers instead of inventing repository tools. Normalize to the evidence ledger,
+    dedupe by root cause while retaining every source, and rank into one coherent queue. Record
+    unavailable tools honestly.
   - Baseline before the first fix cluster with `runtime/evidence-baseline.sh`; after each cluster
     re-scan and score with `runtime/evidence-compare.sh` under the shift policy completion mode.
   - Work one cluster per cycle: fix the root cause behind the item gate, commit, re-scan.

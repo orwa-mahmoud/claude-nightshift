@@ -1,0 +1,36 @@
+{
+  "policyRequest": {
+    "policy": "bounded-discovery",
+    "topic": "widget pricing",
+    "queryBudget": 2,
+    "allowedDomains": ["example.com"],
+    "allowedSourceClasses": ["primary", "secondary"],
+    "recencyDays": 365
+  },
+  "entries": [
+    {
+      "locator": "https://example.com/pricing",
+      "sourceClass": "primary",
+      "query": "pricing page",
+      "authorDate": "2026-08-01T00:00:00Z",
+      "confidence": "high"
+    },
+    {
+      "locator": "https://evil.example.net/leak",
+      "sourceClass": "secondary",
+      "query": "competitor leak"
+    },
+    {
+      "locator": "https://example.com/blog",
+      "sourceClass": "community",
+      "query": "forum chatter"
+    }
+  ],
+  "contradictions": [
+    {
+      "topic": "price",
+      "sources": ["https://example.com/pricing", "https://example.com/blog"],
+      "note": "community price rumor contradicts primary listing"
+    }
+  ]
+}

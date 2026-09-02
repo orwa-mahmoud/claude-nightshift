@@ -1,0 +1,7 @@
+{
+  "connector": "local-export",
+  "authorized": true,
+  "trustClass": "owner-supplied-export",
+  "readOnly": true,
+  "queryBudget": {"maxQueries": 10, "maxBytes": 5000000}
+}

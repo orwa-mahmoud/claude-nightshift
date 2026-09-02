@@ -1,0 +1,15 @@
+{
+  "outputs": [
+    {
+      "path": "out/brief.md",
+      "item": "Write the decision brief",
+      "verify": "check-report green",
+      "source": "https://docs.example.com/guide"
+    },
+    {
+      "path": "out/sources.tsv",
+      "item": "Record the source manifest",
+      "verify": "manifest complete"
+    }
+  ]
+}

@@ -10,9 +10,14 @@ Typical hours: 2–4.
 
 ```text
 - [ ] **Research synthesis — compare named sources into one cited decision brief.**
-  - Discovery: read only the owner-approved URLs and local files. Write a dated source manifest
-    (`ok` / `unavailable`) and a notes file that quotes or paraphrases each `ok` source with its
-    `[ID]` before drafting the brief. Do not add sources from memory.
+  - Discovery: resolve the source policy with `runtime/source-policy-evidence.sh policy-resolve`
+    (default closed list). For bounded discovery or a connected export folder, build the query
+    manifest with `runtime/source-policy-evidence.sh query-manifest` and reject any locator the
+    helper marks rejected. Run `runtime/source-policy-evidence.sh redact-untrusted` on fetched
+    material before quoting it. Read only approved or manifest-approved URLs and local files.
+    Write a dated source manifest (`ok` / `unavailable`) and a notes file that quotes or paraphrases
+    each `ok` source with its `[ID]`, source class (primary / secondary / community), retrieval
+    time, and any contradictions or limits before drafting the brief. Do not add sources from memory.
   - Synthesize: compare sources, expose agreement and contradiction, separate observations from
     inferences, and state confidence and limits on every important conclusion. Cite `[ID]` on
     every important claim. An `unavailable` source is recorded, never filled in.
@@ -20,8 +25,9 @@ Typical hours: 2–4.
     a later shift can resume from the same provenance. Do not replace them with a summary that
     drops locators or retrieval times.
   - Review first writes the brief, manifest, and notes only. Direct mode may update those local
-    files; it never publishes. Artifact mode completes with write-receipt into `$NS/receipts/`
-    on the brief, notes, and manifest.
+    files; it never publishes. Artifact mode plans completion with
+    `runtime/source-policy-evidence.sh artifact-receipt-plan`, then write-receipt into
+    `$NS/receipts/` on the brief, notes, and manifest. Never `git init` or invent repository tooling.
   - Inherit cited-research.md. Keep private code, secrets, customer data, and unpublished
     material out of external fetches and out of the brief.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected).

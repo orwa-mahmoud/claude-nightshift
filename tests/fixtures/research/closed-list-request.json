@@ -1,0 +1,8 @@
+{
+  "policy": "closed-list",
+  "approvedSources": [
+    "https://example.com/docs/page",
+    "file:sources/brief.md"
+  ],
+  "limitations": []
+}

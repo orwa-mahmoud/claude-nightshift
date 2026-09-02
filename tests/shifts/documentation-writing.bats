@@ -7,6 +7,14 @@ WIN="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/windows/check-report.ps
   grep -qF 'product-truth-evidence.sh doc-outline' "$E"
 }
 
+@test "documentation writing resolves source policy for artifact folders" {
+  grep -qF 'source-policy-evidence.sh policy-resolve' "$E"
+  grep -qF 'source-policy-evidence.sh query-manifest' "$E"
+  grep -qF 'source-policy-evidence.sh redact-untrusted' "$E"
+  grep -qF 'source-policy-evidence.sh artifact-receipt-plan' "$E"
+  grep -qF 'git init' "$E"
+}
+
 @test "documentation writing discovers named sources and refuses invented behaviour" {
   grep -qi 'Discovery' "$E"
   grep -qi 'owner-approved outline' "$E"
