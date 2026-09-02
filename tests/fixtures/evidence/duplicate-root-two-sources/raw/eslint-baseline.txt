@@ -1,0 +1,4 @@
+src/app/imports.js
+  12:1  error  Dependency cycle detected: orders -> customers -> orders  import/no-cycle
+
+1 problem (1 error, 0 warnings)

@@ -1,0 +1,9 @@
+# npm audit report
+
+semver  <7.5.2
+Severity: moderate
+Regular Expression Denial of Service in semver - https://github.com/advisories/GHSA-c2qf-rxjj-qqgw
+fix available via `npm audit fix`
+node_modules/semver
+
+1 moderate severity vulnerability

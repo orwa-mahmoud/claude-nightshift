@@ -7,8 +7,8 @@
 #   rules      .nightshift/rules.json. One line per guarded knob (present flag and value), per
 #              elevation category (present flag and policy), and per owner-set category pattern.
 #   shift      .nightshift/shift-policy.json. ty/k/j/n lines carry the JSON type, the keys, a
-#              scalar's compact JSON, and an array's length at a dotted path; c and w lines carry
-#              one approved command or write-surface entry each.
+#              scalar's compact JSON, and an array's length at a dotted path; c, w and s lines
+#              carry one approved command, write-surface entry, or selected-debt id each.
 #   defaults   .nightshift/shift-defaults.json. One line per remembered choice.
 #
 # Every raw payload is control-scrubbed and every command is whitespace-normalized before it is
@@ -68,9 +68,15 @@ def shift_policy:
   else . as $P
   | ($P | ks(".")),
     ($P | sc("."; ["schemaVersion", "shiftId", "createdAt", "source", "deadlineEpoch",
-                   "verificationLevel", "toolingPolicy", "gatesDigest"])),
+                   "verificationLevel", "toolingPolicy", "completionMode", "gatesDigest"])),
     ($P.budgets | ty("budgets")),
     ($P.budgets | obj | to_entries[] | "b\t" + (.key | scrub) + "\t" + (.value | tojson)),
+    ($P.selectedDebt | ty("selectedDebt")),
+    ($P.selectedDebt | cnt("selectedDebt")),
+    ($P.selectedDebt | arr | to_entries[]
+     | "s\t" + (.key | tostring) + "\t"
+       + (if (.value | type) == "string" then "s" else "x" end) + "\t"
+       + (.value | tojson)),
     ($P.allowances | ty("allowances")),
     ($P.allowances | cnt("allowances")),
     ($P.allowances | arr | to_entries[] | allowance(.key; .value))

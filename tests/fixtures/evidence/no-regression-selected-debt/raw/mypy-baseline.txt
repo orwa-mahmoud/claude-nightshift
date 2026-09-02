@@ -1,0 +1,4 @@
+src/billing/totals.py:41: error: Argument 1 to "apply_discount" has incompatible type "str"; expected "Decimal"  [arg-type]
+src/billing/totals.py:88: error: Item "None" of "Optional[Invoice]" has no attribute "total"  [union-attr]
+src/billing/refunds.py:15: error: Returning Any from function declared to return "bool"  [no-any-return]
+Found 3 errors in 2 files (checked 41 source files)

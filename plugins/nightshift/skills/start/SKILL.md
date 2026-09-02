@@ -235,16 +235,10 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh" --project "$NIGHTSHIFT_WORKSPACE" check`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision-preflight.ps1" -Project "$NIGHTSHIFT_WORKSPACE" check`).
- If `$NS/provision-transaction.json` exists, recover before any product work with
+ If `$NS/provision-transaction.json` exists, recover first with
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" recover`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
- Exit 0 is settled — the transaction either finished its last stages or rolled back to a proven
- baseline — and the shift continues. Exit 3 (the restore is unproven) or exit 2 (the transaction is
- malformed) refuses to arm: print the helper's `detail` and the repair — inspect
- .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run
- provision.sh rollback after fixing the target, then Start again. A half-installed tool is never
- reported and worked around.
 - **Resolve tonight's shift policy.** Run
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" get`
  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" get`).
@@ -427,3 +421,14 @@ Begin item 1 and follow the nightshift skill: one item at a time, gate before ea
 after the item is complete, park don't ask, leave pushing to the owner unless the punch list says
 otherwise. From here the clock-out gate owns the session — it will not let
 you stop while any box is open.
+
+Whenever an item answers a tool, a scan, or a report, write that source's baseline before the first
+fix and once per source class, with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/evidence-baseline.sh" --project "$NIGHTSHIFT_WORKSPACE"
+--source-class <class> --command '<exact command>' [--scope <text>] [--raw <output file>]`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\evidence-baseline.ps1"`). Before a risky cluster — a migration, a codemod, a provisioning step — write a checkpoint against that
+baseline with `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/evidence-checkpoint.sh" --project
+"$NIGHTSHIFT_WORKSPACE" --baseline <id> --touched <paths> --rollback <ref or transaction id>
+--plan '<how it gets verified>'` (native Windows:
+`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\evidence-checkpoint.ps1"`), so the morning receipt can
+show where the work started and how to put it back.

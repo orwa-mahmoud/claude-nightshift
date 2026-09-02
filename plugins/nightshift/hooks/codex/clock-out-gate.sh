@@ -13,9 +13,10 @@
 # in the shift log and the gate keeps blocking; only STOP, done, or the deadline release.
 # Owner opt-in: stallMax N in the rules file auto-ends the shift after N stuck attempts.
 #
-# Morning whistle and receipts behave exactly as in Claude's gate: any shift-ending release
-# fires notifyCommand once and snapshots .nightshift/ into its receipts repo; neither can
-# block the release.
+# Morning whistle, the morning receipt, and receipts behave exactly as in Claude's gate: any
+# shift-ending release renders the owner view of the night to
+# .nightshift/receipts/morning-<YYYY-MM-DD>-<shiftId>.md, fires notifyCommand once, and
+# snapshots .nightshift/ into its receipts repo; none of them can block the release.
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -105,10 +106,33 @@ release_lease() {
     || log_line "process lease release deferred: lease mutex remained busy"
 }
 
+# The morning receipt — the one page the owner reads over coffee. Rendered from records only.
+# Best effort: an absent or failing renderer leaves one line in the shift log and the release
+# stands. $1 is tonight's shiftId.
+render_morning_receipt() {
+  local renderer="$_here/../../runtime/morning-receipt.sh" dir="$NS/receipts" err
+  if [ ! -f "$renderer" ]; then
+    log_line "morning receipt skipped: runtime/morning-receipt.sh is not installed"
+    return 0
+  fi
+  if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
+    log_line "morning receipt render failed: receipts path is not a directory"
+    return 0
+  fi
+  mkdir -p "$dir" 2>/dev/null || {
+    log_line "morning receipt render failed: cannot create $dir"
+    return 0
+  }
+  err="$(bash "$renderer" --project "$PROJECT_DIR" --view owner \
+    --out "$dir/morning-$(date '+%Y-%m-%d')-$1.md" 2>&1)" && return 0
+  log_line "morning receipt render failed: $(printf '%s' "$err" | head -n1)"
+}
+
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
 end_shift() {
+  local shift_id
   if [ -d "$NS" ]; then
     [ -L "$ENDED" ] && rm -f "$ENDED"
     : >"$ENDED"
@@ -117,6 +141,10 @@ end_shift() {
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
   release_lease
+  # A shift that never wrote a policy files its receipt as unknown.
+  shift_id="$(ns_policy_shift_id "$PROJECT_DIR" 2>/dev/null)" || shift_id=""
+  [ -n "$shift_id" ] || shift_id=unknown
+  render_morning_receipt "$shift_id"
   receipts_commit "$1"
   whistle "$1"
 }

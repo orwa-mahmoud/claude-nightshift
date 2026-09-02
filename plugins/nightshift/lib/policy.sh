@@ -38,6 +38,8 @@ deadlineEpoch
 verificationLevel
 toolingPolicy
 budgets
+completionMode
+selectedDebt
 allowances
 gatesDigest"
 
@@ -53,6 +55,7 @@ NS_POLICY_SHIFT_KEYS=""
 NS_POLICY_SHIFT_VALS=""
 NS_POLICY_SHIFT_COUNTS=""
 NS_POLICY_SHIFT_BUDGETS=""
+NS_POLICY_SHIFT_DEBT=""
 NS_POLICY_SHIFT_CMDS=""
 NS_POLICY_SHIFT_CMDJSON=""
 NS_POLICY_SHIFT_SURFACE=""
@@ -290,7 +293,7 @@ NS_POLICY_SHIFT_PY='
 import json, re, sys
 
 SCALARS = ["schemaVersion", "shiftId", "createdAt", "source", "deadlineEpoch",
-           "verificationLevel", "toolingPolicy", "gatesDigest"]
+           "verificationLevel", "toolingPolicy", "completionMode", "gatesDigest"]
 out = []
 
 
@@ -365,6 +368,10 @@ sc(".", P, SCALARS)
 ty("budgets", P.get("budgets"))
 for key, value in obj(P.get("budgets")).items():
     out.append("b\t%s\t%s" % (scrub(key), enc(value)))
+ty("selectedDebt", P.get("selectedDebt"))
+cnt("selectedDebt", P.get("selectedDebt"))
+for i, one in enumerate(arr(P.get("selectedDebt"))):
+    out.append("s\t%d\t%s\t%s" % (i, "s" if isinstance(one, str) else "x", enc(one)))
 ty("allowances", P.get("allowances"))
 cnt("allowances", P.get("allowances"))
 for i, a in enumerate(arr(P.get("allowances"))):
@@ -811,6 +818,32 @@ _ns_policy_validate_shift() {
       return 1
     }
   done
+  case "$(_ns_policy_pick "$NS_POLICY_SHIFT_VALS" completionMode)" in
+    null | '"clear-all"' | '"no-regression-plus-selected-debt"') ;;
+    *)
+      _ns_policy_shift_fail completionMode \
+        "must be clear-all or no-regression-plus-selected-debt"
+      return 1
+      ;;
+  esac
+  case "$(_ns_policy_pick "$NS_POLICY_SHIFT_TYPES" selectedDebt)" in
+    null | array) ;;
+    *)
+      _ns_policy_shift_fail selectedDebt "must be an array of finding ids"
+      return 1
+      ;;
+  esac
+  rest="$NS_POLICY_SHIFT_DEBT"
+  while [ -n "$rest" ]; do
+    line="${rest%%"$NS_POLICY_NL"*}"
+    case "$rest" in *"$NS_POLICY_NL"*) rest="${rest#*"$NS_POLICY_NL"}" ;; *) rest="" ;; esac
+    [ -n "$line" ] || continue
+    _ns_pf_split "$line"
+    if [ "$NS_PF2" != s ] || [ "$NS_PF3" = '""' ]; then
+      _ns_policy_shift_fail "selectedDebt[$NS_PF1]" "must be a finding id"
+      return 1
+    fi
+  done
   case "$(_ns_policy_pick "$NS_POLICY_SHIFT_TYPES" allowances)" in
     null | array) ;;
     *)
@@ -838,6 +871,7 @@ _ns_policy_load_shift_file() {
   NS_POLICY_SHIFT_VALS=""
   NS_POLICY_SHIFT_COUNTS=""
   NS_POLICY_SHIFT_BUDGETS=""
+  NS_POLICY_SHIFT_DEBT=""
   NS_POLICY_SHIFT_CMDS=""
   NS_POLICY_SHIFT_CMDJSON=""
   NS_POLICY_SHIFT_SURFACE=""
@@ -874,6 +908,7 @@ _ns_policy_load_shift_file() {
       j) NS_POLICY_SHIFT_VALS="$NS_POLICY_SHIFT_VALS$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_NL" ;;
       n) NS_POLICY_SHIFT_COUNTS="$NS_POLICY_SHIFT_COUNTS$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_NL" ;;
       b) NS_POLICY_SHIFT_BUDGETS="$NS_POLICY_SHIFT_BUDGETS$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_NL" ;;
+      s) NS_POLICY_SHIFT_DEBT="$NS_POLICY_SHIFT_DEBT$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_TAB$NS_PF4$NS_POLICY_NL" ;;
       c) NS_POLICY_SHIFT_CMDS="$NS_POLICY_SHIFT_CMDS$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_TAB$NS_PF4$NS_POLICY_TAB$NS_PF5$NS_POLICY_NL" ;;
       q) NS_POLICY_SHIFT_CMDJSON="$NS_POLICY_SHIFT_CMDJSON$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_TAB$NS_PF4$NS_POLICY_NL" ;;
       w) NS_POLICY_SHIFT_SURFACE="$NS_POLICY_SHIFT_SURFACE$NS_PF2$NS_POLICY_TAB$NS_PF3$NS_POLICY_TAB$NS_PF4$NS_POLICY_NL" ;;
@@ -941,6 +976,43 @@ ns_policy_shift_id() {
   [ "$NS_POLICY_SHIFT_STATE" = ok ] || return 1
   [ -n "$NS_POLICY_SHIFT_ID" ] || return 1
   printf '%s' "$NS_POLICY_SHIFT_ID"
+}
+
+# ns_policy_completion_mode <workspace>
+# How the evidence comparison scores tonight: clear-all, or no-regression-plus-selected-debt.
+# An absent, unreadable or silent policy is clear-all — the strict mode is the floor, and a
+# broken file never widens it. The mode is not a resolved setting: it scores findings, it grants
+# nothing, so the resolved view does not report it.
+ns_policy_completion_mode() {
+  local val
+  _ns_policy_load_shift "$1"
+  if [ "$NS_POLICY_SHIFT_STATE" = ok ]; then
+    val="$(_ns_policy_pick "$NS_POLICY_SHIFT_VALS" completionMode)" || val=null
+    if [ "$val" = '"no-regression-plus-selected-debt"' ]; then
+      printf 'no-regression-plus-selected-debt'
+      return 0
+    fi
+  fi
+  printf 'clear-all'
+}
+
+# ns_policy_selected_debt <workspace>
+# The finding ids the owner accepted as tonight's debt, one compact JSON string per line, in the
+# order the policy lists them. A JSON string carries no raw newline, so the list stays line-safe
+# and a caller matches an id without unescaping it. Empty when the policy names none.
+ns_policy_selected_debt() {
+  local rest line
+  _ns_policy_load_shift "$1"
+  [ "$NS_POLICY_SHIFT_STATE" = ok ] || return 0
+  rest="$NS_POLICY_SHIFT_DEBT"
+  while [ -n "$rest" ]; do
+    line="${rest%%"$NS_POLICY_NL"*}"
+    case "$rest" in *"$NS_POLICY_NL"*) rest="${rest#*"$NS_POLICY_NL"}" ;; *) rest="" ;; esac
+    [ -n "$line" ] || continue
+    _ns_pf_split "$line"
+    [ "$NS_PF2" = s ] || continue
+    printf '%s\n' "$NS_PF3"
+  done
 }
 
 # ---------------------------------------------------------------- shift-defaults.json

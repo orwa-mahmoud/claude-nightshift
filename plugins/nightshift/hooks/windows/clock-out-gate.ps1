@@ -94,6 +94,28 @@ function Save-NSPolicyArchive {
     }
 }
 
+function Save-NSMorningReceipt {
+    # Best effort, never blocks the release: render the owner view to
+    # receipts/morning-<YYYY-MM-DD>-<shiftId>.md. Runs before the policy archive so the
+    # policy that ran is still in place for section 1, and before the receipts commit so a
+    # workspace with a receipts git carries the receipt in the same commit. A render failure
+    # leaves no file, no message on this hook's stdout, and no effect on the clock-out.
+    $originalOut = [Console]::Out
+    $originalErr = [Console]::Error
+    $swallow = New-Object IO.StringWriter
+    try {
+        [Console]::SetOut($swallow)
+        [Console]::SetError($swallow)
+        $null = Write-NSMorningReceiptFile -Workspace $workspace
+    }
+    catch {
+    }
+    finally {
+        [Console]::SetOut($originalOut)
+        [Console]::SetError($originalErr)
+    }
+}
+
 function Save-NSReceipt {
     param([Parameter(Mandatory = $true)][string]$Summary)
     if (-not (Test-Path -LiteralPath (Join-Path $ns '.git') -PathType Container)) {
@@ -164,6 +186,7 @@ function Complete-NSShift {
     }
     Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue
     Release-NSLeaseWithRetry
+    Save-NSMorningReceipt
     Save-NSPolicyArchive
     Save-NSReceipt $Summary
     Invoke-NSWhistle $Summary

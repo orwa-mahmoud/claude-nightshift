@@ -2,6 +2,7 @@ load helpers
 
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
 RETAIN="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/retain-history.sh"
+ARCHIVE_RECEIPTS="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/archive-receipts.sh"
 ARCHIVE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/archive/SKILL.md"
 START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
@@ -151,6 +152,33 @@ age_file() {
   run bash "$RETAIN" --project "$p" --apply
   [ "$status" -eq 0 ]
   [ ! -e "$p/.nightshift/archive/2017-06-01" ]
+}
+
+@test "the morning receipt archives with the night's other receipts and is swept with them" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  set_retention "$p" 1 1
+  mkdir -p "$p/.nightshift/receipts"
+  printf 'item\n' >"$p/.nightshift/receipts/20260101T000000Z-one.md"
+  printf '# Shift\n' >"$p/.nightshift/receipts/morning-2026-09-02-9f2c40ab77e51d63.md"
+
+  run bash "$ARCHIVE_RECEIPTS" --project "$p" --date 2017-07-01
+  [ "$status" -eq 0 ]
+  dest="$p/.nightshift/archive/2017-07-01/receipts"
+  [ -f "$dest/20260101T000000Z-one.md" ]
+  [ -f "$dest/morning-2026-09-02-9f2c40ab77e51d63.md" ]
+  # The live copy stays where the owner reads it.
+  [ -f "$p/.nightshift/receipts/morning-2026-09-02-9f2c40ab77e51d63.md" ]
+
+  printf '%s\n' '- [x] done' >"$p/.nightshift/archive/2017-07-01/shipped.md"
+  age_file "$p/.nightshift/archive/2017-07-01"
+  run bash "$RETAIN" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'archive/2017-07-01'
+  run bash "$RETAIN" --project "$p" --apply
+  [ "$status" -eq 0 ]
+  [ ! -e "$p/.nightshift/archive/2017-07-01" ]
+  [ -f "$p/.nightshift/receipts/morning-2026-09-02-9f2c40ab77e51d63.md" ]
 }
 
 @test "hooks start status and Doctor never prune history" {

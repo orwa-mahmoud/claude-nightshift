@@ -78,6 +78,15 @@ Top to bottom, one item, no batching:
   list explicitly says to.
 5. **Tick** the box to `- [x]`. Never fake a tick: the box means the work behind it is complete.
 
+Before the first fix that answers an originating source, write that source's baseline — once per source class — with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/evidence-baseline.sh" --project "$NIGHTSHIFT_WORKSPACE" --source-class <class> --command '<exact command>' [--scope <text>] [--raw <output file>]`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\evidence-baseline.ps1"`), and reuse
+the id it prints for every fix from that source. Before a risky cluster — a migration, a codemod, a
+provisioning step, anything whose undo is not obvious — write a checkpoint against that baseline
+with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/evidence-checkpoint.sh" --project "$NIGHTSHIFT_WORKSPACE" --baseline <id> --touched <paths> --rollback <ref or transaction id> --plan '<how it gets verified>'`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\evidence-checkpoint.ps1"`).
+
 Cited research, SEO audits, sourced documentation, and research synthesis follow
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md`. Verify those reports with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:

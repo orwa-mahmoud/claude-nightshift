@@ -22,6 +22,11 @@
 # Receipts: any shift-ending release also snapshots .nightshift/ into its local receipts repo
 # (the one Nightshift Setup created). No receipts repo -> no-op; a failed commit never blocks
 # the release.
+#
+# Morning receipt: any shift-ending release renders the owner view of the night to
+# .nightshift/receipts/morning-<YYYY-MM-DD>-<shiftId>.md before the snapshot, so the page the
+# owner reads is inside it. Best effort — a renderer that is absent or fails leaves one line in
+# the shift log and never blocks the release.
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -129,10 +134,34 @@ archive_shift_policy() {
   log_line "shift policy archive failed: $(printf '%s' "$err" | head -n1)"
 }
 
+# The morning receipt — the one page the owner reads over coffee. Rendered from records only, so
+# it can be written after the policy is filed. Best effort, exactly like the archive above: an
+# absent or failing renderer leaves one line in the shift log and the release stands. $1 is
+# tonight's shiftId, read before the policy moved.
+render_morning_receipt() {
+  local renderer="$_here/../runtime/morning-receipt.sh" dir="$NS/receipts" err
+  if [ ! -f "$renderer" ]; then
+    log_line "morning receipt skipped: runtime/morning-receipt.sh is not installed"
+    return 0
+  fi
+  if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
+    log_line "morning receipt render failed: receipts path is not a directory"
+    return 0
+  fi
+  mkdir -p "$dir" 2>/dev/null || {
+    log_line "morning receipt render failed: cannot create $dir"
+    return 0
+  }
+  err="$(bash "$renderer" --project "$PROJECT_DIR" --view owner \
+    --out "$dir/morning-$(date '+%Y-%m-%d')-$1.md" 2>&1)" && return 0
+  log_line "morning receipt render failed: $(printf '%s' "$err" | head -n1)"
+}
+
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
 end_shift() {
+  local shift_id
   if [ -d "$NS" ]; then
     [ -L "$ENDED" ] && rm -f "$ENDED"
     : >"$ENDED"
@@ -141,7 +170,12 @@ end_shift() {
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
   release_lease
+  # Naming the receipt needs the shiftId, and the archive is about to move the policy that
+  # carries it. A shift that never wrote a policy files its receipt as unknown.
+  shift_id="$(ns_policy_shift_id "$PROJECT_DIR" 2>/dev/null)" || shift_id=""
+  [ -n "$shift_id" ] || shift_id=unknown
   archive_shift_policy
+  render_morning_receipt "$shift_id"
   receipts_commit "$1"
   whistle "$1"
 }

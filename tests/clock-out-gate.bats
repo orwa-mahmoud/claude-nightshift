@@ -6,6 +6,58 @@ write_policy_with_deadline() { # <project> <deadlineEpoch-or-null>
     "$2" >"$1/.nightshift/shift-policy.json"
 }
 
+# ---------------------------------------------------------------------------------------------
+# Morning-receipt fixtures. The gate resolves the renderer beside itself, so these tests run a
+# copied plugin tree and decide which runtime helpers exist in it.
+
+# plugin_copy <name> — a private copy of the plugin, echoing its nightshift root.
+plugin_copy() {
+  local d="$BATS_TEST_TMPDIR/$1"
+  mkdir -p "$d"
+  cp -R "$BATS_TEST_DIRNAME/../plugins" "$d/plugins"
+  printf '%s' "$d/plugins/nightshift"
+}
+
+# gate_from <plugin-root> <project> [ENV=VAL ...] — the shared Stop payload, against a copy.
+gate_from() {
+  local root="$1" p="$2"
+  shift 2
+  jq -nc '{hook_event_name:"Stop",session_id:"test-shift-session",transcript_path:""}' |
+    env "$@" CLAUDE_PROJECT_DIR="$p" bash "$root/hooks/clock-out-gate.sh"
+}
+
+# renderer_ok <plugin-root> — a renderer that writes its own arguments into the file it was
+# told to write, so a test can read back both the path and the view the gate asked for.
+renderer_ok() {
+  cat >"$1/runtime/morning-receipt.sh" <<'SH'
+#!/usr/bin/env bash
+set -u
+args="$*"
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out)
+      out="$2"
+      shift 2
+      ;;
+    *) shift ;;
+  esac
+done
+[ -n "$out" ] || exit 1
+printf '%s\n' "$args" >"$out"
+printf '%s\n' "$out"
+SH
+}
+
+# renderer_fail <plugin-root> — a renderer that writes nothing and fails.
+renderer_fail() {
+  cat >"$1/runtime/morning-receipt.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'morning-receipt: no ledger to read\n' >&2
+exit 2
+SH
+}
+
 @test "blocks while a box is open" {
   p="$(new_project)"
   punch_open "$p"
@@ -188,6 +240,105 @@ write_policy_with_deadline() { # <project> <deadlineEpoch-or-null>
   run gate "$p"
   is_release
   [ ! -e "$p/.nightshift/shift-policy.json" ]
+}
+
+@test "clock-out renders the owner receipt into receipts/, named for tonight's shift" {
+  root="$(plugin_copy receipt-ok)"
+  renderer_ok "$root"
+  p="$(new_project gate-receipt)"
+  punch_done "$p"
+  write_policy_with_deadline "$p" null
+  today="$(date '+%Y-%m-%d')"
+
+  run gate_from "$root" "$p"
+  is_release
+  out="$p/.nightshift/receipts/morning-$today-9f2c40ab77e51d63.md"
+  [ -f "$out" ]
+  grep -qF -- '--view owner' "$out"
+  grep -qF -- "--out " "$out"
+  grep -qF "morning-$today-9f2c40ab77e51d63.md" "$out"
+  # The policy is filed first, so the receipt is named from a shiftId that was still readable.
+  [ -f "$p/.nightshift/archive/$today/shift-policy-9f2c40ab77e51d63.json" ]
+  if [ -f "$p/.nightshift/shift-log.md" ]; then
+    ! grep -qF 'morning receipt' "$p/.nightshift/shift-log.md"
+  fi
+}
+
+@test "a shift that never wrote a policy files its receipt as unknown" {
+  root="$(plugin_copy receipt-unknown)"
+  renderer_ok "$root"
+  p="$(new_project gate-receipt-unknown)"
+  punch_done "$p"
+  today="$(date '+%Y-%m-%d')"
+
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+}
+
+@test "an absent morning-receipt renderer never blocks the release" {
+  root="$(plugin_copy receipt-absent)"
+  rm -f "$root/runtime/morning-receipt.sh"
+  p="$(new_project gate-receipt-absent)"
+  punch_done "$p"
+
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+  grep -qF 'morning receipt skipped: runtime/morning-receipt.sh is not installed' \
+    "$p/.nightshift/shift-log.md"
+  [ ! -e "$p/.nightshift/receipts" ]
+}
+
+@test "a failing morning-receipt renderer never blocks the release" {
+  root="$(plugin_copy receipt-fail)"
+  renderer_fail "$root"
+  p="$(new_project gate-receipt-fail)"
+  punch_done "$p"
+  today="$(date '+%Y-%m-%d')"
+
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  grep -qF 'morning receipt render failed: morning-receipt: no ledger to read' \
+    "$p/.nightshift/shift-log.md"
+  [ ! -e "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+}
+
+@test "a deadline release and a stop-work order both leave the receipt behind" {
+  root="$(plugin_copy receipt-deadline)"
+  renderer_ok "$root"
+  today="$(date '+%Y-%m-%d')"
+
+  p="$(new_project gate-receipt-deadline)"
+  punch_open "$p"
+  printf '%s\n' "$(( $(date +%s) - 60 ))" >"$p/.nightshift/deadline"
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+
+  q="$(new_project gate-receipt-stop)"
+  punch_open "$q"
+  : >"$q/.nightshift/STOP"
+  run gate_from "$root" "$q"
+  is_release
+  [ -f "$q/.nightshift/receipts/morning-$today-unknown.md" ]
+}
+
+@test "every host gate renders the morning receipt the same way" {
+  hooks="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks"
+  for h in "$hooks/clock-out-gate.sh" "$hooks/codex/clock-out-gate.sh" \
+    "$hooks/cursor/clock-out-gate.sh"; do
+    grep -qF 'render_morning_receipt "$shift_id"' "$h" \
+      || { echo "no receipt render in end_shift: $h"; return 1; }
+    grep -qF -- '--view owner' "$h" || { echo "no owner view: $h"; return 1; }
+    grep -qF 'morning receipt render failed:' "$h" || { echo "no failure line: $h"; return 1; }
+    grep -qF 'morning receipt skipped: runtime/morning-receipt.sh is not installed' "$h" \
+      || { echo "no absent-renderer line: $h"; return 1; }
+    awk '/render_morning_receipt "\$shift_id"/{r=NR} /receipts_commit "\$1"/{c=NR} END{exit !(r && c && r<c)}' "$h" \
+      || { echo "the receipt is written after the snapshot: $h"; return 1; }
+  done
 }
 
 @test "the gate honours the earlier of the deadline file and the shift-policy deadlineEpoch" {

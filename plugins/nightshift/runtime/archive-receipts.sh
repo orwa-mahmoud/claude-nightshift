@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# archive-receipts.sh — copy live artifact receipts into a dated archive folder.
+# archive-receipts.sh — copy the live receipts into a dated archive folder.
 #
+# Every regular file directly under receipts/ travels: the artifact receipts an item wrote and
+# the shift's own morning-<YYYY-MM-DD>-<shiftId>.md.
 # Leaves live copies in place so stall progress still sees them. Skips hidden
 # files and does not follow symlinks. Missing or empty receipts is success and
 # does not create an empty dated folder.

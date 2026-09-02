@@ -234,6 +234,9 @@ receipts repo if you opt in at setup.
 When those files grow, `/nightshift:archive` moves completed items, handled snags, and the rotated
 journal into a dated archive without touching the active contract.
 
+Every shift also renders one compact [Morning receipt](docs/morning-receipt.md): what ran, what
+changed, what's parked, and what's next, in a view suited to owner, reviewer, or release reading.
+
 ## The ready shifts
 
 Named GitHub issues can be copied onto the drafting table with `/nightshift:import-issues` — explicit

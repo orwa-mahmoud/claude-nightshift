@@ -4144,6 +4144,9 @@ $script:NSPolicySources = @('composition', 'start-defaults')
 $script:NSPolicyScopes = @('category', 'exact-plan')
 $script:NSPolicyProvenances = @('rules', 'one-shift')
 
+$script:NSPolicyCompletionModes = @('clear-all', 'no-regression-plus-selected-debt')
+$script:NSPolicyCompletionDefault = 'clear-all'
+
 # Shipped elevation patterns (grep -E), used for any category rules.json does not
 # carry. Preflight and the hardhat guard read them through Get-NSElevationPattern,
 # so the signal that parks an item is the signal that blocks the command.
@@ -4310,7 +4313,8 @@ function Test-NSShiftPolicyDocument {
         return , $errors
     }
     $known = @('schemaVersion', 'shiftId', 'createdAt', 'source', 'deadlineEpoch',
-        'verificationLevel', 'toolingPolicy', 'budgets', 'allowances', 'gatesDigest')
+        'verificationLevel', 'toolingPolicy', 'budgets', 'allowances', 'gatesDigest',
+        'completionMode', 'selectedDebt')
     foreach ($key in @($Document.Keys)) {
         if (-not ($known -ccontains [string]$key)) {
             $errors.Add(([string]$key) + ': unknown field')
@@ -4336,6 +4340,23 @@ function Test-NSShiftPolicyDocument {
     }
     if ($Document.Contains('toolingPolicy') -and -not (Test-NSEvidenceEnum $Document['toolingPolicy'] $script:NSPolicyToolingPolicies)) {
         $errors.Add('toolingPolicy: must be one of ' + ($script:NSPolicyToolingPolicies -join ', '))
+    }
+    if ($Document.Contains('completionMode') -and -not (Test-NSEvidenceEnum $Document['completionMode'] $script:NSPolicyCompletionModes)) {
+        $errors.Add('completionMode: must be one of ' + ($script:NSPolicyCompletionModes -join ', '))
+    }
+    if ($Document.Contains('selectedDebt')) {
+        $debt = Get-NSPolicyField $Document 'selectedDebt'
+        if (($debt -is [Collections.IDictionary]) -or ($debt -is [string]) -or -not ($debt -is [Collections.IEnumerable])) {
+            $errors.Add('selectedDebt: must be an array of finding ids')
+        }
+        else {
+            foreach ($id in @($debt)) {
+                if (-not (($id -is [string]) -and $id.Trim().Length -gt 0)) {
+                    $errors.Add('selectedDebt: must be an array of non-empty strings')
+                    break
+                }
+            }
+        }
     }
     if ($Document.Contains('deadlineEpoch')) {
         $deadline = $Document['deadlineEpoch']
@@ -6501,5 +6522,1766 @@ function Invoke-NSProvisionCommand {
     }
     return (Write-NSProvisionUsage)
 }
+
+# Baseline, checkpoint, comparison, morning receipt - the native side of
+# runtime/windows/evidence-baseline.ps1, evidence-checkpoint.ps1,
+# evidence-compare.ps1 and morning-receipt.ps1.
+#
+# Nothing here reruns a tool or reads a work target for a finding. Every row a
+# comparison prints and every line the receipt renders comes from a record
+# already in the ledger, cited by id. A tool that failed, a source the ledger
+# marked unavailable, and a moved environment digest are reported as
+# unavailable - never as improvement.
+# ---------------------------------------------------------------------------
+
+$script:NSEvidenceBaselineDomain = 'baseline'
+$script:NSEvidenceCheckpointDomain = 'checkpoint'
+$script:NSEvidenceLifecycleDomains = @('baseline', 'checkpoint')
+
+# The eight classes a comparison assigns, in report order.
+$script:NSCompareClasses = @(
+    'new', 'cleared', 'unchanged', 'regressed',
+    'unavailable', 'rejected-duplicate', 'parked', 'human-only'
+)
+
+# Record state to class. First match wins, and the statuses that mean "could not
+# be measured" come first so a tool that never ran is never read as a fix.
+$script:NSCompareUnavailableStatuses = @('unavailable', 'unsupported', 'unmeasured')
+$script:NSCompareHumanStatuses = @('human-only')
+$script:NSCompareClearedStatuses = @('fixed')
+$script:NSCompareParkedDispositions = @('parked')
+$script:NSCompareDuplicateDispositions = @('rejected-duplicate')
+
+# clear-all fails on any of these. no-regression-plus-selected-debt fails only on
+# a regression, plus a selected id that did not clear.
+$script:NSCompareOutstandingClasses = @('new', 'unchanged', 'regressed', 'unavailable')
+$script:NSCompareRegressionClasses = @('regressed')
+
+$script:NSCompareDigestLength = 12
+$script:NSCompareTitle = '# Comparison'
+$script:NSCompareTableHeader = '| ID | Class | Digest | Sources | Locator |'
+$script:NSCompareTableRule = '| --- | --- | --- | --- | --- |'
+$script:NSCompareRowFormat = '| {0} | {1} | {2} | {3} | {4} |'
+$script:NSCompareEmptyLocator = 'empty'
+$script:NSCompareBaselineFormat = 'Baseline: {0} {1} {2} {1} `{3}`'
+$script:NSCompareModeFormat = 'Mode: {0}'
+$script:NSCompareResultFormat = 'Result: {0}'
+$script:NSComparePassLabel = 'pass'
+$script:NSCompareFailLabel = 'fail'
+$script:NSCompareSummaryPrefix = 'Summary: '
+$script:NSCompareSummaryCellFormat = '{0} {1}'
+$script:NSCompareSummarySeparator = ', '
+$script:NSCompareSelectedDebtPrefix = 'Selected debt outstanding: '
+$script:NSMdPipeEscape = '\|'
+$script:NSMdSourceSeparator = ', '
+
+# Fixed fields on a lifecycle record: a baseline and a checkpoint are
+# measurements of a surface, never defects, so they carry the finding schema's
+# required set at its lowest weight and say what they are in action.
+$script:NSEvidenceBaselineSeverity = 'info'
+$script:NSEvidenceBaselineConfidence = 'high'
+$script:NSEvidenceBaselineImpact = 'none'
+$script:NSEvidenceBaselineStatus = 'open'
+$script:NSEvidenceBaselineLadderMeasured = 'measured'
+$script:NSEvidenceBaselineLadderObserved = 'observed'
+$script:NSEvidenceBaselineAction = 'baseline recorded'
+$script:NSEvidenceCheckpointAction = 'checkpoint recorded'
+$script:NSEvidenceCheckpointSourceClass = 'worktree'
+$script:NSEvidenceHostUnknown = 'unknown'
+
+$script:NSReceiptTitle = '# Morning receipt'
+$script:NSReceiptViewNames = @('owner', 'reviewer', 'release', 'artifact')
+$script:NSReceiptNone = 'none'
+$script:NSReceiptEndingUnknown = 'unknown'
+$script:NSReceiptShiftUnknown = 'unknown'
+$script:NSReceiptFilePrefix = 'morning-'
+$script:NSReceiptFileFormat = 'morning-{0}-{1}.md'
+$script:NSReceiptFieldFormat = '- {0}: {1}'
+$script:NSReceiptNestedFormat = '  - {0}: {1}'
+$script:NSReceiptPlainFormat = '- {0}'
+$script:NSReceiptItemsFormat = '{0} ticked, {1} open'
+$script:NSReceiptPolicyFormat = 'profile {0}, verification {1}, tooling {2}'
+$script:NSReceiptAllowanceFormat = '{0} ({1}, {2})'
+$script:NSReceiptBaselineFormat = '{0} `{1}` {2} env {3} raw {4} ({5})'
+$script:NSReceiptVerifiedNoneFormat = 'none {0} verification level {1} (owner)'
+$script:NSReceiptNextFormat = '{0} {1} next: {2}'
+
+# Section keys in receipt order, their headings, and the sections each view
+# renders. Same data, same conclusions - a view only decides how much of it.
+$script:NSReceiptSectionKeys = @('shift', 'baseline', 'changed', 'parked', 'unsupported', 'next')
+
+$script:NSReceiptSectionTitle = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
+$script:NSReceiptSectionTitle['shift'] = '## Shift'
+$script:NSReceiptSectionTitle['baseline'] = '## Baseline'
+$script:NSReceiptSectionTitle['changed'] = '## What changed'
+$script:NSReceiptSectionTitle['parked'] = '## Parked'
+$script:NSReceiptSectionTitle['unsupported'] = '## Unsupported / unmeasured'
+$script:NSReceiptSectionTitle['next'] = '## Next'
+
+$script:NSReceiptViewSections = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
+$script:NSReceiptViewSections['owner'] = @('shift', 'baseline', 'changed', 'parked', 'unsupported', 'next')
+$script:NSReceiptViewSections['reviewer'] = @('baseline', 'changed')
+$script:NSReceiptViewSections['release'] = @('shift', 'changed')
+$script:NSReceiptViewSections['artifact'] = @('shift', 'parked', 'unsupported', 'next')
+
+$script:NSReceiptLabels = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
+$script:NSReceiptLabels['shift'] = 'Shift'
+$script:NSReceiptLabels['host'] = 'Host'
+$script:NSReceiptLabels['workTarget'] = 'Work target'
+$script:NSReceiptLabels['started'] = 'Started'
+$script:NSReceiptLabels['ended'] = 'Ended'
+$script:NSReceiptLabels['ending'] = 'Ending'
+$script:NSReceiptLabels['items'] = 'Items'
+$script:NSReceiptLabels['commits'] = 'Commits'
+$script:NSReceiptLabels['receipts'] = 'Receipts'
+$script:NSReceiptLabels['policy'] = 'Policy'
+$script:NSReceiptLabels['allowance'] = 'Allowance'
+$script:NSReceiptLabels['verified'] = 'Verified'
+$script:NSReceiptLabels['disabled'] = 'Disabled by owner'
+$script:NSReceiptLabels['unavailable'] = 'Unavailable'
+$script:NSReceiptLabels['default'] = 'Default'
+$script:NSReceiptLabels['rollback'] = 'Rollback'
+$script:NSReceiptLabels['building'] = 'Building'
+
+# Statuses section 5 owns: a surface nobody measured, and one only a human can.
+$script:NSReceiptUnmeasuredStatuses = @('human-only', 'unsupported', 'unmeasured')
+$script:NSReceiptVerifiedLadder = 'verified-after-change'
+
+# ---------------------------------------------------------------------------
+# Small readers over a parsed record
+# ---------------------------------------------------------------------------
+
+function Get-NSEvidenceDash {
+    return ([string][char]0x2014)
+}
+
+function Get-NSEvidenceJoiner {
+    return (' ' + (Get-NSEvidenceDash) + ' ')
+}
+
+function Get-NSEvidenceDay {
+    $now = Get-NSEvidenceNow
+    if ($now -cmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}') { return $now.Substring(0, 10) }
+    return ([DateTime]::UtcNow.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture))
+}
+
+function Test-NSEvidenceWorkspace {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSEvidencePaths $Workspace
+    $ns = $paths['ns']
+    if (Test-Path -LiteralPath $ns -PathType Container) { return $true }
+    Write-NSEvidenceError ('evidence: no .nightshift/ at ' + $Workspace)
+    return $false
+}
+
+function Get-NSEvidenceLedgerRecords {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSEvidencePaths $Workspace
+    $records = Read-NSEvidenceRecords $paths['jsonl']
+    if ($null -eq $records) { return , @() }
+    if ($records -is [Collections.Generic.List[object]]) {
+        return , $records.ToArray()
+    }
+    return , [object[]]@($records)
+}
+
+function Get-NSRecordText {
+    param($Record, [Parameter(Mandatory = $true)][string]$Key)
+    $value = Get-NSMapValue $Record $Key
+    if ($null -eq $value) { return '' }
+    if ($value -is [string]) { return $value }
+    return (ConvertTo-NSPyText $value)
+}
+
+function Get-NSRecordDetails {
+    param($Record)
+    $details = Get-NSMapValue $Record 'details'
+    if ($details -is [Collections.IDictionary]) { return $details }
+    return (New-NSOrdinalMap)
+}
+
+# A JSON array of strings, a lone string, or nothing - always an array back.
+function Get-NSRecordList {
+    param($Record, [Parameter(Mandatory = $true)][string]$Key)
+    $items = New-Object Collections.Generic.List[string]
+    $value = Get-NSMapValue $Record $Key
+    if ($null -eq $value) { return , $items.ToArray() }
+    if ($value -is [string]) {
+        if ($value.Length -gt 0) { $items.Add($value) }
+        return , $items.ToArray()
+    }
+    if ($value -is [Collections.IEnumerable]) {
+        foreach ($item in $value) {
+            if ($null -eq $item) { continue }
+            $text = ConvertTo-NSPyText $item
+            if ($text.Length -gt 0) { $items.Add($text) }
+        }
+    }
+    return , $items.ToArray()
+}
+
+function Get-NSUniqueSorted {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Items)
+    $map = New-NSOrdinalMap
+    if ($null -ne $Items) {
+        foreach ($item in $Items) {
+            if ([string]::IsNullOrEmpty($item)) { continue }
+            $map[$item] = $true
+        }
+    }
+    return , (Sort-NSOrdinal ([string[]]@($map.Keys)))
+}
+
+function Get-NSCompareShortDigest {
+    param([AllowEmptyString()][string]$Digest)
+    if ([string]::IsNullOrEmpty($Digest)) { return '' }
+    if ($Digest.Length -le $script:NSCompareDigestLength) { return $Digest }
+    return $Digest.Substring(0, $script:NSCompareDigestLength)
+}
+
+# ---------------------------------------------------------------------------
+# Environment and version digests
+# ---------------------------------------------------------------------------
+
+# "tool=version" or "tool<TAB>version" in, one sorted {name,version} array out.
+# The digest below hashes the same pairs, so a record and its digest cannot drift.
+function Get-NSEvidenceVersionPairs {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Versions)
+    $tab = [string][char]9
+    $byName = New-NSOrdinalMap
+    if ($null -ne $Versions) {
+        foreach ($entry in $Versions) {
+            if ([string]::IsNullOrEmpty($entry)) { continue }
+            $name = $entry
+            $version = ''
+            $at = $entry.IndexOf($tab)
+            if ($at -lt 0) { $at = $entry.IndexOf('=') }
+            if ($at -ge 0) {
+                $name = $entry.Substring(0, $at)
+                $version = $entry.Substring($at + 1)
+            }
+            $name = $name.Trim()
+            if ($name.Length -eq 0) { continue }
+            $byName[$name] = $version.Trim()
+        }
+    }
+    $pairs = New-Object Collections.Generic.List[object]
+    foreach ($name in (Sort-NSOrdinal ([string[]]@($byName.Keys)))) {
+        $pair = New-NSOrdinalMap
+        $pair['name'] = [string]$name
+        $pair['version'] = [string]$byName[$name]
+        $pairs.Add($pair)
+    }
+    return , $pairs.ToArray()
+}
+
+# sha256 over sorted "tool<TAB>version" lines, each terminated by one LF. The OS
+# is one more pair, so a host change moves the digest the way a tool change does.
+function Get-NSEnvironmentDigest {
+    param($Pairs)
+    $builder = New-Object Text.StringBuilder
+    foreach ($pair in @($Pairs)) {
+        $null = $builder.Append((Get-NSRecordText $pair 'name'))
+        $null = $builder.Append([char]9)
+        $null = $builder.Append((Get-NSRecordText $pair 'version'))
+        $null = $builder.Append("`n")
+    }
+    return (Get-NSTextSha256 $builder.ToString())
+}
+
+# git status --porcelain, one LF-terminated line each. A target that is not a
+# repository has no worktree digest rather than a digest of nothing.
+function Get-NSWorktreeDigest {
+    param([Parameter(Mandatory = $true)][string]$Target)
+    $result = Invoke-NSGitCommand $Target @('status', '--porcelain')
+    if ($result.ExitCode -ne 0) { return '' }
+    $builder = New-Object Text.StringBuilder
+    foreach ($line in @($result.Lines)) {
+        $null = $builder.Append([string]$line)
+        $null = $builder.Append("`n")
+    }
+    return (Get-NSTextSha256 $builder.ToString())
+}
+
+# ---------------------------------------------------------------------------
+# Baseline and checkpoint writers
+# ---------------------------------------------------------------------------
+
+# "id" or "id=digest" in, a sorted array of {digest,id} out. A bare id records an
+# empty digest: present at baseline, digest unknown, so it can never be read as
+# a change.
+function Get-NSEvidenceSeenList {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$Seen)
+    $byId = New-NSOrdinalMap
+    if ($null -ne $Seen) {
+        foreach ($entry in $Seen) {
+            if ([string]::IsNullOrEmpty($entry)) { continue }
+            $id = $entry
+            $digest = ''
+            $at = $entry.IndexOf('=')
+            if ($at -ge 0) {
+                $id = $entry.Substring(0, $at)
+                $digest = $entry.Substring($at + 1)
+            }
+            $id = $id.Trim()
+            if ($id.Length -eq 0) { continue }
+            $byId[$id] = $digest.Trim()
+        }
+    }
+    $entries = New-Object Collections.Generic.List[object]
+    foreach ($id in (Sort-NSOrdinal ([string[]]@($byId.Keys)))) {
+        $item = New-NSOrdinalMap
+        $item['digest'] = [string]$byId[$id]
+        $item['id'] = [string]$id
+        $entries.Add($item)
+    }
+    return , $entries.ToArray()
+}
+
+# Reads either shape back: the {digest,id} array this module writes, or a plain
+# array of ids from a hand-written record.
+function Get-NSBaselineSeenMap {
+    param($Baseline)
+    $map = New-NSOrdinalMap
+    $details = Get-NSRecordDetails $Baseline
+    $seen = Get-NSMapValue $details 'seen'
+    if ($null -eq $seen) { return $map }
+    if ($seen -is [string]) {
+        if ($seen.Length -gt 0) { $map[$seen] = '' }
+        return $map
+    }
+    if (-not ($seen -is [Collections.IEnumerable])) { return $map }
+    foreach ($entry in $seen) {
+        if ($entry -is [Collections.IDictionary]) {
+            $id = Get-NSRecordText $entry 'id'
+            if ($id.Length -eq 0) { continue }
+            $map[$id] = Get-NSRecordText $entry 'digest'
+            continue
+        }
+        if ($null -eq $entry) { continue }
+        $id = ConvertTo-NSPyText $entry
+        if ($id.Length -gt 0) { $map[$id] = '' }
+    }
+    return $map
+}
+
+function Get-NSEvidenceHostLabel {
+    param([AllowEmptyString()][string]$HostLabel = '')
+    if (-not [string]::IsNullOrEmpty($HostLabel)) { return $HostLabel }
+    if (-not [string]::IsNullOrEmpty($env:CLAUDE_PROJECT_DIR)) { return 'claude' }
+    if (-not [string]::IsNullOrEmpty($env:CODEX_PROJECT_DIR)) { return 'codex' }
+    return $script:NSEvidenceHostUnknown
+}
+
+function Get-NSEvidenceWorkTarget {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    try {
+        return (Resolve-NSWorkTarget $Workspace)
+    }
+    catch {
+        return (Get-NSAbsolutePath $Workspace)
+    }
+}
+
+# The shared required set for a lifecycle record. The ledger's own validator
+# still decides whether the result is acceptable; this only fills what a
+# measurement record has no opinion about.
+function New-NSLifecycleRecord {
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Domain,
+        [Parameter(Mandatory = $true)][string]$SourceClass,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Source,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Scope,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Locator,
+        [Parameter(Mandatory = $true)][string]$Ladder,
+        [Parameter(Mandatory = $true)][string]$Action,
+        [Parameter(Mandatory = $true)][string]$HostLabel,
+        [Parameter(Mandatory = $true)][string]$WorkTarget,
+        [Parameter(Mandatory = $true)]$Details
+    )
+    $record = New-NSOrdinalMap
+    $record['schemaVersion'] = 1
+    $record['id'] = $Id
+    $record['domain'] = $Domain
+    $record['sourceClass'] = $SourceClass
+    $record['source'] = $Source
+    $record['scope'] = $Scope
+    $record['severity'] = $script:NSEvidenceBaselineSeverity
+    $record['confidence'] = $script:NSEvidenceBaselineConfidence
+    $record['impact'] = $script:NSEvidenceBaselineImpact
+    $record['status'] = $script:NSEvidenceBaselineStatus
+    $record['ladder'] = $Ladder
+    $record['locator'] = $Locator
+    $record['action'] = $Action
+    $record['host'] = $HostLabel
+    $record['workTarget'] = $WorkTarget
+    $record['details'] = $Details
+    return $record
+}
+
+# One baseline record per originating source, written before the first fix. The
+# raw output goes through the ledger's --raw path, so its digest here is the
+# digest of the redacted text the ledger stores, never of a secret.
+function Write-NSEvidenceBaseline {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$SourceClass,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command,
+        [AllowNull()][AllowEmptyCollection()][string[]]$Versions = @(),
+        [AllowEmptyString()][string]$Scope = '',
+        [AllowNull()][AllowEmptyCollection()][string[]]$Seen = @(),
+        [AllowEmptyString()][string]$Raw = '',
+        [AllowEmptyString()][string]$Locator = '',
+        [AllowEmptyString()][string]$HostLabel = ''
+    )
+    if (-not (Test-NSEvidenceWorkspace $Workspace)) { return 1 }
+    $pairs = Get-NSEvidenceVersionPairs $Versions
+    $rawDigest = ''
+    $ladder = $script:NSEvidenceBaselineLadderObserved
+    if (-not [string]::IsNullOrEmpty($Raw)) {
+        $rawDigest = Get-NSTextSha256 (Protect-NSEvidenceText $Raw)
+        $ladder = $script:NSEvidenceBaselineLadderMeasured
+    }
+    $details = New-NSOrdinalMap
+    $details['command'] = $Command
+    $details['environmentDigest'] = Get-NSEnvironmentDigest $pairs
+    $details['rawDigest'] = $rawDigest
+    $details['scope'] = $Scope
+    $details['seen'] = Get-NSEvidenceSeenList $Seen
+    $details['sourceClass'] = $SourceClass
+    $details['versions'] = $pairs
+    $locatorValue = $Locator
+    if ([string]::IsNullOrEmpty($locatorValue)) { $locatorValue = $Scope }
+    $record = New-NSLifecycleRecord -Id $Id -Domain $script:NSEvidenceBaselineDomain `
+        -SourceClass $SourceClass -Source $Command -Scope $Scope -Locator $locatorValue `
+        -Ladder $ladder -Action $script:NSEvidenceBaselineAction `
+        -HostLabel (Get-NSEvidenceHostLabel $HostLabel) `
+        -WorkTarget (Get-NSEvidenceWorkTarget $Workspace) -Details $details
+    return (Invoke-NSEvidenceAppend -Project $Workspace `
+            -RecordJson (ConvertTo-NSCanonicalJson $record -Compact) -RawText $Raw)
+}
+
+# path plus content digest for every generated artifact the cluster may touch. A
+# path that does not exist yet records an empty digest, so the inventory says
+# what was promised as well as what is already there.
+function Get-NSCheckpointArtifacts {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [AllowNull()][AllowEmptyCollection()][string[]]$Paths
+    )
+    $entries = New-Object Collections.Generic.List[object]
+    foreach ($path in (Get-NSUniqueSorted $Paths)) {
+        $full = $path
+        if (-not [IO.Path]::IsPathRooted($full)) { $full = Join-NSPath $Target $path }
+        $digest = ''
+        if ((Test-Path -LiteralPath $full -PathType Leaf) -and -not (Test-NSReparsePoint $full)) {
+            try {
+                $digest = Get-NSFileSha256 $full
+            }
+            catch {
+                $digest = ''
+            }
+        }
+        $entry = New-NSOrdinalMap
+        $entry['digest'] = $digest
+        $entry['path'] = $path
+        $entries.Add($entry)
+    }
+    return , $entries.ToArray()
+}
+
+# Written before a risky cluster: where the tree stood, which baseline the
+# cluster relies on, what it may write, how to get back, and what will verify it.
+function Write-NSEvidenceCheckpoint {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Baseline,
+        [AllowNull()][AllowEmptyCollection()][string[]]$Artifacts = @(),
+        [AllowNull()][AllowEmptyCollection()][string[]]$Touched = @(),
+        [AllowEmptyString()][string]$Rollback = '',
+        [AllowEmptyString()][string]$Plan = '',
+        [AllowEmptyString()][string]$Scope = '',
+        [AllowEmptyString()][string]$SourceClass = '',
+        [AllowEmptyString()][string]$HostLabel = ''
+    )
+    if (-not (Test-NSEvidenceWorkspace $Workspace)) { return 1 }
+    $target = Get-NSEvidenceWorkTarget $Workspace
+    $head = Get-NSWorkTargetHead $Workspace
+    $details = New-NSOrdinalMap
+    $details['artifacts'] = Get-NSCheckpointArtifacts -Target $target -Paths $Artifacts
+    $details['baseline'] = $Baseline
+    $details['head'] = $head
+    $details['plan'] = $Plan
+    $details['rollback'] = $Rollback
+    $details['touched'] = Get-NSUniqueSorted $Touched
+    $details['worktreeDigest'] = Get-NSWorktreeDigest $target
+    $sourceClass = $SourceClass
+    if ([string]::IsNullOrEmpty($sourceClass)) { $sourceClass = $script:NSEvidenceCheckpointSourceClass }
+    $record = New-NSLifecycleRecord -Id $Id -Domain $script:NSEvidenceCheckpointDomain `
+        -SourceClass $sourceClass -Source $Rollback -Scope $Scope -Locator $head `
+        -Ladder $script:NSEvidenceBaselineLadderObserved -Action $script:NSEvidenceCheckpointAction `
+        -HostLabel (Get-NSEvidenceHostLabel $HostLabel) -WorkTarget $target -Details $details
+    return (Invoke-NSEvidenceAppend -Project $Workspace `
+            -RecordJson (ConvertTo-NSCanonicalJson $record -Compact))
+}
+
+# ---------------------------------------------------------------------------
+# The comparison
+# ---------------------------------------------------------------------------
+
+function Get-NSPolicyCompletionModeFrom {
+    param($Policy)
+    if ($null -eq $Policy) { return $script:NSPolicyCompletionDefault }
+    $mode = Get-NSMapValue $Policy 'completionMode'
+    if (Test-NSEvidenceEnum $mode $script:NSPolicyCompletionModes) { return [string]$mode }
+    return $script:NSPolicyCompletionDefault
+}
+
+function Get-NSPolicyCompletionMode {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $policy = $null
+    try {
+        $policy = Get-NSShiftPolicy $Workspace
+    }
+    catch {
+        $policy = $null
+    }
+    return (Get-NSPolicyCompletionModeFrom $policy)
+}
+
+function Get-NSPolicySelectedDebt {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $policy = $null
+    try {
+        $policy = Get-NSShiftPolicy $Workspace
+    }
+    catch {
+        $policy = $null
+    }
+    if ($null -eq $policy) { return , @() }
+    return (Get-NSUniqueSorted (Get-NSRecordList $policy 'selectedDebt'))
+}
+
+# Every originating tool a row stands on. A record that already carries sources
+# keeps them; otherwise its own source is the one entry.
+function Get-NSRowSources {
+    param($Record)
+    $sources = Get-NSRecordList $Record 'sources'
+    if (@($sources).Count -gt 0) { return , @($sources) }
+    $single = Get-NSRecordText $Record 'source'
+    if ($single.Length -gt 0) { return , @($single) }
+    return , @()
+}
+
+# One record, one class. Ordered so an unavailable source is never read as an
+# improvement and a duplicate is never read as an outstanding finding.
+function Get-NSCompareClass {
+    param($Record, $SeenMap, [bool]$EnvironmentMoved)
+    $status = Get-NSRecordText $Record 'status'
+    $disposition = Get-NSRecordText $Record 'disposition'
+    if ($script:NSCompareUnavailableStatuses -ccontains $status) { return 'unavailable' }
+    if ($script:NSCompareHumanStatuses -ccontains $status) { return 'human-only' }
+    if ($script:NSCompareDuplicateDispositions -ccontains $disposition) { return 'rejected-duplicate' }
+    if ((Get-NSRecordText $Record 'duplicateOf').Length -gt 0) { return 'rejected-duplicate' }
+    if ($script:NSCompareParkedDispositions -ccontains $disposition) { return 'parked' }
+    if ($script:NSCompareClearedStatuses -ccontains $status) {
+        if ($EnvironmentMoved) { return 'unavailable' }
+        return 'cleared'
+    }
+    $id = Get-NSRecordText $Record 'id'
+    if (-not $SeenMap.Contains($id)) { return 'new' }
+    $before = [string]$SeenMap[$id]
+    $now = Get-NSRecordText $Record 'digest'
+    if ($before.Length -gt 0 -and $now.Length -gt 0 -and -not ($before -ceq $now)) { return 'regressed' }
+    return 'unchanged'
+}
+
+function Get-NSCompareCounts {
+    param($Rows)
+    $counts = New-NSOrdinalMap
+    foreach ($class in $script:NSCompareClasses) { $counts[$class] = [long]0 }
+    foreach ($row in @($Rows)) {
+        $class = [string]$row['class']
+        if (-not $counts.Contains($class)) { $counts[$class] = [long]0 }
+        $counts[$class] = [long]$counts[$class] + 1
+    }
+    return $counts
+}
+
+function Get-NSCompareBaselineRecords {
+    param($Records)
+    $found = New-Object Collections.Generic.List[object]
+    foreach ($record in @($Records)) {
+        if ((Get-NSRecordText $record 'domain') -ceq $script:NSEvidenceBaselineDomain) { $found.Add($record) }
+    }
+    return , $found.ToArray()
+}
+
+function Get-NSCompareBaselineSourceClass {
+    param($Baseline)
+    $sourceClass = Get-NSRecordText (Get-NSRecordDetails $Baseline) 'sourceClass'
+    if ($sourceClass.Length -gt 0) { return $sourceClass }
+    return (Get-NSRecordText $Baseline 'sourceClass')
+}
+
+# Reruns nothing. Reads the records sharing the baseline's source class, keeps
+# the last state recorded for each id, and classifies by id and digest.
+function Get-NSEvidenceComparison {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Baseline,
+        $Records = $null,
+        [AllowEmptyString()][string]$Mode = '',
+        $SelectedDebt = $null
+    )
+    $all = $Records
+    if ($null -eq $all) { $all = Get-NSEvidenceLedgerRecords $Workspace }
+    $anchor = $null
+    foreach ($record in (Get-NSCompareBaselineRecords $all)) {
+        if ((Get-NSRecordText $record 'id') -ceq $Baseline) {
+            $anchor = $record
+            break
+        }
+    }
+    if ($null -eq $anchor) {
+        throw (New-NSEvidenceHalt ('evidence-compare: unknown baseline ' + $Baseline))
+    }
+    $details = Get-NSRecordDetails $anchor
+    $sourceClass = Get-NSCompareBaselineSourceClass $anchor
+    $environment = Get-NSRecordText $details 'environmentDigest'
+    $seenMap = Get-NSBaselineSeenMap $anchor
+
+    # A second baseline for the same source class taken in another environment
+    # means the two measurements are not comparable. Nothing may clear against
+    # this baseline until the environment matches again.
+    $environmentMoved = $false
+    foreach ($record in (Get-NSCompareBaselineRecords $all)) {
+        if ((Get-NSRecordText $record 'id') -ceq $Baseline) { continue }
+        if (-not ((Get-NSCompareBaselineSourceClass $record) -ceq $sourceClass)) { continue }
+        $other = Get-NSRecordText (Get-NSRecordDetails $record) 'environmentDigest'
+        if ($other.Length -eq 0 -or $environment.Length -eq 0) { continue }
+        if (-not ($other -ceq $environment)) { $environmentMoved = $true }
+    }
+
+    $current = New-NSOrdinalMap
+    foreach ($record in @($all)) {
+        if ($script:NSEvidenceLifecycleDomains -ccontains (Get-NSRecordText $record 'domain')) { continue }
+        if (-not ((Get-NSRecordText $record 'sourceClass') -ceq $sourceClass)) { continue }
+        $id = Get-NSRecordText $record 'id'
+        if ($id.Length -eq 0) { continue }
+        $current[$id] = $record
+    }
+
+    # A rejected duplicate never erases its tool: its source joins the surviving
+    # finding's row and the duplicate keeps a row of its own.
+    $extraSources = New-NSOrdinalMap
+    foreach ($key in @($current.Keys)) {
+        $record = $current[$key]
+        $survivor = Get-NSRecordText $record 'duplicateOf'
+        if ($survivor.Length -eq 0) { continue }
+        if (-not $extraSources.Contains($survivor)) {
+            $extraSources[$survivor] = New-Object Collections.Generic.List[string]
+        }
+        foreach ($source in (Get-NSRowSources $record)) { $extraSources[$survivor].Add([string]$source) }
+    }
+
+    $union = New-NSOrdinalMap
+    foreach ($key in @($current.Keys)) { $union[[string]$key] = $true }
+    foreach ($key in @($seenMap.Keys)) { $union[[string]$key] = $true }
+
+    $command = Get-NSRecordText $details 'command'
+    $rows = New-Object Collections.Generic.List[object]
+    foreach ($id in (Sort-NSOrdinal ([string[]]@($union.Keys)))) {
+        $row = New-NSOrdinalMap
+        $row['id'] = [string]$id
+        if ($current.Contains($id)) {
+            $record = $current[$id]
+            $row['class'] = Get-NSCompareClass $record $seenMap $environmentMoved
+            $row['digest'] = Get-NSRecordText $record 'digest'
+            $row['locator'] = Get-NSRecordText $record 'locator'
+            $sources = New-Object Collections.Generic.List[string]
+            foreach ($source in (Get-NSRowSources $record)) { $sources.Add([string]$source) }
+            if ($extraSources.Contains($id)) {
+                foreach ($source in $extraSources[$id]) { $sources.Add([string]$source) }
+            }
+            $row['sources'] = Get-NSUniqueSorted ([string[]]$sources.ToArray())
+        }
+        else {
+            # An id the baseline saw and the ledger no longer carries is not a
+            # fix: absence is not evidence, so the row reports it unavailable.
+            $row['class'] = 'unavailable'
+            $row['digest'] = [string]$seenMap[$id]
+            $row['locator'] = ''
+            $row['sources'] = Get-NSUniqueSorted ([string[]]@($command))
+        }
+        $rows.Add($row)
+    }
+
+    $mode = $Mode
+    if ([string]::IsNullOrEmpty($mode)) { $mode = Get-NSPolicyCompletionMode $Workspace }
+    if (-not ($script:NSPolicyCompletionModes -ccontains $mode)) { $mode = $script:NSPolicyCompletionDefault }
+    $selected = $SelectedDebt
+    if ($null -eq $selected) { $selected = Get-NSPolicySelectedDebt $Workspace }
+
+    $outstanding = New-Object Collections.Generic.List[string]
+    foreach ($id in @($selected)) {
+        $cleared = $false
+        foreach ($row in $rows) {
+            if ((([string]$row['id']) -ceq ([string]$id)) -and (([string]$row['class']) -ceq 'cleared')) {
+                $cleared = $true
+            }
+        }
+        if (-not $cleared) { $outstanding.Add([string]$id) }
+    }
+
+    $pass = $true
+    if ($mode -ceq 'no-regression-plus-selected-debt') {
+        foreach ($row in $rows) {
+            if ($script:NSCompareRegressionClasses -ccontains ([string]$row['class'])) { $pass = $false }
+        }
+        if ($outstanding.Count -gt 0) { $pass = $false }
+    }
+    else {
+        foreach ($row in $rows) {
+            if ($script:NSCompareOutstandingClasses -ccontains ([string]$row['class'])) { $pass = $false }
+        }
+    }
+
+    $counts = Get-NSCompareCounts $rows.ToArray()
+    $summary = New-NSOrdinalMap
+    foreach ($class in $script:NSCompareClasses) { $summary[$class] = [long]$counts[$class] }
+    $summary['selectedDebtOutstanding'] = Get-NSUniqueSorted ([string[]]$outstanding.ToArray())
+    $summary['total'] = [long]$rows.Count
+
+    $document = New-NSOrdinalMap
+    $document['baseline'] = $Baseline
+    $document['mode'] = $mode
+    $document['pass'] = $pass
+    $document['rows'] = $rows.ToArray()
+    $document['schemaVersion'] = 1
+    $document['summary'] = $summary
+
+    $result = New-NSOrdinalMap
+    $result['document'] = $document
+    $result['record'] = $anchor
+    $result['sourceClass'] = $sourceClass
+    $result['command'] = $command
+    $result['environmentMoved'] = $environmentMoved
+    return $result
+}
+
+function Get-NSMdCell {
+    param([AllowEmptyString()][string]$Text)
+    if ([string]::IsNullOrEmpty($Text)) { return (Get-NSEvidenceDash) }
+    return ($Text.Replace('|', $script:NSMdPipeEscape))
+}
+
+function Get-NSCompareRowLine {
+    param($Row)
+    $id = Get-NSMdCell ([string]$Row['id'])
+    $class = Get-NSMdCell ([string]$Row['class'])
+    $digest = Get-NSMdCell (Get-NSCompareShortDigest ([string]$Row['digest']))
+    $sources = Get-NSMdCell ((@($Row['sources']) -join $script:NSMdSourceSeparator))
+    $locator = Get-NSMdCell ([string]$Row['locator'])
+    return ($script:NSCompareRowFormat -f $id, $class, $digest, $sources, $locator)
+}
+
+function Get-NSCompareTableLines {
+    param($Rows)
+    $lines = New-Object Collections.Generic.List[string]
+    $lines.Add($script:NSCompareTableHeader)
+    $lines.Add($script:NSCompareTableRule)
+    $count = 0
+    foreach ($row in @($Rows)) {
+        $lines.Add((Get-NSCompareRowLine $row))
+        $count++
+    }
+    if ($count -eq 0) {
+        $dash = Get-NSEvidenceDash
+        $lines.Add(($script:NSCompareRowFormat -f $dash, $dash, $dash, $dash, $script:NSCompareEmptyLocator))
+    }
+    return , $lines.ToArray()
+}
+
+function Get-NSCompareSummaryLines {
+    param($Counts, $Outstanding)
+    $cells = New-Object Collections.Generic.List[string]
+    foreach ($class in $script:NSCompareClasses) {
+        $value = [long]0
+        if ($Counts.Contains($class)) { $value = [long]$Counts[$class] }
+        $cells.Add(($script:NSCompareSummaryCellFormat -f $class, $value))
+    }
+    $lines = New-Object Collections.Generic.List[string]
+    $lines.Add($script:NSCompareSummaryPrefix + (($cells -join $script:NSCompareSummarySeparator)))
+    $ids = @($Outstanding)
+    if ($ids.Count -gt 0) {
+        $lines.Add($script:NSCompareSelectedDebtPrefix + (($ids -join $script:NSCompareSummarySeparator)))
+    }
+    return , $lines.ToArray()
+}
+
+function Get-NSCompareResultLabel {
+    param($Pass)
+    if ([bool]$Pass) { return $script:NSComparePassLabel }
+    return $script:NSCompareFailLabel
+}
+
+function Get-NSCompareMarkdown {
+    param($Comparison)
+    $document = $Comparison['document']
+    $dash = Get-NSEvidenceDash
+    $lines = New-Object Collections.Generic.List[string]
+    $lines.Add($script:NSCompareTitle)
+    $lines.Add('')
+    $lines.Add(($script:NSCompareBaselineFormat -f ([string]$document['baseline']), $dash, `
+        ([string]$Comparison['sourceClass']), ([string]$Comparison['command'])))
+    $lines.Add(($script:NSCompareModeFormat -f ([string]$document['mode'])))
+    $lines.Add(($script:NSCompareResultFormat -f (Get-NSCompareResultLabel $document['pass'])))
+    $lines.Add('')
+    foreach ($line in (Get-NSCompareTableLines $document['rows'])) { $lines.Add($line) }
+    $lines.Add('')
+    $summary = $document['summary']
+    foreach ($line in (Get-NSCompareSummaryLines $summary $summary['selectedDebtOutstanding'])) { $lines.Add($line) }
+    return (($lines -join "`n") + "`n")
+}
+
+# ---------------------------------------------------------------------------
+# The morning receipt
+# ---------------------------------------------------------------------------
+
+# The gate writes this path in end_shift and the archive helper moves the file
+# from it. UTC, so a shift that crosses local midnight still files under the day
+# the ledger stamped.
+function Get-NSMorningReceiptPath {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $shiftId = $script:NSReceiptShiftUnknown
+    $policy = $null
+    try {
+        $policy = Get-NSShiftPolicy $Workspace
+    }
+    catch {
+        $policy = $null
+    }
+    if ($null -ne $policy) {
+        $candidate = Get-NSRecordText $policy 'shiftId'
+        if ($candidate.Length -gt 0) { $shiftId = $candidate }
+    }
+    $name = $script:NSReceiptFileFormat -f (Get-NSEvidenceDay), $shiftId
+    return (Join-NSPath (Get-NSReceiptsDir (Get-NSAbsolutePath $Workspace)) $name)
+}
+
+function Write-NSMorningReceiptFile {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $path = Get-NSMorningReceiptPath $Workspace
+    $null = Get-NSMorningReceipt -Workspace $Workspace -View owner -Out $path
+    return $path
+}
+
+# The last stamp the shift log carries, as the log wrote it. The log is stamped
+# in host local time, so it is reported as written rather than relabelled UTC.
+function Get-NSReceiptLogEnd {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $stamp = ''
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $stamp }
+    try {
+        foreach ($line in [IO.File]::ReadLines($Path)) {
+            $match = [regex]::Match([string]$line, '^([0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})')
+            if ($match.Success) { $stamp = $match.Groups[1].Value }
+        }
+    }
+    catch {
+        return $stamp
+    }
+    return $stamp
+}
+
+# done when every box is ticked, otherwise whatever STOP says. Stop writes
+# "<reason> MIDDOT <timestamp>"; the gate writes the bare word.
+function Get-NSReceiptEnding {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir, [int]$Open)
+    $stop = Join-NSPath $NightshiftDir 'STOP'
+    if (Test-Path -LiteralPath $stop -PathType Leaf) {
+        $first = ''
+        try {
+            $first = [string](([IO.File]::ReadLines($stop) | Select-Object -First 1) -as [string])
+        }
+        catch {
+            $first = ''
+        }
+        if ($null -eq $first) { $first = '' }
+        $at = $first.IndexOf([char]0x00b7)
+        if ($at -ge 0) { $first = $first.Substring(0, $at) }
+        $reason = $first.Trim()
+        if ($reason -ceq 'deadline') { return 'deadline' }
+        if ($reason -ceq 'stalled') { return 'stall' }
+        return 'stop'
+    }
+    if ($Open -eq 0) { return 'done' }
+    return $script:NSReceiptEndingUnknown
+}
+
+function Get-NSReceiptCommitCount {
+    param(
+        [Parameter(Mandatory = $true)][string]$Target,
+        [AllowEmptyString()][string]$Since
+    )
+    if ([string]::IsNullOrEmpty($Since)) { return '' }
+    $result = Invoke-NSGitCommand $Target @('rev-list', '--count', '--since', $Since, 'HEAD')
+    if ($result.ExitCode -ne 0) { return '' }
+    $text = ([string]$result.Text).Trim()
+    if ($text -cmatch '^[0-9]+$') { return $text }
+    return ''
+}
+
+# The commands in the punch list's Gates block, in byte order. These are the
+# checks the level either ran or skipped; the block stays their only list.
+function Get-NSReceiptGateCommands {
+    param([Parameter(Mandatory = $true)][string]$PunchList)
+    $commands = New-Object Collections.Generic.List[string]
+    if (-not (Test-Path -LiteralPath $PunchList -PathType Leaf)) {
+        return (Get-NSUniqueSorted ([string[]]$commands.ToArray()))
+    }
+    $inGates = $false
+    try {
+        foreach ($line in [IO.File]::ReadLines($PunchList)) {
+            $text = [string]$line
+            if ($text -cmatch '^##\s') {
+                $inGates = ($text -cmatch '^##\s+Gates\s*$')
+                continue
+            }
+            if (-not $inGates) { continue }
+            foreach ($match in [regex]::Matches($text, '`([^`]+)`')) {
+                $command = $match.Groups[1].Value.Trim()
+                if ($command.Length -gt 0) { $commands.Add($command) }
+            }
+        }
+    }
+    catch {
+        return (Get-NSUniqueSorted ([string[]]$commands.ToArray()))
+    }
+    return (Get-NSUniqueSorted ([string[]]$commands.ToArray()))
+}
+
+function Get-NSReceiptRecordSources {
+    param($Records, $Statuses, [AllowEmptyString()][string]$Ladder)
+    $sources = New-Object Collections.Generic.List[string]
+    foreach ($record in @($Records)) {
+        if ($script:NSEvidenceLifecycleDomains -ccontains (Get-NSRecordText $record 'domain')) { continue }
+        $keep = $false
+        if ($null -ne $Statuses -and ($Statuses -ccontains (Get-NSRecordText $record 'status'))) { $keep = $true }
+        if (-not [string]::IsNullOrEmpty($Ladder) -and ((Get-NSRecordText $record 'ladder') -ceq $Ladder)) { $keep = $true }
+        if (-not $keep) { continue }
+        $source = Get-NSRecordText $record 'source'
+        if ($source.Length -eq 0) { $source = Get-NSRecordText $record 'sourceClass' }
+        if ($source.Length -gt 0) { $sources.Add($source) }
+    }
+    return (Get-NSUniqueSorted ([string[]]$sources.ToArray()))
+}
+
+# The last state the ledger recorded for each id, lifecycle records excluded.
+function Get-NSReceiptFindingMap {
+    param($Records)
+    $map = New-NSOrdinalMap
+    foreach ($record in @($Records)) {
+        if ($script:NSEvidenceLifecycleDomains -ccontains (Get-NSRecordText $record 'domain')) { continue }
+        $id = Get-NSRecordText $record 'id'
+        if ($id.Length -eq 0) { continue }
+        $map[$id] = $record
+    }
+    return $map
+}
+
+function Get-NSReceiptOpenItems {
+    param([Parameter(Mandatory = $true)][string]$PunchList)
+    $items = New-Object Collections.Generic.List[string]
+    if (-not (Test-Path -LiteralPath $PunchList -PathType Leaf)) { return , $items.ToArray() }
+    $inItems = $false
+    try {
+        foreach ($line in [IO.File]::ReadLines($PunchList)) {
+            $text = [string]$line
+            if (-not $inItems) {
+                if ($text -cmatch '^##\s+Items\s*$') { $inItems = $true }
+                continue
+            }
+            $match = [regex]::Match($text, '^-\s*\[\s\]\s*(.*)$')
+            if (-not $match.Success) { continue }
+            $body = $match.Groups[1].Value.Trim()
+            if ($body.Length -gt 0) { $items.Add($body) }
+        }
+    }
+    catch {
+        return , $items.ToArray()
+    }
+    return , $items.ToArray()
+}
+
+# Entries below the parking lot's rule, each as the owner wrote it, with the
+# default and the rollback kept as their own lines when the entry carries them.
+function Get-NSReceiptParkedEntries {
+    param([Parameter(Mandatory = $true)][string]$ParkingLot)
+    $entries = New-Object Collections.Generic.List[object]
+    if (-not (Test-Path -LiteralPath $ParkingLot -PathType Leaf)) { return , $entries.ToArray() }
+    $afterRule = $false
+    $entry = $null
+    try {
+        foreach ($line in [IO.File]::ReadLines($ParkingLot)) {
+            $text = [string]$line
+            if (-not $afterRule) {
+                if ($text -cmatch '^---\s*$') { $afterRule = $true }
+                continue
+            }
+            $head = [regex]::Match($text, '^(?:-\s+|###\s+)(.*)$')
+            if ($head.Success) {
+                $title = $head.Groups[1].Value.Trim()
+                if ($title.Length -eq 0 -or $title -ceq '(empty)') {
+                    $entry = $null
+                    continue
+                }
+                $entry = New-NSOrdinalMap
+                $entry['title'] = $title
+                $entry['default'] = ''
+                $entry['rollback'] = ''
+                $entries.Add($entry)
+                continue
+            }
+            if ($null -eq $entry) { continue }
+            $field = [regex]::Match($text, '^\s*(?:-\s+)?(Default|Rollback):\s*(.*)$')
+            if (-not $field.Success) { continue }
+            $value = $field.Groups[2].Value.Trim()
+            if ($field.Groups[1].Value -ceq 'Default') { $entry['default'] = $value }
+            else { $entry['rollback'] = $value }
+        }
+    }
+    catch {
+        return , $entries.ToArray()
+    }
+    return , $entries.ToArray()
+}
+
+# The one building entry from the opportunity map, with the exact next action it
+# carries. Nothing is inferred: no Next line, no line in the receipt.
+function Get-NSReceiptBuilding {
+    param([Parameter(Mandatory = $true)][string]$OpportunityMap)
+    $result = New-NSOrdinalMap
+    $result['title'] = ''
+    $result['next'] = ''
+    if (-not (Test-Path -LiteralPath $OpportunityMap -PathType Leaf)) { return $result }
+    $title = ''
+    $building = $false
+    try {
+        foreach ($line in [IO.File]::ReadLines($OpportunityMap)) {
+            $text = [string]$line
+            $head = [regex]::Match($text, '^###\s+(.*)$')
+            if ($head.Success) {
+                if ($building -and $result['title'].Length -gt 0) { break }
+                $title = $head.Groups[1].Value.Trim()
+                $building = $false
+                continue
+            }
+            if ($text -cmatch '^Status:\s*building\s*$') {
+                $building = $true
+                if ($result['title'].Length -eq 0) { $result['title'] = $title }
+                continue
+            }
+            if (-not $building) { continue }
+            $next = [regex]::Match($text, '^Next:\s*(.*)$')
+            if ($next.Success -and $result['next'].Length -eq 0) {
+                $result['next'] = $next.Groups[1].Value.Trim()
+            }
+        }
+    }
+    catch {
+        return $result
+    }
+    return $result
+}
+
+function Get-NSReceiptContext {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$View
+    )
+    $workspacePath = Get-NSAbsolutePath $Workspace
+    $paths = Get-NSPolicyPaths $workspacePath
+    $ns = [string]$paths['ns']
+    $context = New-NSOrdinalMap
+    $context['view'] = $View
+    $context['workspace'] = $workspacePath
+    $context['ns'] = $ns
+    $context['punch'] = [string]$paths['punch']
+    $context['parking'] = [string]$paths['parking']
+
+    $records = New-Object Collections.Generic.List[object]
+    try {
+        $records = Get-NSEvidenceLedgerRecords $workspacePath
+    }
+    catch {
+        $records = New-Object Collections.Generic.List[object]
+    }
+    $context['records'] = $records
+    $context['findings'] = Get-NSReceiptFindingMap $records
+    $context['baselines'] = Get-NSCompareBaselineRecords $records
+
+    $policy = $null
+    try {
+        $policy = Get-NSShiftPolicy $workspacePath
+    }
+    catch {
+        $policy = $null
+    }
+    $context['policy'] = $policy
+
+    $mode = 'repository'
+    try {
+        $mode = Get-NSWorkMode $workspacePath
+    }
+    catch {
+        $mode = 'repository'
+    }
+    $context['workMode'] = $mode
+    $context['workTarget'] = Get-NSEvidenceWorkTarget $workspacePath
+
+    $shiftId = ''
+    $started = ''
+    if ($null -ne $policy) {
+        $shiftId = Get-NSRecordText $policy 'shiftId'
+        $started = Get-NSRecordText $policy 'createdAt'
+    }
+    $context['shiftId'] = $shiftId
+    $context['started'] = $started
+
+    $counts = Get-NSBoxCounts $context['punch']
+    $context['ticked'] = [int]$counts.Ticked
+    $context['open'] = [int]$counts.Open
+    $context['ending'] = Get-NSReceiptEnding -NightshiftDir $ns -Open ([int]$counts.Open)
+
+    $ended = Get-NSReceiptLogEnd (Join-NSPath $ns 'shift-log.md')
+    $context['ended'] = $ended
+
+    $sessionHost = ''
+    $session = $null
+    try {
+        $session = Read-NSSession $ns
+    }
+    catch {
+        $session = $null
+    }
+    if ($null -ne $session) { $sessionHost = [string]$session.HostName }
+    if ($sessionHost.Length -eq 0) {
+        foreach ($record in @($records)) {
+            $candidate = Get-NSRecordText $record 'host'
+            if ($candidate.Length -gt 0) { $sessionHost = $candidate }
+        }
+    }
+    $context['host'] = $sessionHost
+
+    $resolution = $null
+    try {
+        $resolution = Get-NSPolicyResolution $workspacePath
+    }
+    catch {
+        $resolution = $null
+    }
+    $verificationLevel = 'none'
+    $toolingPolicy = 'existing-tools'
+    if ($null -ne $resolution) {
+        $verificationLevel = [string]$resolution['settings']['verificationLevel']['value']
+        $toolingPolicy = [string]$resolution['settings']['toolingPolicy']['value']
+    }
+    $context['verificationLevel'] = $verificationLevel
+    $context['toolingPolicy'] = $toolingPolicy
+
+    $profile = ''
+    try {
+        $defaults = Get-NSShiftDefaults $workspacePath
+        $profile = [string]$defaults['verificationProfile']
+    }
+    catch {
+        $profile = ''
+    }
+    $context['profile'] = $profile
+
+    $allowances = New-Object Collections.Generic.List[string]
+  if ($null -ne $policy) {
+        $rawAllowances = Get-NSMapValue $policy 'allowances'
+        if ($null -ne $rawAllowances) {
+            foreach ($allowance in @($rawAllowances)) {
+                if (-not ($allowance -is [Collections.IDictionary])) { continue }
+                $category = Get-NSRecordText $allowance 'category'
+                $scope = Get-NSRecordText $allowance 'scope'
+                $provenance = Get-NSRecordText $allowance 'provenance'
+                if ($category.Length -eq 0 -and $scope.Length -eq 0 -and $provenance.Length -eq 0) { continue }
+                $allowances.Add(($script:NSReceiptAllowanceFormat -f $category, $scope, $provenance))
+            }
+        }
+    }
+    $context['allowances'] = Get-NSUniqueSorted ([string[]]$allowances.ToArray())
+
+    $context['gates'] = Get-NSReceiptGateCommands $context['punch']
+    $context['verified'] = Get-NSReceiptRecordSources $records $null $script:NSReceiptVerifiedLadder
+    $context['unavailable'] = Get-NSReceiptRecordSources $records $script:NSCompareUnavailableStatuses ''
+    $context['mode'] = Get-NSPolicyCompletionModeFrom $policy
+    $context['selectedDebt'] = Get-NSPolicySelectedDebt $workspacePath
+    return $context
+}
+
+function Add-NSReceiptField {
+    param(
+        [Parameter(Mandatory = $true)]$Lines,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [AllowEmptyString()][string]$Value
+    )
+    if ([string]::IsNullOrEmpty($Value)) { return }
+    $Lines.Add(($script:NSReceiptFieldFormat -f ([string]$script:NSReceiptLabels[$Key]), $Value))
+}
+
+# Section 1. The three closing lines always appear: what ran green by command,
+# what the level skipped, and what could not be measured. A disabled check is
+# never rendered as a check that passed.
+function Get-NSReceiptShiftLines {
+    param($Context)
+    $lines = New-Object Collections.Generic.List[string]
+    Add-NSReceiptField $lines 'shift' ([string]$Context['shiftId'])
+    Add-NSReceiptField $lines 'host' ([string]$Context['host'])
+    Add-NSReceiptField $lines 'workTarget' ([string]$Context['workTarget'])
+    Add-NSReceiptField $lines 'started' ([string]$Context['started'])
+    Add-NSReceiptField $lines 'ended' ([string]$Context['ended'])
+    Add-NSReceiptField $lines 'ending' ([string]$Context['ending'])
+    Add-NSReceiptField $lines 'items' ($script:NSReceiptItemsFormat -f ([int]$Context['ticked']), ([int]$Context['open']))
+    $artifactView = ([string]$Context['view']) -ceq 'artifact'
+    if ($artifactView -or (([string]$Context['workMode']) -ceq 'artifact')) {
+        Add-NSReceiptField $lines 'receipts' ([string](Get-NSReceiptsCount ([string]$Context['workspace'])))
+    }
+    else {
+        Add-NSReceiptField $lines 'commits' (Get-NSReceiptCommitCount -Target ([string]$Context['workTarget']) -Since ([string]$Context['started']))
+    }
+    $profile = [string]$Context['profile']
+    if ($profile.Length -eq 0) { $profile = $script:NSReceiptNone }
+    Add-NSReceiptField $lines 'policy' ($script:NSReceiptPolicyFormat -f $profile, ([string]$Context['verificationLevel']), ([string]$Context['toolingPolicy']))
+    foreach ($allowance in @($Context['allowances'])) {
+        Add-NSReceiptField $lines 'allowance' ([string]$allowance)
+    }
+
+    $verified = @($Context['verified'])
+    if ($verified.Count -gt 0) {
+        Add-NSReceiptField $lines 'verified' (($verified -join $script:NSMdSourceSeparator))
+    }
+    else {
+        Add-NSReceiptField $lines 'verified' ($script:NSReceiptVerifiedNoneFormat -f (Get-NSEvidenceDash), ([string]$Context['verificationLevel']))
+    }
+
+    $disabled = @()
+    if (([string]$Context['verificationLevel']) -ceq 'none') { $disabled = @($Context['gates']) }
+    if ($disabled.Count -gt 0) {
+        Add-NSReceiptField $lines 'disabled' (($disabled -join $script:NSMdSourceSeparator))
+    }
+    else {
+        Add-NSReceiptField $lines 'disabled' $script:NSReceiptNone
+    }
+
+    $unavailable = @($Context['unavailable'])
+    if ($unavailable.Count -gt 0) {
+        Add-NSReceiptField $lines 'unavailable' (($unavailable -join $script:NSMdSourceSeparator))
+    }
+    else {
+        Add-NSReceiptField $lines 'unavailable' $script:NSReceiptNone
+    }
+    return , $lines.ToArray()
+}
+
+# Section 2. One line per baseline: its source class, the exact command, and the
+# two digests the comparison is measured against.
+function Get-NSReceiptBaselineLines {
+    param($Context)
+    $lines = New-Object Collections.Generic.List[string]
+    $byId = New-NSOrdinalMap
+    foreach ($record in @($Context['baselines'])) {
+        $id = Get-NSRecordText $record 'id'
+        if ($id.Length -eq 0) { continue }
+        $byId[$id] = $record
+    }
+    foreach ($id in (Sort-NSOrdinal ([string[]]@($byId.Keys)))) {
+        $record = $byId[$id]
+        $details = Get-NSRecordDetails $record
+        $environment = Get-NSCompareShortDigest (Get-NSRecordText $details 'environmentDigest')
+        if ($environment.Length -eq 0) { $environment = $script:NSReceiptNone }
+        $raw = Get-NSCompareShortDigest (Get-NSRecordText $details 'rawDigest')
+        if ($raw.Length -eq 0) { $raw = $script:NSReceiptNone }
+        $scope = Get-NSRecordText $details 'scope'
+        if ($scope.Length -eq 0) { $scope = Get-NSRecordText $record 'scope' }
+        if ($scope.Length -eq 0) { $scope = $script:NSReceiptNone }
+        $body = $script:NSReceiptBaselineFormat -f (Get-NSCompareBaselineSourceClass $record), `
+        (Get-NSRecordText $details 'command'), (Get-NSEvidenceDash), $environment, $raw, $scope
+        $lines.Add(($script:NSReceiptFieldFormat -f ([string]$id), $body))
+    }
+    return , $lines.ToArray()
+}
+
+# Section 3. Every baseline's rows in one table, then one line per fix: the
+# record, the commit or receipt it landed as, its verification locator, and the
+# post-measurement digest from the same source.
+function Get-NSReceiptChangedLines {
+    param($Context)
+    $lines = New-Object Collections.Generic.List[string]
+    $rows = New-NSOrdinalMap
+    $outstanding = New-Object Collections.Generic.List[string]
+    foreach ($record in @($Context['baselines'])) {
+        $id = Get-NSRecordText $record 'id'
+        if ($id.Length -eq 0) { continue }
+        $comparison = $null
+        try {
+            $comparison = Get-NSEvidenceComparison -Workspace ([string]$Context['workspace']) -Baseline $id `
+                -Records $Context['records'] -Mode ([string]$Context['mode']) -SelectedDebt $Context['selectedDebt']
+        }
+        catch {
+            $comparison = $null
+        }
+        if ($null -eq $comparison) { continue }
+        $document = $comparison['document']
+        foreach ($row in @($document['rows'])) {
+            $rowId = [string]$row['id']
+            if (-not $rows.Contains($rowId)) { $rows[$rowId] = $row }
+        }
+        foreach ($debt in @($document['summary']['selectedDebtOutstanding'])) { $outstanding.Add([string]$debt) }
+    }
+    $ordered = New-Object Collections.Generic.List[object]
+    $release = ([string]$Context['view']) -ceq 'release'
+    foreach ($rowId in (Sort-NSOrdinal ([string[]]@($rows.Keys)))) {
+        $row = $rows[$rowId]
+        if ($release -and -not ($script:NSCompareRegressionClasses -ccontains ([string]$row['class']))) { continue }
+        $ordered.Add($row)
+    }
+    if ($ordered.Count -eq 0 -and @($Context['baselines']).Count -eq 0) { return , @() }
+    foreach ($line in (Get-NSCompareTableLines $ordered.ToArray())) { $lines.Add($line) }
+    $lines.Add('')
+    foreach ($line in (Get-NSCompareSummaryLines (Get-NSCompareCounts $ordered.ToArray()) (Get-NSUniqueSorted ([string[]]$outstanding.ToArray())))) {
+        $lines.Add($line)
+    }
+
+    $fixes = New-Object Collections.Generic.List[string]
+    $findings = $Context['findings']
+    $joiner = Get-NSEvidenceJoiner
+    foreach ($id in (Sort-NSOrdinal ([string[]]@($findings.Keys)))) {
+        $record = $findings[$id]
+        if (-not ($script:NSCompareClearedStatuses -ccontains (Get-NSRecordText $record 'status'))) { continue }
+        $fix = Get-NSRecordText $record 'fix'
+        if ($fix.Length -eq 0) { $fix = $script:NSReceiptNone }
+        $locator = Get-NSRecordText $record 'verificationLocator'
+        if ($locator.Length -eq 0) { $locator = Get-NSRecordText $record 'locator' }
+        if ($locator.Length -eq 0) { $locator = $script:NSReceiptNone }
+        $digest = Get-NSCompareShortDigest (Get-NSRecordText $record 'digest')
+        if ($digest.Length -eq 0) { $digest = $script:NSReceiptNone }
+        $body = @($fix, $locator, $digest) -join $joiner
+        $fixes.Add(($script:NSReceiptFieldFormat -f ([string]$id), $body))
+    }
+    if ($fixes.Count -gt 0) {
+        $lines.Add('')
+        foreach ($fix in $fixes) { $lines.Add($fix) }
+    }
+    return , $lines.ToArray()
+}
+
+# Section 4.
+function Get-NSReceiptParkedLines {
+    param($Context)
+    $lines = New-Object Collections.Generic.List[string]
+    foreach ($entry in (Get-NSReceiptParkedEntries ([string]$Context['parking']))) {
+        $lines.Add(($script:NSReceiptPlainFormat -f ([string]$entry['title'])))
+        $default = [string]$entry['default']
+        if ($default.Length -gt 0) {
+            $lines.Add(($script:NSReceiptNestedFormat -f ([string]$script:NSReceiptLabels['default']), $default))
+        }
+        $rollback = [string]$entry['rollback']
+        if ($rollback.Length -gt 0) {
+            $lines.Add(($script:NSReceiptNestedFormat -f ([string]$script:NSReceiptLabels['rollback']), $rollback))
+        }
+    }
+    return , $lines.ToArray()
+}
+
+# Section 5.
+function Get-NSReceiptUnsupportedLines {
+    param($Context)
+    $lines = New-Object Collections.Generic.List[string]
+    $findings = $Context['findings']
+    $joiner = Get-NSEvidenceJoiner
+    foreach ($id in (Sort-NSOrdinal ([string[]]@($findings.Keys)))) {
+        $record = $findings[$id]
+        $status = Get-NSRecordText $record 'status'
+        if (-not ($script:NSReceiptUnmeasuredStatuses -ccontains $status)) { continue }
+        $locator = Get-NSRecordText $record 'locator'
+        if ($locator.Length -eq 0) { $locator = $script:NSReceiptNone }
+        $lines.Add(($script:NSReceiptFieldFormat -f ([string]$id), (@($status, $locator) -join $joiner)))
+    }
+    return , $lines.ToArray()
+}
+
+# Section 6.
+function Get-NSReceiptNextLines {
+    param($Context)
+    $lines = New-Object Collections.Generic.List[string]
+    foreach ($item in (Get-NSReceiptOpenItems ([string]$Context['punch']))) {
+        $lines.Add(($script:NSReceiptPlainFormat -f ([string]$item)))
+    }
+    $building = Get-NSReceiptBuilding (Join-NSPath ([string]$Context['ns']) 'opportunity-map.md')
+    $title = [string]$building['title']
+    $next = [string]$building['next']
+    if ($title.Length -gt 0 -and $next.Length -gt 0) {
+        $body = $script:NSReceiptNextFormat -f $title, (Get-NSEvidenceDash), $next
+        $lines.Add(($script:NSReceiptFieldFormat -f ([string]$script:NSReceiptLabels['building']), $body))
+    }
+    return , $lines.ToArray()
+}
+
+function Get-NSReceiptSectionLines {
+    param([Parameter(Mandatory = $true)][string]$Key, $Context)
+    switch ($Key) {
+        'shift' { return (Get-NSReceiptShiftLines $Context) }
+        'baseline' { return (Get-NSReceiptBaselineLines $Context) }
+        'changed' { return (Get-NSReceiptChangedLines $Context) }
+        'parked' { return (Get-NSReceiptParkedLines $Context) }
+        'unsupported' { return (Get-NSReceiptUnsupportedLines $Context) }
+        'next' { return (Get-NSReceiptNextLines $Context) }
+    }
+    return , @()
+}
+
+# Markdown from records only. It invents nothing, never upgrades a claim into
+# proof, and omits a section it has no record for.
+function Get-NSMorningReceipt {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [ValidateSet('owner', 'reviewer', 'release', 'artifact')][string]$View = 'owner',
+        [AllowEmptyString()][string]$Out = ''
+    )
+    $context = Get-NSReceiptContext -Workspace $Workspace -View $View
+    $lines = New-Object Collections.Generic.List[string]
+    $lines.Add($script:NSReceiptTitle)
+    foreach ($key in @($script:NSReceiptViewSections[$View])) {
+        $body = Get-NSReceiptSectionLines -Key ([string]$key) -Context $context
+        if ($null -eq $body -or @($body).Count -eq 0) { continue }
+        $lines.Add('')
+        $lines.Add([string]$script:NSReceiptSectionTitle[[string]$key])
+        $lines.Add('')
+        foreach ($line in @($body)) { $lines.Add([string]$line) }
+    }
+    $text = ($lines -join "`n") + "`n"
+    if (-not [string]::IsNullOrEmpty($Out)) {
+        $directory = Split-Path -Parent $Out
+        if (-not [string]::IsNullOrEmpty($directory)) { $null = [IO.Directory]::CreateDirectory($directory) }
+        if (Test-NSReparsePoint $Out) { Remove-Item -LiteralPath $Out -Force -ErrorAction SilentlyContinue }
+        Write-NSEvidenceFileAtomic -Path $Out -Text $text
+    }
+    return $text
+}
+
+# ---------------------------------------------------------------------------
+# Command surfaces for the thin runtime scripts
+# ---------------------------------------------------------------------------
+
+function Write-NSEvidenceCompareUsage {
+    Write-NSEvidenceError 'usage: evidence-compare.ps1 -Project DIR -Baseline ID [-Json|-Md]'
+    return 1
+}
+
+# 0 the report renders and the mode is satisfied - 1 usage - 2 contract failure
+# - 3 the report renders and the mode is not satisfied.
+function Invoke-NSEvidenceCompareCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$Baseline = '',
+        [switch]$Json,
+        [switch]$Md
+    )
+    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Baseline)) { return (Write-NSEvidenceCompareUsage) }
+    if ($Json -and $Md) { return (Write-NSEvidenceCompareUsage) }
+    try {
+        $comparison = Get-NSEvidenceComparison -Workspace $Project -Baseline $Baseline
+        if ($Json) {
+            [Console]::Out.Write((ConvertTo-NSCanonicalJson $comparison['document'] -Compact))
+            [Console]::Out.Write("`n")
+        }
+        else {
+            [Console]::Out.Write((Get-NSCompareMarkdown $comparison))
+        }
+        if ([bool]$comparison['document']['pass']) { return 0 }
+        return 3
+    }
+    catch [ApplicationException] {
+        Write-NSEvidenceError $_.Exception.Message
+        return 2
+    }
+}
+
+# PowerShell -File binds at most one argv token to each [string[]] parameter; bash
+# and the Windows logic tests pass greedy tails ( -Versions a b, -Seen x y ). Parse
+# those tails here so the wrappers can use param() { } and hand off $args.
+function Read-NSCliGreedyValues {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$RawArgs,
+        [Parameter(Mandatory = $true)][ref]$Index
+    )
+    $values = New-Object Collections.Generic.List[string]
+    $cursor = $Index.Value + 1
+    while ($cursor -lt $RawArgs.Count) {
+        $token = [string]$RawArgs[$cursor]
+        if ($token.StartsWith('-', [StringComparison]::Ordinal)) { break }
+        $values.Add($token)
+        $cursor++
+    }
+    $Index.Value = $cursor - 1
+    return , $values.ToArray()
+}
+
+function ConvertFrom-NSEvidenceBaselineCli {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$RawArgs)
+    $result = @{
+        Project    = [Environment]::CurrentDirectory
+        Id         = ''
+        SourceClass = ''
+        Command    = ''
+        Versions   = @()
+        Scope      = ''
+        Seen       = @()
+        Raw        = ''
+        Locator    = ''
+        HostLabel  = ''
+    }
+    if ($null -eq $RawArgs) { return $result }
+    $i = 0
+    while ($i -lt $RawArgs.Count) {
+        $flag = [string]$RawArgs[$i]
+        switch ($flag) {
+            '-Project' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Project = [string]$RawArgs[$i]
+            }
+            '-Id' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Id = [string]$RawArgs[$i]
+            }
+            '-SourceClass' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.SourceClass = [string]$RawArgs[$i]
+            }
+            '-Command' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Command = [string]$RawArgs[$i]
+            }
+            '-Versions' {
+                $idxRef = [ref]$i
+                $result.Versions = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
+                $i = $idxRef.Value
+            }
+            '-Scope' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Scope = [string]$RawArgs[$i]
+            }
+            '-Seen' {
+                $idxRef = [ref]$i
+                $result.Seen = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
+                $i = $idxRef.Value
+            }
+            '-Raw' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Raw = [string]$RawArgs[$i]
+            }
+            '-Locator' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Locator = [string]$RawArgs[$i]
+            }
+            '-HostLabel' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.HostLabel = [string]$RawArgs[$i]
+            }
+            default { return $null }
+        }
+        $i++
+    }
+    return $result
+}
+
+function ConvertFrom-NSEvidenceCheckpointCli {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$RawArgs)
+    $result = @{
+        Project     = [Environment]::CurrentDirectory
+        Id          = ''
+        Baseline    = ''
+        Artifacts   = @()
+        Touched     = @()
+        Rollback    = ''
+        Plan        = ''
+        Scope       = ''
+        SourceClass = ''
+        HostLabel   = ''
+    }
+    if ($null -eq $RawArgs) { return $result }
+    $i = 0
+    while ($i -lt $RawArgs.Count) {
+        $flag = [string]$RawArgs[$i]
+        switch ($flag) {
+            '-Project' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Project = [string]$RawArgs[$i]
+            }
+            '-Id' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Id = [string]$RawArgs[$i]
+            }
+            '-Baseline' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Baseline = [string]$RawArgs[$i]
+            }
+            '-Artifacts' {
+                $idxRef = [ref]$i
+                $result.Artifacts = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
+                $i = $idxRef.Value
+            }
+            '-Touched' {
+                $idxRef = [ref]$i
+                $result.Touched = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
+                $i = $idxRef.Value
+            }
+            '-Rollback' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Rollback = [string]$RawArgs[$i]
+            }
+            '-Plan' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Plan = [string]$RawArgs[$i]
+            }
+            '-Scope' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.Scope = [string]$RawArgs[$i]
+            }
+            '-SourceClass' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.SourceClass = [string]$RawArgs[$i]
+            }
+            '-HostLabel' {
+                $i++
+                if ($i -ge $RawArgs.Count) { return $null }
+                $result.HostLabel = [string]$RawArgs[$i]
+            }
+            default { return $null }
+        }
+        $i++
+    }
+    return $result
+}
+
+function Write-NSEvidenceBaselineUsage {
+    Write-NSEvidenceError 'usage: evidence-baseline.ps1 -Project DIR -Id ID -SourceClass CLASS -Command CMD [-Versions NAME=VERSION ...] [-Scope SCOPE] [-Seen ID[=DIGEST] ...] [-Raw TEXT] [-Locator LOCATOR] [-HostLabel HOST]'
+    return 1
+}
+
+function Invoke-NSEvidenceBaselineCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$Id = '',
+        [AllowEmptyString()][string]$SourceClass = '',
+        [AllowEmptyString()][string]$Command = '',
+        [AllowNull()][AllowEmptyCollection()][string[]]$Versions = @(),
+        [AllowEmptyString()][string]$Scope = '',
+        [AllowNull()][AllowEmptyCollection()][string[]]$Seen = @(),
+        [AllowEmptyString()][string]$Raw = '',
+        [AllowEmptyString()][string]$Locator = '',
+        [AllowEmptyString()][string]$HostLabel = ''
+    )
+    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Id) `
+            -or [string]::IsNullOrEmpty($SourceClass) -or [string]::IsNullOrEmpty($Command)) {
+        return (Write-NSEvidenceBaselineUsage)
+    }
+    try {
+        return (Write-NSEvidenceBaseline -Workspace $Project -Id $Id -SourceClass $SourceClass `
+                -Command $Command -Versions $Versions -Scope $Scope -Seen $Seen -Raw $Raw `
+                -Locator $Locator -HostLabel $HostLabel)
+    }
+    catch [ApplicationException] {
+        Write-NSEvidenceError $_.Exception.Message
+        return 1
+    }
+}
+
+function Write-NSEvidenceCheckpointUsage {
+    Write-NSEvidenceError 'usage: evidence-checkpoint.ps1 -Project DIR -Id ID -Baseline ID [-Artifacts PATH ...] [-Touched PATH ...] [-Rollback REF] [-Plan TEXT] [-Scope SCOPE] [-SourceClass CLASS] [-HostLabel HOST]'
+    return 1
+}
+
+function Invoke-NSEvidenceCheckpointCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$Id = '',
+        [AllowEmptyString()][string]$Baseline = '',
+        [AllowNull()][AllowEmptyCollection()][string[]]$Artifacts = @(),
+        [AllowNull()][AllowEmptyCollection()][string[]]$Touched = @(),
+        [AllowEmptyString()][string]$Rollback = '',
+        [AllowEmptyString()][string]$Plan = '',
+        [AllowEmptyString()][string]$Scope = '',
+        [AllowEmptyString()][string]$SourceClass = '',
+        [AllowEmptyString()][string]$HostLabel = ''
+    )
+    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Id)) {
+        return (Write-NSEvidenceCheckpointUsage)
+    }
+    try {
+        return (Write-NSEvidenceCheckpoint -Workspace $Project -Id $Id -Baseline $Baseline `
+                -Artifacts $Artifacts -Touched $Touched -Rollback $Rollback -Plan $Plan `
+                -Scope $Scope -SourceClass $SourceClass -HostLabel $HostLabel)
+    }
+    catch [ApplicationException] {
+        Write-NSEvidenceError $_.Exception.Message
+        return 1
+    }
+}
+
+function Write-NSMorningReceiptUsage {
+    Write-NSEvidenceError 'usage: morning-receipt.ps1 -Project DIR [-View owner|reviewer|release|artifact] [-Out PATH]'
+    return 1
+}
+
+function Invoke-NSMorningReceiptCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$View = '',
+        [AllowEmptyString()][string]$Out = ''
+    )
+    if ([string]::IsNullOrEmpty($Project)) { return (Write-NSMorningReceiptUsage) }
+    $view = $View
+    if ([string]::IsNullOrEmpty($view)) { $view = 'owner' }
+    if (-not ($script:NSReceiptViewNames -ccontains $view)) { return (Write-NSMorningReceiptUsage) }
+    try {
+        $text = Get-NSMorningReceipt -Workspace $Project -View $view -Out $Out
+        if ([string]::IsNullOrEmpty($Out)) {
+            [Console]::Out.Write($text)
+            return 0
+        }
+        Write-NSEvidenceOut (Get-NSAbsolutePath $Out)
+        return 0
+    }
+    catch [ApplicationException] {
+        Write-NSEvidenceError $_.Exception.Message
+        return 2
+    }
+}
+
 
 Export-ModuleMember -Function *

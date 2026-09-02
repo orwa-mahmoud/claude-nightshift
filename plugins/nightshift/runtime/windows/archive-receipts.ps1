@@ -90,6 +90,12 @@ if (Test-Path -LiteralPath $src -PathType Container) {
         foreach ($file in $files) {
             Copy-Item -LiteralPath $file.FullName -Destination (Join-Path $dest $file.Name) -Force
             $copied++
+            # Artifact receipts stay live so stall progress still sees them. The morning
+            # receipt belongs to one shift and is read once, so it moves: the archive keeps
+            # it and the next shift starts with a receipts folder of its own work.
+            if ($file.Name -like 'morning-*.md') {
+                Remove-Item -LiteralPath $file.FullName -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }

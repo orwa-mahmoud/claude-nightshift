@@ -21,6 +21,19 @@
     "verified-after-change",
     "human-accepted"
   ],
+  "lifecycleDomains": ["baseline", "checkpoint"],
+  "details": {
+    "baseline": ["command", "environmentDigest", "rawDigest", "scope", "seen", "sourceClass", "versions"],
+    "checkpoint": [
+      "artifacts",
+      "baseline",
+      "head",
+      "plan",
+      "rollback",
+      "touched",
+      "worktreeDigest"
+    ]
+  },
   "required": [
     "schemaVersion",
     "id",

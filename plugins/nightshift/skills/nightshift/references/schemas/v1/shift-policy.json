@@ -56,6 +56,19 @@
       },
       "description": "Optional non-negative resource ceilings for this shift, by name."
     },
+    "completionMode": {
+      "type": "string",
+      "enum": ["clear-all", "no-regression-plus-selected-debt"],
+      "description": "How the evidence comparison scores tonight against its baselines. clear-all passes only when every measured finding is cleared; no-regression-plus-selected-debt passes when nothing regressed and every id in selectedDebt is cleared. Absent means clear-all. It never weakens the item gate, and a finding of an unavailable source is never cleared."
+    },
+    "selectedDebt": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Finding ids the owner accepted as tonight's debt. Read by no-regression-plus-selected-debt, which requires every one of them cleared."
+    },
     "allowances": {
       "type": "array",
       "description": "Elevation the owner granted for this shift. Every category is denied without an entry here or an allow in rules.elevation. An allowance authorizes its category within all other boundaries; it never lifts protected paths, never-commit patterns, or the expected commit identity.",

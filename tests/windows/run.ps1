@@ -506,10 +506,14 @@ try {
     $preflightNeedsLogicRun = Invoke-TestScript $preflightNeedsLogic
     Assert-Equal 0 $preflightNeedsLogicRun.ExitCode `
         "permission preflight and parking: $($preflightNeedsLogicRun.Stdout) $($preflightNeedsLogicRun.Stderr)"
-    $provisionRecoverLogic = Join-Path $PSScriptRoot 'provision-recover-logic.ps1'
-    $provisionRecoverLogicRun = Invoke-TestScript $provisionRecoverLogic
-    Assert-Equal 0 $provisionRecoverLogicRun.ExitCode `
-        "provisioning rollback, recovery and the honest refusal: $($provisionRecoverLogicRun.Stdout) $($provisionRecoverLogicRun.Stderr)"
+    $evidenceCompareLogic = Join-Path $PSScriptRoot 'evidence-compare-logic.ps1'
+    $evidenceCompareLogicRun = Invoke-TestScript $evidenceCompareLogic
+    Assert-Equal 0 $evidenceCompareLogicRun.ExitCode `
+        "baseline, checkpoint and comparison classes: $($evidenceCompareLogicRun.Stdout) $($evidenceCompareLogicRun.Stderr)"
+    $morningReceiptLogic = Join-Path $PSScriptRoot 'morning-receipt-logic.ps1'
+    $morningReceiptLogicRun = Invoke-TestScript $morningReceiptLogic
+    Assert-Equal 0 $morningReceiptLogicRun.ExitCode `
+        "morning receipt sections and views: $($morningReceiptLogicRun.Stdout) $($morningReceiptLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

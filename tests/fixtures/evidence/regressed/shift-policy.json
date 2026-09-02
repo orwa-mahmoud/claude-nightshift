@@ -1,0 +1,10 @@
+{
+  "completionMode": "clear-all",
+  "createdAt": "2026-08-27T20:55:00Z",
+  "deadlineEpoch": null,
+  "schemaVersion": 1,
+  "shiftId": "d4e6f8a0c2e4f6a8",
+  "source": "composition",
+  "toolingPolicy": "existing-tools",
+  "verificationLevel": "final"
+}

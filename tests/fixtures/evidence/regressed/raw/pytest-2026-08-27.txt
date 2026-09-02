@@ -1,0 +1,2 @@
+FAILED tests/test_totals.py::test_sum_totals - AssertionError: 41.98 != 42.00
+1 failed, 121 passed in 4.47s
