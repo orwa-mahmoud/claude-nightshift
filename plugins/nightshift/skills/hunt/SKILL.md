@@ -45,7 +45,13 @@ Offer two first-class modes:
 - **Guided** — show one offer line per entry, with its ending marked. The owner may choose more
  than one.
 - **Automatic** — ask for hours. Do not inspect yet. After the tooling policy is answered, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
- their findings, and rank them using `execution-modes.md`. Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Refuse to compose, cut, or arm when the work target cannot be resolved. Show evidence only in review-first
+ their findings, and rank them using `execution-modes.md`. Build the ordered plan with the native planner helper
+ (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-planner.sh" --project "$NIGHTSHIFT_WORKSPACE" --input … --hours … --selection automatic --launch …`;
+ native Windows: `shift-planner.ps1`). Read project-local learning when present with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/plan-learning.sh" --project "$NIGHTSHIFT_WORKSPACE" read` and pass
+ `--learning "$NS/plan-learning.json"` into the planner. The helper is read-only and deterministic:
+ review-first and run-direct twins share the same ordering; launch mode never changes rank or time fit.
+ Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Refuse to compose, cut, or arm when the work target cannot be resolved. Show evidence only in review-first
  mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
 the whistle. Respect every entry's compatibility restrictions when composing a combination; never
@@ -175,8 +181,12 @@ adds constraints rather than replacing them.
 
 ## 6. Review or cut
 
-In **review first**, print the items exactly as they will be written, with evidence, order, hours,
-and ending, then ask for one approval. This is the last look before anything is armed. Write
+In **review first**, render the explainable preview with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-preview.sh"` (native Windows: `shift-preview.ps1`) from the
+planner JSON, then print the items exactly as they will be written, with evidence, order, hours,
+and ending, then ask for one approval. The preview is a no-write/no-clock simulation: resolved
+workspace and work target, shift policy, scoring inputs, dependencies, overlaps removed, rejected
+alternatives, verification reserve, and stopping rule. This is the last look before anything is armed. Write
 nothing before approval.
 
 In **run directly**, do not ask again: write the order and immediately cut it into the active shift.

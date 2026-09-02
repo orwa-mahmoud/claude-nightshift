@@ -1,0 +1,302 @@
+{
+  "authority": "owner-approved",
+  "branch": "main",
+  "clusters": [
+    {
+      "clusterId": "root:src/",
+      "contractIds": [
+        "clear-quality-debt",
+        "defect-hunt"
+      ],
+      "sharedRoots": [
+        "src/"
+      ]
+    },
+    {
+      "clusterId": "root:package.json",
+      "contractIds": [
+        "vulnerability-sweep"
+      ],
+      "sharedRoots": [
+        "package.json"
+      ]
+    },
+    {
+      "clusterId": "root:README.md|docs/",
+      "contractIds": [
+        "documentation-drift"
+      ],
+      "sharedRoots": [
+        "README.md",
+        "docs/"
+      ]
+    }
+  ],
+  "deadlineEpoch": null,
+  "estimateTotalMinutes": 360,
+  "hours": 10.0,
+  "launchMode": "review-first",
+  "learningApplied": false,
+  "orderedItems": [
+    {
+      "capabilityStatus": "available-and-verified",
+      "clusterId": "root:src/",
+      "contractId": "clear-quality-debt",
+      "ending": "finite",
+      "estimateMinutes": 120,
+      "evidence": [
+        "eslint reports 12 issues in src/",
+        "tsc is clean"
+      ],
+      "fallback": null,
+      "prerequisites": [],
+      "resourceNeeds": {
+        "files": 40
+      },
+      "risks": [],
+      "scoring": {
+        "confidence": 5,
+        "dependencyValue": 3,
+        "effortMinutes": 120,
+        "evidenceStrength": 5,
+        "impact": 5,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 2,
+        "reversibility": 5,
+        "timeFit": 5
+      },
+      "sharedRoots": [
+        "src/"
+      ],
+      "title": "Clear quality debt — fix what the project's own tooling reports."
+    },
+    {
+      "capabilityStatus": "available-and-verified",
+      "clusterId": "root:package.json",
+      "contractId": "vulnerability-sweep",
+      "ending": "finite",
+      "estimateMinutes": 180,
+      "evidence": [
+        "npm audit reports 2 moderate advisories"
+      ],
+      "fallback": null,
+      "prerequisites": [
+        "clear-quality-debt"
+      ],
+      "resourceNeeds": {
+        "networkRequests": 5
+      },
+      "risks": [
+        "dependency bumps may need owner review"
+      ],
+      "scoring": {
+        "confidence": 4,
+        "dependencyValue": 2,
+        "effortMinutes": 180,
+        "evidenceStrength": 4,
+        "impact": 5,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 0,
+        "reversibility": 4,
+        "timeFit": 5
+      },
+      "sharedRoots": [
+        "package.json"
+      ],
+      "title": "Vulnerability sweep — the advisories filed against what you already ship."
+    },
+    {
+      "capabilityStatus": "available-and-verified",
+      "clusterId": "root:README.md|docs/",
+      "contractId": "documentation-drift",
+      "ending": "finite",
+      "estimateMinutes": 60,
+      "evidence": [
+        "README install steps disagree with package.json scripts"
+      ],
+      "fallback": null,
+      "prerequisites": [],
+      "resourceNeeds": {
+        "files": 10
+      },
+      "risks": [],
+      "scoring": {
+        "confidence": 4,
+        "dependencyValue": 2,
+        "effortMinutes": 60,
+        "evidenceStrength": 4,
+        "impact": 4,
+        "learningAdjusted": false,
+        "priorResult": "success",
+        "recurrence": 1,
+        "reversibility": 5,
+        "timeFit": 5
+      },
+      "sharedRoots": [
+        "docs/",
+        "README.md"
+      ],
+      "title": "Documentation drift — local docs that no longer match this repository."
+    },
+    {
+      "capabilityStatus": "available-and-verified",
+      "clusterId": "root:src/",
+      "contractId": "defect-hunt",
+      "ending": "open-ended",
+      "estimateMinutes": 0,
+      "evidence": [
+        "recent commits touch auth and payments modules"
+      ],
+      "fallback": null,
+      "prerequisites": [],
+      "resourceNeeds": {},
+      "risks": [],
+      "scoring": {
+        "confidence": 3,
+        "dependencyValue": 2,
+        "effortMinutes": 0,
+        "evidenceStrength": 3,
+        "impact": 5,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 1,
+        "reversibility": 4,
+        "timeFit": 5
+      },
+      "sharedRoots": [
+        "src/"
+      ],
+      "title": "Defect hunt — review, fix, re-review until it converges."
+    }
+  ],
+  "overlapsRemoved": [
+    {
+      "finding": "lint warnings in src/",
+      "group": "code-hygiene",
+      "kept": "clear-quality-debt",
+      "removed": [
+        "todo-fixme-debt"
+      ]
+    }
+  ],
+  "provisioningPlan": null,
+  "rejected": [
+    {
+      "contractId": "ci-warning-cleanup",
+      "detail": null,
+      "reason": "inapplicable",
+      "scoring": {
+        "confidence": 0,
+        "dependencyValue": 1,
+        "effortMinutes": 120,
+        "evidenceStrength": 0,
+        "impact": 3,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 0,
+        "reversibility": 5,
+        "timeFit": 5
+      },
+      "title": "CI warning cleanup — repository-owned warnings the pipeline already prints."
+    },
+    {
+      "contractId": "seo-audit",
+      "detail": null,
+      "reason": "inapplicable",
+      "scoring": {
+        "confidence": 0,
+        "dependencyValue": 0,
+        "effortMinutes": 120,
+        "evidenceStrength": 0,
+        "impact": 2,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 0,
+        "reversibility": 5,
+        "timeFit": 5
+      },
+      "title": "SEO audit — prioritized, cited findings from an explicit site or tree."
+    },
+    {
+      "contractId": "todo-fixme-debt",
+      "detail": "finding lint warnings in src/ kept clear-quality-debt",
+      "reason": "overlap",
+      "scoring": {
+        "confidence": 4,
+        "dependencyValue": 1,
+        "effortMinutes": 90,
+        "evidenceStrength": 4,
+        "impact": 3,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 1,
+        "reversibility": 5,
+        "timeFit": 5
+      },
+      "title": "TODO and FIXME debt — actionable code comments resolved without inventing product decisions."
+    },
+    {
+      "contractId": "dead-code-cleanup",
+      "detail": "needs 240 min, 180 remain",
+      "reason": "time-fit",
+      "scoring": {
+        "confidence": 3,
+        "dependencyValue": 1,
+        "effortMinutes": 240,
+        "evidenceStrength": 3,
+        "impact": 3,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 0,
+        "reversibility": 3,
+        "timeFit": 0
+      },
+      "title": "Dead-code cleanup — code proven unused by tooling the repository already trusts."
+    },
+    {
+      "contractId": "coverage-hunt",
+      "detail": "only one open-ended remainder allowed",
+      "reason": "time-fit",
+      "scoring": {
+        "confidence": 4,
+        "dependencyValue": 1,
+        "effortMinutes": 0,
+        "evidenceStrength": 4,
+        "impact": 4,
+        "learningAdjusted": false,
+        "priorResult": null,
+        "recurrence": 0,
+        "reversibility": 4,
+        "timeFit": 5
+      },
+      "title": "Coverage hunt — give it the night, wake up to tests."
+    }
+  ],
+  "resourceBudgets": {
+    "files": 200,
+    "networkRequests": 50
+  },
+  "risks": [
+    "dependency bumps may need owner review"
+  ],
+  "schemaVersion": 1,
+  "selectionMode": "automatic",
+  "shiftPolicy": {
+    "budgets": {
+      "files": 200,
+      "networkRequests": 50
+    },
+    "schemaVersion": 1,
+    "toolingPolicy": "existing-tools",
+    "verificationLevel": "per-item"
+  },
+  "stoppingRule": "finite entries complete in order; at most one open-ended remainder uses leftover time; stop at quitting time or convergence",
+  "unsupportedSurfaces": [],
+  "verificationReserveMinutes": 60,
+  "workBudgetMinutes": 540,
+  "workMode": "repository",
+  "workTarget": "/fixture/repo-js",
+  "workspace": "/fixture/repo-js"
+}

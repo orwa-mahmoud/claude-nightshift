@@ -124,7 +124,13 @@ before work can be armed.
 
 Map each finding to one catalog entry so work is never duplicated. In Automatic mode rank using
 the shared mode contract, run finite entries first, and use at most one open-ended entry for useful
-remaining time. In Guided mode keep only the areas and scope the owner selected.
+remaining time. Build the ordered plan with the native planner helper
+(`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-planner.sh"`; native Windows: `shift-planner.ps1`) and,
+in review-first mode, render the explainable preview with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-preview.sh"` (native Windows: `shift-preview.ps1`).
+Read project-local learning from `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/plan-learning.sh" --project "$NIGHTSHIFT_WORKSPACE" read`
+when ranking; it may adjust effort estimates and suppress repeated rejected findings but never
+silently invents owner policy. In Guided mode keep only the areas and scope the owner selected.
 
 ## 4. Review first
 

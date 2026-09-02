@@ -54,7 +54,7 @@
         "type": "integer",
         "minimum": 0
       },
-      "description": "Optional non-negative resource ceilings for this shift, by name."
+      "description": "Optional non-negative resource ceilings for this shift, by name. Contract resources include networkRequests, urls, pages, files, benchmarkReps, apiCalls, artifactBytes, and commandDurationSeconds — never token or pricing accounting."
     },
     "completionMode": {
       "type": "string",
