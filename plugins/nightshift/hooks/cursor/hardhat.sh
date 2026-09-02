@@ -11,6 +11,9 @@
 #   neverCommitPatterns  staged diff (git diff --cached) must not match this grep -E pattern
 #   forbiddenCommands    deny any command matching this grep -E pattern during a shift
 #                        (the no-push recipe: set it to 'git .*push')
+#   elevation            per-category policy and grep -E pattern for the five categories that
+#                        create system state; denied by default, lifted by the owner in
+#                        rules.json or for one shift in shift-policy.json
 # An env var of the matching NIGHTSHIFT_ name overrides the file for the session; the file
 # itself is guarded during a shift, so only the owner sets or lifts a rule.
 #
@@ -146,7 +149,7 @@ if ns_hardhat_payload_targets_rules "$TOOL" "$CURSOR_RAW" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 if ns_hardhat_payload_targets_control "$TOOL" "$CURSOR_RAW" "$CMD"; then
-  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
+  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, work-mode, shift-policy.json, shift-defaults.json, or deadline, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
 if [ "$TOOL" = "request_user_input" ] \

@@ -49,16 +49,30 @@ Ask three independent choices:
 1. **Guided** (the owner chooses quality areas) or **Automatic** (Nightshift selects every
   applicable high-value area that fits the hours).
 2. **Review first** or **Run directly**.
-3. **Existing tools only**, **Review missing tools first**, or **Automatically add standard
-  development tools** — asked before any scan, compose, cut, or arm, per `execution-modes.md`.
-  Independent from the two choices above. Read `$NS/work-mode`. Show the remembered default with
-  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/capability-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" --work-mode repository|artifact get`
-  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\capability-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -WorkMode repository|artifact`).
-  Missing or malformed `$NS/capability-policy.json` is existing-tools. Persist a remembered
-  override with `--policy <name> set` (native Windows: `-Command set -Policy <name>`). Write
-  `$NS/capability-policy.json`, never the punch list. An override for this invocation only is
-  not written. Artifact mode refuses repository-tool policies (`auto-add` and `review-missing`)
-  and explains why; only existing-tools is valid there.
+3. **Same as last time, or change?** — one prefilled question covering the verification profile,
+  hours, tooling policy, and elevation, asked before any scan, compose, cut, or arm, per
+  `execution-modes.md`. Independent from the two choices above. Read `$NS/work-mode` and the
+  remembered project default with
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" defaults-get`
+  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" defaults-get`).
+  Missing or malformed `$NS/shift-defaults.json` means the built-in defaults (fast, null hours,
+  existing-tools, review-first). Ask: *"Same as last time: `<profile>`, `<hours>h`,
+  `<toolingPolicy>`, `<no elevation | allowances …>`? Yes, or change."* A change answer may name a
+  new profile, hour count, or tooling policy, and elevation in words: *"allow docker tonight"*
+  writes a one-shift `containers` allowance into the shift policy; *"always allow docker here"*
+  writes `elevation.containers.policy=allow` into `$NS/rules.json` while the shift is unarmed.
+  Then run
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/preflight-needs.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+  (native Windows: `preflight-needs.ps1 -Project "$NIGHTSHIFT_WORKSPACE"`) against the areas this
+  compose would select and fold every gap into the same question — *"Items 4 and 7 need
+  `containers`: allow tonight, allow always, or leave them parked?"* — resolved the same way.
+  Persist a changed profile or tooling policy as the new project default only when the owner says
+  to remember it, with `shift-policy.sh … defaults-set` (native Windows: `-Command defaults-set`);
+  an answer for this invocation only is never written back to `$NS/shift-defaults.json`. Write the
+  resolved shift policy before compose, cut, or arm with `shift-policy.sh … set --from-json -`
+  (native Windows: `-Command set -FromJson -`); review-first writes only that policy, and
+  run-direct arms immediately once it lands. Artifact mode refuses repository-tool policies
+  (`auto-add` and `review-missing`) and explains why; only existing-tools is valid there.
   **Existing tools only** skips contracts whose required capabilities are unavailable.
   **Review missing tools first** shows one read-only consolidated plan (capability, selected
   tool, exact writes, commands, enabled shifts, risks, permissions, rollback), waits, writes

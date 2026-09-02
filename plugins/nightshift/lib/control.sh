@@ -237,7 +237,9 @@ ns_control_stop() { # <host-path> [reason]
   return "$rc"
 }
 
-# Reset: Stop teardown plus drop deadline and leftover STOP/reason. Preserve durable content.
+# Reset: Stop teardown plus drop deadline, leftover STOP/reason, and tonight's shift policy.
+# shift-defaults.json (remembered convenience) and rules.json (permanent boundaries) survive a
+# reset exactly like the punch list and parking lot do.
 ns_control_reset() { # <host-path>
   local host="$1" rc=0
   ns_control_stop "$host" "reset by owner" || {
@@ -247,7 +249,8 @@ ns_control_reset() { # <host-path>
   ns_control_drop "$NS_CONTROL_NS/STOP"
   ns_control_drop "$NS_CONTROL_NS/deadline"
   ns_control_drop "$NS_CONTROL_NS/.watch-reason"
-  ns_control_log "$NS_CONTROL_NS" "reset by owner — runtime markers and deadline cleared"
+  ns_control_drop "$NS_CONTROL_NS/shift-policy.json"
+  ns_control_log "$NS_CONTROL_NS" "reset by owner — runtime markers, deadline, and shift policy cleared"
   printf 'reset %s\n' "$NS_CONTROL_NS"
   printf 'deadline removed\n'
   return "$rc"

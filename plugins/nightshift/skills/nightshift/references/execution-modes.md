@@ -51,11 +51,11 @@ to implement; the launch choice decides that.
 
 ## Tooling policy
 
-A third independent choice, asked **before scanning** so a direct unattended run never discovers a
-mid-shift owner decision:
+A third independent choice, folded into composition's one prefilled question (see "One question,
+three files" below) so a direct unattended run never discovers a mid-shift owner decision:
 
 - **Existing tools only** — skip contracts whose required capabilities are unavailable and spend
-  the time elsewhere. This is the default, including when `$NS/capability-policy.json` is missing.
+  the time elsewhere. This is the default, including when `$NS/shift-defaults.json` is missing.
 - **Review missing tools first** — run a read-only capability scan and show one consolidated plan
   (capability, selected tool, exact writes, commands, enabled shifts, risks, permissions, rollback).
   Wait for approval before arming. The work clock has not begun. Review-first must write nothing.
@@ -66,12 +66,34 @@ mid-shift owner decision:
   mode is never offered a repository-tool install.
 
 Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why;
-only existing-tools is valid there. A remembered policy in `$NS/capability-policy.json` is a
-default: the current invocation may override it, and the owner chooses whether to remember the
-override. Persist policy separately from the punch list. Inventory in `$NS/capabilities.json` is
-a cache: re-probe each new shift or branch.
+only existing-tools is valid there. Inventory in `$NS/capabilities.json` is a cache: re-probe each
+new shift or branch.
 
 Unsupported permission modes must be reported before arming.
+
+## One question, three files
+
+Three files hold every setting, and no others exist. `rules.json` is the owner's permanent project
+boundary — default denies, protected paths, forbidden commands, and any elevation the owner chose
+to remember. `shift-defaults.json` remembers convenience choices (verification profile, typical
+hours, tooling policy, review-first vs run-direct) that only prefill the next composition
+question; it decides nothing on its own and never carries elevation. `shift-policy.json` is
+tonight's authoritative snapshot — deadline, verification level, tooling policy, and every
+allowance tagged `rules` or `one-shift` — written before arming and archived with the receipt at
+clock-out.
+
+Composition asks exactly one question, prefilled from `shift-policy.sh … defaults-get`: *"Same as
+last time: `<profile>`, `<hours>h`, `<toolingPolicy>`, `<no elevation | allowances …>`? Yes, or
+change."* A change answer may name a new profile, hour count, or tooling policy, and elevation in
+words — *"allow docker tonight"* becomes a one-shift allowance in the shift policy; *"always allow
+docker here"* becomes a permanent `rules.json` allowance, written by the composition step while the
+shift is unarmed. The same question folds in the permission preflight's gaps
+(`runtime/preflight-needs.sh` against every selected item and Hunt order): *"Items 4 and 7 need
+`containers`: allow tonight, allow always, or leave them parked?"* Composition writes the resolved
+policy with `shift-policy.sh … set --from-json -` before any compose, cut, or arm; review-first
+writes nothing else, and run-direct arms immediately once it lands. Start never asks: it consumes
+a queued policy, or arms with safe defaults (existing-tools, no allowances, remembered
+verification and hours) when none was queued.
 
 ## Direct-mode decisions
 

@@ -69,7 +69,19 @@ items exist and the receipts directory is empty, Doctor warns
 When `$NS/receipts` exists but is not a usable directory, Doctor warns `artifact receipts path is not a usable directory` and offers `replace the unusable receipts path with a real directory so write-receipt can land; Doctor does not rewrite it`. Doctor does not also warn empty ticks for that path.
 Dated copies from Archive live under `$NS/archive/<YYYY-MM-DD>/receipts/` and do not replace the live files Doctor counts.
 Missing or empty receipts create no dated receipts folder.
-The report also includes a `capability policy` fact from the read-only getter: `capability policy existing-tools (default)` when there is no remembered file, or `capability policy` followed by the effective name (`existing-tools`, `auto-add`, or `review-missing`) when `$NS/capability-policy.json` is present. When that file is unreadable or not a known policy, Doctor warns `capability policy is malformed; using existing-tools`. When work mode is artifact and the stored policy is a repository-tool policy, Doctor warns `artifact mode refuses repository-tool policy; using existing-tools`. Print those facts and warns verbatim. Doctor never writes the policy file or inventory, never runs inventory commands, and never prints credentials, raw evidence, rule values, or inventory output.
+The report also includes a `resolved policy` block from the read-only resolver: one line per
+effective setting (verification level, tooling policy, deadline, each of the five elevation
+categories, forbidden commands, protected paths, never-commit patterns, expected email, stall
+max, watch minutes) as `<setting>=<value> (<source>, <expiry>)` — source is `built-in`, `rules`,
+`defaults`, `one-shift`, or `exact-plan`; expiry is `shift`, `permanent`, or `-`. When a legacy
+tooling-policy file is still present after migration, Doctor warns once and names Setup as what
+removes it. When `$NS/deadline` and the shift policy's deadline disagree, Doctor warns and names
+both values. When the shift policy is unreadable or fails its schema, Doctor warns and names the
+exact field. The report also includes a `preflight` fact: which items or Hunt orders need an
+elevation category the resolved policy does not grant, and whether each is allowed for one shift,
+allowed permanently, or still parked. Print those facts and warnings verbatim. Doctor never writes
+the policy file, never runs inventory commands, and never prints credentials, raw evidence, rule
+values, or inventory output.
 
 ## 2. Classify actions — do not execute them
 

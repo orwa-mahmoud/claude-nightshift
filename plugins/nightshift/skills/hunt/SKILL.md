@@ -77,26 +77,46 @@ Ask **review first, or run directly?** This choice is independent from Guided or
  pause after discovery. Follow the direct-mode decision policy in `execution-modes.md`.
  Review-missing holds the clock until that plan is approved.
 
-## 3. Ask the tooling policy
+## 3. Ask the tooling policy and confirm tonight's shift policy
 
 Ask **before scanning**, and before any compose, cut, or arm. Independent from Guided or Automatic
-and from review-first or run-direct.
+and from review-first or run-direct. This is composition's one question for tonight's policy —
+Start never asks it.
 
-Read `$NS/work-mode`. Show the remembered default with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/capability-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" --work-mode repository|artifact get`
-(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\capability-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -WorkMode repository|artifact`).
-Missing or malformed `$NS/capability-policy.json` is existing-tools. Show it and ask whether to
-keep or override. Persist a remembered override with the same helper
-`--policy <name> set` (native Windows: `-Command set -Policy <name>`). Write
-`$NS/capability-policy.json`, never the punch list. An override for this invocation only is
-not written.
+Read `$NS/work-mode` and the remembered project default with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" defaults-get`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" defaults-get`).
+Missing or malformed `$NS/shift-defaults.json` means the built-in defaults (fast, null hours,
+existing-tools, review-first). Ask one prefilled question:
+
+> Same as last time: `<profile>`, `<hours>h`, `<toolingPolicy>`, `<no elevation | allowances …>`?
+> Yes, or change.
+
+A plain **yes** keeps every prefilled value. A **change** answer may name a new verification
+profile (`fast`, `balanced`, `strict`, `custom`), a new hour count, a new tooling policy, and any
+elevation in words: *"allow docker tonight"* becomes a one-shift `containers` allowance written
+into the shift policy; *"always allow docker here"* writes `elevation.containers.policy=allow`
+into `$NS/rules.json` instead — composition may edit that file directly while the shift is
+unarmed. Persist a changed profile or tooling policy as the new project default only when the
+owner says to remember it, with `shift-policy.sh … defaults-set` (native Windows: `-Command
+defaults-set`); an answer for this shift only is never written back to `$NS/shift-defaults.json`.
+
+**Permission preflight.** Run
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/preflight-needs.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\preflight-needs.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
+against the entries this compose would select, and fold every gap into the same question — *"Items
+4 and 7 need `containers`: allow tonight, allow always, or leave them parked?"* Resolve each answer
+the same way as elevation above, before writing the policy.
+
+Write the resolved shift policy before any compose, cut, or arm with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" set --from-json -`
+(native Windows: `-Command set -FromJson -`). In review-first mode this is the only file
+composition writes before approval — nothing else is written or armed. In run-direct mode, arm
+immediately once the policy lands.
 
 Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why — a
-notes folder has no repository toolchain to add. Only existing-tools is valid there; if a
-remembered file holds a repository-tool policy, keep existing-tools.
-
-Report unsupported permission modes the same way Start does **before arming** — a mid-shift prompt
-freezes the night.
+notes folder has no repository toolchain to add. Only existing-tools is valid there; if the
+remembered default holds a repository-tool policy, keep existing-tools.
 
 - **Existing tools only** — skip contracts whose required capabilities are unavailable and spend
  the time elsewhere. Default.
@@ -109,6 +129,9 @@ freezes the night.
  (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
  `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
+
+Report unsupported permission modes the same way Start does **before arming** — a mid-shift prompt
+freezes the night.
 
 Then inspect, compose, cut, or arm. Under existing-tools, skip unavailable contracts even when
 Guided selected them.

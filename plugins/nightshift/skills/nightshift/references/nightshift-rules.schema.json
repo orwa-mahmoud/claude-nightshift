@@ -59,6 +59,93 @@
       "type": "string",
       "description": "Space- or pipe-separated directory names never to git add/commit/tag/remote during a shift. Empty disables the guard."
     },
+    "elevation": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Permanent per-category elevation policy. Elevation gates creating system state, never using what already exists: connecting to a running database, calling a local API, and running migrations or tests against the owner's dev stack are never gated. A missing object, or a missing category inside it, denies that category and keeps the shipped pattern. policy is the visible switch; pattern is the grep -E the guard and the permission preflight both match against, so they can never disagree. An allowance authorizes its category within all other boundaries — protected paths, never-commit patterns, and the expected commit identity are never lifted. forbiddenCommands stays the owner's separate free-form list.",
+      "properties": {
+        "sudo": {
+          "$comment": "Root escalation.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy"],
+          "properties": {
+            "policy": {
+              "type": "string",
+              "enum": ["deny", "allow"]
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "containers": {
+          "$comment": "Starting or creating container resources.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy"],
+          "properties": {
+            "policy": {
+              "type": "string",
+              "enum": ["deny", "allow"]
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "global-packages": {
+          "$comment": "Installing tools outside the project.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy"],
+          "properties": {
+            "policy": {
+              "type": "string",
+              "enum": ["deny", "allow"]
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "daemons": {
+          "$comment": "Starting services, servers, or database engines.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy"],
+          "properties": {
+            "policy": {
+              "type": "string",
+              "enum": ["deny", "allow"]
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "external-services": {
+          "$comment": "Creating accounts, logins, and paid services.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policy"],
+          "properties": {
+            "policy": {
+              "type": "string",
+              "enum": ["deny", "allow"]
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
     "stallMax": {
       "type": "integer",
       "minimum": 0,

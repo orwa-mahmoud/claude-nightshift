@@ -18,7 +18,7 @@ Any failure after `capture-baseline` must `rollback` recipe residue without touc
 
 ## Authorization
 
-`apply` requires effective policy `auto-add` from `capability-policy.sh get` in repository mode. Artifact mode and other policies refuse with a `refusalReasons` code from `schemas/v1/capability-recipe.json`.
+`apply` requires an effective tooling policy of `auto-add` from `shift-policy.sh --project DIR resolve --json` (native Windows: `shift-policy.ps1 … resolve -Json`) in repository mode. Artifact mode and other policies refuse with a `refusalReasons` code from `schemas/v1/capability-recipe.json`.
 
 ## State
 

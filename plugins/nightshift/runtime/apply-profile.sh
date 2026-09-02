@@ -6,6 +6,13 @@
 #   apply-profile.sh [--project DIR] --profile NAME --mode replace|fill [--apply]
 #
 # Default is preview. --apply writes only while unarmed.
+# Profile schema v2 (name, version 2, risk, use, rules, shiftDefaults, gates) additionally
+# previews/writes .nightshift/shift-defaults.json (merged over whatever is already there — only
+# the profile's own fields change) and rewrites the punch list's `## Gates` block (the text
+# between the `## Gates` heading and the next `## ` heading): an empty itemGate writes the
+# template placeholder, a non-empty one renders the item gate and site inspection commands.
+# `shiftDefaults: null` or `gates: null` leaves that file/block untouched. Version-1 profiles
+# (rules only) keep working exactly as before.
 # Exit: 0 previewed or applied · 1 usage · 2 refused
 set -u
 
@@ -50,6 +57,8 @@ if [ -e "$HOST/.nightshift-link" ] || [ -L "$HOST/.nightshift-link" ]; then
 fi
 NS="$WORKSPACE/.nightshift"
 RULES="$NS/rules.json"
+DEFAULTS_PATH="$NS/shift-defaults.json"
+PUNCHLIST="$NS/punch-list.md"
 
 if [ "$LIST" -eq 1 ]; then
   printf 'Nightshift rule profiles (local copies, not a subscription)\n'
@@ -85,10 +94,11 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! jq -e '.name and .version == 1 and .rules and (.rules | type == "object")' "$SRC" >/dev/null 2>&1; then
-  printf 'apply-profile: profile is malformed or not version 1\n' >&2
+if ! jq -e '.name and (.version == 1 or .version == 2) and .rules and (.rules | type == "object")' "$SRC" >/dev/null 2>&1; then
+  printf 'apply-profile: profile is malformed or not version 1 or 2\n' >&2
   exit 2
 fi
+VERSION="$(jq -r '.version' "$SRC")"
 
 unknown="$(jq -r --slurpfile s "$SCHEMA" '
   .rules | keys[] as $k
@@ -100,6 +110,96 @@ if [ -n "$unknown" ]; then
   exit 2
 fi
 
+SD_TYPE=""
+GATES_TYPE=""
+if [ "$VERSION" = "2" ]; then
+  SD_TYPE="$(jq -r '.shiftDefaults | type' "$SRC")"
+  case "$SD_TYPE" in
+    null | object) ;;
+    *) printf 'apply-profile: profile shiftDefaults must be null or an object\n' >&2; exit 2 ;;
+  esac
+  GATES_TYPE="$(jq -r '.gates | type' "$SRC")"
+  case "$GATES_TYPE" in
+    null | object) ;;
+    *) printf 'apply-profile: profile gates must be null or an object\n' >&2; exit 2 ;;
+  esac
+
+  if [ "$SD_TYPE" = "object" ]; then
+    unknown_sd="$(jq -r '
+      .shiftDefaults | keys[] as $k
+      | select((["verificationProfile","hours","toolingPolicy","execution"] | index($k)) == null)
+      | $k
+    ' "$SRC")"
+    [ -z "$unknown_sd" ] || {
+      printf 'apply-profile: profile shiftDefaults has unsupported keys: %s\n' "$unknown_sd" >&2
+      exit 2
+    }
+    VP="$(jq -r '.shiftDefaults.verificationProfile // empty' "$SRC")"
+    if [ -n "$VP" ]; then
+      case "$VP" in
+        fast | balanced | strict | custom) ;;
+        *)
+          printf 'apply-profile: profile shiftDefaults.verificationProfile must be fast, balanced, strict, or custom\n' >&2
+          exit 2
+          ;;
+      esac
+    fi
+    HOURS_TYPE="$(jq -r 'if (.shiftDefaults | has("hours")) then (.shiftDefaults.hours | type) else "absent" end' "$SRC")"
+    case "$HOURS_TYPE" in
+      absent | null | number) ;;
+      *) printf 'apply-profile: profile shiftDefaults.hours must be an integer or null\n' >&2; exit 2 ;;
+    esac
+    TP="$(jq -r '.shiftDefaults.toolingPolicy // empty' "$SRC")"
+    if [ -n "$TP" ]; then
+      case "$TP" in
+        existing-tools | review-missing | auto-add) ;;
+        *)
+          printf 'apply-profile: profile shiftDefaults.toolingPolicy must be existing-tools, review-missing, or auto-add\n' >&2
+          exit 2
+          ;;
+      esac
+    fi
+    EXEC="$(jq -r '.shiftDefaults.execution // empty' "$SRC")"
+    if [ -n "$EXEC" ]; then
+      case "$EXEC" in
+        review-first | run-direct) ;;
+        *) printf 'apply-profile: profile shiftDefaults.execution must be review-first or run-direct\n' >&2; exit 2 ;;
+      esac
+    fi
+  fi
+
+  if [ "$GATES_TYPE" = "object" ]; then
+    if ! jq -e '(.gates.itemGate | type) == "array" and (.gates.itemGate | all(type == "string"))' "$SRC" >/dev/null 2>&1; then
+      printf 'apply-profile: profile gates.itemGate must be an array of command strings\n' >&2
+      exit 2
+    fi
+    SI_PRESENT="$(jq -r '.gates | has("siteInspection")' "$SRC")"
+    if [ "$SI_PRESENT" = "true" ]; then
+      SI_TYPE="$(jq -r '.gates.siteInspection | type' "$SRC")"
+      [ "$SI_TYPE" = "object" ] || {
+        printf 'apply-profile: profile gates.siteInspection must be an object\n' >&2
+        exit 2
+      }
+      EVERY="$(jq -r '.gates.siteInspection.every // empty' "$SRC")"
+      case "$EVERY" in
+        *' items') EVERY_N="${EVERY% items}" ;;
+        *' hours') EVERY_N="${EVERY% hours}" ;;
+        *) EVERY_N="" ;;
+      esac
+      case "$EVERY_N" in
+        '' | *[!0-9]*)
+          printf 'apply-profile: profile gates.siteInspection.every must be "N items" or "H hours"\n' >&2
+          exit 2
+          ;;
+      esac
+      if ! jq -e '(.gates.siteInspection.commands | type) == "array" and (.gates.siteInspection.commands | all(type == "string"))' "$SRC" >/dev/null 2>&1; then
+        printf 'apply-profile: profile gates.siteInspection.commands must be an array of command strings\n' >&2
+        exit 2
+      fi
+    fi
+  fi
+fi
+
 [ -d "$NS" ] || {
   printf 'apply-profile: no .nightshift/ — run setup first\n' >&2
   exit 2
@@ -108,6 +208,17 @@ fi
 if [ -f "$NS/.shift-armed" ] && [ "$APPLY" -eq 1 ]; then
   printf 'apply-profile: refuse to write rules while the shift is armed\n' >&2
   exit 2
+fi
+
+if [ "$APPLY" -eq 1 ] && [ "$GATES_TYPE" = "object" ]; then
+  [ -f "$PUNCHLIST" ] || {
+    printf 'apply-profile: no punch-list.md — run setup first\n' >&2
+    exit 2
+  }
+  grep -q '^## Gates$' "$PUNCHLIST" || {
+    printf 'apply-profile: punch-list.md has no "## Gates" heading\n' >&2
+    exit 2
+  }
 fi
 
 current='{}'
@@ -148,6 +259,66 @@ if ! printf '%s' "$proposed" | jq -e '
   exit 2
 fi
 
+# shift-defaults.json base: the current file when it parses and matches the shape, else the
+# built-in defaults (a missing or malformed file decides nothing).
+shift_defaults_base() {
+  builtin='{"schemaVersion":1,"verificationProfile":"fast","hours":null,"toolingPolicy":"existing-tools","execution":"review-first"}'
+  if [ -f "$DEFAULTS_PATH" ] && jq -e '
+      type == "object"
+      and .schemaVersion == 1
+      and (.verificationProfile as $v | (["fast","balanced","strict","custom"] | index($v)) != null)
+      and (.hours == null or (.hours | type == "number"))
+      and (.toolingPolicy as $t | (["existing-tools","review-missing","auto-add"] | index($t)) != null)
+      and (.execution as $e | (["review-first","run-direct"] | index($e)) != null)
+    ' "$DEFAULTS_PATH" >/dev/null 2>&1
+  then
+    cat "$DEFAULTS_PATH"
+  else
+    printf '%s' "$builtin"
+  fi
+}
+
+# Merge the profile's shiftDefaults over the base — only the keys the profile sets change.
+merged_shift_defaults() {
+  base="$1"
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  jq -n --argjson base "$base" --slurpfile p "$SRC" --arg now "$now" '
+    ($p[0].shiftDefaults // {}) as $sd
+    | $base
+    + (if ($sd | has("verificationProfile")) then {verificationProfile: $sd.verificationProfile} else {} end)
+    + (if ($sd | has("hours")) then {hours: $sd.hours} else {} end)
+    + (if ($sd | has("toolingPolicy")) then {toolingPolicy: $sd.toolingPolicy} else {} end)
+    + (if ($sd | has("execution")) then {execution: $sd.execution} else {} end)
+    + {schemaVersion: 1, updatedAt: $now}
+  '
+}
+
+# The rendered `## Gates` block body: the placeholder for an empty itemGate, else the item gate
+# commands in the template's phrasing, plus the site inspection sentence when that key is
+# present (a profile that omits siteInspection gets no site-inspection sentence at all).
+render_gates_body() {
+  item_count="$(jq '.gates.itemGate | length' "$SRC")"
+  if [ "$item_count" -eq 0 ]; then
+    printf '_None configured._'
+    return 0
+  fi
+  printf '**Item gate** — runs every item, right before its commit or artifact receipt:\n\n'
+  jq -r '.gates.itemGate[] | "- `" + . + "`"' "$SRC"
+  si_present="$(jq -r '.gates | has("siteInspection")' "$SRC")"
+  if [ "$si_present" = "true" ]; then
+    printf '\n'
+    every="$(jq -r '.gates.siteInspection.every' "$SRC")"
+    printf '**Site inspection** — the heavier batch, every %s:\n' "$every"
+    site_count="$(jq '.gates.siteInspection.commands | length' "$SRC")"
+    if [ "$site_count" -eq 0 ]; then
+      printf '\n_None configured._'
+    else
+      printf '\n'
+      jq -r '.gates.siteInspection.commands[] | "- `" + . + "`"' "$SRC"
+    fi
+  fi
+}
+
 printf 'Profile: %s\n' "$(jq -r '.name' "$SRC")"
 printf 'Risk:    %s\n' "$(jq -r '.risk' "$SRC")"
 printf 'Use:     %s\n' "$(jq -r '.use' "$SRC")"
@@ -156,6 +327,17 @@ printf 'Rules the profile sets:\n'
 jq -r '.rules | to_entries[] | "  \(.key)=\(.value|tojson)"' "$SRC"
 printf '\nProposed rules.json\n'
 printf '%s\n' "$proposed" | jq -S .
+
+if [ "$SD_TYPE" = "object" ]; then
+  base="$(shift_defaults_base)"
+  merged="$(merged_shift_defaults "$base")"
+  printf '\nProposed shift-defaults.json\n'
+  printf '%s\n' "$merged" | jq -S .
+fi
+
+if [ "$GATES_TYPE" = "object" ]; then
+  printf '\nProposed ## Gates block\n%s\n' "$(render_gates_body)"
+fi
 
 if [ "$APPLY" -eq 0 ]; then
   printf '\nDry run. Re-run with --apply after explicit confirmation.\n'
@@ -172,4 +354,48 @@ mv "$tmp" "$RULES" || {
   exit 2
 }
 printf 'Wrote %s\n' "$RULES"
+
+if [ "$SD_TYPE" = "object" ]; then
+  base="$(shift_defaults_base)"
+  merged="$(merged_shift_defaults "$base")"
+  tmp_sd="$NS/.shift-defaults.json.$$"
+  printf '%s\n' "$merged" | jq -S . >"$tmp_sd" || {
+    rm -f "$tmp_sd"
+    exit 2
+  }
+  mv "$tmp_sd" "$DEFAULTS_PATH" || {
+    rm -f "$tmp_sd"
+    exit 2
+  }
+  printf 'Wrote %s\n' "$DEFAULTS_PATH"
+fi
+
+if [ "$GATES_TYPE" = "object" ]; then
+  gates_line="$(grep -n '^## Gates$' "$PUNCHLIST" | head -1 | cut -d: -f1)"
+  total_lines="$(wc -l <"$PUNCHLIST" | tr -d ' ')"
+  next_line="$(awk -v start="$gates_line" 'NR > start && /^## / { print NR; exit }' "$PUNCHLIST")"
+  [ -n "$next_line" ] || next_line=$((total_lines + 1))
+  body="$(render_gates_body)"
+  tmp_pl="$NS/.punch-list.md.$$"
+  {
+    head -n "$gates_line" "$PUNCHLIST"
+    printf '\n'
+    printf '<!-- Nightshift Setup fills this from your stack, or leaves it empty (no automated checks).\n'
+    printf '     Item gate: runs every item, right before its commit or artifact receipt — must be green to tick.\n'
+    printf '     Site inspection: the heavier batch (coverage, dead code, Sonar), every N items or H hours. -->\n'
+    printf '\n'
+    printf '%s\n' "$body"
+    printf '\n'
+    tail -n +"$next_line" "$PUNCHLIST"
+  } >"$tmp_pl" || {
+    rm -f "$tmp_pl"
+    exit 2
+  }
+  mv "$tmp_pl" "$PUNCHLIST" || {
+    rm -f "$tmp_pl"
+    exit 2
+  }
+  printf 'Wrote %s\n' "$PUNCHLIST"
+fi
+
 exit 0

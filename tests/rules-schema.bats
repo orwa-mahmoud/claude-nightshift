@@ -14,7 +14,7 @@ validate() {
 @test "the rules schema is valid JSON and describes the shipped keys" {
   jq -e 'type == "object"' "$SCHEMA" >/dev/null
   jq -e '.additionalProperties == false' "$SCHEMA" >/dev/null
-  for k in toolDeny forbiddenCommands neverCommitPatterns expectedEmail protectedDirs \
+  for k in toolDeny forbiddenCommands neverCommitPatterns expectedEmail protectedDirs elevation \
     stallMax stallWarnEvery watchMinutes watchRetrySeconds watchAgent receiptsAutoCommit \
     notifyCommand revivalPrompt freshRevivalPrompt clockOutMessage retention; do
     jq -e --arg k "$k" '.properties | has($k)' "$SCHEMA" >/dev/null \
@@ -57,6 +57,67 @@ validate() {
   printf '%s\n' '{"stallMax":4}' >"$f"
   run validate "$f"
   [ "$status" -ne 0 ]
+}
+
+@test "elevation carries all five categories, closed to any other" {
+  jq -e '.properties.elevation.additionalProperties == false' "$SCHEMA" >/dev/null
+  for c in sudo containers global-packages daemons external-services; do
+    jq -e --arg c "$c" '.properties.elevation.properties | has($c)' "$SCHEMA" >/dev/null \
+      || { echo "schema missing elevation.$c"; return 1; }
+    jq -e --arg c "$c" '
+      .properties.elevation.properties[$c]
+      | .additionalProperties == false
+        and (.required | index("policy"))
+        and (.properties.policy.enum == ["deny", "allow"])
+        and (.properties.pattern.type == "string")
+    ' "$SCHEMA" >/dev/null || { echo "elevation.$c is not policy+pattern"; return 1; }
+  done
+}
+
+@test "the template denies every category and ships the pattern the owner can edit" {
+  ere_ok() {
+    printf '' | grep -qE "$1" 2>/dev/null
+    [ "$?" -le 1 ]
+  }
+  for c in sudo containers global-packages daemons external-services; do
+    jq -e --arg c "$c" '.elevation[$c].policy == "deny"' "$TEMPLATE" >/dev/null \
+      || { echo "template does not deny $c"; return 1; }
+    pat="$(jq -r --arg c "$c" '.elevation[$c].pattern' "$TEMPLATE")"
+    [ -n "$pat" ] || { echo "template has no pattern for $c"; return 1; }
+    ere_ok "$pat" || { echo "template pattern for $c is not a valid ERE"; return 1; }
+  done
+  # forbiddenCommands stays the owner's own list; the categories are the visible switch.
+  jq -e '.forbiddenCommands == ""' "$TEMPLATE" >/dev/null
+}
+
+@test "the shipped patterns match the commands they name and leave ordinary work alone" {
+  match() { # <category> <command>
+    printf '%s' "$2" | grep -qE "$(jq -r --arg c "$1" '.elevation[$c].pattern' "$TEMPLATE")"
+  }
+  match sudo 'sudo apt-get install ripgrep'
+  match containers 'docker compose up -d'
+  match containers 'podman run alpine'
+  match global-packages 'npm install -g pnpm'
+  match global-packages 'pip3 install --user black'
+  match daemons 'systemctl start postgres'
+  match external-services 'gh auth login'
+  ! match containers 'npm test'
+  ! match sudo 'psql -h localhost -c "select 1"'
+  ! match daemons 'pytest tests/'
+}
+
+@test "an unknown category, an unknown field, and a bad policy are rejected" {
+  for f in elevation-unknown-category elevation-unknown-field elevation-bad-policy \
+    elevation-missing-policy elevation-empty-pattern; do
+    run validate "$FIXTURES/$f.json"
+    [ "$status" -ne 0 ] || { echo "fixture should fail: $f"; return 1; }
+  done
+}
+
+@test "rules without an elevation object still validate" {
+  f="$BATS_TEST_TMPDIR/no-elevation.json"
+  printf '%s\n' '{"toolDeny":{"AskUserQuestion":"","request_user_input":""}}' >"$f"
+  validate "$f"
 }
 
 @test "knobs and setup document editor discovery of the schema" {

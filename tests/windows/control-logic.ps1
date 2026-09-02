@@ -25,6 +25,8 @@ $ns = Join-Path $root '.nightshift'
 $null = New-Item -ItemType Directory -Path $ns -Force
 [IO.File]::WriteAllText((Join-Path $ns 'punch-list.md'), "## Items`n- [ ] **1. first.**`n")
 [IO.File]::WriteAllText((Join-Path $ns 'rules.json'), "{ }`n")
+[IO.File]::WriteAllText((Join-Path $ns 'shift-policy.json'), "{ }`n")
+[IO.File]::WriteAllText((Join-Path $ns 'shift-defaults.json'), "{ }`n")
 [IO.File]::WriteAllText((Join-Path $ns 'parking-lot.md'), "parked`n")
 $deadline = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 3600
 [IO.File]::WriteAllText((Join-Path $ns 'deadline'), "$deadline`n")
@@ -42,6 +44,7 @@ try {
     }
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'deadline') -PathType Leaf) 'deadline file kept'
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'parking-lot.md') -PathType Leaf) 'parking lot kept'
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'shift-policy.json') -PathType Leaf) 'stop keeps the shift policy'
     $null = Stop-NSShift -Project $root
     Expect-True $true 'second stop is idempotent'
 
@@ -59,6 +62,9 @@ try {
     Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns 'STOP'))) 'STOP gone'
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'punch-list.md') -PathType Leaf) 'punch list kept'
     Expect-True (Test-Path -LiteralPath $ns -PathType Container) '.nightshift kept'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns 'shift-policy.json'))) 'reset removes the shift policy'
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'shift-defaults.json') -PathType Leaf) 'reset keeps remembered defaults'
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns 'rules.json') -PathType Leaf) 'reset keeps rules.json'
     $null = Reset-NSShift -Project $root
 
     $pluginRoot = Resolve-NSCanonicalPath $plugin
@@ -81,10 +87,15 @@ try {
         catch { }
     }
 
+    # A fresh policy snapshot, written after Reset already cleared the first one, so Purge's own
+    # removal is exercised rather than inherited from the Reset call above.
+    [IO.File]::WriteAllText((Join-Path $ns 'shift-policy.json'), "{ }`n")
     $confirm = Join-Path $root '.nightshift'
     try { $confirm = Resolve-NSCanonicalPath $ns } catch { }
     $null = Remove-NSNightshiftWorkspace -Project $root -ConfirmPath $confirm
     Expect-True (-not (Test-Path -LiteralPath $ns)) 'purge removes .nightshift'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns 'shift-policy.json'))) 'purge removes the shift policy'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns 'shift-defaults.json'))) 'purge removes remembered defaults'
     Expect-True (Test-Path -LiteralPath $root -PathType Container) 'project root remains'
     $null = Remove-NSNightshiftWorkspace -Project $root -ConfirmPath $confirm
 

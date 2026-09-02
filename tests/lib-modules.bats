@@ -7,7 +7,7 @@ LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
 @test "lib.sh loads from a different working directory" {
   other="$BATS_TEST_TMPDIR/elsewhere"
   mkdir -p "$other"
-  run bash -c 'cd "$1" && . "$2" && type ns_have_cmd >/dev/null && type ns_workspace_root >/dev/null && type repo_root >/dev/null && type ns_state_kind >/dev/null && type ns_pid_alive >/dev/null && type ns_lock >/dev/null && printf loaded' _ "$other" "$LIB"
+  run bash -c 'cd "$1" && . "$2" && type ns_have_cmd >/dev/null && type ns_workspace_root >/dev/null && type repo_root >/dev/null && type ns_state_kind >/dev/null && type ns_policy_resolve >/dev/null && type ns_pid_alive >/dev/null && type ns_lock >/dev/null && printf loaded' _ "$other" "$LIB"
   [ "$status" -eq 0 ]
   [ "$output" = loaded ]
 }
@@ -26,7 +26,7 @@ LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
 
 @test "callers keep sourcing lib.sh rather than individual modules" {
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
-  for mod in common paths git state process ownership; do
+  for mod in common paths git state policy process ownership; do
     if grep -R --include='*.sh' -F "lib/${mod}.sh" "$root/hooks" "$root/runtime"; then
       echo "hook or runtime sourced lib/${mod}.sh directly"
       return 1
@@ -37,7 +37,7 @@ LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
 
 @test "lib.sh is a loader; each public function has one implementation" {
   ! grep -qE '^[a-zA-Z_][a-zA-Z0-9_]*\(\) \{' "$LIB"
-  for fn in ns_workspace_root repo_root ns_lock ns_state_kind ns_pid_alive valid_ere; do
+  for fn in ns_workspace_root repo_root ns_lock ns_state_kind ns_policy_resolve ns_pid_alive valid_ere; do
     n="$(grep -hE "^${fn}\(\) \{" "$LIB_DIR"/*.sh | wc -l | tr -d ' ')"
     [ "$n" -eq 1 ] || { echo "expected one $fn, got $n"; return 1; }
   done

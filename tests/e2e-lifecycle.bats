@@ -11,6 +11,12 @@ SCHED="$RUNTIME/schedule.sh"
 LINK="$RUNTIME/link-workspace.sh"
 SESSION_END="$HOOKS/session-end.sh"
 
+# The exact POSIX toolset the zero-gate fast-shift test below runs on: jq present, no python3, so
+# a clean run through apply-profile, shift-policy, and the clock-out gate proves the basic path
+# never needs an interpreter beyond bash (per the Owner decisions' no-undocumented-runtime rule).
+E2E_NO_PYTHON_TOOLSET="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp \
+mv rm ln env cmp date uname test dirname basename readlink stat printf true false xargs mktemp ps"
+
 codex_gate() {
   local p="$1"
   jq -nc --arg p "$p" '{hook_event_name:"Stop",session_id:"fixture-session",transcript_path:"",cwd:$p}' |
@@ -177,4 +183,68 @@ STUB
   [ "$status" -eq 0 ]
   after="$(find "$p" -type f -exec cksum {} \; | sort)"
   [ "$before" = "$after" ]
+}
+
+# The zero-gate fast shift: Setup's own scaffold (rules template, work mode, work target, a punch
+# list with one item and an untouched Gates placeholder), the fast profile applied the way Hunt or
+# Quality composition would, a start-defaults policy written the way Start writes one when none is
+# queued, one tick, and the clock-out gate — the whole basic path, on a PATH that has jq and no
+# python3 at all, proving the Owner decisions' "no undocumented runtime beyond main" holds for the
+# layered shift policy exactly as it already does for the rest of main.
+@test "a zero-gate fast shift runs Setup through clock-out on a PATH with jq and no python3" {
+  bin="$(build_toolset_bin e2e-fast-bin $E2E_NO_PYTHON_TOOLSET)"
+
+  p="$(new_project e2e-fast)"
+  rm -f "$p/.nightshift/.shift-armed"
+  # Setup's own writes: the mode and the resolved work target (this project is already the repo).
+  printf 'repository\n' >"$p/.nightshift/work-mode"
+  printf '%s\n' "$p" >"$p/.nightshift/work-target"
+  printf '## Gates\n\n_None configured._\n\n## Items\n\n- [ ] **1. Ship the fast-path feature.**\n' \
+    >"$p/.nightshift/punch-list.md"
+
+  run env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+    bash "$RUNTIME/apply-profile.sh" --project "$p" --profile fast --mode fill --apply
+  [ "$status" -eq 0 ] || { echo "apply-profile failed on the no-python3 PATH: $output"; return 1; }
+  printf '%s\n' "$output" | grep -qF 'Wrote'
+  [ -f "$p/.nightshift/shift-defaults.json" ]
+  jq -e '
+    .verificationProfile == "fast" and .toolingPolicy == "existing-tools"
+    and .execution == "run-direct"
+  ' "$p/.nightshift/shift-defaults.json" >/dev/null
+  grep -qF '_None configured._' "$p/.nightshift/punch-list.md"
+
+  # Start writes safe defaults when no policy is queued: existing-tools, no allowances, and the
+  # verification level the fast profile maps to (none).
+  sid="e2e0000000000001"
+  candidate="{\"schemaVersion\":1,\"shiftId\":\"$sid\",\"createdAt\":\"2026-09-02T02:00:00Z\","
+  candidate="$candidate\"source\":\"start-defaults\",\"deadlineEpoch\":null,\"verificationLevel\":\"none\","
+  candidate="$candidate\"toolingPolicy\":\"existing-tools\",\"allowances\":[]}"
+  printf '%s\n' "$candidate" >"$p/candidate.json"
+  run env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+    bash "$RUNTIME/shift-policy.sh" --project "$p" set --from-json "$p/candidate.json"
+  [ "$status" -eq 0 ] || { echo "shift-policy set failed on the no-python3 PATH: $output"; return 1; }
+
+  : >"$p/.nightshift/.shift-armed"
+
+  # One tick.
+  sed 's/^- \[ \] \*\*1\./- [x] **1./' "$p/.nightshift/punch-list.md" >"$p/.nightshift/punch-list.md.tmp"
+  mv "$p/.nightshift/punch-list.md.tmp" "$p/.nightshift/punch-list.md"
+  grep -qxF -- '- [x] **1. Ship the fast-path feature.**' "$p/.nightshift/punch-list.md"
+
+  payload='{"hook_event_name":"Stop","session_id":"e2e-fast-session","transcript_path":""}'
+  run bash -c 'printf "%s" "$1" | env -i PATH="$2" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" CLAUDE_PROJECT_DIR="$3" bash "$4"' \
+    _ "$payload" "$bin" "$p" "$HOOKS/clock-out-gate.sh"
+  is_release
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+  [ -f "$p/.nightshift/.ended" ]
+
+  day="$(date '+%Y-%m-%d')"
+  archived="$p/.nightshift/archive/$day/shift-policy-$sid.json"
+  if [ -f "$archived" ]; then
+    [ ! -e "$p/.nightshift/shift-policy.json" ]
+    jq -e --arg sid "$sid" '.shiftId == $sid' "$archived" >/dev/null
+  else
+    echo "gate did not archive shift-policy.json (lane F)" >&2
+    return 1
+  fi
 }

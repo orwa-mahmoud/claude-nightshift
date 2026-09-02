@@ -8,6 +8,28 @@
   "neverCommitPatterns": "",
   "expectedEmail": "",
   "protectedDirs": "",
+  "elevation": {
+    "sudo": {
+      "policy": "deny",
+      "pattern": "(^|[;&|(]|[[:space:]])(sudo|doas)([[:space:]]|$)"
+    },
+    "containers": {
+      "policy": "deny",
+      "pattern": "(^|[;&|(]|[[:space:]])(docker|docker-compose|podman|nerdctl|colima)([[:space:]]|$)"
+    },
+    "global-packages": {
+      "policy": "deny",
+      "pattern": "(^|[;&|(]|[[:space:]])(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)([[:space:]]|$)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|pip3?[[:space:]]+install[[:space:]]+--user"
+    },
+    "daemons": {
+      "policy": "deny",
+      "pattern": "(^|[;&|(]|[[:space:]])(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)"
+    },
+    "external-services": {
+      "policy": "deny",
+      "pattern": "(^|[;&|(]|[[:space:]])(gh[[:space:]]+auth[[:space:]]+login|npm[[:space:]]+login|docker[[:space:]]+login|az[[:space:]]+login|gcloud[[:space:]]+auth|aws[[:space:]]+configure)([[:space:]]|$)"
+    }
+  },
   "stallMax": 0,
   "stallWarnEvery": 3,
   "watchMinutes": 10,

@@ -94,48 +94,27 @@ else {
     }
 }
 
-$capShow = 'default'
-$capRefused = $false
-$capMode = 'repository'
+# The resolved view, never the policy files themselves. Owner free-form text and
+# any value over 80 characters ship as their length: the bundle carries where a
+# setting came from and when it expires, never what the owner wrote.
+$policyFreeForm = @('forbiddenCommands', 'protectedDirs', 'neverCommitPatterns', 'expectedEmail')
+$policyLines = New-Object Collections.Generic.List[string]
+$policyState = 'unreadable'
 try {
-    $wm = Get-NSWorkMode $workspace
-    if (-not [string]::IsNullOrEmpty($wm)) { $capMode = $wm }
+    $resolution = Get-NSPolicyResolution $workspace
+    $policyState = [string]$resolution['policyState']
+    $policySettings = $resolution['settings']
+    foreach ($policyName in (Sort-NSOrdinal (@($policySettings.Keys)))) {
+        $policyEntry = $policySettings[$policyName]
+        $policyValue = Format-NSPolicyValue $policyEntry['value']
+        if ($policyValue.Length -gt 0 -and (($policyFreeForm -ccontains $policyName) -or $policyValue.Length -gt 80)) {
+            $policyValue = '<redacted ' + $policyValue.Length + ' chars>'
+        }
+        $null = $policyLines.Add(('{0}={1} ({2}, {3})' -f $policyName, $policyValue, $policyEntry['source'], $policyEntry['expiry']))
+    }
 }
 catch {
-}
-$capPy = Join-Path $pluginRoot 'runtime/capability-policy.py'
-$capPython = Get-Command python3 -ErrorAction SilentlyContinue
-if ($null -eq $capPython) {
-    $capPython = Get-Command python -ErrorAction SilentlyContinue
-}
-if ($null -ne $capPython -and (Test-Path -LiteralPath $capPy -PathType Leaf)) {
-    try {
-        $capJson = & $capPython.Source $capPy --project $workspace --work-mode $capMode get 2>$null
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty([string]$capJson)) {
-            $cap = $capJson | ConvertFrom-Json
-            $capPol = 'existing-tools'
-            if ($null -ne $cap.PSObject.Properties['policy'] -and -not [string]::IsNullOrEmpty([string]$cap.policy)) {
-                $capPol = [string]$cap.policy
-            }
-            if ($capPol -notin @('existing-tools', 'auto-add', 'review-missing')) {
-                $capPol = 'existing-tools'
-            }
-            $capSrc = 'default'
-            if ($null -ne $cap.PSObject.Properties['source'] -and -not [string]::IsNullOrEmpty([string]$cap.source)) {
-                $capSrc = [string]$cap.source
-            }
-            switch ($capSrc) {
-                'malformed' { $capShow = 'malformed' }
-                'file' { $capShow = $capPol }
-                default { $capShow = 'default' }
-            }
-            if ($null -ne $cap.PSObject.Properties['refused'] -and $cap.refused) {
-                $capRefused = $true
-            }
-        }
-    }
-    catch {
-    }
+    $policyLines.Clear()
 }
 
 $reason = Get-NSReasonCode $ns
@@ -291,10 +270,10 @@ $null = $lines.Add('== rules ==')
 $null = $lines.Add("validity: $rulesState")
 $null = $lines.Add("keys: $rulesKeys")
 $null = $lines.Add('')
-$null = $lines.Add('== capability policy ==')
-$null = $lines.Add("policy: $capShow")
-if ($capRefused) {
-    $null = $lines.Add('refused: yes')
+$null = $lines.Add('== resolved policy ==')
+$null = $lines.Add("shift_policy: $policyState")
+foreach ($policyLine in $policyLines) {
+    $null = $lines.Add($policyLine)
 }
 $null = $lines.Add('')
 $null = $lines.Add('== watchman reason ==')
@@ -348,7 +327,7 @@ catch {
 }
 
 Write-Output "Support bundle: $dest"
-Write-Output 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, capability policy name, reason codes, sanitized runtime-log tail'
-Write-Output 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory'
+Write-Output 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, the resolved policy view, reason codes, sanitized runtime-log tail'
+Write-Output 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory, policy files'
 Write-Output 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.'
 exit 0

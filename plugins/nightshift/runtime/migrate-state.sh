@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# migrate-state.sh — write .nightshift/state-version for a legacy workspace.
+# migrate-state.sh — write .nightshift/state-version for a legacy workspace, and retire the
+# capability-policy.json a pre-shift-policy workspace still carries.
 #
 # Explicit owner repair only. Hooks, start, status, archive, and recovery must never
 # invoke this. The migration preserves every existing file and unknown owner field;
-# it writes only the schema marker.
+# it writes the schema marker and, at most, the remembered tooling policy.
 #
 #   migrate-state.sh [--project DIR]
 #
@@ -42,6 +43,70 @@ if [ -e "$HOST/.nightshift-link" ] || [ -L "$HOST/.nightshift-link" ]; then
     exit 2
   }
 fi
+
+# The tooling policy moved into shift-defaults.json, where it prefills the one question a
+# composition step asks. A workspace scaffolded before that still holds capability-policy.json;
+# carry its choice across, then retire the file. An unreadable one is left where it is: nothing
+# that cannot be read may be deleted, and Doctor reports the leftover.
+LEGACY_POLICY="$WORKSPACE/.nightshift/capability-policy.json"
+
+# An unparsable file yields no policy, whatever status the parser chose to exit with.
+legacy_tooling_policy() {
+  if [ "$1" = jq ]; then
+    jq -r 'if type == "object" and (.policy | type) == "string" then .policy else "" end' \
+      "$LEGACY_POLICY" 2>/dev/null || printf ''
+  else
+    python3 -c 'import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    sys.exit(0)
+p = d.get("policy") if isinstance(d, dict) else None
+sys.stdout.write(p if isinstance(p, str) else "")' "$LEGACY_POLICY" 2>/dev/null || printf ''
+  fi
+}
+
+retire_legacy_policy() {
+  local policy tool
+  [ -f "$LEGACY_POLICY" ] && [ ! -L "$LEGACY_POLICY" ] || return 0
+  if [ -f "$WORKSPACE/.nightshift/.shift-armed" ]; then
+    printf 'migrate-state: refuse to retire capability-policy.json while the shift is armed\n' >&2
+    exit 1
+  fi
+  tool="$(ns_policy_json_tool)" || {
+    printf 'migrate-state: jq or python3 is required to read JSON\n' >&2
+    exit 2
+  }
+  policy="$(legacy_tooling_policy "$tool")"
+  case "$policy" in
+    existing-tools | review-missing | auto-add) ;;
+    *)
+      printf 'capability-policy.json is unreadable; left in place for the owner\n'
+      return 0
+      ;;
+  esac
+  if [ -f "$WORKSPACE/.nightshift/shift-defaults.json" ]; then
+    rm -f "$LEGACY_POLICY" || {
+      printf 'migrate-state: cannot remove capability-policy.json\n' >&2
+      exit 3
+    }
+    printf 'capability-policy.json removed; shift-defaults.json already carries the remembered choices\n'
+    return 0
+  fi
+  bash "$_here/shift-policy.sh" --project "$WORKSPACE" defaults-set --toolingPolicy "$policy" \
+    >/dev/null || {
+    printf 'migrate-state: cannot write shift-defaults.json\n' >&2
+    exit 3
+  }
+  rm -f "$LEGACY_POLICY" || {
+    printf 'migrate-state: cannot remove capability-policy.json\n' >&2
+    exit 3
+  }
+  printf 'capability-policy.json migrated to shift-defaults.json (toolingPolicy %s) and removed\n' \
+    "$policy"
+}
+
+retire_legacy_policy
 
 KIND="$(ns_state_kind "$WORKSPACE")"
 case "$KIND" in

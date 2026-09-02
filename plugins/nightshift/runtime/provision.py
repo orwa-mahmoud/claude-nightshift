@@ -16,7 +16,7 @@ PLUGIN = os.path.dirname(HERE)
 SCHEMA_PATH = os.path.join(
     PLUGIN, "skills", "nightshift", "references", "schemas", "v1", "capability-recipe.json"
 )
-POLICY_PY = os.path.join(HERE, "capability-policy.py")
+POLICY_SH = os.path.join(HERE, "shift-policy.sh")
 
 REQUIRED = (
     "capabilityId",
@@ -51,6 +51,8 @@ NS_LOCKED = (
     "drafting-table.md",
     "work-orders.md",
     "capability-policy.json",
+    "shift-policy.json",
+    "shift-defaults.json",
 )
 STACK_SIGNALS = (
     ("javascript-typescript", ("package.json",)),
@@ -194,36 +196,38 @@ def work_target(project):
 
 
 def policy_get(project, mode):
+    """Tooling policy from the one resolved view (rules, shift defaults, one-shift policy)."""
     out = subprocess.check_output(
-        [sys.executable, POLICY_PY, "--project", project, "--work-mode", mode, "get"],
+        ["bash", POLICY_SH, "--project", project, "resolve", "--json"],
         stderr=subprocess.DEVNULL,
     )
-    return json.loads(out.decode())
+    resolved = json.loads(out.decode())
+    setting = (resolved.get("settings") or {}).get("toolingPolicy")
+    if not isinstance(setting, dict) or not isinstance(setting.get("value"), str):
+        raise ValueError("resolved view has no toolingPolicy")
+    return {"policy": setting["value"], "refused": False}
+
+
+def inventory_path(project):
+    return os.path.join(ns_dir(project), "capabilities.json")
 
 
 def inventory_get(project):
-    out = subprocess.check_output(
-        [sys.executable, POLICY_PY, "--project", project, "inventory", "get"],
-        stderr=subprocess.DEVNULL,
-    )
-    return json.loads(out.decode())
+    path = inventory_path(project)
+    if not os.path.isfile(path):
+        return {"schemaVersion": 1, "source": "default", "items": [], "updatedAt": None, "tickProof": False}
+    data = read_json(path)
+    if not isinstance(data, dict):
+        raise ValueError("inventory must be an object")
+    return data
 
 
 def inventory_set(project, doc):
-    subprocess.check_call(
-        [
-            sys.executable,
-            POLICY_PY,
-            "--project",
-            project,
-            "inventory",
-            "set",
-            "--record",
-            json.dumps(doc),
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    doc = dict(doc)
+    doc["schemaVersion"] = 1
+    doc["updatedAt"] = utcnow()
+    doc["tickProof"] = False
+    atomic_write(inventory_path(project), doc)
 
 
 def load_recipe(path):

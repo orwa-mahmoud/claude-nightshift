@@ -82,6 +82,9 @@ if [ ! -d "$NS" ]; then
   emit "Facts"
   printf '%s\n' "${FACTS:-none}"
   emit ""
+  emit "resolved policy"
+  emit "none"
+  emit ""
   emit "Warnings"
   printf '%s\n' "${WARNS:-none}"
   emit ""
@@ -131,27 +134,24 @@ else
   fi
 fi
 
-CAP_MODE="${MODE:-repository}"
-if CAP_JSON="$(python3 "$_here/capability-policy.py" --project "$WORKSPACE" --work-mode "$CAP_MODE" get 2>/dev/null)"; then
-  CAP_POL="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("policy","existing-tools"))' 2>/dev/null)" || CAP_POL="existing-tools"
-  CAP_REFUSED="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print("yes" if json.load(sys.stdin).get("refused") else "no")' 2>/dev/null)" || CAP_REFUSED="no"
-  CAP_SRC="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("source","default"))' 2>/dev/null)" || CAP_SRC="default"
-  case "$CAP_POL" in existing-tools | auto-add | review-missing) ;; *) CAP_POL="existing-tools" ;; esac
-  case "$CAP_SRC" in default | file | malformed) ;; *) CAP_SRC="default" ;; esac
-  [ "$CAP_REFUSED" = yes ] || CAP_REFUSED="no"
-  if [ "$CAP_SRC" = default ]; then
-    fact "capability policy existing-tools (default)"
-  else
-    fact "capability policy $CAP_POL"
-  fi
-  if [ "$CAP_SRC" = malformed ]; then
-    warn "capability policy is malformed; using existing-tools"
-  fi
-  if [ "$CAP_REFUSED" = yes ]; then
-    warn "artifact mode refuses repository-tool policy; using existing-tools"
-  fi
+# The one resolver renders the one view: every effective setting, where it came from, and when
+# it expires. Doctor reads it and never re-derives precedence — same order and wording as the
+# PowerShell Doctor, so both hosts print the same lines.
+POLICY_LINES=""
+POLICY_OUT="$(ns_policy_read_shift "$WORKSPACE")"
+POLICY_RC=$?
+if [ "$POLICY_RC" -eq 2 ]; then
+  warn "shift-policy.json is malformed ($POLICY_OUT); the shift resolves to built-in defaults and rules only"
+  act confirm "repair the named field in shift-policy.json, or delete the file so the next Start writes safe defaults"
+fi
+if POLICY_LINES="$(ns_policy_resolve_table "$WORKSPACE" 2>/dev/null)"; then
+  :
 else
-  fact "capability policy existing-tools (default)"
+  POLICY_LINES=""
+  warn "the shift policy could not be resolved; treat the shift as built-in defaults plus rules"
+fi
+if [ -f "$NS/capability-policy.json" ]; then
+  warn "legacy capability-policy.json present; Setup removes it"
 fi
 
 PUNCH="$NS/punch-list.md"
@@ -163,6 +163,16 @@ if [ -f "$PUNCH" ]; then
   fact "punch list open=$OPEN ticked=$TICKED"
 else
   warn "punch-list.md is missing"
+fi
+
+# Reports gaps between what open items need and what the resolver allows; it never refuses —
+# a gap is parked, not blocked.
+if ns_policy_json_tool >/dev/null 2>&1; then
+  PREFLIGHT_OUT="$("$_here/preflight-needs.sh" --project "$WORKSPACE" 2>/dev/null)" || PREFLIGHT_OUT=""
+  if [ -n "$PREFLIGHT_OUT" ]; then
+    fact "$(printf '%s\n' "$PREFLIGHT_OUT" | sed -n '1p')"
+    fact "$(printf '%s\n' "$PREFLIGHT_OUT" | tail -n1)"
+  fi
 fi
 
 if [ "$MODE" = artifact ]; then
@@ -240,6 +250,7 @@ esac
 [ -n "$STALL" ] && fact "stall count $STALL"
 
 DEADLINE="$NS/deadline"
+dl_raw=""
 if [ -L "$DEADLINE" ]; then
   warn "deadline path is not a usable file"
 elif [ ! -f "$DEADLINE" ]; then
@@ -255,7 +266,16 @@ else
     fi
   else
     warn "deadline is not a UNIX epoch — watchmen compare integer seconds"
+    dl_raw=""
   fi
+fi
+
+# shift-policy.json is authoritative for the deadline; the file is a derived projection. A
+# mismatch is tampering or a stale projection either way, so Doctor names both values.
+POLICY_DEADLINE="$(ns_policy_deadline_epoch "$WORKSPACE" 2>/dev/null)" || POLICY_DEADLINE=""
+if [ -n "$dl_raw" ] && [ -n "$POLICY_DEADLINE" ] && [ "$dl_raw" != "$POLICY_DEADLINE" ]; then
+  warn "deadline file $dl_raw does not match shift-policy deadlineEpoch $POLICY_DEADLINE; the gate honours the earlier value"
+  act confirm "synchronize the deadline projection with the policy before the next arm; Doctor rewrites neither"
 fi
 
 if [ "$ARMED" -eq 1 ] && [ "$OPEN" -eq 0 ] && [ "$ENDED" -eq 0 ]; then
@@ -498,6 +518,9 @@ emit "Armed:       $ARMED  Open: $OPEN  Ticked: $TICKED  STOP: $STOP  Ended: $EN
 emit ""
 emit "Facts"
 printf '%s\n' "${FACTS:-none}"
+emit ""
+emit "resolved policy"
+printf '%s\n' "${POLICY_LINES:-none}"
 emit ""
 emit "Warnings"
 printf '%s\n' "${WARNS:-none}"

@@ -214,10 +214,12 @@ sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/de
   return 1
 }
 
-# Bound-worker control plane: forge/delete of the files the gate keys off.
+# Bound-worker control plane: forge/delete of the files the gate keys off. The shift policy, the
+# remembered defaults and the derived deadline join them: tonight's authority is written before
+# arming, so an armed agent that could rewrite it could widen its own permissions.
 # punch-list.md may be edited; only a delete/rename of that file is denied.
 ns_hardhat_control_rewrite_path() {
-  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode)(/|$|[^[:alnum:]_.-])'
+  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)(/|$|[^[:alnum:]_.-])'
 }
 
 ns_hardhat_control_list_path() {
@@ -225,7 +227,7 @@ ns_hardhat_control_list_path() {
 }
 
 ns_hardhat_control_rewrite_name() {
-  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode)([;&|()[:space:]]|$)'
+  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)([;&|()[:space:]]|$)'
 }
 
 ns_hardhat_control_list_name() {
@@ -428,6 +430,42 @@ ns_hardhat_is_commit() {
   ns_hardhat_git_verb "$1" commit
 }
 
+# Print a deny reason when the command needs an elevation category this shift does not allow,
+# or return 1 to allow. Uses globals: SCRUBBED PROJECT_DIR
+#
+# Elevation gates creating system state, never using what already runs: the category patterns come
+# from rules.elevation (or the shipped defaults) through ns_policy_elevation_pattern, which the
+# permission preflight reads too, so the guard and the preflight can never disagree about what a
+# command needs. Whether tonight lifts a deny is the resolver's answer alone — ns_policy_allowed
+# carries the whole precedence table, including the exact-plan binding — so this reads a status
+# and writes the sentence the agent acts on. A pattern the owner broke denies rather than lapses.
+ns_hardhat_elevation_reason() {
+  local _cat _pat _rc _reason _patterns
+  # One parse of the rules for all five categories; each line is category<TAB>pattern.
+  _patterns="$(ns_policy_elevation_patterns "$PROJECT_DIR")" || return 1
+  while IFS="$(printf '\t')" read -r _cat _pat; do
+    [ -n "$_cat" ] && [ -n "$_pat" ] || continue
+    valid_ere "$_pat" || {
+      printf '%s' "BLOCKED: elevation.$_cat.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
+      return 0
+    }
+    printf '%s' "$SCRUBBED" | grep -qE "$_pat" || continue
+    ns_policy_allowed "$PROJECT_DIR" "$_cat" "$SCRUBBED"
+    _rc=$?
+    [ "$_rc" -eq 0 ] && continue
+    _reason="BLOCKED: this command needs the '$_cat' elevation category, which is denied for this shift."
+    if [ "$_rc" -eq 2 ]; then
+      printf '%s' "$_reason An exact-plan allowance exists but this command is not one of its approved commands."
+    else
+      printf '%s' "$_reason The owner allows it in .nightshift/rules.json (elevation.$_cat.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as \"needs allowance: $_cat\" and keep working."
+    fi
+    return 0
+  done <<EOF
+$_patterns
+EOF
+  return 1
+}
+
 # Print a deny reason for a Bash-like command, or return 1 to allow.
 # Uses globals: SCRUBBED CMD CWD PROJECT_DIR PROTECTED_DIRS EXPECTED_EMAIL
 # NEVER_COMMIT_PATTERNS FORBIDDEN_COMMANDS
@@ -550,6 +588,10 @@ ns_hardhat_command_reason() {
     printf '%s' "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
     return 0
   fi
+
+  # forbiddenCommands is the owner's own list and stays independent of the categories: a command
+  # can clear it and still need an allowance the shift does not hold.
+  ns_hardhat_elevation_reason && return 0
   return 1
 }
 

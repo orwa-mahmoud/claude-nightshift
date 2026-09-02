@@ -90,22 +90,41 @@ else
   RULES_STATE="unreadable"
 fi
 
-CAP_SHOW="default"
-CAP_REFUSED="no"
-CAP_MODE="$(ns_work_mode "$WORKSPACE" 2>/dev/null || true)"
-[ -n "$CAP_MODE" ] || CAP_MODE="repository"
-if command -v python3 >/dev/null 2>&1; then
-  if CAP_JSON="$(python3 "$_here/capability-policy.py" --project "$WORKSPACE" --work-mode "$CAP_MODE" get 2>/dev/null)"; then
-    CAP_POL="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("policy","existing-tools"))' 2>/dev/null)" || CAP_POL="existing-tools"
-    CAP_SRC="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("source","default"))' 2>/dev/null)" || CAP_SRC="default"
-    CAP_REFUSED="$(printf '%s' "$CAP_JSON" | python3 -c 'import json,sys; print("yes" if json.load(sys.stdin).get("refused") else "no")' 2>/dev/null)" || CAP_REFUSED="no"
-    case "$CAP_POL" in existing-tools | auto-add | review-missing) ;; *) CAP_POL="existing-tools" ;; esac
-    case "$CAP_SRC" in
-      malformed) CAP_SHOW="malformed" ;;
-      file) CAP_SHOW="$CAP_POL" ;;
-      *) CAP_SHOW="default" ;;
-    esac
-    [ "$CAP_REFUSED" = yes ] || CAP_REFUSED="no"
+# The resolved view, never the policy files themselves. The four owner free-form rule
+# patterns are always redacted to their length, whatever it is; any other setting's value is
+# redacted the same way only past 80 characters. Sources and expiries always ship. The jq half
+# sits next to this file, resolved without dirname so a hostile PATH cannot reach it.
+NS_EXPORT_POLICY_JQ="$_here/export-policy.jq"
+NS_EXPORT_POLICY_PY='
+import json, sys
+
+FREEFORM = {"forbiddenCommands", "protectedDirs", "neverCommitPatterns", "expectedEmail"}
+d = json.load(sys.stdin)["settings"]
+for k in sorted(d):
+    v = d[k]["value"]
+    text = v if isinstance(v, str) else json.dumps(v)
+    shown = text
+    if k in FREEFORM or len(text) > 80:
+        shown = "<redacted %d chars>" % len(text)
+    sys.stdout.write("%s=%s (%s, %s)\n" % (k, shown, d[k]["source"], d[k]["expiry"]))
+'
+
+POLICY_STATE="unreadable"
+ns_policy_read_shift "$WORKSPACE" >/dev/null 2>&1
+POLICY_READ_RC=$?
+case "$POLICY_READ_RC" in
+  0) POLICY_STATE="valid" ;;
+  3) POLICY_STATE="absent" ;;
+  2) POLICY_STATE="malformed" ;;
+  *) POLICY_STATE="unreadable" ;;
+esac
+
+POLICY_LINES=""
+if POLICY_JSON="$(ns_policy_resolve "$WORKSPACE" 2>/dev/null)"; then
+  if command -v jq >/dev/null 2>&1; then
+    POLICY_LINES="$(printf '%s' "$POLICY_JSON" | jq -r -f "$NS_EXPORT_POLICY_JQ" 2>/dev/null)" || POLICY_LINES=""
+  else
+    POLICY_LINES="$(printf '%s' "$POLICY_JSON" | python3 -c "$NS_EXPORT_POLICY_PY" 2>/dev/null)" || POLICY_LINES=""
   fi
 fi
 
@@ -212,10 +231,10 @@ dest="$outdir/${stamp}.txt"
   printf '\n== rules ==\n'
   printf 'validity: %s\n' "$RULES_STATE"
   printf 'keys: %s\n' "${RULES_KEYS:-}"
-  printf '\n== capability policy ==\n'
-  printf 'policy: %s\n' "$CAP_SHOW"
-  if [ "$CAP_REFUSED" = yes ]; then
-    printf 'refused: yes\n'
+  printf '\n== resolved policy ==\n'
+  printf 'shift_policy: %s\n' "$POLICY_STATE"
+  if [ -n "$POLICY_LINES" ]; then
+    printf '%s\n' "$POLICY_LINES"
   fi
   printf '\n== watchman reason ==\n'
   if [ -n "$REASON" ]; then
@@ -265,7 +284,7 @@ mv "$tmp" "$dest" || {
 }
 
 printf 'Support bundle: %s\n' "$dest"
-printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, capability policy name, reason codes, sanitized runtime-log tail\n'
-printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory\n'
+printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, the resolved policy view, reason codes, sanitized runtime-log tail\n'
+printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory, policy files\n'
 printf 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
 exit 0

@@ -118,3 +118,50 @@ is_cursor_deny() {
   [ "$(sed -n 1p "$p/.nightshift/.shift-session")" = "bind-me" ]
   [ "$(sed -n 5p "$p/.nightshift/.shift-session")" = "cursor" ]
 }
+
+# --- the policy files are control files, and elevation is the owner's switch ---
+
+# cursor_shell <project> <command> — the Shell payload this host sends.
+cursor_shell() {
+  local p="$1" c="$2"
+  jq -nc --arg p "$p" --arg c "$c" \
+    '{tool_name:"Shell",conversation_id:"cursor-tab",transcript_path:"",cwd:$p,tool_input:{command:$c}}' |
+    env CURSOR_PROJECT_DIR="$p" bash "$CURSOR_HOOKS/hardhat.sh"
+}
+
+@test "cursor denies rewriting the shift policy, its defaults, and the deadline" {
+  p="$(new_project)"
+  punch_open "$p"
+  for f in shift-policy.json shift-defaults.json deadline; do
+    run cursor_shell "$p" "printf 'forged' > .nightshift/$f"
+    is_cursor_deny || { echo "path rewrite allowed: $f"; return 1; }
+    printf '%s' "$output" | grep -qF "$f" || { echo "deny does not name $f"; return 1; }
+    run cursor_shell "$p" "cd .nightshift && rm -f $f"
+    is_cursor_deny || { echo "name delete allowed: $f"; return 1; }
+  done
+}
+
+@test "cursor denies an elevation category by default and honours an allowance" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_shell "$p" "docker compose up -d"
+  is_cursor_deny
+  printf '%s' "$output" | grep -qF "needs allowance: containers"
+  printf '%s' "$output" | grep -qF "elevation.containers.policy"
+  jq -nc '{schemaVersion:1,shiftId:"9f2c40ab77e51d63",createdAt:"2026-09-02T02:30:00Z",
+    source:"composition",deadlineEpoch:null,verificationLevel:"final",
+    toolingPolicy:"existing-tools",
+    allowances:[{category:"containers",scope:"category",provenance:"one-shift"}]}' \
+    >"$p/.nightshift/shift-policy.json"
+  run cursor_shell "$p" "docker compose up -d"
+  is_allow
+}
+
+@test "cursor leaves a command that only uses the dev stack alone" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_shell "$p" "psql -c 'select 1'"
+  is_allow
+  run cursor_shell "$p" "git commit -m 'sudo apt-get install jq'"
+  is_allow
+}

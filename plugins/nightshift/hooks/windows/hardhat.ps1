@@ -213,10 +213,13 @@ function Test-NSNightshiftDirContext {
     return $false
 }
 
+# The shift policy, the remembered defaults and the derived deadline are control files too:
+# tonight's authority is written before arming, so an armed agent that could rewrite it could
+# widen its own permissions.
 function Test-NSControlRewritePath {
     param([AllowEmptyString()][string]$Target)
     $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)(/|$|[^A-Za-z0-9_.-])'
+    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)(/|$|[^A-Za-z0-9_.-])'
 }
 
 function Test-NSControlListPath {
@@ -227,7 +230,7 @@ function Test-NSControlListPath {
 
 function Test-NSControlRewriteName {
     param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)([;&|()\s]|$)'
+    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)([;&|()\s]|$)'
 }
 
 function Test-NSControlListName {
@@ -468,6 +471,37 @@ function Get-NSProspectiveGitPaths {
     }
 }
 
+# Elevation gates creating system state, never using what already runs. The category patterns come
+# from rules.elevation (or the shipped defaults) through Get-NSElevationPattern, which the
+# permission preflight reads too, so the guard and the preflight cannot disagree about what a
+# command needs. Whether tonight lifts a deny is Test-NSPolicyAllowed's answer alone - it carries
+# the whole precedence table, including the exact-plan binding. A pattern the owner broke denies.
+function Get-NSElevationDenyReason {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Scrubbed,
+        [Parameter(Mandatory = $true)][string]$Workspace
+    )
+    foreach ($category in @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')) {
+        $pattern = [string](Get-NSElevationPattern -Workspace $Workspace -Category $category)
+        if ([string]::IsNullOrEmpty($pattern)) { continue }
+        try {
+            $regex = New-NSRegex $pattern
+        }
+        catch {
+            return "BLOCKED: elevation.$category.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
+        }
+        if (-not $regex.IsMatch($Scrubbed)) { continue }
+        $status = Test-NSPolicyAllowed -Workspace $Workspace -Category $category -Command $Scrubbed
+        if ($status -eq 0) { continue }
+        $reason = "BLOCKED: this command needs the '$category' elevation category, which is denied for this shift."
+        if ($status -eq 2) {
+            return "$reason An exact-plan allowance exists but this command is not one of its approved commands."
+        }
+        return "$reason The owner allows it in .nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as `"needs allowance: $category`" and keep working."
+    }
+    return ''
+}
+
 function Get-NSCommandDenyReason {
     param(
         [Parameter(Mandatory = $true)][string]$Command,
@@ -575,7 +609,10 @@ function Get-NSCommandDenyReason {
     if ($null -ne $forbiddenRegex -and $forbiddenRegex.IsMatch($Scrubbed)) {
         return "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
     }
-    return ''
+
+    # forbiddenCommands is the owner's own list and stays independent of the categories: a command
+    # can clear it and still need an allowance the shift does not hold.
+    return (Get-NSElevationDenyReason -Scrubbed $Scrubbed -Workspace $Workspace)
 }
 
 if ($env:NIGHTSHIFT_HARDHAT_LIB -eq '1') {
@@ -737,7 +774,7 @@ $controlPassive = $tool -in @(
 if (-not $controlPassive) {
     foreach ($target in $targets) {
         if (Test-NSControlTarget ([string]$target)) {
-            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
+            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, work-mode, shift-policy.json, shift-defaults.json, or deadline, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
         }
     }
 }

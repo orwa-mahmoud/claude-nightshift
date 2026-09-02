@@ -239,12 +239,30 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" recover`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
- If policy is auto-add and recipes are queued, provision under budget before the
- deadline clock. Skip capabilities that would permission-prompt; never freeze.
+- **Resolve tonight's shift policy.** Run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" get`
+ (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" get`).
+ Absent — no composition step ran, or last night's policy already archived at clock-out — write
+ one from the remembered project default with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" set --from-json -`
+ (native Windows: `-Command set -FromJson -`): source `start-defaults`, existing-tools, no
+ allowances, and the verification level and hours `$NS/shift-defaults.json` carries (built-in
+ fast/null/existing-tools when that file is itself missing or malformed). Malformed — refuse to
+ arm, naming the exact field; a shift never arms on a policy nobody can resolve.
+- **Permission preflight — park the gaps, never ask.** Run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/preflight-needs.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\preflight-needs.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
+ against every item now in `## Items`. For each item with a gap, run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/park-needs.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+ (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\park-needs.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
+ to add its entry to `$NS/parking-lot.md` naming the missing category, then append one
+ `$NS/shift-log.md` line listing every gapped item. Work everything else — the gap is discovered
+ and logged, never asked about.
 
 ## 2. Deadline — read, never asked
 
-The deadline is written when the work is composed, not here.
+The deadline value is decided when the work is composed (Hunt's cut, the owner's own edit, or
+Start's own start-defaults), never asked here.
 
 - `$NS/deadline` already exists (hunt wrote it at the cut, or the owner wrote it by hand):
  use it as is.
@@ -255,6 +273,10 @@ The deadline is written when the work is composed, not here.
  asks for hours; never invent a number. The marker copied from the entry is authoritative; do not
  maintain a hardcoded list of open-ended entry names here.
 - One deadline governs the whole shift: finite items first, the walkthrough soaks up the rest.
+- **The shift policy is the deadline's authority.** Write `$NS/deadline` from the resolved
+ policy's `deadlineEpoch` whenever it is non-null. An existing future `$NS/deadline` paired with a
+ null policy `deadlineEpoch` is adopted INTO the policy instead — record that epoch as the
+ policy's `deadlineEpoch`, log the adoption in `$NS/shift-log.md`, and never delete the marker.
 
 ## 3. Arm the gate
 

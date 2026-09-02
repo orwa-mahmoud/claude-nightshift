@@ -146,6 +146,105 @@ try {
         -ExpectedEmail '' -NeverCommitPatterns 'secret_key' -ForbiddenCommands ''
     Expect-True ($workTreeNever -match 'configured commit guards cannot verify') `
         "work-tree commit under never-commit: $workTreeNever"
+
+    # --- the policy files are control files ---
+
+    foreach ($file in @('shift-policy.json', 'shift-defaults.json', 'deadline')) {
+        Expect-True (Test-NSControlTarget "printf forged > .nightshift/$file") `
+            "$file path rewrite is a control target"
+        Expect-True (Test-NSControlTarget "Remove-Item -Force .nightshift\$file") `
+            "$file backslash delete is a control target"
+        Expect-True (Test-NSControlTarget "cd .nightshift && rm -f $file") `
+            "$file name delete in the nightshift directory is a control target"
+    }
+    Expect-True (-not (Test-NSControlTarget 'printf x > deadline')) `
+        'a deadline file outside .nightshift is not a control target'
+
+    # --- elevation categories ---
+
+    $nightshift = Join-Path $root '.nightshift'
+    $null = New-Item -ItemType Directory -Path $nightshift -Force
+    $rulesPath = Join-Path $nightshift 'rules.json'
+    $policyPath = Join-Path $nightshift 'shift-policy.json'
+    $template = Join-Path $repository 'plugins/nightshift/skills/nightshift/references/nightshift-rules-template.json'
+    Copy-Item -LiteralPath $template -Destination $rulesPath -Force
+
+    function Get-ElevationReason {
+        param([Parameter(Mandatory = $true)][string]$Command)
+        return Get-NSCommandDenyReason -Command $Command -Scrubbed (Remove-NSCommitMessage $Command) `
+            -CurrentDirectory $root -Workspace $root -ProtectedDirectories '' `
+            -ExpectedEmail '' -NeverCommitPatterns '' -ForbiddenCommands ''
+    }
+
+    $categoryCommands = @{
+        'sudo' = 'sudo apt-get install -y jq'
+        'containers' = 'docker compose up -d'
+        'global-packages' = 'brew install shellcheck'
+        'daemons' = 'systemctl start nginx'
+        'external-services' = 'gh auth login'
+    }
+    foreach ($category in @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')) {
+        $reason = Get-ElevationReason $categoryCommands[$category]
+        $expected = "BLOCKED: this command needs the '$category' elevation category, which is denied for this shift. The owner allows it in .nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as `"needs allowance: $category`" and keep working."
+        Expect-True ($reason -ceq $expected) "$category default deny: $reason"
+    }
+
+    foreach ($command in @("psql -c 'select 1'", 'curl http://localhost:3000', 'npm test')) {
+        $reason = Get-ElevationReason $command
+        Expect-True ([string]::IsNullOrEmpty($reason)) "using what already runs is never elevation: $command -> $reason"
+    }
+    $messageOnly = Get-ElevationReason "git commit -m 'sudo apt-get install jq and docker compose up'"
+    Expect-True ([string]::IsNullOrEmpty($messageOnly)) "a commit message names no category: $messageOnly"
+
+    $rules = Get-Content -LiteralPath $rulesPath -Raw | ConvertFrom-Json
+    $rules.elevation.containers.policy = 'allow'
+    [IO.File]::WriteAllText($rulesPath, ($rules | ConvertTo-Json -Depth 10))
+    Expect-True ([string]::IsNullOrEmpty((Get-ElevationReason 'docker compose up -d'))) `
+        'a rules allowance lifts its category'
+    Expect-True ((Get-ElevationReason 'sudo id') -match 'needs allowance: sudo') `
+        'a rules allowance lifts nothing else'
+    $rules.elevation.containers.policy = 'deny'
+    [IO.File]::WriteAllText($rulesPath, ($rules | ConvertTo-Json -Depth 10))
+
+    $oneShift = @'
+{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z",
+ "source":"composition","deadlineEpoch":null,"verificationLevel":"final",
+ "toolingPolicy":"existing-tools",
+ "allowances":[{"category":"containers","scope":"category","provenance":"one-shift"}]}
+'@
+    [IO.File]::WriteAllText($policyPath, $oneShift)
+    Expect-True ([string]::IsNullOrEmpty((Get-ElevationReason 'docker compose up -d'))) `
+        'a one-shift allowance lifts the category'
+
+    $workTarget = Get-NSAbsolutePath (Resolve-NSWorkTarget $root)
+    $digest = Get-NSPolicyPlanDigest -Commands @('docker compose up -d') -WorkTarget $workTarget -ShiftId '9f2c40ab77e51d63'
+    $exactPlan = @'
+{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z",
+ "source":"composition","deadlineEpoch":null,"verificationLevel":"final",
+ "toolingPolicy":"existing-tools",
+ "allowances":[{"category":"containers","scope":"exact-plan","provenance":"one-shift",
+   "plan":{"commands":["docker compose up -d"],"workTarget":"__TARGET__","digest":"__DIGEST__"}}]}
+'@
+    $escapedTarget = $workTarget.Replace('\', '\\')
+    [IO.File]::WriteAllText($policyPath, $exactPlan.Replace('__TARGET__', $escapedTarget).Replace('__DIGEST__', $digest))
+    Expect-True ([string]::IsNullOrEmpty((Get-ElevationReason 'docker compose up -d'))) `
+        'an exact plan permits the command it lists'
+    $mismatch = Get-ElevationReason 'docker compose down'
+    Expect-True ($mismatch -ceq "BLOCKED: this command needs the 'containers' elevation category, which is denied for this shift. An exact-plan allowance exists but this command is not one of its approved commands.") `
+        "a neighbouring command is an exact-plan mismatch: $mismatch"
+
+    [IO.File]::WriteAllText($policyPath, $exactPlan.Replace('__TARGET__', $escapedTarget).Replace('__DIGEST__', ('0' * 64)))
+    Expect-True ((Get-ElevationReason 'docker compose up -d') -match 'not one of its approved commands') `
+        'a plan whose digest does not cover it is not the approved plan'
+    Remove-Item -LiteralPath $policyPath -Force
+
+    $rules.elevation.daemons.pattern = '(unclosed'
+    [IO.File]::WriteAllText($rulesPath, ($rules | ConvertTo-Json -Depth 10))
+    $broken = Get-ElevationReason 'git status'
+    Expect-True ($broken -match 'elevation\.daemons\.pattern is not a valid extended regular expression') `
+        "an invalid elevation pattern fails closed: $broken"
+    Expect-True ($broken -match 'so the guard it configures cannot run') `
+        "an invalid elevation pattern uses the shared wording: $broken"
 }
 finally {
     Set-Location $repository

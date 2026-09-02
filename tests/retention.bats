@@ -137,6 +137,22 @@ age_file() {
   grep -qF 'live open' "$p/.nightshift/punch-list.md"
 }
 
+@test "an archived shift policy is swept with its dated directory like any other receipt" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  set_retention "$p" 1 1
+  mkdir -p "$p/.nightshift/archive/2017-06-01"
+  printf '%s\n' '- [x] done' >"$p/.nightshift/archive/2017-06-01/shipped.md"
+  printf '{ }\n' >"$p/.nightshift/archive/2017-06-01/shift-policy-deadbeefdeadbeefdeadbeefdeadbeef.json"
+  age_file "$p/.nightshift/archive/2017-06-01"
+  run bash "$RETAIN" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'archive/2017-06-01'
+  run bash "$RETAIN" --project "$p" --apply
+  [ "$status" -eq 0 ]
+  [ ! -e "$p/.nightshift/archive/2017-06-01" ]
+}
+
 @test "hooks start status and Doctor never prune history" {
   ! grep -RIn 'retain-history\|ns_retention_apply' \
     "$ROOT/hooks" \

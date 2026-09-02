@@ -4,7 +4,6 @@
 ROOT="$BATS_TEST_DIRNAME/.."
 PROVISION="$ROOT/plugins/nightshift/runtime/provision.sh"
 PROVISION_PY="$ROOT/plugins/nightshift/runtime/provision.py"
-POLICY="$ROOT/plugins/nightshift/runtime/capability-policy.sh"
 WIN="$ROOT/plugins/nightshift/runtime/windows/provision.ps1"
 ENGINE="$ROOT/plugins/nightshift/skills/nightshift/references/provisioning-engine.md"
 SCHEMA="$ROOT/plugins/nightshift/skills/nightshift/references/schemas/v1/capability-recipe.json"
@@ -24,9 +23,12 @@ provision() {
 }
 
 enable_auto_add() {
+  # The effective tooling policy is the one-shift policy Start writes before arming. The test
+  # project is already armed and the writer refuses while armed by design, so write the fixture.
   printf 'repository\n' >"$1/.nightshift/work-mode"
   printf '%s\n' "$1" >"$1/.nightshift/work-target"
-  bash "$POLICY" --project "$1" --policy auto-add set >/dev/null
+  jq -n '{schemaVersion:1,shiftId:"9f2c40ab77e51d63",createdAt:"2026-01-01T00:00:00Z",source:"start-defaults",deadlineEpoch:null,verificationLevel:"none",toolingPolicy:"auto-add",allowances:[]}' \
+    >"$1/.nightshift/shift-policy.json"
 }
 
 tree_outside() {

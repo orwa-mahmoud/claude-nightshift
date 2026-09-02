@@ -24,6 +24,31 @@ catch {
     exit 2
 }
 
+$ns = Join-Path $workspace '.nightshift'
+if (Test-Path -LiteralPath $ns -PathType Container) {
+    $legacy = Invoke-NSMigrateCapabilityPolicy $workspace
+    switch ([string]$legacy['state']) {
+        'migrated' {
+            $line = "capability-policy.json is retired; tooling policy $($legacy['toolingPolicy']) is now the shift-defaults prefill"
+            Write-Output "migrate-state: $line"
+            Write-NSControlLog $ns $line
+        }
+        'discarded' {
+            $line = 'capability-policy.json is retired; it named no known tooling policy'
+            Write-Output "migrate-state: $line"
+            Write-NSControlLog $ns $line
+        }
+        'armed' {
+            [Console]::Error.WriteLine('migrate-state: refuse to migrate while the shift is armed')
+            exit 1
+        }
+        'failed' {
+            [Console]::Error.WriteLine('migrate-state: failed to write shift-defaults.json')
+            exit 3
+        }
+    }
+}
+
 $kind = Get-NSStateKind $workspace
 switch ($kind) {
     'current' {

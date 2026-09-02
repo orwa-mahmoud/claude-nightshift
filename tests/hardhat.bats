@@ -1,5 +1,62 @@
 load helpers
 
+PRE="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/preflight-needs.sh"
+LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
+
+# Elevation has no NIGHTSHIFT_ session lever by design: the owner's own files are the only
+# switches, so these fixtures write the files a real owner writes.
+
+# rules_elevation <project> <category> <policy>
+rules_elevation() {
+  local f="$1/.nightshift/rules.json"
+  jq --arg c "$2" --arg v "$3" '.elevation[$c].policy = $v' "$f" >"$f.new"
+  mv "$f.new" "$f"
+}
+
+# rules_pattern <project> <category> <grep -E pattern>
+rules_pattern() {
+  local f="$1/.nightshift/rules.json"
+  jq --arg c "$2" --arg v "$3" '.elevation[$c].pattern = $v' "$f" >"$f.new"
+  mv "$f.new" "$f"
+}
+
+SHIFT_ID=9f2c40ab77e51d63
+
+# shift_policy <project> [allowances JSON array] — tonight's snapshot, as composition writes it.
+shift_policy() {
+  jq -nc --arg s "$SHIFT_ID" --argjson a "${2:-[]}" \
+    '{schemaVersion:1,shiftId:$s,createdAt:"2026-09-02T02:30:00Z",source:"composition",
+      deadlineEpoch:null,verificationLevel:"final",toolingPolicy:"existing-tools",allowances:$a}' \
+    >"$1/.nightshift/shift-policy.json"
+}
+
+sha256_stdin() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256; else sha256sum; fi | cut -d' ' -f1
+}
+
+# plan_digest <work-target> <command>... — the digest an exact-plan allowance is bound by:
+# sha256 over canonical {commands, shiftId, workTarget}.
+plan_digest() {
+  local target="$1"
+  shift
+  jq -nSc --arg t "$target" --arg s "$SHIFT_ID" \
+    '$ARGS.positional as $c | {commands:$c,shiftId:$s,workTarget:$t}' --args "$@" |
+    tr -d '\n' | sha256_stdin
+}
+
+work_target() { bash -c '. "$1"; ns_work_target "$2"' _ "$LIB" "$1"; }
+
+deny_reason() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason'; }
+
+# The sentence the agent acts on, in full. The hook expands the two .nightshift paths it names
+# against the resolved workspace, so the expectation resolves the fixture the same way.
+elevation_message() { # <project> <category>
+  local ws
+  ws="$(cd -P "$1" && pwd -P)"
+  printf "BLOCKED: this command needs the '%s' elevation category, which is denied for this shift. The owner allows it in %s/.nightshift/rules.json (elevation.%s.policy) or for one shift in shift-policy.json before arming. Park the item in %s/.nightshift/parking-lot.md as \"needs allowance: %s\" and keep working." \
+    "$2" "$ws" "$2" "$ws" "$2"
+}
+
 @test "push is allowed by default during an active shift" {
   p="$(new_project)"
   punch_open "$p"
@@ -266,7 +323,7 @@ load helpers
 @test "a scary-looking command passes when the forbidden list is unset" {
   p="$(new_project)"
   punch_open "$p"
-  run hardhat_bash "$p" "docker compose down"
+  run hardhat_bash "$p" "kubectl delete pod api-7f9"
   is_allow
 }
 
@@ -838,4 +895,204 @@ STUB
   is_deny "$output"
   printf '%s' "$output" | grep -qF '/nightshift:setup'
   printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
+}
+
+# --- the policy files are control files, and elevation is the owner's switch ---
+
+@test "the bound worker cannot rewrite or delete the shift policy, its defaults, or the deadline" {
+  p="$(new_project)"
+  punch_open "$p"
+  shift_policy "$p"
+  printf '{"schemaVersion":1}\n' >"$p/.nightshift/shift-defaults.json"
+  printf '4102444800\n' >"$p/.nightshift/deadline"
+  for f in shift-policy.json shift-defaults.json deadline; do
+    run hardhat_bash "$p" "printf 'forged' > .nightshift/$f"
+    is_deny "$output" || { echo "path rewrite allowed: $f"; return 1; }
+    printf '%s' "$output" | grep -qF "$f" || { echo "deny does not name $f"; return 1; }
+    run hardhat_bash "$p" "rm -f .nightshift/$f"
+    is_deny "$output" || { echo "path delete allowed: $f"; return 1; }
+    run hardhat_bash "$p" "cd .nightshift && printf 'forged' > $f"
+    is_deny "$output" || { echo "name rewrite allowed: $f"; return 1; }
+    run hardhat_bash "$p" "cd .nightshift && unlink $f"
+    is_deny "$output" || { echo "name delete allowed: $f"; return 1; }
+    out="$(jq -nc --arg fp "$p/.nightshift/$f" \
+      '{tool_name:"Write",tool_input:{file_path:$fp,content:"forged"}}' |
+      env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+    is_deny "$out" || { echo "Write allowed: $f"; return 1; }
+    out="$(jq -nc --arg fp "$p/.nightshift/$f" \
+      '{tool_name:"Edit",tool_input:{file_path:$fp,old_string:"a",new_string:"b"}}' |
+      env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
+    is_deny "$out" || { echo "Edit allowed: $f"; return 1; }
+  done
+  # The bare name outside .nightshift is somebody else's file.
+  run hardhat_bash "$p" "printf 'x' > deadline"
+  is_allow
+}
+
+@test "every elevation category is denied by default with the exact repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  while IFS='|' read -r category command; do
+    [ -n "$category" ] || continue
+    run hardhat_bash "$p" "$command"
+    is_deny "$output" || { echo "allowed: $command"; return 1; }
+    [ "$(deny_reason "$output")" = "$(elevation_message "$p" "$category")" ] \
+      || { echo "wrong message for $category: $(deny_reason "$output")"; return 1; }
+  done <<'ROWS'
+sudo|sudo apt-get install -y jq
+containers|docker compose up -d
+global-packages|brew install shellcheck
+daemons|systemctl start nginx
+external-services|gh auth login
+ROWS
+}
+
+@test "a rules allowance lifts its own category permanently and no other" {
+  p="$(new_project)"
+  punch_open "$p"
+  rules_elevation "$p" containers allow
+  run hardhat_bash "$p" "docker compose up -d"
+  is_allow
+  run hardhat_bash "$p" "sudo id"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+}
+
+@test "a one-shift allowance lifts the category for tonight only" {
+  p="$(new_project)"
+  punch_open "$p"
+  shift_policy "$p" '[{"category":"containers","scope":"category","provenance":"one-shift"}]'
+  run hardhat_bash "$p" "docker compose up -d"
+  is_allow
+  # Tonight's snapshot is the whole authority: without it the shipped deny is back.
+  rm "$p/.nightshift/shift-policy.json"
+  run hardhat_bash "$p" "docker compose up -d"
+  is_deny "$output"
+}
+
+@test "an exact-plan allowance permits its listed command and names the mismatch" {
+  p="$(new_project)"
+  punch_open "$p"
+  target="$(work_target "$p")"
+  digest="$(plan_digest "$target" "docker compose up -d")"
+  shift_policy "$p" "$(jq -nc --arg t "$target" --arg d "$digest" \
+    '[{category:"containers",scope:"exact-plan",provenance:"one-shift",
+       plan:{commands:["docker compose up -d"],workTarget:$t,digest:$d}}]')"
+  run hardhat_bash "$p" "docker compose up -d"
+  is_allow
+  # Whitespace is normalized on both sides, so the same command still matches.
+  run hardhat_bash "$p" "docker   compose  up -d"
+  is_allow
+  run hardhat_bash "$p" "docker compose down"
+  is_deny "$output"
+  [ "$(deny_reason "$output")" = "BLOCKED: this command needs the 'containers' elevation category, which is denied for this shift. An exact-plan allowance exists but this command is not one of its approved commands." ]
+}
+
+@test "an exact-plan allowance is bound to the plan the owner approved" {
+  p="$(new_project)"
+  punch_open "$p"
+  target="$(work_target "$p")"
+  # The binding lives in ns_policy_allowed, which the guard reads for the whole answer.
+  # A digest that does not cover the plan's own commands, work target and shift is not the plan
+  # the owner approved.
+  shift_policy "$p" "$(jq -nc --arg t "$target" \
+    '[{category:"containers",scope:"exact-plan",provenance:"one-shift",
+       plan:{commands:["docker compose up -d"],workTarget:$t,
+             digest:"0000000000000000000000000000000000000000000000000000000000000000"}}]')"
+  run hardhat_bash "$p" "docker compose up -d"
+  is_deny "$output"
+  # A plan approved for another work target does not travel to this one.
+  digest="$(plan_digest /work/elsewhere "docker compose up -d")"
+  shift_policy "$p" "$(jq -nc --arg d "$digest" \
+    '[{category:"containers",scope:"exact-plan",provenance:"one-shift",
+       plan:{commands:["docker compose up -d"],workTarget:"/work/elsewhere",digest:$d}}]')"
+  run hardhat_bash "$p" "docker compose up -d"
+  is_deny "$output"
+}
+
+@test "a category named only inside a commit message is not a command" {
+  p="$(new_project)"
+  punch_open "$p"
+  run hardhat_bash "$p" "git commit -m 'run docker compose up and sudo apt-get install jq'"
+  is_allow
+  run hardhat_bash "$p" "git commit --message='brew install shellcheck; systemctl start nginx'"
+  is_allow
+}
+
+@test "the forbidden list and the elevation categories are independent guards" {
+  p="$(new_project)"
+  punch_open "$p"
+  rules_elevation "$p" containers allow
+  # An allowed category is still subject to the owner's own list.
+  run hardhat_bash "$p" "docker compose up -d" NIGHTSHIFT_FORBIDDEN_COMMANDS='docker'
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "forbidden list"
+  # And a command the list ignores can still need an allowance.
+  run hardhat_bash "$p" "sudo id" NIGHTSHIFT_FORBIDDEN_COMMANDS='kubectl'
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+}
+
+@test "an invalid elevation pattern fails closed and names the field" {
+  p="$(new_project)"
+  punch_open "$p"
+  rules_pattern "$p" daemons '(unclosed'
+  run hardhat_bash "$p" "git status"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF 'elevation.daemons.pattern is not a valid extended regular expression'
+  printf '%s' "$output" | grep -qF 'so the guard it configures cannot run'
+}
+
+@test "using what already runs is never elevation" {
+  p="$(new_project)"
+  punch_open "$p"
+  while IFS= read -r command; do
+    [ -n "$command" ] || continue
+    run hardhat_bash "$p" "$command"
+    is_allow || { echo "denied: $command -> $output"; return 1; }
+  done <<'CMDS'
+psql -c 'select 1'
+curl http://localhost:3000
+npm test
+git commit -m ship
+CMDS
+}
+
+@test "elevation rules are shift-scoped: inert once every box is ticked" {
+  p="$(new_project)"
+  punch_done "$p"
+  run hardhat_bash "$p" "sudo apt-get install -y jq"
+  is_allow
+}
+
+@test "the permission preflight and the guard agree on the same commands" {
+  p="$(new_project)"
+  cat >"$p/.nightshift/punch-list.md" <<'MD'
+## Items
+
+- [ ] **1. Bring up the database.**
+  - `docker compose up -d`
+- [ ] **2. Install jq system-wide.**
+  - `sudo apt-get install -y jq`
+- [ ] **3. Run the tests.**
+  - `npm test`
+- [ ] **4. Query the dev stack.**
+  - `psql -c 'select 1'`
+MD
+  needs="$(bash "$PRE" --project "$p" --json)"
+  while IFS='|' read -r title command; do
+    [ -n "$title" ] || continue
+    gapped="$(printf '%s' "$needs" | jq --arg t "$title" '[.gaps[] | select(.title == $t)] | length')"
+    run hardhat_bash "$p" "$command"
+    if [ "$gapped" -gt 0 ]; then
+      is_deny "$output" || { echo "preflight gapped, guard allowed: $command"; return 1; }
+    else
+      is_allow || { echo "preflight clear, guard denied: $command -> $output"; return 1; }
+    fi
+  done <<'ROWS'
+1. Bring up the database.|docker compose up -d
+2. Install jq system-wide.|sudo apt-get install -y jq
+3. Run the tests.|npm test
+4. Query the dev stack.|psql -c 'select 1'
+ROWS
 }

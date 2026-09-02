@@ -67,6 +67,33 @@ function Release-NSLeaseWithRetry {
     }
 }
 
+function Save-NSPolicyArchive {
+    # Best effort, never blocks the release: file tonight's shift-policy.json under
+    # archive/<YYYY-MM-DD>/shift-policy-<shiftId>.json via the same helper the owner runs by
+    # hand. A shift that armed with safe defaults and never wrote a policy leaves nothing to
+    # archive. Invoke-NSShiftPolicyArchive writes its result straight to the console, which this
+    # hook's stdout must carry nothing but the release/block JSON, so the console is swapped for
+    # a throwaway writer for the length of the call.
+    $policyPath = Join-Path $ns 'shift-policy.json'
+    if (-not (Test-Path -LiteralPath $policyPath -PathType Leaf) -or (Test-NSReparsePoint $policyPath)) {
+        return
+    }
+    $originalOut = [Console]::Out
+    $originalErr = [Console]::Error
+    $swallow = New-Object IO.StringWriter
+    try {
+        [Console]::SetOut($swallow)
+        [Console]::SetError($swallow)
+        $null = Invoke-NSShiftPolicyArchive -Workspace $workspace -Date (Get-Date -Format 'yyyy-MM-dd')
+    }
+    catch {
+    }
+    finally {
+        [Console]::SetOut($originalOut)
+        [Console]::SetError($originalErr)
+    }
+}
+
 function Save-NSReceipt {
     param([Parameter(Mandatory = $true)][string]$Summary)
     if (-not (Test-Path -LiteralPath (Join-Path $ns '.git') -PathType Container)) {
@@ -137,32 +164,61 @@ function Complete-NSShift {
     }
     Remove-Item -LiteralPath $armed -Force -ErrorAction SilentlyContinue
     Release-NSLeaseWithRetry
+    Save-NSPolicyArchive
     Save-NSReceipt $Summary
     Invoke-NSWhistle $Summary
 }
 
+# shift-policy.json is authoritative for the deadline; the deadline file is a derived
+# projection. Honours the earlier of the two when both are readable and disagree, logging one
+# line naming both - a malformed or absent side just falls back to the other.
 function Test-NSDeadlinePassed {
-    if (-not (Test-Path -LiteralPath $deadline -PathType Leaf)) {
-        return $false
-    }
-    if (Test-NSReparsePoint $deadline) {
-        return $false
-    }
-    try {
-        $rawDeadline = ([IO.File]::ReadAllText($deadline)).Trim()
-        if ($rawDeadline -match '^[0-9]+$') {
-            return (Get-NSUnixTime) -ge [long]$rawDeadline
+    $fileTarget = $null
+    if ((Test-Path -LiteralPath $deadline -PathType Leaf) -and -not (Test-NSReparsePoint $deadline)) {
+        try {
+            $rawDeadline = ([IO.File]::ReadAllText($deadline)).Trim()
+            if ($rawDeadline -match '^[0-9]+$') {
+                $fileTarget = [long]$rawDeadline
+            }
+            else {
+                $parsed = [DateTimeOffset]::Parse(
+                    $rawDeadline,
+                    [Globalization.CultureInfo]::InvariantCulture,
+                    [Globalization.DateTimeStyles]::AssumeLocal
+                )
+                $fileTarget = $parsed.ToUnixTimeSeconds()
+            }
         }
-        $parsed = [DateTimeOffset]::Parse(
-            $rawDeadline,
-            [Globalization.CultureInfo]::InvariantCulture,
-            [Globalization.DateTimeStyles]::AssumeLocal
-        )
-        return [DateTimeOffset]::Now -ge $parsed
+        catch {
+            $fileTarget = $null
+        }
+    }
+    $policyTarget = $null
+    try {
+        $resolution = Get-NSPolicyResolution $workspace
+        if ($null -ne $resolution['deadlinePolicy']) {
+            $policyTarget = [long]$resolution['deadlinePolicy']
+        }
     }
     catch {
+        $policyTarget = $null
+    }
+    $target = $fileTarget
+    if ($null -ne $policyTarget) {
+        if ($null -eq $target) {
+            $target = $policyTarget
+        }
+        elseif ($policyTarget -ne $target) {
+            Write-NSLogLine "deadline mismatch - deadline file $target does not match shift-policy deadlineEpoch $policyTarget; honoring the earlier value"
+            if ($policyTarget -lt $target) {
+                $target = $policyTarget
+            }
+        }
+    }
+    if ($null -eq $target) {
         return $false
     }
+    return (Get-NSUnixTime) -ge $target
 }
 
 $raw = Get-NSStdinText -Piped $HookJson

@@ -193,6 +193,10 @@ stop_cmd() { # <project>
   printf 'log\n' >"$p/.nightshift/shift-log.md"
   printf 'artifact\n' >"$p/.nightshift/work-mode"
   : >"$p/.nightshift/.shift-session"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    >"$p/.nightshift/shift-policy.json"
+  printf '{"schemaVersion":1,"verificationProfile":"fast","hours":null,"toolingPolicy":"existing-tools","execution":"review-first","updatedAt":"2026-09-02T02:30:00Z"}\n' \
+    >"$p/.nightshift/shift-defaults.json"
   run "$RESET" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'deadline removed'
@@ -201,6 +205,8 @@ stop_cmd() { # <project>
   [ ! -f "$p/.nightshift/STOP" ]
   [ ! -f "$p/.nightshift/.shift-armed" ]
   [ ! -f "$p/.nightshift/.shift-session" ]
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+  [ -f "$p/.nightshift/shift-defaults.json" ]
   [ -f "$p/.nightshift/punch-list.md" ]
   grep -q '\- \[ \]' "$p/.nightshift/punch-list.md"
   [ -f "$p/.nightshift/rules.json" ]
@@ -213,14 +219,32 @@ stop_cmd() { # <project>
   [ -f "$p/.nightshift/snag-log.md" ]
   [ -f "$p/.nightshift/shift-log.md" ]
   [ -f "$p/.nightshift/work-mode" ]
+  grep -q 'shift policy cleared' "$p/.nightshift/shift-log.md"
   run "$RESET" --project "$p"
   [ "$status" -eq 0 ]
+}
+
+@test "Stop preserves tonight's shift policy; only Reset clears it" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    >"$p/.nightshift/shift-policy.json"
+  run "$STOP" --project "$p"
+  [ "$status" -eq 0 ]
+  [ -f "$p/.nightshift/shift-policy.json" ]
+  run "$RESET" --project "$p"
+  [ "$status" -eq 0 ]
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
 }
 
 @test "Purge deletes only the validated .nightshift directory and requires exact confirmation" {
   p="$(new_project)"
   punch_open "$p"
   printf 'secret\n' >"$p/README.md"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    >"$p/.nightshift/shift-policy.json"
+  printf '{"schemaVersion":1,"verificationProfile":"fast","hours":null,"toolingPolicy":"existing-tools","execution":"review-first","updatedAt":"2026-09-02T02:30:00Z"}\n' \
+    >"$p/.nightshift/shift-defaults.json"
   ns="$(cd -P "$p/.nightshift" && pwd -P)"
   run "$PURGE" --project "$p"
   [ "$status" -eq 1 ]
@@ -232,6 +256,8 @@ stop_cmd() { # <project>
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'plugin install was not touched'
   [ ! -e "$p/.nightshift" ]
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+  [ ! -e "$p/.nightshift/shift-defaults.json" ]
   [ -f "$p/README.md" ]
   [ -d "$p/.git" ]
   run "$PURGE" --project "$p" --confirm-path "$ns"

@@ -12,6 +12,7 @@ $here = $PSScriptRoot
 $facts = New-Object Collections.Generic.List[string]
 $warns = New-Object Collections.Generic.List[string]
 $actions = New-Object Collections.Generic.List[string]
+$policyLines = New-Object Collections.Generic.List[string]
 
 function Add-NSFact { param([string]$Message) $null = $script:facts.Add($Message) }
 function Add-NSWarn { param([string]$Message) $null = $script:warns.Add($Message) }
@@ -88,6 +89,9 @@ function Write-NSDoctorReport {
     Write-Output 'Facts'
     if ($facts.Count -eq 0) { Write-Output 'none' } else { $facts | ForEach-Object { Write-Output $_ } }
     Write-Output ''
+    Write-Output 'resolved policy'
+    if ($policyLines.Count -eq 0) { Write-Output 'none' } else { $policyLines | ForEach-Object { Write-Output $_ } }
+    Write-Output ''
     Write-Output 'Warnings'
     if ($warns.Count -eq 0) { Write-Output 'none' } else { $warns | ForEach-Object { Write-Output $_ } }
     Write-Output ''
@@ -151,57 +155,30 @@ catch {
     }
 }
 
-$capMode = 'repository'
-if (-not [string]::IsNullOrEmpty($reportedMode)) { $capMode = $reportedMode }
-$capPy = Join-Path $pluginRoot 'runtime/capability-policy.py'
-$capPython = Get-Command python3 -ErrorAction SilentlyContinue
-if ($null -eq $capPython) {
-    $capPython = Get-Command python -ErrorAction SilentlyContinue
+# The one resolver renders the one view: every effective setting, where it came
+# from, and when it expires. Doctor reads it and never re-derives precedence.
+$resolution = $null
+try {
+    $resolution = Get-NSPolicyResolution $workspace
 }
-$capFactDefault = $true
-if ($null -ne $capPython -and (Test-Path -LiteralPath $capPy -PathType Leaf)) {
-    try {
-        $capJson = & $capPython.Source $capPy --project $workspace --work-mode $capMode get 2>$null
-        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrEmpty([string]$capJson)) {
-            $cap = $capJson | ConvertFrom-Json
-            $capPol = 'existing-tools'
-            if ($null -ne $cap.PSObject.Properties['policy'] -and -not [string]::IsNullOrEmpty([string]$cap.policy)) {
-                $capPol = [string]$cap.policy
-            }
-            if ($capPol -notin @('existing-tools', 'auto-add', 'review-missing')) {
-                $capPol = 'existing-tools'
-            }
-            $capSrc = 'default'
-            if ($null -ne $cap.PSObject.Properties['source'] -and -not [string]::IsNullOrEmpty([string]$cap.source)) {
-                $capSrc = [string]$cap.source
-            }
-            if ($capSrc -notin @('default', 'file', 'malformed')) {
-                $capSrc = 'default'
-            }
-            $capRefused = $false
-            if ($null -ne $cap.PSObject.Properties['refused'] -and $cap.refused) {
-                $capRefused = $true
-            }
-            if ($capSrc -eq 'default') {
-                Add-NSFact 'capability policy existing-tools (default)'
-            }
-            else {
-                Add-NSFact "capability policy $capPol"
-            }
-            if ($capSrc -eq 'malformed') {
-                Add-NSWarn 'capability policy is malformed; using existing-tools'
-            }
-            if ($capRefused) {
-                Add-NSWarn 'artifact mode refuses repository-tool policy; using existing-tools'
-            }
-            $capFactDefault = $false
-        }
-    }
-    catch {
-    }
+catch {
+    Add-NSWarn 'the shift policy could not be resolved; treat the shift as built-in defaults plus rules'
 }
-if ($capFactDefault) {
-    Add-NSFact 'capability policy existing-tools (default)'
+if ($null -ne $resolution) {
+    foreach ($policyLine in (Format-NSPolicyTable $resolution)) { $null = $policyLines.Add($policyLine) }
+    if ($resolution['policyState'] -ceq 'malformed') {
+        Add-NSWarn "shift-policy.json is malformed ($($resolution['policyError'])); the shift resolves to built-in defaults and rules only"
+        Add-NSAct confirm 'repair the named field in shift-policy.json, or delete the file so the next Start writes safe defaults'
+    }
+    if ($resolution['legacyCapabilityPolicy']) {
+        Add-NSWarn 'legacy capability-policy.json present; Setup removes it'
+    }
+    $deadlineFileEpoch = $resolution['deadlineFile']
+    $deadlinePolicyEpoch = $resolution['deadlinePolicy']
+    if ($null -ne $deadlineFileEpoch -and $null -ne $deadlinePolicyEpoch -and [long]$deadlineFileEpoch -ne [long]$deadlinePolicyEpoch) {
+        Add-NSWarn "deadline file $deadlineFileEpoch does not match shift-policy deadlineEpoch $deadlinePolicyEpoch; the gate honours the earlier value"
+        Add-NSAct confirm 'synchronize the deadline projection with the policy before the next arm; Doctor rewrites neither'
+    }
 }
 
 $punch = Join-Path $ns 'punch-list.md'

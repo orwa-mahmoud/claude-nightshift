@@ -119,6 +119,16 @@ release_lease() {
     || log_line "process lease release deferred: lease mutex remained busy"
 }
 
+# Best effort, never blocks the release: file tonight's shift-policy.json under
+# archive/<YYYY-MM-DD>/shift-policy-<shiftId>.json via the same helper the owner runs by hand.
+# A shift that armed with safe defaults and never wrote a policy leaves nothing to archive.
+archive_shift_policy() {
+  local err
+  [ -f "$NS/shift-policy.json" ] && [ ! -L "$NS/shift-policy.json" ] || return 0
+  err="$("$_here/../runtime/shift-policy.sh" --project "$PROJECT_DIR" archive 2>&1)" && return 0
+  log_line "shift policy archive failed: $(printf '%s' "$err" | head -n1)"
+}
+
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
@@ -131,6 +141,7 @@ end_shift() {
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
   release_lease
+  archive_shift_policy
   receipts_commit "$1"
   whistle "$1"
 }
@@ -217,8 +228,9 @@ if [ "$OPEN" -eq 0 ]; then
   exit 0
 fi
 
-# 3. Quitting time — mechanical deadline.
-if [ -f "$DEADLINE" ] && deadline_passed; then
+# 3. Quitting time — mechanical deadline. deadline_passed reads both the deadline file and the
+# shift policy's deadlineEpoch and honours whichever is earlier when they disagree.
+if deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
   end_shift "quitting time: $TICKED/$TOTAL done, items left open"
@@ -251,7 +263,7 @@ if [ "$STALL_OK" -eq 1 ]; then
       exit 0
     fi
   elif [ "$attempts" -ge "$STALL_WARN" ]; then
-    log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
+    log_line "stall warning — session active, no tick or commit since the last $attempts stop attempts, $TICKED/$TOTAL done; keeping shift open"
     attempts=0
   fi
   [ -L "$STALL" ] && rm -f "$STALL"

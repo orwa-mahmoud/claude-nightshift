@@ -6,6 +6,7 @@
 #   paths.sh      workspace / canonical path resolution
 #   git.sh        Git inspection and commit-safety
 #   state.sh      runtime files (rules, punch list, schema, retention)
+#   policy.sh     the shift-policy resolver (rules, defaults, tonight's snapshot)
 #   process.sh    process evidence
 #   ownership.sh  locks, session, lease, shift fencing
 #
@@ -27,6 +28,8 @@ _ns_lib_dir="${BASH_SOURCE[0]%/*}"
 . "$_ns_lib_dir/git.sh"
 # shellcheck source=plugins/nightshift/lib/state.sh
 . "$_ns_lib_dir/state.sh"
+# shellcheck source=plugins/nightshift/lib/policy.sh
+. "$_ns_lib_dir/policy.sh"
 # shellcheck source=plugins/nightshift/lib/process.sh
 . "$_ns_lib_dir/process.sh"
 # shellcheck source=plugins/nightshift/lib/ownership.sh

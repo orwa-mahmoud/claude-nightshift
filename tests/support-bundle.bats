@@ -204,6 +204,64 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -F "$p" "$bundle"
 }
 
+@test "the support bundle carries the resolved policy view, always redacting the four free-form fields" {
+  p="$(new_project)"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF '== resolved policy ==' "$bundle"
+  grep -qF 'shift_policy: absent' "$bundle"
+  grep -qF 'verificationLevel=per-item (built-in, -)' "$bundle"
+  grep -qF 'toolingPolicy=existing-tools (built-in, -)' "$bundle"
+  grep -qF 'elevation.sudo=deny (rules, permanent)' "$bundle"
+  grep -qF 'watchMinutes=10 (rules, permanent)' "$bundle"
+  # the shipped template's four free-form fields are empty strings, and still redacted.
+  grep -qF 'forbiddenCommands=<redacted 0 chars> (rules, permanent)' "$bundle"
+  grep -qF 'protectedDirs=<redacted 0 chars> (rules, permanent)' "$bundle"
+  grep -qF 'neverCommitPatterns=<redacted 0 chars> (rules, permanent)' "$bundle"
+  grep -qF 'expectedEmail=<redacted 0 chars> (rules, permanent)' "$bundle"
+  ! grep -qF 'forbiddenCommands=""' "$bundle"
+  ! grep -qF '== capability policy ==' "$bundle"
+}
+
+@test "a non-empty free-form pattern is redacted to its length, never its text" {
+  p="$(new_project)"
+  python3 -c '
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    d = json.load(f)
+d["forbiddenCommands"] = "rm -rf /"
+with open(p, "w") as f:
+    json.dump(d, f)
+' "$p/.nightshift/rules.json"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'forbiddenCommands=<redacted 8 chars> (rules, permanent)' "$bundle"
+  ! grep -F 'rm -rf /' "$bundle"
+}
+
+@test "a malformed shift-policy.json is reported and never surfaces the raw file" {
+  p="$(new_project)"
+  printf '{ truncated\n' >"$p/.nightshift/shift-policy.json"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'shift_policy: malformed' "$bundle"
+  grep -qF 'verificationLevel=per-item (built-in, -)' "$bundle"
+  ! grep -F 'truncated' "$bundle"
+}
+
+@test "the bundle names the resolved policy view instead of a capability policy" {
+  p="$(new_project)"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'the resolved policy view'
+  printf '%s' "$output" | grep -qF 'policy files'
+  ! printf '%s' "$output" | grep -qF 'capability policy'
+}
+
 LOGIC="$BATS_TEST_DIRNAME/windows/export-support-logic.ps1"
 RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-support.ps1"

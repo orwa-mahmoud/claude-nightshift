@@ -1720,7 +1720,10 @@ function Reset-NSShift {
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'STOP')
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'deadline')
     Remove-NSPath (Join-Path $ctx.NightshiftDir '.watch-reason')
-    Write-NSControlLog $ctx.NightshiftDir 'reset by owner - runtime markers and deadline cleared'
+    # shift-defaults.json (remembered convenience) and rules.json (permanent boundaries) survive
+    # a reset exactly like the punch list and parking lot do; only tonight's snapshot goes.
+    Remove-NSPath (Join-Path $ctx.NightshiftDir 'shift-policy.json')
+    Write-NSControlLog $ctx.NightshiftDir 'reset by owner - runtime markers, deadline, and shift policy cleared'
     Write-Output "reset $($ctx.NightshiftDir)"
     Write-Output 'deadline removed'
 }
@@ -4062,6 +4065,1241 @@ function Invoke-NSEvidenceCommand {
         Write-NSEvidenceError $_.Exception.Message
         return 1
     }
+}
+
+# ---------------------------------------------------------------------------
+# Layered shift policy - the native side of runtime/windows/shift-policy.ps1,
+# preflight-needs.ps1 and park-needs.ps1.
+#
+# rules.json carries the permanent boundaries, shift-defaults.json only prefills
+# the next composition question, and shift-policy.json is tonight's snapshot.
+# Get-NSPolicyResolution is the one resolver: hardhat, Start, Doctor, Status and
+# the support bundle render what it returns and never re-derive precedence.
+# ---------------------------------------------------------------------------
+
+$script:NSPolicyCategories = @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')
+$script:NSPolicyVerificationLevels = @('none', 'final', 'per-item', 'custom')
+$script:NSPolicyToolingPolicies = @('existing-tools', 'review-missing', 'auto-add')
+$script:NSPolicyProfiles = @('fast', 'balanced', 'strict', 'custom')
+$script:NSPolicyExecutions = @('review-first', 'run-direct')
+$script:NSPolicySources = @('composition', 'start-defaults')
+$script:NSPolicyScopes = @('category', 'exact-plan')
+$script:NSPolicyProvenances = @('rules', 'one-shift')
+
+# Shipped elevation patterns (grep -E), used for any category rules.json does not
+# carry. Preflight and the hardhat guard read them through Get-NSElevationPattern,
+# so the signal that parks an item is the signal that blocks the command.
+$script:NSPolicyElevationPattern = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
+$script:NSPolicyElevationPattern['sudo'] = '(^|[;&|(]|[[:space:]])(sudo|doas)([[:space:]]|$)'
+$script:NSPolicyElevationPattern['containers'] = '(^|[;&|(]|[[:space:]])(docker|docker-compose|podman|nerdctl|colima)([[:space:]]|$)'
+$script:NSPolicyElevationPattern['global-packages'] = '(^|[;&|(]|[[:space:]])(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)([[:space:]]|$)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|pip3?[[:space:]]+install[[:space:]]+--user'
+$script:NSPolicyElevationPattern['daemons'] = '(^|[;&|(]|[[:space:]])(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)'
+$script:NSPolicyElevationPattern['external-services'] = '(^|[;&|(]|[[:space:]])(gh[[:space:]]+auth[[:space:]]+login|npm[[:space:]]+login|docker[[:space:]]+login|az[[:space:]]+login|gcloud[[:space:]]+auth|aws[[:space:]]+configure)([[:space:]]|$)'
+
+# Every setting the resolved view reports, in the order the table prints them.
+$script:NSPolicySettingNames = @(
+    'deadlineEpoch',
+    'elevation.containers',
+    'elevation.daemons',
+    'elevation.external-services',
+    'elevation.global-packages',
+    'elevation.sudo',
+    'expectedEmail',
+    'forbiddenCommands',
+    'neverCommitPatterns',
+    'protectedDirs',
+    'stallMax',
+    'toolingPolicy',
+    'verificationLevel',
+    'watchMinutes'
+)
+
+function Write-NSPolicyOut {
+    param([AllowEmptyString()][string]$Text)
+    [Console]::Out.Write($Text)
+    [Console]::Out.Write("`n")
+}
+
+function Write-NSPolicyError {
+    param([AllowEmptyString()][string]$Text)
+    [Console]::Error.WriteLine($Text)
+}
+
+function Get-NSPolicyNow {
+    $fixed = $env:NIGHTSHIFT_POLICY_NOW
+    if (-not [string]::IsNullOrEmpty($fixed)) { return $fixed }
+    return [DateTime]::UtcNow.ToString('yyyy-MM-dd\THH:mm:ss\Z', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-NSPolicyPaths {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $ns = Join-NSPath (Get-NSAbsolutePath $Workspace) '.nightshift'
+    $paths = New-NSOrdinalMap
+    $paths['ns'] = $ns
+    $paths['policy'] = Join-NSPath $ns 'shift-policy.json'
+    $paths['defaults'] = Join-NSPath $ns 'shift-defaults.json'
+    $paths['legacy'] = Join-NSPath $ns 'capability-policy.json'
+    $paths['deadline'] = Join-NSPath $ns 'deadline'
+    $paths['armed'] = Join-NSPath $ns '.shift-armed'
+    $paths['archive'] = Join-NSPath $ns 'archive'
+    $paths['punch'] = Join-NSPath $ns 'punch-list.md'
+    $paths['orders'] = Join-NSPath $ns 'work-orders.md'
+    $paths['parking'] = Join-NSPath $ns 'parking-lot.md'
+    return $paths
+}
+
+function Test-NSPolicyArmed {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    return (Test-Path -LiteralPath (Get-NSPolicyPaths $Workspace)['armed'] -PathType Leaf)
+}
+
+# .NET has no POSIX character classes; the shipped patterns and any owner pattern
+# in rules.elevation are grep -E. Same table as the hardhat hook's converter.
+function Convert-NSPolicyErePattern {
+    param([Parameter(Mandatory = $true)][string]$Pattern)
+    $result = $Pattern.Replace('[[:space:]]', '\s')
+    $result = $result.Replace('[[:blank:]]', '[ \t]')
+    $result = $result.Replace('[[:digit:]]', '\d')
+    $result = $result.Replace('[[:alnum:]]', '[A-Za-z0-9]')
+    $result = $result.Replace('[[:alpha:]]', '[A-Za-z]')
+    $result = $result.Replace('[[:lower:]]', '[a-z]')
+    $result = $result.Replace('[[:upper:]]', '[A-Z]')
+    $result = $result.Replace('[[:xdigit:]]', '[A-Fa-f0-9]')
+    if ($result -match '\[:[a-z]+:\]') {
+        throw 'unmapped POSIX character class'
+    }
+    return $result
+}
+
+function New-NSPolicyRegex {
+    param([Parameter(Mandatory = $true)][string]$Pattern)
+    return [Text.RegularExpressions.Regex]::new(
+        (Convert-NSPolicyErePattern $Pattern),
+        [Text.RegularExpressions.RegexOptions]::Multiline)
+}
+
+function Get-NSRulesElevationEntry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Category
+    )
+    $rules = Get-NSRulesObject $Workspace
+    if ($null -eq $rules) { return $null }
+    $elevation = Get-NSJsonProperty $rules 'elevation'
+    if ($null -eq $elevation) { return $null }
+    return (Get-NSJsonProperty $elevation $Category)
+}
+
+function Get-NSElevationPattern {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Category
+    )
+    if (-not ($script:NSPolicyCategories -ccontains $Category)) { return '' }
+    $entry = Get-NSRulesElevationEntry $Workspace $Category
+    if ($null -ne $entry) {
+        $pattern = Get-NSJsonProperty $entry 'pattern'
+        if (($pattern -is [string]) -and $pattern.Length -gt 0) { return $pattern }
+    }
+    return [string]$script:NSPolicyElevationPattern[$Category]
+}
+
+function Get-NSElevationRulePolicy {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Category
+    )
+    $entry = Get-NSRulesElevationEntry $Workspace $Category
+    if ($null -eq $entry) { return '' }
+    $policy = Get-NSJsonProperty $entry 'policy'
+    if (($policy -is [string]) -and (($policy -ceq 'allow') -or ($policy -ceq 'deny'))) { return $policy }
+    return ''
+}
+
+# ---------------------------------------------------------------------------
+# shift-policy.json
+# ---------------------------------------------------------------------------
+
+# A function that returns an array unrolls it, so a one-command plan would come
+# back as a bare string. The comma keeps an array an array and a scalar a scalar.
+function Get-NSPolicyField {
+    param($Map, [Parameter(Mandatory = $true)][string]$Key)
+    if (-not ($Map -is [Collections.IDictionary])) { return $null }
+    if (-not $Map.Contains($Key)) { return $null }
+    return , $Map[$Key]
+}
+
+function Test-NSPolicyShiftId {
+    param($Value)
+    if (-not ($Value -is [string])) { return $false }
+    if ($Value -cmatch '^[0-9a-f]{16}$') { return $true }
+    return ($Value -cmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+}
+
+function Test-NSPolicyDigest {
+    param($Value)
+    return (($Value -is [string]) -and ($Value -cmatch '^[0-9a-f]{64}$'))
+}
+
+# The schema lives at references/schemas/v1/shift-policy.json; these are the same
+# constraints, applied without a file read so a helper still validates on a host
+# whose plugin tree is read-only or partially installed.
+function Test-NSShiftPolicyDocument {
+    param($Document)
+    $errors = New-Object Collections.Generic.List[string]
+    if (-not ($Document -is [Collections.IDictionary])) {
+        $errors.Add('document: not a JSON object')
+        return , $errors
+    }
+    $known = @('schemaVersion', 'shiftId', 'createdAt', 'source', 'deadlineEpoch',
+        'verificationLevel', 'toolingPolicy', 'budgets', 'allowances', 'gatesDigest')
+    foreach ($key in @($Document.Keys)) {
+        if (-not ($known -ccontains [string]$key)) {
+            $errors.Add(([string]$key) + ': unknown field')
+        }
+    }
+    foreach ($key in @('schemaVersion', 'shiftId', 'createdAt', 'source', 'verificationLevel', 'toolingPolicy')) {
+        if (-not $Document.Contains($key)) { $errors.Add($key + ': missing') }
+    }
+    if ($Document.Contains('schemaVersion') -and -not (Test-NSEvidenceSchemaOne $Document['schemaVersion'])) {
+        $errors.Add('schemaVersion: must be 1')
+    }
+    if ($Document.Contains('shiftId') -and -not (Test-NSPolicyShiftId $Document['shiftId'])) {
+        $errors.Add('shiftId: must be a uuid or 16 lowercase hex characters')
+    }
+    if ($Document.Contains('createdAt') -and -not (($Document['createdAt'] -is [string]) -and ($Document['createdAt'] -cmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'))) {
+        $errors.Add('createdAt: must be YYYY-MM-DDTHH:MM:SSZ')
+    }
+    if ($Document.Contains('source') -and -not (Test-NSEvidenceEnum $Document['source'] $script:NSPolicySources)) {
+        $errors.Add('source: must be one of ' + ($script:NSPolicySources -join ', '))
+    }
+    if ($Document.Contains('verificationLevel') -and -not (Test-NSEvidenceEnum $Document['verificationLevel'] $script:NSPolicyVerificationLevels)) {
+        $errors.Add('verificationLevel: must be one of ' + ($script:NSPolicyVerificationLevels -join ', '))
+    }
+    if ($Document.Contains('toolingPolicy') -and -not (Test-NSEvidenceEnum $Document['toolingPolicy'] $script:NSPolicyToolingPolicies)) {
+        $errors.Add('toolingPolicy: must be one of ' + ($script:NSPolicyToolingPolicies -join ', '))
+    }
+    if ($Document.Contains('deadlineEpoch')) {
+        $deadline = $Document['deadlineEpoch']
+        if ($null -ne $deadline -and -not (Test-NSJsonInteger $deadline)) {
+            $errors.Add('deadlineEpoch: must be an integer or null')
+        }
+    }
+    if ($Document.Contains('gatesDigest') -and -not (Test-NSPolicyDigest $Document['gatesDigest'])) {
+        $errors.Add('gatesDigest: must be 64 lowercase hex characters')
+    }
+    if ($Document.Contains('budgets')) {
+        $budgets = $Document['budgets']
+        if (-not ($budgets -is [Collections.IDictionary])) {
+            $errors.Add('budgets: must be an object of integers')
+        }
+        else {
+            foreach ($key in @($budgets.Keys)) {
+                if (-not (Test-NSJsonInteger $budgets[$key])) {
+                    $errors.Add('budgets.' + ([string]$key) + ': must be an integer')
+                }
+            }
+        }
+    }
+    if ($Document.Contains('allowances')) {
+        $allowances = $Document['allowances']
+        if (($allowances -is [Collections.IDictionary]) -or ($allowances -is [string]) -or -not ($allowances -is [Collections.IEnumerable])) {
+            $errors.Add('allowances: must be an array')
+        }
+        else {
+            $index = 0
+            foreach ($allowance in @($allowances)) {
+                $label = 'allowances[' + $index + ']'
+                $index++
+                if (-not ($allowance -is [Collections.IDictionary])) {
+                    $errors.Add($label + ': not a JSON object')
+                    continue
+                }
+                foreach ($key in @($allowance.Keys)) {
+                    if (-not (@('category', 'scope', 'provenance', 'plan') -ccontains [string]$key)) {
+                        $errors.Add($label + '.' + ([string]$key) + ': unknown field')
+                    }
+                }
+                if (-not (Test-NSEvidenceEnum (Get-NSMapValue $allowance 'category') $script:NSPolicyCategories)) {
+                    $errors.Add($label + '.category: must be one of ' + ($script:NSPolicyCategories -join ', '))
+                }
+                if (-not (Test-NSEvidenceEnum (Get-NSMapValue $allowance 'scope') $script:NSPolicyScopes)) {
+                    $errors.Add($label + '.scope: must be one of ' + ($script:NSPolicyScopes -join ', '))
+                }
+                if (-not (Test-NSEvidenceEnum (Get-NSMapValue $allowance 'provenance') $script:NSPolicyProvenances)) {
+                    $errors.Add($label + '.provenance: must be one of ' + ($script:NSPolicyProvenances -join ', '))
+                }
+                $scope = Get-NSMapValue $allowance 'scope'
+                $plan = Get-NSMapValue $allowance 'plan'
+                if (($scope -is [string]) -and ($scope -ceq 'exact-plan')) {
+                    foreach ($planError in (Test-NSPolicyPlan $plan ($label + '.plan'))) { $errors.Add($planError) }
+                }
+                elseif ($null -ne $plan) {
+                    $errors.Add($label + '.plan: only an exact-plan allowance carries a plan')
+                }
+            }
+        }
+    }
+    return , $errors
+}
+
+function Test-NSPolicyPlan {
+    param($Plan, [Parameter(Mandatory = $true)][string]$Label)
+    $errors = New-Object Collections.Generic.List[string]
+    if (-not ($Plan -is [Collections.IDictionary])) {
+        $errors.Add($Label + ': an exact-plan allowance needs a plan object')
+        return , $errors
+    }
+    foreach ($key in @($Plan.Keys)) {
+        if (-not (@('commands', 'workTarget', 'digest', 'expiry') -ccontains [string]$key)) {
+            $errors.Add($Label + '.' + ([string]$key) + ': unknown field')
+        }
+    }
+    $commands = Get-NSPolicyField $Plan 'commands'
+    if (($commands -is [Collections.IDictionary]) -or ($commands -is [string]) -or -not ($commands -is [Collections.IEnumerable])) {
+        $errors.Add($Label + '.commands: must be an array of strings')
+    }
+    else {
+        $items = @($commands)
+        if ($items.Count -eq 0) {
+            $errors.Add($Label + '.commands: must list at least one command')
+        }
+        foreach ($command in $items) {
+            if (-not (($command -is [string]) -and $command.Trim().Length -gt 0)) {
+                $errors.Add($Label + '.commands: must be an array of non-empty strings')
+                break
+            }
+        }
+    }
+    $target = Get-NSMapValue $Plan 'workTarget'
+    if (-not (($target -is [string]) -and $target.Length -gt 0 -and [IO.Path]::IsPathRooted($target))) {
+        $errors.Add($Label + '.workTarget: must be an absolute path')
+    }
+    if ($Plan.Contains('expiry')) {
+        $expiry = $Plan['expiry']
+        if ($null -ne $expiry -and -not (Test-NSJsonInteger $expiry)) {
+            $errors.Add($Label + '.expiry: must be a UNIX epoch integer or null')
+        }
+    }
+    if (-not (Test-NSPolicyDigest (Get-NSMapValue $Plan 'digest'))) {
+        $errors.Add($Label + '.digest: must be 64 lowercase hex characters')
+    }
+    return , $errors
+}
+
+# The digest an exact-plan allowance carries and hardhat recomputes: sha256 over
+# the compact canonical JSON of {"commands":[...],"shiftId":...,"workTarget":...}.
+# plan.expiry is checked before the digest, never inside it.
+function Get-NSPolicyPlanDigest {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Commands,
+        [Parameter(Mandatory = $true)][string]$WorkTarget,
+        [Parameter(Mandatory = $true)][string]$ShiftId
+    )
+    $normalized = New-Object Collections.Generic.List[string]
+    foreach ($command in $Commands) { $normalized.Add((Get-NSPolicyNormalizedCommand $command)) }
+    $preimage = New-NSOrdinalMap
+    $preimage['commands'] = $normalized.ToArray()
+    $preimage['shiftId'] = $ShiftId
+    $preimage['workTarget'] = $WorkTarget
+    return (Get-NSTextSha256 (ConvertTo-NSCanonicalJson $preimage -Compact))
+}
+
+# Whitespace runs collapse to one space and the ends are trimmed, so a command
+# approved as written matches the command as the host reports it.
+function Get-NSPolicyNormalizedCommand {
+    param([AllowEmptyString()][string]$Command)
+    if ([string]::IsNullOrEmpty($Command)) { return '' }
+    return ([regex]::Replace($Command, '\s+', ' ')).Trim()
+}
+
+function Get-NSShiftPolicyState {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSPolicyPaths $Workspace
+    $state = New-NSOrdinalMap
+    $state['state'] = 'absent'
+    $state['error'] = ''
+    $state['policy'] = $null
+    $path = $paths['policy']
+    if (Test-NSReparsePoint $path) {
+        $state['state'] = 'malformed'
+        $state['error'] = 'document: shift-policy.json is not a usable file'
+        return $state
+    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $state }
+    $document = $null
+    try {
+        $document = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($path, $script:NSUtf8NoBom))
+    }
+    catch {
+        $state['state'] = 'malformed'
+        $state['error'] = 'document: not valid JSON'
+        return $state
+    }
+    $errors = Test-NSShiftPolicyDocument $document
+    if ($errors.Count -gt 0) {
+        $state['state'] = 'malformed'
+        $state['error'] = $errors[0]
+        return $state
+    }
+    $state['state'] = 'valid'
+    $state['policy'] = $document
+    return $state
+}
+
+function Get-NSShiftPolicy {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $state = Get-NSShiftPolicyState $Workspace
+    return $state['policy']
+}
+
+function Set-NSShiftPolicy {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Json
+    )
+    $paths = Get-NSPolicyPaths $Workspace
+    if (-not (Test-Path -LiteralPath $paths['ns'] -PathType Container)) {
+        Write-NSPolicyError ('shift-policy: no .nightshift/ at ' + $Workspace)
+        return 2
+    }
+    if (Test-NSPolicyArmed $Workspace) {
+        Write-NSPolicyError 'shift-policy: refuse to rewrite the shift policy while the shift is armed; park the need'
+        return 4
+    }
+    $document = $null
+    try {
+        $document = ConvertFrom-NSJsonText $Json
+    }
+    catch {
+        Write-NSPolicyError 'shift-policy: document: not valid JSON'
+        return 2
+    }
+    $errors = Test-NSShiftPolicyDocument $document
+    if ($errors.Count -gt 0) {
+        foreach ($error in $errors) { Write-NSPolicyError ('shift-policy: ' + $error) }
+        return 2
+    }
+    Write-NSEvidenceFileAtomic -Path $paths['policy'] -Text ((ConvertTo-NSCanonicalJson $document) + "`n")
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# shift-defaults.json - prefill only. Nothing here is ever an effective value.
+# ---------------------------------------------------------------------------
+
+function New-NSShiftDefaultsDocument {
+    $document = New-NSOrdinalMap
+    $document['schemaVersion'] = 1
+    $document['verificationProfile'] = 'fast'
+    $document['hours'] = $null
+    $document['toolingPolicy'] = 'existing-tools'
+    $document['execution'] = 'review-first'
+    $document['updatedAt'] = ''
+    return $document
+}
+
+function Get-NSShiftDefaults {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSPolicyPaths $Workspace
+    $defaults = New-NSShiftDefaultsDocument
+    $path = $paths['defaults']
+    if ((Test-NSReparsePoint $path) -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return $defaults }
+    $document = $null
+    try {
+        $document = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($path, $script:NSUtf8NoBom))
+    }
+    catch {
+        return $defaults
+    }
+    if (-not ($document -is [Collections.IDictionary])) { return $defaults }
+    $storedProfile = Get-NSMapValue $document 'verificationProfile'
+    if (Test-NSEvidenceEnum $storedProfile $script:NSPolicyProfiles) { $defaults['verificationProfile'] = $storedProfile }
+    $tooling = Get-NSMapValue $document 'toolingPolicy'
+    if (Test-NSEvidenceEnum $tooling $script:NSPolicyToolingPolicies) { $defaults['toolingPolicy'] = $tooling }
+    $execution = Get-NSMapValue $document 'execution'
+    if (Test-NSEvidenceEnum $execution $script:NSPolicyExecutions) { $defaults['execution'] = $execution }
+    $hours = Get-NSMapValue $document 'hours'
+    if ((Test-NSJsonInteger $hours) -and [long]$hours -ge 0) { $defaults['hours'] = [long]$hours }
+    $updated = Get-NSMapValue $document 'updatedAt'
+    if ($updated -is [string]) { $defaults['updatedAt'] = $updated }
+    return $defaults
+}
+
+function Set-NSShiftDefaults {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [AllowEmptyString()][string]$VerificationProfile = '',
+        [AllowEmptyString()][string]$Hours = '',
+        [AllowEmptyString()][string]$ToolingPolicy = '',
+        [AllowEmptyString()][string]$Execution = ''
+    )
+    $paths = Get-NSPolicyPaths $Workspace
+    if (-not (Test-Path -LiteralPath $paths['ns'] -PathType Container)) {
+        Write-NSPolicyError ('shift-policy: no .nightshift/ at ' + $Workspace)
+        return 2
+    }
+    if (Test-NSPolicyArmed $Workspace) {
+        Write-NSPolicyError 'shift-policy: refuse to rewrite the shift defaults while the shift is armed; park the need'
+        return 4
+    }
+    $document = Get-NSShiftDefaults $Workspace
+    if (-not [string]::IsNullOrEmpty($VerificationProfile)) {
+        if (-not (Test-NSEvidenceEnum $VerificationProfile $script:NSPolicyProfiles)) {
+            Write-NSPolicyError ('shift-policy: verificationProfile: must be one of ' + ($script:NSPolicyProfiles -join ', '))
+            return 2
+        }
+        $document['verificationProfile'] = $VerificationProfile
+    }
+    if (-not [string]::IsNullOrEmpty($ToolingPolicy)) {
+        if (-not (Test-NSEvidenceEnum $ToolingPolicy $script:NSPolicyToolingPolicies)) {
+            Write-NSPolicyError ('shift-policy: toolingPolicy: must be one of ' + ($script:NSPolicyToolingPolicies -join ', '))
+            return 2
+        }
+        $document['toolingPolicy'] = $ToolingPolicy
+    }
+    if (-not [string]::IsNullOrEmpty($Execution)) {
+        if (-not (Test-NSEvidenceEnum $Execution $script:NSPolicyExecutions)) {
+            Write-NSPolicyError ('shift-policy: execution: must be one of ' + ($script:NSPolicyExecutions -join ', '))
+            return 2
+        }
+        $document['execution'] = $Execution
+    }
+    if (-not [string]::IsNullOrEmpty($Hours)) {
+        if ($Hours -ceq 'null') {
+            $document['hours'] = $null
+        }
+        elseif ($Hours -cmatch '^[0-9]+$') {
+            $document['hours'] = [long]$Hours
+        }
+        else {
+            Write-NSPolicyError 'shift-policy: hours: must be a whole number of hours or null'
+            return 2
+        }
+    }
+    $document['updatedAt'] = Get-NSPolicyNow
+    Write-NSEvidenceFileAtomic -Path $paths['defaults'] -Text ((ConvertTo-NSCanonicalJson $document) + "`n")
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# The resolver
+# ---------------------------------------------------------------------------
+
+function New-NSPolicySetting {
+    param($Value, [Parameter(Mandatory = $true)][string]$Source, [Parameter(Mandatory = $true)][string]$Expiry)
+    $entry = New-NSOrdinalMap
+    $entry['value'] = $Value
+    $entry['source'] = $Source
+    $entry['expiry'] = $Expiry
+    return $entry
+}
+
+# A key the owner wrote is an owner decision even when its value is empty, so
+# presence - not emptiness - decides the source.
+function Test-NSRuleKeyPresent {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Key
+    )
+    $rules = Get-NSRulesObject $Workspace
+    if ($null -eq $rules) { return $false }
+    return ($null -ne $rules.PSObject.Properties[$Key])
+}
+
+function Get-NSPolicyRuleSetting {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Key
+    )
+    $value = Get-NSRule $Workspace $Key ''
+    if (Test-NSRuleKeyPresent $Workspace $Key) { return (New-NSPolicySetting $value 'rules' 'permanent') }
+    return (New-NSPolicySetting $value 'built-in' '-')
+}
+
+function Get-NSPolicyRuleInteger {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][long]$Fallback
+    )
+    $value = Get-NSRule $Workspace $Key ''
+    if ($value -cmatch '^-?[0-9]+$') { return (New-NSPolicySetting ([long]$value) 'rules' 'permanent') }
+    return (New-NSPolicySetting $Fallback 'built-in' '-')
+}
+
+function Get-NSPolicyDeadlineFile {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $path = (Get-NSPolicyPaths $Workspace)['deadline']
+    if ((Test-NSReparsePoint $path) -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    $raw = ''
+    try {
+        $raw = ([IO.File]::ReadAllText($path, $script:NSUtf8NoBom)).Trim()
+    }
+    catch {
+        return $null
+    }
+    if ($raw -cmatch '^[0-9]+$') { return [long]$raw }
+    return $null
+}
+
+# The one resolver. Precedence, top to bottom: an allowance in tonight's policy,
+# then rules.json, then the built-in default. Protected paths, never-commit
+# patterns and the expected email come from rules.json alone - no allowance lifts
+# them - and shift-defaults.json never appears as the source of a value.
+function Get-NSPolicyResolution {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSPolicyPaths $Workspace
+    $state = Get-NSShiftPolicyState $Workspace
+    $policy = $state['policy']
+    $settings = New-NSOrdinalMap
+
+    # The built-in shift is the shipped fast profile: no gate cadence, existing
+    # tools, no deadline. Only tonight's policy moves any of the three.
+    $settings['verificationLevel'] = New-NSPolicySetting 'none' 'built-in' '-'
+    $settings['toolingPolicy'] = New-NSPolicySetting 'existing-tools' 'built-in' '-'
+    $settings['deadlineEpoch'] = New-NSPolicySetting $null 'built-in' '-'
+    if ($null -ne $policy) {
+        $settings['verificationLevel'] = New-NSPolicySetting $policy['verificationLevel'] 'one-shift' 'shift'
+        $settings['toolingPolicy'] = New-NSPolicySetting $policy['toolingPolicy'] 'one-shift' 'shift'
+        $deadline = Get-NSMapValue $policy 'deadlineEpoch'
+        if (Test-NSJsonInteger $deadline) {
+            $settings['deadlineEpoch'] = New-NSPolicySetting ([long]$deadline) 'one-shift' 'shift'
+        }
+    }
+
+    foreach ($category in $script:NSPolicyCategories) {
+        $entry = New-NSPolicySetting 'deny' 'built-in' '-'
+        $rulePolicy = Get-NSElevationRulePolicy $Workspace $category
+        if (-not [string]::IsNullOrEmpty($rulePolicy)) {
+            $entry = New-NSPolicySetting $rulePolicy 'rules' 'permanent'
+        }
+        $allowance = Get-NSPolicyCategoryAllowance $policy $category
+        if ($null -ne $allowance) {
+            $provenance = [string]$allowance['provenance']
+            if ($provenance -ceq 'rules') {
+                $entry = New-NSPolicySetting 'allow' 'rules' 'permanent'
+            }
+            else {
+                $entry = New-NSPolicySetting 'allow' 'one-shift' 'shift'
+            }
+        }
+        elseif ((Get-NSPolicyExactPlanAllowances $policy $category).Count -gt 0) {
+            $entry = New-NSPolicySetting 'exact-plan' 'exact-plan' 'shift'
+        }
+        $settings['elevation.' + $category] = $entry
+    }
+
+    $settings['forbiddenCommands'] = Get-NSPolicyRuleSetting $Workspace 'forbiddenCommands'
+    $settings['protectedDirs'] = Get-NSPolicyRuleSetting $Workspace 'protectedDirs'
+    $settings['neverCommitPatterns'] = Get-NSPolicyRuleSetting $Workspace 'neverCommitPatterns'
+    $settings['expectedEmail'] = Get-NSPolicyRuleSetting $Workspace 'expectedEmail'
+    $settings['stallMax'] = Get-NSPolicyRuleInteger $Workspace 'stallMax' 0
+    $settings['watchMinutes'] = Get-NSPolicyRuleInteger $Workspace 'watchMinutes' 10
+
+    $resolution = New-NSOrdinalMap
+    $resolution['settings'] = $settings
+    $resolution['policy'] = $policy
+    $resolution['policyState'] = $state['state']
+    $resolution['policyError'] = $state['error']
+    $resolution['deadlineFile'] = Get-NSPolicyDeadlineFile $Workspace
+    $resolution['deadlinePolicy'] = $settings['deadlineEpoch']['value']
+    $resolution['legacyCapabilityPolicy'] = (Test-Path -LiteralPath $paths['legacy'] -PathType Leaf)
+    return $resolution
+}
+
+function Get-NSPolicyAllowances {
+    param($Policy, [Parameter(Mandatory = $true)][string]$Category)
+    $found = New-Object Collections.Generic.List[object]
+    if ($null -eq $Policy) { return , $found }
+    $allowances = Get-NSPolicyField $Policy 'allowances'
+    if ($null -eq $allowances) { return , $found }
+    foreach ($allowance in @($allowances)) {
+        if (-not ($allowance -is [Collections.IDictionary])) { continue }
+        $candidate = Get-NSMapValue $allowance 'category'
+        if (($candidate -is [string]) -and ($candidate -ceq $Category)) { $found.Add($allowance) }
+    }
+    return , $found
+}
+
+function Get-NSPolicyCategoryAllowance {
+    param($Policy, [Parameter(Mandatory = $true)][string]$Category)
+    foreach ($allowance in (Get-NSPolicyAllowances $Policy $Category)) {
+        $scope = Get-NSMapValue $allowance 'scope'
+        if (($scope -is [string]) -and ($scope -ceq 'category')) { return $allowance }
+    }
+    return $null
+}
+
+function Get-NSPolicyExactPlanAllowances {
+    param($Policy, [Parameter(Mandatory = $true)][string]$Category)
+    $plans = New-Object Collections.Generic.List[object]
+    foreach ($allowance in (Get-NSPolicyAllowances $Policy $Category)) {
+        $scope = Get-NSMapValue $allowance 'scope'
+        if (($scope -is [string]) -and ($scope -ceq 'exact-plan')) { $plans.Add($allowance) }
+    }
+    return , $plans
+}
+
+function Format-NSPolicyValue {
+    param($Value)
+    if ($null -eq $Value) { return 'none' }
+    if (Test-NSJsonInteger $Value) { return ([long]$Value).ToString([Globalization.CultureInfo]::InvariantCulture) }
+    return [string]$Value
+}
+
+function Format-NSPolicyTable {
+    param($Resolution)
+    $settings = $Resolution['settings']
+    $lines = New-Object Collections.Generic.List[string]
+    foreach ($name in (Sort-NSOrdinal $script:NSPolicySettingNames)) {
+        $entry = $settings[$name]
+        $lines.Add(('{0}={1} ({2}, {3})' -f $name, (Format-NSPolicyValue $entry['value']), $entry['source'], $entry['expiry']))
+    }
+    return , $lines.ToArray()
+}
+
+function Resolve-NSPolicy {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [switch]$Json,
+        [switch]$Table
+    )
+    if ($Table -and $Json) {
+        throw 'choose one of -Json or -Table'
+    }
+    $resolution = Get-NSPolicyResolution $Workspace
+    if ($Table) {
+        return ((Format-NSPolicyTable $resolution) -join "`n")
+    }
+    $document = New-NSOrdinalMap
+    $document['schemaVersion'] = 1
+    $document['settings'] = $resolution['settings']
+    return (ConvertTo-NSCanonicalJson $document -Compact)
+}
+
+# The gate honours the earlier of the two, so a deadline file that drifts from
+# the policy shortens the night rather than extending it.
+function Get-NSPolicyDeadlineEpoch {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $resolution = Get-NSPolicyResolution $Workspace
+    $file = $resolution['deadlineFile']
+    $fromPolicy = $resolution['deadlinePolicy']
+    if ($null -eq $file) { return $fromPolicy }
+    if ($null -eq $fromPolicy) { return $file }
+    if ([long]$file -lt [long]$fromPolicy) { return [long]$file }
+    return [long]$fromPolicy
+}
+
+# 0 allow - 1 deny - 2 the category is denied and no exact plan covers this
+# command. The caller has already matched the command against the category
+# pattern; this answers only whether the shift permits it.
+function Test-NSPolicyAllowed {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Category,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command
+    )
+    if (-not ($script:NSPolicyCategories -ccontains $Category)) { return 1 }
+    $resolution = Get-NSPolicyResolution $Workspace
+    $value = [string]$resolution['settings']['elevation.' + $Category]['value']
+    if ($value -ceq 'allow') { return 0 }
+    if ($value -cne 'exact-plan') { return 1 }
+    if (Test-NSPolicyExactPlan -Workspace $Workspace -Resolution $resolution -Category $Category -Command $Command) { return 0 }
+    return 2
+}
+
+# An exact plan binds the command, the resolved work target, the shift identity
+# and the deadline. Any drift is a mismatch, never a fall-through to the category.
+function Test-NSPolicyExactPlan {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)]$Resolution,
+        [Parameter(Mandatory = $true)][string]$Category,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command
+    )
+    $policy = $Resolution['policy']
+    if ($null -eq $policy) { return $false }
+    $deadline = $Resolution['deadlinePolicy']
+    if ($null -ne $deadline -and (Get-NSUnixTime) -gt [long]$deadline) { return $false }
+    $target = $Workspace
+    try {
+        $target = Resolve-NSWorkTarget $Workspace
+    }
+    catch {
+        $target = Get-NSAbsolutePath $Workspace
+    }
+    $shiftId = [string]$policy['shiftId']
+    $normalized = Get-NSPolicyNormalizedCommand $Command
+    foreach ($allowance in (Get-NSPolicyExactPlanAllowances $policy $Category)) {
+        $plan = Get-NSMapValue $allowance 'plan'
+        if ($null -eq $plan) { continue }
+        # A plan may expire before the shift does; a plan with no expiry of its
+        # own defers to the shift deadline checked above.
+        $planExpiry = Get-NSMapValue $plan 'expiry'
+        if ((Test-NSJsonInteger $planExpiry) -and (Get-NSUnixTime) -gt [long]$planExpiry) { continue }
+        $planTarget = [string](Get-NSMapValue $plan 'workTarget')
+        if (-not ($planTarget -ceq (Get-NSAbsolutePath $target))) { continue }
+        $commands = New-Object Collections.Generic.List[string]
+        foreach ($command in @(Get-NSPolicyField $plan 'commands')) { $commands.Add([string]$command) }
+        $expected = Get-NSPolicyPlanDigest -Commands $commands.ToArray() -WorkTarget $planTarget -ShiftId $shiftId
+        if (-not ($expected -ceq [string](Get-NSMapValue $plan 'digest'))) { continue }
+        foreach ($command in $commands) {
+            if ((Get-NSPolicyNormalizedCommand $command) -ceq $normalized) { return $true }
+        }
+    }
+    return $false
+}
+
+# ---------------------------------------------------------------------------
+# Permission preflight - a filter for surprises, never a guarantee. It reports
+# and exits 0; only the owner lifts a category.
+# ---------------------------------------------------------------------------
+
+function Get-NSPreflightTitle {
+    param([AllowEmptyString()][string]$Line)
+    $title = $Line.Trim()
+    $title = [regex]::Replace($title, '^-\s*\[[ xX]\]\s*', '')
+    $title = [regex]::Replace($title, '^#+\s*', '')
+    $title = $title.Replace('**', '')
+    return $title.Trim()
+}
+
+function Get-NSPreflightSectionItems {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines,
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$FallbackTitle
+    )
+    $items = New-Object Collections.Generic.List[object]
+    $current = $null
+    $sawBox = $false
+    $text = New-Object Text.StringBuilder
+    foreach ($line in $Lines) {
+        # A ticked box is finished work: it closes the item above it and starts
+        # nothing, so no allowance is ever reported or parked for it.
+        if ($line -match '^-\s*\[[xX]\]') {
+            $sawBox = $true
+            if ($null -ne $current) {
+                $current['text'] = $text.ToString()
+                $items.Add($current)
+                $current = $null
+            }
+            continue
+        }
+        if ($line -match '^-\s*\[ \]') {
+            $sawBox = $true
+            if ($null -ne $current) {
+                $current['text'] = $text.ToString()
+                $items.Add($current)
+            }
+            $current = New-NSOrdinalMap
+            $current['title'] = Get-NSPreflightTitle $line
+            $current['source'] = $Source
+            $text = New-Object Text.StringBuilder
+        }
+        if ($null -ne $current) {
+            $null = $text.Append($line)
+            $null = $text.Append("`n")
+        }
+    }
+    if ($null -ne $current) {
+        $current['text'] = $text.ToString()
+        $items.Add($current)
+    }
+    # A section that carries no box at all is itself the unit; one whose boxes are
+    # all ticked has nothing left to need.
+    if ($items.Count -eq 0 -and -not $sawBox -and -not [string]::IsNullOrEmpty($FallbackTitle)) {
+        $item = New-NSOrdinalMap
+        $item['title'] = $FallbackTitle
+        $item['source'] = $Source
+        $item['text'] = ($Lines -join "`n")
+        $items.Add($item)
+    }
+    return , $items
+}
+
+function Get-NSPreflightFileLines {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ((Test-NSReparsePoint $Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return , @() }
+    try {
+        return , ([regex]::Split([IO.File]::ReadAllText($Path, $script:NSUtf8NoBom), "\r\n|\n|\r"))
+    }
+    catch {
+        return , @()
+    }
+}
+
+function Get-NSPreflightItems {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSPolicyPaths $Workspace
+    $items = New-Object Collections.Generic.List[object]
+
+    $section = New-Object Collections.Generic.List[string]
+    $inItems = $false
+    foreach ($line in (Get-NSPreflightFileLines $paths['punch'])) {
+        if (-not $inItems) {
+            if ($line -match '^##\s+Items\s*$') { $inItems = $true }
+            continue
+        }
+        if ($line -match '^##\s') { break }
+        $section.Add($line)
+    }
+    foreach ($item in (Get-NSPreflightSectionItems -Lines $section.ToArray() -Source 'punch-list' -FallbackTitle '')) {
+        $items.Add($item)
+    }
+
+    $orderLines = New-Object Collections.Generic.List[string]
+    $orderTitle = ''
+    foreach ($line in (Get-NSPreflightFileLines $paths['orders'])) {
+        if ($line -match '^##\s+Work order') {
+            if (-not [string]::IsNullOrEmpty($orderTitle)) {
+                foreach ($item in (Get-NSPreflightSectionItems -Lines $orderLines.ToArray() -Source 'work-order' -FallbackTitle $orderTitle)) {
+                    $items.Add($item)
+                }
+            }
+            $orderTitle = Get-NSPreflightTitle $line
+            $orderLines = New-Object Collections.Generic.List[string]
+            continue
+        }
+        if ($line -match '^##\s') {
+            if (-not [string]::IsNullOrEmpty($orderTitle)) {
+                foreach ($item in (Get-NSPreflightSectionItems -Lines $orderLines.ToArray() -Source 'work-order' -FallbackTitle $orderTitle)) {
+                    $items.Add($item)
+                }
+            }
+            $orderTitle = ''
+            $orderLines = New-Object Collections.Generic.List[string]
+            continue
+        }
+        if (-not [string]::IsNullOrEmpty($orderTitle)) { $orderLines.Add($line) }
+    }
+    if (-not [string]::IsNullOrEmpty($orderTitle)) {
+        foreach ($item in (Get-NSPreflightSectionItems -Lines $orderLines.ToArray() -Source 'work-order' -FallbackTitle $orderTitle)) {
+            $items.Add($item)
+        }
+    }
+    return , $items
+}
+
+function Get-NSPreflightReport {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $resolution = Get-NSPolicyResolution $Workspace
+    $patterns = New-NSOrdinalMap
+    foreach ($category in $script:NSPolicyCategories) {
+        $pattern = Get-NSElevationPattern $Workspace $category
+        $regex = $null
+        try {
+            $regex = New-NSPolicyRegex $pattern
+        }
+        catch {
+            # An unreadable pattern is one reported defect. The category stays
+            # denied and the hardhat guard still fails closed on the command.
+            $regex = $null
+        }
+        $patterns[$category] = $regex
+    }
+    $patternErrors = New-Object Collections.Generic.List[string]
+    foreach ($category in $script:NSPolicyCategories) {
+        if ($null -eq $patterns[$category]) { $patternErrors.Add($category) }
+    }
+    $items = New-Object Collections.Generic.List[object]
+    $gaps = New-Object Collections.Generic.List[object]
+    foreach ($item in (Get-NSPreflightItems $Workspace)) {
+        # An item quotes its commands in markdown; the backticks become spaces so
+        # the shared elevation patterns read prose the way the guard reads a command.
+        $text = ([string]$item['text']).Replace('`', ' ')
+        $needs = New-Object Collections.Generic.List[object]
+        foreach ($category in $script:NSPolicyCategories) {
+            $regex = $patterns[$category]
+            if ($null -eq $regex) { continue }
+            if (-not $regex.IsMatch($text)) { continue }
+            $value = [string]$resolution['settings']['elevation.' + $category]['value']
+            $need = New-NSOrdinalMap
+            $need['category'] = $category
+            $need['resolved'] = $value
+            $need['allowed'] = ($value -ceq 'allow')
+            $needs.Add($need)
+            if (-not $need['allowed']) {
+                $gap = New-NSOrdinalMap
+                $gap['category'] = $category
+                $gap['title'] = $item['title']
+                $gaps.Add($gap)
+            }
+        }
+        $entry = New-NSOrdinalMap
+        $entry['title'] = $item['title']
+        $entry['source'] = $item['source']
+        $entry['needs'] = $needs.ToArray()
+        $items.Add($entry)
+    }
+    $report = New-NSOrdinalMap
+    $report['schemaVersion'] = 1
+    $report['items'] = $items.ToArray()
+    $report['gaps'] = $gaps.ToArray()
+    $report['patternErrors'] = $patternErrors.ToArray()
+    return $report
+}
+
+function Get-NSPreflightNeeds {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [switch]$Json
+    )
+    $report = Get-NSPreflightReport $Workspace
+    if ($Json) {
+        return (ConvertTo-NSCanonicalJson $report -Compact)
+    }
+    $lines = New-Object Collections.Generic.List[string]
+    $index = 0
+    foreach ($item in $report['items']) {
+        $index++
+        $lines.Add(('item {0} ({1}): {2}' -f $index, $item['source'], $item['title']))
+        if (@($item['needs']).Count -eq 0) {
+            $lines.Add('  needs: none')
+            continue
+        }
+        foreach ($need in $item['needs']) {
+            $state = 'denied'
+            if ($need['allowed']) { $state = 'allowed' }
+            elseif ([string]$need['resolved'] -ceq 'exact-plan') { $state = 'exact-plan only' }
+            $lines.Add(('  needs {0}: {1}' -f $need['category'], $state))
+        }
+    }
+    if ($index -eq 0) {
+        $lines.Add('items: none')
+    }
+    foreach ($category in $report['patternErrors']) {
+        $lines.Add('pattern error: ' + $category + ' (rules.elevation pattern does not compile)')
+    }
+    $categories = New-Object Collections.Generic.List[string]
+    foreach ($gap in $report['gaps']) {
+        if (-not ($categories -ccontains [string]$gap['category'])) { $categories.Add([string]$gap['category']) }
+    }
+    if ($categories.Count -eq 0) {
+        $lines.Add('gaps: none')
+    }
+    else {
+        $lines.Add('gaps: ' + ((Sort-NSOrdinal $categories.ToArray()) -join ', '))
+    }
+    return ($lines -join "`n")
+}
+
+# One parking-lot entry per item and category, idempotent: Start may run twice
+# over the same punch list and the owner still reads one entry per gap.
+function Add-NSParkedNeeds {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSPolicyPaths $Workspace
+    $report = Get-NSPreflightReport $Workspace
+    $added = New-Object Collections.Generic.List[string]
+    if (@($report['gaps']).Count -eq 0) { return , $added.ToArray() }
+    $path = $paths['parking']
+    if (Test-NSReparsePoint $path) {
+        throw 'parking-lot.md is not a usable file'
+    }
+    $existing = ''
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        $existing = [IO.File]::ReadAllText($path, $script:NSUtf8NoBom)
+    }
+    else {
+        $existing = "# Parking Lot`n"
+    }
+    $dash = [string][char]0x2014
+    $builder = New-Object Text.StringBuilder
+    $null = $builder.Append($existing)
+    if (-not $existing.EndsWith("`n")) { $null = $builder.Append("`n") }
+    foreach ($gap in $report['gaps']) {
+        $category = [string]$gap['category']
+        $title = [string]$gap['title']
+        $marker = '**needs allowance: {0}** {1} item "{2}"' -f $category, $dash, $title
+        if ($builder.ToString().Contains($marker)) { continue }
+        $null = $builder.Append("`n")
+        $null = $builder.Append($marker)
+        $null = $builder.Append((' needs the {0} elevation category, which is denied for this shift. Default: parked, worked last if the owner allows it before then.' -f $category))
+        $null = $builder.Append("`n")
+        $added.Add(('{0}: {1}' -f $category, $title))
+    }
+    if ($added.Count -gt 0) {
+        Write-NSEvidenceFileAtomic -Path $path -Text $builder.ToString()
+    }
+    return , $added.ToArray()
+}
+
+# The legacy capability-policy.json carried one field the layered policy still
+# uses: its tooling policy becomes the remembered prefill and the file goes.
+function Invoke-NSMigrateCapabilityPolicy {
+    param([Parameter(Mandatory = $true)][string]$Workspace)
+    $paths = Get-NSPolicyPaths $Workspace
+    $result = New-NSOrdinalMap
+    $result['state'] = 'absent'
+    $result['toolingPolicy'] = ''
+    if (-not (Test-Path -LiteralPath $paths['legacy'] -PathType Leaf)) { return $result }
+    if (Test-NSPolicyArmed $Workspace) {
+        $result['state'] = 'armed'
+        return $result
+    }
+    $tooling = ''
+    try {
+        $document = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($paths['legacy'], $script:NSUtf8NoBom))
+        $candidate = Get-NSMapValue $document 'policy'
+        if (Test-NSEvidenceEnum $candidate $script:NSPolicyToolingPolicies) { $tooling = [string]$candidate }
+    }
+    catch {
+        $tooling = ''
+    }
+    if ([string]::IsNullOrEmpty($tooling)) {
+        $result['state'] = 'discarded'
+    }
+    else {
+        if ((Set-NSShiftDefaults -Workspace $Workspace -ToolingPolicy $tooling) -ne 0) {
+            $result['state'] = 'failed'
+            return $result
+        }
+        $result['toolingPolicy'] = $tooling
+        $result['state'] = 'migrated'
+    }
+    Remove-NSFile $paths['legacy']
+    return $result
+}
+
+# ---------------------------------------------------------------------------
+# Command surfaces for the thin runtime scripts
+# ---------------------------------------------------------------------------
+
+function Write-NSShiftPolicyUsage {
+    Write-NSPolicyError 'usage: shift-policy.ps1 -Project DIR -Command {get|set|defaults-get|defaults-set|resolve|archive} ...'
+    return 1
+}
+
+function Invoke-NSShiftPolicyArchive {
+    param(
+        [Parameter(Mandatory = $true)][string]$Workspace,
+        [Parameter(Mandatory = $true)][string]$Date
+    )
+    $paths = Get-NSPolicyPaths $Workspace
+    if (-not (Test-Path -LiteralPath $paths['policy'] -PathType Leaf)) {
+        Write-NSPolicyError 'shift-policy: no shift policy to archive'
+        return 3
+    }
+    $state = Get-NSShiftPolicyState $Workspace
+    $shiftId = 'unknown'
+    if ($state['state'] -ceq 'valid') {
+        $shiftId = [string]$state['policy']['shiftId']
+    }
+    else {
+        Write-NSPolicyError ('shift-policy: ' + $state['error'] + '; archiving as shift-policy-unknown.json')
+    }
+    $directory = Join-NSPath $paths['archive'] $Date
+    foreach ($candidate in @($paths['archive'], $directory)) {
+        if (Test-NSReparsePoint $candidate) {
+            Write-NSPolicyError 'shift-policy: refuse to write through a symlink archive path'
+            return 2
+        }
+    }
+    $null = [IO.Directory]::CreateDirectory($directory)
+    $destination = Join-NSPath $directory ('shift-policy-' + $shiftId + '.json')
+    Write-NSEvidenceFileAtomic -Path $destination -Text ([IO.File]::ReadAllText($paths['policy'], $script:NSUtf8NoBom))
+    Remove-Item -LiteralPath $paths['policy'] -Force
+    Write-NSPolicyOut $destination
+    return 0
+}
+
+function Invoke-NSShiftPolicyCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$Command = '',
+        [AllowEmptyString()][string]$FromJson = '',
+        [AllowEmptyString()][string]$VerificationProfile = '',
+        [AllowEmptyString()][string]$Hours = '',
+        [AllowEmptyString()][string]$ToolingPolicy = '',
+        [AllowEmptyString()][string]$Execution = '',
+        [AllowEmptyString()][string]$Date = '',
+        [switch]$Json,
+        [switch]$Table
+    )
+    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Command)) { return (Write-NSShiftPolicyUsage) }
+    $workspace = Get-NSAbsolutePath $Project
+    $paths = Get-NSPolicyPaths $workspace
+    switch ($Command) {
+        'get' {
+            if (-not (Test-Path -LiteralPath $paths['policy'] -PathType Leaf)) {
+                Write-NSPolicyOut '{}'
+                return 3
+            }
+            $text = [IO.File]::ReadAllText($paths['policy'], $script:NSUtf8NoBom)
+            [Console]::Out.Write($text)
+            if (-not $text.EndsWith("`n")) { [Console]::Out.Write("`n") }
+            return 0
+        }
+        'set' {
+            if ([string]::IsNullOrEmpty($FromJson)) { return (Write-NSShiftPolicyUsage) }
+            $documentText = ''
+            if ($FromJson -ceq '-') {
+                $documentText = Get-NSStdinText
+            }
+            elseif (Test-Path -LiteralPath $FromJson -PathType Leaf) {
+                $documentText = [IO.File]::ReadAllText($FromJson, $script:NSUtf8NoBom)
+            }
+            else {
+                Write-NSPolicyError ('shift-policy: cannot read ' + $FromJson)
+                return 2
+            }
+            return (Set-NSShiftPolicy -Workspace $workspace -Json $documentText)
+        }
+        'defaults-get' {
+            Write-NSPolicyOut (ConvertTo-NSCanonicalJson (Get-NSShiftDefaults $workspace))
+            return 0
+        }
+        'defaults-set' {
+            return (Set-NSShiftDefaults -Workspace $workspace -VerificationProfile $VerificationProfile `
+                    -Hours $Hours -ToolingPolicy $ToolingPolicy -Execution $Execution)
+        }
+        'resolve' {
+            if ($Table) {
+                Write-NSPolicyOut (Resolve-NSPolicy -Workspace $workspace -Table)
+                return 0
+            }
+            Write-NSPolicyOut (Resolve-NSPolicy -Workspace $workspace -Json)
+            return 0
+        }
+        'archive' {
+            $day = $Date
+            if ([string]::IsNullOrEmpty($day)) { $day = Get-Date -Format 'yyyy-MM-dd' }
+            if ($day -cnotmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}$') {
+                Write-NSPolicyError 'shift-policy: -Date must be YYYY-MM-DD'
+                return 2
+            }
+            return (Invoke-NSShiftPolicyArchive -Workspace $workspace -Date $day)
+        }
+    }
+    return (Write-NSShiftPolicyUsage)
+}
+
+function Invoke-NSPreflightNeedsCommand {
+    param([AllowEmptyString()][string]$Project = '', [switch]$Json)
+    if ([string]::IsNullOrEmpty($Project)) {
+        Write-NSPolicyError 'usage: preflight-needs.ps1 -Project DIR [-Json]'
+        return 1
+    }
+    Write-NSPolicyOut (Get-NSPreflightNeeds -Workspace (Get-NSAbsolutePath $Project) -Json:$Json)
+    return 0
+}
+
+function Invoke-NSParkNeedsCommand {
+    param([AllowEmptyString()][string]$Project = '')
+    if ([string]::IsNullOrEmpty($Project)) {
+        Write-NSPolicyError 'usage: park-needs.ps1 -Project DIR'
+        return 1
+    }
+    $workspace = Get-NSAbsolutePath $Project
+    if (-not (Test-Path -LiteralPath (Get-NSPolicyPaths $workspace)['ns'] -PathType Container)) {
+        Write-NSPolicyError ('park-needs: no .nightshift/ at ' + $workspace)
+        return 1
+    }
+    $added = Add-NSParkedNeeds -Workspace $workspace
+    foreach ($entry in $added) { Write-NSPolicyOut ('parked ' + $entry) }
+    Write-NSPolicyOut ('park-needs: added ' + $added.Count)
+    return 0
 }
 
 Export-ModuleMember -Function *

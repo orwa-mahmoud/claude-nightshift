@@ -498,6 +498,14 @@ try {
     $evidenceLogicRun = Invoke-TestScript $evidenceLogic
     Assert-Equal 0 $evidenceLogicRun.ExitCode `
         "evidence ledger fixtures and canonical JSON: $($evidenceLogicRun.Stdout) $($evidenceLogicRun.Stderr)"
+    $shiftPolicyLogic = Join-Path $PSScriptRoot 'shift-policy-logic.ps1'
+    $shiftPolicyLogicRun = Invoke-TestScript $shiftPolicyLogic
+    Assert-Equal 0 $shiftPolicyLogicRun.ExitCode `
+        "shift policy precedence and exact-plan binding: $($shiftPolicyLogicRun.Stdout) $($shiftPolicyLogicRun.Stderr)"
+    $preflightNeedsLogic = Join-Path $PSScriptRoot 'preflight-needs-logic.ps1'
+    $preflightNeedsLogicRun = Invoke-TestScript $preflightNeedsLogic
+    Assert-Equal 0 $preflightNeedsLogicRun.ExitCode `
+        "permission preflight and parking: $($preflightNeedsLogicRun.Stdout) $($preflightNeedsLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

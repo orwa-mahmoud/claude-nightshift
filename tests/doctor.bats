@@ -468,6 +468,85 @@ EOF
   grep -qF 'runtime/export-support.sh' "$BATS_TEST_DIRNAME/../docs/commands.md"
 }
 
+@test "doctor and export-support call the policy resolver, never the legacy helper" {
+  EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/export-support.sh"
+  ! grep -qE 'capability-policy\.(py|sh)' "$DOCTOR" "$EXPORT"
+  grep -qF 'ns_policy_resolve_table' "$DOCTOR"
+}
+
+@test "Doctor prints the resolved policy block between Facts and Warnings" {
+  p="$(new_project)"
+  punch_open "$p"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'resolved policy'
+  printf '%s' "$output" | grep -qF 'verificationLevel=per-item (built-in, -)'
+  printf '%s' "$output" | grep -qF 'toolingPolicy=existing-tools (built-in, -)'
+  printf '%s' "$output" | grep -qF 'deadlineEpoch=null (built-in, -)'
+  printf '%s' "$output" | grep -qF 'elevation.sudo=deny (rules, permanent)'
+  printf '%s' "$output" | grep -qF 'elevation.containers=deny (rules, permanent)'
+  printf '%s' "$output" | grep -qF 'watchMinutes=10 (rules, permanent)'
+  printf '%s' "$output" | grep -qF 'stallMax=0 (rules, permanent)'
+  # order: Facts, then resolved policy, then Warnings.
+  facts_line="$(printf '%s\n' "$output" | grep -n '^Facts$' | cut -d: -f1)"
+  policy_line="$(printf '%s\n' "$output" | grep -n '^resolved policy$' | cut -d: -f1)"
+  warn_line="$(printf '%s\n' "$output" | grep -n '^Warnings$' | cut -d: -f1)"
+  [ "$facts_line" -lt "$policy_line" ]
+  [ "$policy_line" -lt "$warn_line" ]
+}
+
+@test "the missing-setup report still carries an empty resolved policy section" {
+  empty="$BATS_TEST_TMPDIR/policy-empty"
+  mkdir -p "$empty"
+  run doctor "$empty"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -q 'resolved policy'
+}
+
+@test "Doctor warns about a leftover legacy capability-policy.json" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '{"policy":"auto-add"}\n' >"$p/.nightshift/capability-policy.json"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'legacy capability-policy.json present; Setup removes it'
+}
+
+@test "Doctor warns when shift-policy.json is malformed, names the field, and still resolves built-in plus rules" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '{"schemaVersion":1}\n' >"$p/.nightshift/shift-policy.json"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'shift-policy.json is malformed (shiftId is missing); the shift resolves to built-in defaults and rules only'
+  printf '%s' "$output" | grep -q '\[confirm\].*repair the named field in shift-policy.json'
+  printf '%s' "$output" | grep -qF 'verificationLevel=per-item (built-in, -)'
+}
+
+@test "Doctor warns when the deadline file disagrees with the shift-policy deadlineEpoch" {
+  p="$(new_project)"
+  punch_open "$p"
+  file_deadline=$(( $(date +%s) + 3600 ))
+  policy_deadline=$(( $(date +%s) + 7200 ))
+  printf '%s' "$file_deadline" >"$p/.nightshift/deadline"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":%s,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    "$policy_deadline" >"$p/.nightshift/shift-policy.json"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF "deadline file $file_deadline does not match shift-policy deadlineEpoch $policy_deadline; the gate honours the earlier value"
+  printf '%s' "$output" | grep -q '\[confirm\].*synchronize the deadline projection'
+}
+
+@test "Doctor reports preflight gaps without refusing" {
+  p="$(new_project)"
+  rm -f "$p/.nightshift/.shift-armed"
+  printf '## Items\n- [ ] **1. run docker compose up for local services.**\n' >"$p/.nightshift/punch-list.md"
+  run doctor "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'preflight: 1 open items, 1 with gaps'
+  printf '%s' "$output" | grep -qF 'gaps: containers (item 1)'
+}
+
 @test "identity helpers classify Codex session shapes" {
   run bash -c '. "$1"
     ns_codex_identity_kind ""

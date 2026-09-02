@@ -1,5 +1,11 @@
 load helpers
 
+# A valid tonight's snapshot, standing in for what composition or Start would have written.
+write_policy_with_deadline() { # <project> <deadlineEpoch-or-null>
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":%s,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    "$2" >"$1/.nightshift/shift-policy.json"
+}
+
 @test "blocks while a box is open" {
   p="$(new_project)"
   punch_open "$p"
@@ -163,6 +169,62 @@ load helpers
   run gate "$p"
   is_block "$output"
   [ ! -f "$p/.nightshift/STOP" ]
+}
+
+@test "clock-out archives tonight's shift policy under archive/<date>" {
+  p="$(new_project)"
+  punch_done "$p"
+  write_policy_with_deadline "$p" null
+  today="$(date '+%Y-%m-%d')"
+  run gate "$p"
+  is_release
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+  [ -f "$p/.nightshift/archive/$today/shift-policy-9f2c40ab77e51d63.json" ]
+}
+
+@test "clock-out releases normally when there is no shift policy to archive" {
+  p="$(new_project)"
+  punch_done "$p"
+  run gate "$p"
+  is_release
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+}
+
+@test "the gate honours the earlier of the deadline file and the shift-policy deadlineEpoch" {
+  p="$(new_project)"
+  punch_open "$p"
+  future=$(( $(date +%s) + 3600 ))
+  past=$(( $(date +%s) - 60 ))
+  printf '%s\n' "$future" >"$p/.nightshift/deadline"
+  write_policy_with_deadline "$p" "$past"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/STOP" ]
+  grep -qF "deadline mismatch — deadline file $future does not match shift-policy deadlineEpoch $past; honoring the earlier value" \
+    "$p/.nightshift/shift-log.md"
+  grep -q 'quitting time' "$p/.nightshift/shift-log.md"
+}
+
+@test "a shift-policy deadlineEpoch alone ends the shift when the projected file is absent" {
+  p="$(new_project)"
+  punch_open "$p"
+  past=$(( $(date +%s) - 60 ))
+  write_policy_with_deadline "$p" "$past"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/STOP" ]
+  grep -q 'quitting time' "$p/.nightshift/shift-log.md"
+}
+
+@test "a matching deadline file and shift-policy deadlineEpoch never log a mismatch" {
+  p="$(new_project)"
+  punch_open "$p"
+  future=$(( $(date +%s) + 3600 ))
+  printf '%s\n' "$future" >"$p/.nightshift/deadline"
+  write_policy_with_deadline "$p" "$future"
+  run gate "$p"
+  is_block "$output"
+  ! grep -q 'deadline mismatch' "$p/.nightshift/shift-log.md"
 }
 
 @test "an unparseable deadline never ends the shift by accident" {
@@ -500,7 +562,7 @@ load helpers
   run gate "$p" NIGHTSHIFT_STALL_WARN=2
   run gate "$p" NIGHTSHIFT_STALL_WARN=2
   is_block "$output"
-  grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
+  grep -q 'stall warning — session active, no tick or commit since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
 }
 
 @test "the gate reads the stall cadence from the rules file" {
@@ -510,7 +572,7 @@ load helpers
   run gate "$p"
   run gate "$p"
   is_block "$output"
-  grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
+  grep -q 'stall warning — session active, no tick or commit since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
 }
 
 # The block never depends on config: unreadable knobs still gate, fail closed, repair named.

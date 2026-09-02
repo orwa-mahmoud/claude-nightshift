@@ -36,7 +36,7 @@ codex_hardhat_ask() {
 @test "a scary-looking command passes when the forbidden list is unset" {
   p="$(new_project)"
   punch_open "$p"
-  run codex_hardhat_bash "$p" "docker compose down"
+  run codex_hardhat_bash "$p" "kubectl delete pod api-7f9"
   is_allow
 }
 
@@ -307,4 +307,76 @@ codex_hardhat_ask() {
   input="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}')"
   out="$(printf '%s' "$input" | env PATH="$bindir" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
   is_deny "$out"
+}
+
+# --- the policy files are control files, and elevation is the owner's switch ---
+
+# rules_elevation <project> <category> <policy>
+rules_elevation() {
+  local f="$1/.nightshift/rules.json"
+  jq --arg c "$2" --arg v "$3" '.elevation[$c].policy = $v' "$f" >"$f.new"
+  mv "$f.new" "$f"
+}
+
+# shift_policy <project> [allowances JSON array]
+shift_policy() {
+  jq -nc --argjson a "${2:-[]}" \
+    '{schemaVersion:1,shiftId:"9f2c40ab77e51d63",createdAt:"2026-09-02T02:30:00Z",
+      source:"composition",deadlineEpoch:null,verificationLevel:"final",
+      toolingPolicy:"existing-tools",allowances:$a}' >"$1/.nightshift/shift-policy.json"
+}
+
+codex_reason() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason'; }
+
+@test "codex denies rewriting the shift policy, its defaults, and the deadline" {
+  p="$(new_project)"
+  punch_open "$p"
+  shift_policy "$p"
+  for f in shift-policy.json shift-defaults.json deadline; do
+    run codex_hardhat_bash "$p" "printf 'forged' > .nightshift/$f"
+    is_deny "$output" || { echo "path rewrite allowed: $f"; return 1; }
+    printf '%s' "$output" | grep -qF "$f" || { echo "deny does not name $f"; return 1; }
+    run codex_hardhat_bash "$p" "cd .nightshift && rm -f $f"
+    is_deny "$output" || { echo "name delete allowed: $f"; return 1; }
+  done
+}
+
+@test "codex denies every elevation category by default with the same repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  ws="$(cd -P "$p" && pwd -P)"
+  while IFS='|' read -r category command; do
+    [ -n "$category" ] || continue
+    run codex_hardhat_bash "$p" "$command"
+    is_deny "$output" || { echo "allowed: $command"; return 1; }
+    expected="BLOCKED: this command needs the '$category' elevation category, which is denied for this shift. The owner allows it in $ws/.nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in $ws/.nightshift/parking-lot.md as \"needs allowance: $category\" and keep working."
+    [ "$(codex_reason "$output")" = "$expected" ] \
+      || { echo "wrong message for $category: $(codex_reason "$output")"; return 1; }
+  done <<'ROWS'
+sudo|sudo apt-get install -y jq
+containers|docker compose up -d
+global-packages|brew install shellcheck
+daemons|systemctl start nginx
+external-services|gh auth login
+ROWS
+}
+
+@test "codex honours a rules allowance and a one-shift allowance alike" {
+  p="$(new_project)"
+  punch_open "$p"
+  rules_elevation "$p" containers allow
+  run codex_hardhat_bash "$p" "docker compose up -d"
+  is_allow
+  q="$(new_project codex-one-shift)"
+  punch_open "$q"
+  shift_policy "$q" '[{"category":"daemons","scope":"category","provenance":"one-shift"}]'
+  run codex_hardhat_bash "$q" "systemctl start nginx"
+  is_allow
+}
+
+@test "codex reads the scrubbed command, so a commit message names nothing" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_bash "$p" "git commit -m 'sudo apt-get install jq and docker compose up'"
+  is_allow
 }
