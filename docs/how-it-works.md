@@ -63,6 +63,36 @@ the helper can chat and ask freely, but it is not a safe channel for commands th
 that receives code changes when state lives in a parent workspace. `state-version` prevents newer
 or malformed state from being interpreted by older hooks; unsupported versions fail closed.
 
+## Three policy layers and one resolved view
+
+Nightshift separates **what the project always forbids**, **what the owner usually prefers**, and
+**what tonight's shift authorizes**:
+
+| File | Role |
+| --- | --- |
+| `rules.json` | Permanent boundaries: tool denies, commit guards, retention, and elevation defaults (`sudo`, Docker socket, global packages, daemons, external services). Shipped templates deny `sudo` and container socket access unless the owner explicitly allows them. |
+| `shift-defaults.json` | Remembered convenience: verification profile, typical hours, tooling policy, execution mode. Prefills Hunt and Quality; never appears as the source of an effective value. |
+| `shift-policy.json` | Tonight's authoritative snapshot: deadline, verification level, tooling policy, one-shift elevation allowances with provenance, and the shift identity they bind to. Written by composition or Start; guarded while armed. |
+
+Status and Doctor render **one resolved policy block**: every effective setting, its source file,
+and each elevation category with whether it is allowed permanently, for one shift, or denied.
+Preflight compares punch-list needs against that view before arming.
+
+**Verification profiles** (`fast`, `balanced`, `strict`, `custom`) live in
+`references/profiles/`. `fast` is first-class: no automated checks, items and receipts only.
+`balanced` runs existing fast checks per item and a full suite at the end. `strict` runs applicable
+checks per item and at the end. Profiles propose defaults during Setup; owner rules remain
+authoritative.
+
+**Tooling policies** are `existing-tools` (scan with what is already installed),
+`auto-add` (install missing tools under allowed elevation categories), and
+`repository-tooling` (use the project's declared toolchain). Start never asks — composition or
+Start preflight records the choice on the policy snapshot.
+
+POSIX hooks parse JSON with **jq or python3**; an armed shift fails closed when neither is available.
+Native Windows uses PowerShell's built-in JSON parser. Optional Python helpers power evidence
+features only; their absence records an honest skip and the shift continues.
+
 ## Mechanical gates and owner rules
 
 On both Claude Code and Codex, an attempted stop with open punch-list items receives the focused

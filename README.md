@@ -298,6 +298,8 @@ independent of that history. The precise boundaries are in
 
 ## Documentation
 
+- [**Evidence-aware capabilities**](docs/evidence-capabilities.md) — runtime helpers, profiles,
+  artifact mode, source policies, and cross-host handoff.
 - [**Why Nightshift exists**](docs/why-nightshift.md) — the failure modes behind the contract.
 - [**How Nightshift works**](docs/how-it-works.md) — files, gates, recovery, host differences,
   workspace layouts, guarantees, and limits.
@@ -324,7 +326,8 @@ independent of that history. The precise boundaries are in
   when project tooling cannot.
 - Ticks are self-reported. The gate re-injects the working contract at every blocked stop, but item
   checks and human review still determine whether the work is good.
-- Guards are owner-configured pattern rules, not a security sandbox.
+- Guards are owner-configured pattern rules, not a security sandbox. Default `rules.json` denies
+  `sudo` and Docker socket access unless the owner explicitly allows them.
 - Completion beats cost by default: a stuck finite shift is held and flagged rather than silently
   ended. Bound it with a deadline, `NIGHTSHIFT_STALL_MAX`, or both when cost matters more.
 - The stall guard treats ticks, commits, and artifact receipts as progress, so failed-attempt commits can look alive;

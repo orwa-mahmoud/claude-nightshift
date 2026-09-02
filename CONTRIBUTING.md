@@ -1,8 +1,13 @@
 # Contributing to Nightshift
 
-Thanks for looking under the hood. The plugin is deliberately small — a
-punch-list contract, a stop-gate hook, and skills that hold an agent to both —
-so contributions should keep that shape.
+Thanks for looking under the hood. The plugin is deliberately bounded — a punch-list contract,
+native enforcement and recovery on disk, transparent skills, and evidence helpers that record what
+was measured — so contributions should preserve explicit authority, local ownership, reversibility,
+cross-host alignment, and honest evidence.
+
+The bounded core: on-disk work contract, stop-gate hook, watchman recovery, and skills that hold an
+agent to both. Contributions must not weaken owner gates, invent silent policy, or add mandatory
+hosted services, accounts, or connectors to the MIT core.
 
 Not sure where to start? Use the
 [contribution map](docs/contribution-map.md) to choose catalog, documentation, testing, runtime,

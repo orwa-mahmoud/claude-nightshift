@@ -1,8 +1,8 @@
-# Contract evaluation
+# Contract schema and evaluation toolkit
 
-Repository-owned evals for Nightshift catalog entries and composer skills. The
-public command surface stays the existing Setup / Hunt / Quality / Start skills;
-this directory is the maintainer SDK.
+Repository-owned **contract schema and evaluation toolkit** for Nightshift catalog entries and
+composer skills. The public command surface stays the existing Setup / Hunt / Quality / Start
+skills; this directory is the maintainer SDK.
 
 ```text
 evals/validate.sh [--report] [path]   contract SDK + release checks
