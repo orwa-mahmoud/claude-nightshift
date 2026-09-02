@@ -1,0 +1,12 @@
+{
+  "branch": "feat/add-webhook-retries",
+  "baseBranch": "main",
+  "changedFiles": [
+    "src/webhook/retry.ts",
+    "tests/webhook-retry.test.ts",
+    "README.md"
+  ],
+  "issueScopePaths": ["src/webhook/", "tests/webhook-retry.test.ts", "README.md"],
+  "unrelatedChanges": [],
+  "dirtyWorktree": false
+}

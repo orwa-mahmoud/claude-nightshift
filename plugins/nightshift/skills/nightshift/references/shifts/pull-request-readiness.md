@@ -1,29 +1,42 @@
-# Pull-request readiness — finite — scoped change set ready for human review
+# Pull-request readiness — finite — branch-scoped acceptance before human review
 
-Use when the owner names one branch or change set and wants it checked against acceptance criteria,
-repository rules, review comments, tests, docs, and security before a human approves or merges.
-Nightshift fixes supported gaps and leaves a review map; it never submits a review, approves, pushes,
-merges, or closes issues without explicit owner authority.
+Use when the owner names a branch (or change set), an issue with acceptance criteria, and wants
+Nightshift to fix supported gaps, rerun focused gates, and leave a review map — not to approve,
+push, merge, or submit a review on the owner's behalf.
 
-Supported on repository mode only unless a clearly useful artifact-only review input exists. Route
-generic code review requests elsewhere. Typical hours: 2–4.
+Supported in repository mode only. The shift anchors to one named branch against a base branch,
+consumes local diff, CI, tests, docs, packaging, compatibility, security findings, and any
+owner-supplied review comments. Generic code review without an issue anchor or branch scope routes elsewhere. Artifact-only review input is out of scope unless the owner explicitly supplied a
+bounded artifact bundle for comparison.
+
+Never select this entry in artifact mode. Do not `git init` a notes folder to simulate a branch.
 
 ```text
-- [ ] **Pull-request readiness — prepare a named change set for human review.**
-  - Discovery: anchor to the named branch or change set, linked issue or acceptance criteria,
-    repository rules, diff scope, supplied review comments, compatibility notes, tests, docs,
-    packaging, and configured checks. Build the acceptance map with
-    `runtime/pr-readiness-evidence.sh acceptance-map`, validate diff scope with `diff-scope`, and
-    record owner-only refusals with `owner-action-refusal`. Never search for extra scope or mutate
-    GitHub (no review submit, approve, push, merge, close).
-  - Fix supported gaps in scope, rerun focused and containing gates, disposition every finding in a
-    review map via `runtime/pr-readiness-evidence.sh review-map` (changed areas, acceptance evidence,
-    remaining risks, unsupported surfaces, commits, rollback, exact reviewer decisions still needed).
-  - One conventional commit per repaired gap when in direct mode; park ambiguous or owner-only items
-    in parking-lot.md with reversible defaults.
+- [ ] **Pull-request readiness — prepare a named branch for human review.**
+  - Discovery: record the named branch, base branch, issue URL, acceptance criteria (from the issue
+    or owner scope), repository rules, and any supplied review comments before editing. Run
+    `runtime/pr-readiness-evidence.sh diff-scope` on the branch diff to separate in-scope changes
+    from unrelated or dirty work; park or exclude paths outside the issue scope. Run
+    `runtime/pr-readiness-evidence.sh acceptance-map` to map each criterion to evidence, route
+    ambiguous criteria to parking-lot.md with a reversible default, and flag missing issue anchors
+    or failed CI honestly.
+  - Work one gap cluster per cycle: fix supported defects (compatibility, security, tests, docs,
+    packaging, review-comment threads), rerun the focused gate and containing checks; disposition every finding
+    with reason (fixed, rejected, parked, unsupported, out-of-scope), commit on the
+    named branch, and refresh the acceptance map. Never weaken tests, suppress findings, or redefine
+    acceptance merely to claim progress.
+  - Before clock-out, run `runtime/pr-readiness-evidence.sh review-map` with changed areas,
+    acceptance evidence, remaining risks, unsupported surfaces, commits on the branch, rollback
+    steps, and exact reviewer decisions still required. Append the review-map shift-log line. The
+    receipt must state what a human reviewer still decides — Nightshift prepares; it does not approve.
+  - Owner-only actions: before any push, merge, PR open, review submission, issue close, or approval
+    request, run `runtime/pr-readiness-evidence.sh owner-action-refusal`. Refuse unless the owner
+    granted explicit owner authorization for that exact action in the punch-list scope or a parked
+    decision. Never comment on, approve, push, merge, or close GitHub resources without authority.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected).
-  - Ends when every scoped gap is fixed, rejected with reason, or parked and containing checks are
-    green; the review map is complete and owner-only actions remain refused.
-  - Verify: the item gate is green at every commit; review map lists every finding disposition;
-    `owner-action-refusal` shows push/merge/approve as refused unless explicit authority was named.
+  - Ends when every scoped gap is fixed, rejected with reason, or parked, containing checks are green,
+    the review map is complete, and no owner-only action was taken without authority.
+  - Verify: the item gate is green at every commit; acceptance-map verdict is
+    `ready-for-human-review` or every remaining blocker is parked with reason; review-map reports
+    `finiteEndingReached`; owner-action-refusal confirms no unauthorized approve/push/merge.
 ```

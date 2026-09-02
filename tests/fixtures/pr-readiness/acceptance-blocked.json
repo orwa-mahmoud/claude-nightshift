@@ -1,0 +1,22 @@
+{
+  "branch": "feat/unscoped-work",
+  "baseBranch": "main",
+  "issueUrl": "",
+  "workMode": "repository",
+  "acceptanceCriteria": [
+    {
+      "id": "ac-1",
+      "text": "Fix the reported bug",
+      "status": "unmet",
+      "evidence": []
+    }
+  ],
+  "reviewComments": [
+    {
+      "author": "reviewer",
+      "body": "Please add a regression test",
+      "unresolved": true
+    }
+  ],
+  "ciStatus": {"state": "failure", "workflow": "ci"}
+}

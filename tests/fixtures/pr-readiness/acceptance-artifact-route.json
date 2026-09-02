@@ -1,0 +1,15 @@
+{
+  "branch": "feat/add-webhook-retries",
+  "baseBranch": "main",
+  "issueUrl": "https://github.com/acme/payments/issues/42",
+  "workMode": "artifact",
+  "acceptanceCriteria": [
+    {
+      "id": "ac-1",
+      "text": "Compare supplied diff bundle",
+      "status": "ambiguous",
+      "evidence": []
+    }
+  ],
+  "ciStatus": {"state": "unknown"}
+}
