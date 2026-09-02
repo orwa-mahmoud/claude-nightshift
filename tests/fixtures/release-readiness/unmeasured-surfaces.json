@@ -1,0 +1,20 @@
+{
+  "surfaces": [
+    {
+      "surface": "production-install",
+      "reason": "no disposable environment authorized",
+      "provenance": "owner-scope",
+      "environment": "production"
+    },
+    {
+      "surface": "bundle-size",
+      "reason": "budget file missing from candidate tree",
+      "provenance": "bundle-budget.json"
+    },
+    {
+      "surface": "marketplace-listing",
+      "reason": "third-party URL cannot be verified locally",
+      "provenance": "skipped"
+    }
+  ]
+}

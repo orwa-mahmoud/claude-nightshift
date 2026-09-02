@@ -1,0 +1,21 @@
+{
+  "ciGreen": true,
+  "baselineCompare": {
+    "schemaVersion": 1,
+    "kind": "baseline-compare",
+    "baselineRef": "v1.2.0",
+    "baselinePresent": true,
+    "regressions": [
+      {"dimension": "tests", "reason": "test-regression", "baseline": "pass", "candidate": "fail"}
+    ],
+    "improvements": [],
+    "unchanged": [],
+    "drift": []
+  },
+  "publicClaims": {
+    "rows": []
+  },
+  "blockers": [],
+  "nonBlockers": [],
+  "unmeasured": []
+}

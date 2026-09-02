@@ -16,6 +16,13 @@ SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
   grep -qi 'Do not query the network' "$E"
 }
 
+@test "documentation drift public-claims mode uses release-readiness matrix" {
+  grep -qi 'Public-claims mode' "$E"
+  grep -qF 'release-readiness-evidence.sh public-claims-matrix' "$E"
+  grep -qi 'Never publish or deploy from this shift' "$E"
+  grep -qi 'Route full baseline-vs-candidate release comparison to release-readiness' "$E"
+}
+
 @test "documentation drift refuses to invent commands or change product behaviour" {
   grep -qi 'Never invent a command' "$E"
   grep -qi 'Never change product behaviour' "$E"

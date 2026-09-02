@@ -1,0 +1,32 @@
+{
+  "baselineRef": "v1.2.0",
+  "packageExclusions": ["*.map"],
+  "baseline": {
+    "tests": {"status": "pass", "provenance": "ci-run-8821"},
+    "publicApi": {"breaking": 0, "additive": 1, "provenance": "openapi-diff"},
+    "package": {
+      "files": ["dist/index.js", "dist/index.js.map", "package.json"],
+      "digest": "sha256:baseline",
+      "provenance": "npm pack --dry-run"
+    },
+    "install": {"smoke": "pass", "provenance": "local-smoke"},
+    "version": {"version": "1.2.0", "changelogEntry": "1.2.0"},
+    "docs": {"claimMismatches": 0, "provenance": "public-claims-matrix"},
+    "security": {"advisories": 0, "provenance": "npm audit"},
+    "budgets": {"bytes": 100000, "measured": true, "provenance": "bundle-budget.json"}
+  },
+  "candidate": {
+    "tests": {"status": "fail", "provenance": "ci-run-9012"},
+    "publicApi": {"breaking": 1, "additive": 0, "provenance": "openapi-diff"},
+    "package": {
+      "files": ["dist/index.js", "package.json", "dist/extra.js"],
+      "digest": "sha256:candidate",
+      "provenance": "npm pack --dry-run"
+    },
+    "install": {"smoke": "fail", "upgradePath": "failed", "provenance": "local-smoke"},
+    "version": {"version": "1.3.0"},
+    "docs": {"claimMismatches": 2, "provenance": "public-claims-matrix"},
+    "security": {"advisories": 2, "provenance": "npm audit"},
+    "budgets": {"measured": false, "provenance": "bundle-budget.json"}
+  }
+}

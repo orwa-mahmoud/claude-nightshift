@@ -6,6 +6,16 @@ against files that already exist here. The list is whatever a local pass reports
 Use when README, contrib, or skill docs disagree with the tree: a moved path, a renamed command, a
 version that only the docs still claim. Not a rewrite of positioning, voice, or product behaviour.
 
+## Public-claims mode
+
+Select when release or marketing surfaces must match shipped behavior: website pages, README,
+manifests, directory listings, examples, install commands, version strings, privacy/security copy,
+released package contents, and observed runtime behavior. Run
+`runtime/release-readiness-evidence.sh public-claims-matrix` across those surfaces (in addition to
+the in-repo matrix below when local docs are in scope). Fix mechanical drift only; park
+positioning, legal, and brand decisions in parking-lot.md. Never publish or deploy from this shift.
+Route full baseline-vs-candidate release comparison to release-readiness.
+
 Supported on any repository that keeps documentation in-tree (markdown, man pages, `--help`
 examples checked into the repo). Skip generated sites whose source of truth is elsewhere.
 Never select this entry in artifact mode. Do not `git init` a notes folder to make docs commitable.

@@ -1,0 +1,28 @@
+{
+  "ciGreen": true,
+  "baselineCompare": {
+    "schemaVersion": 1,
+    "kind": "baseline-compare",
+    "baselineRef": "v1.2.0",
+    "baselinePresent": true,
+    "regressions": [],
+    "improvements": [],
+    "unchanged": [{"dimension": "tests"}],
+    "drift": [
+      {"dimension": "version", "kind": "missing-changelog", "severity": "non-blocker"},
+      {"dimension": "budgets", "kind": "unmeasured", "severity": "unmeasured"}
+    ]
+  },
+  "publicClaims": {
+    "rows": [
+      {
+        "claim": "Install with npm install -g @scope/pkg",
+        "mechanicalDrift": true,
+        "action": "repair"
+      }
+    ]
+  },
+  "blockers": [],
+  "nonBlockers": [],
+  "unmeasured": []
+}

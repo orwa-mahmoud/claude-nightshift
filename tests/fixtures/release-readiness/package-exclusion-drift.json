@@ -1,0 +1,18 @@
+{
+  "baselineRef": "v1.0.0",
+  "packageExclusions": ["*.map"],
+  "baseline": {
+    "package": {
+      "files": ["dist/index.js", "dist/index.js.map"],
+      "digest": "sha256:base",
+      "provenance": "npm pack --dry-run"
+    }
+  },
+  "candidate": {
+    "package": {
+      "files": ["dist/index.js"],
+      "digest": "sha256:cand",
+      "provenance": "npm pack --dry-run"
+    }
+  }
+}

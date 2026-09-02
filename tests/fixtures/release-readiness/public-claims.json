@@ -1,0 +1,39 @@
+{
+  "claims": [
+    {
+      "text": "Install with npm install -g @scope/pkg",
+      "surface": "README.md",
+      "surfaceType": "install-command",
+      "authority": "repository",
+      "verifiedLocally": false
+    },
+    {
+      "text": "The fastest AI coding plugin",
+      "surface": "website/index.html",
+      "surfaceType": "positioning",
+      "authority": "marketing",
+      "verifiedLocally": false
+    },
+    {
+      "text": "Version 2.0.0",
+      "surface": "plugin.json",
+      "surfaceType": "version",
+      "authority": "manifest",
+      "verifiedLocally": false
+    },
+    {
+      "text": "MIT licensed",
+      "surface": "README.md",
+      "surfaceType": "readme",
+      "authority": "LICENSE",
+      "verifiedLocally": true
+    },
+    {
+      "text": "We never collect telemetry",
+      "surface": "PRIVACY.md",
+      "surfaceType": "privacy",
+      "authority": "legal",
+      "verifiedLocally": false
+    }
+  ]
+}
