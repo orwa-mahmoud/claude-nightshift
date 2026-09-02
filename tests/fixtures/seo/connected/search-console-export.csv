@@ -1,0 +1,5 @@
+Query,Page,Clicks,Impressions,CTR,Position,Device,Country,Search appearance
+acme docs install,https://docs.example.test/guides/install,842,12400,6.79%,4.2,mobile,usa,rich result
+seo audit checklist,https://docs.example.test/guides/seo-audit,310,8900,3.48%,8.7,desktop,gbr,standard
+seo audit checklist,https://docs.example.test/guides/seo-audit-checklist,95,4100,2.32%,11.4,desktop,gbr,standard
+acme release notes,https://docs.example.test/blog/release-notes,128,2200,5.82%,6.1,tablet,deu,standard

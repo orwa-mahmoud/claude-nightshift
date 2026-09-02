@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "kind": "local-inventory",
+  "evidenceMode": "local",
+  "siteRoot": "tests/fixtures/seo/local/static-site",
+  "generatedAt": "2026-09-02T12:00:00Z",
+  "inventory": [
+    {
+      "id": "home",
+      "locator": "file:static-site/index.html",
+      "route": "/",
+      "title": "Acme Docs — Home",
+      "canonical": "https://docs.example.test/",
+      "robotsMeta": "index,follow",
+      "headings": ["h1:Welcome to Acme Docs", "h2:Get started"],
+      "internalLinksOut": ["/guides/install", "/guides/seo-audit", "/blog/release-notes"],
+      "internalLinksIn": ["/guides/install"],
+      "structuredDataTypes": ["WebSite"],
+      "templateId": "landing",
+      "wordCount": 420,
+      "language": "en"
+    },
+    {
+      "id": "install",
+      "locator": "file:static-site/guides/install.html",
+      "route": "/guides/install",
+      "title": "Install Acme",
+      "canonical": "https://docs.example.test/guides/install",
+      "robotsMeta": "index,follow",
+      "headings": ["h1:Install", "h2:Prerequisites", "h2:Verify"],
+      "internalLinksOut": ["/", "/guides/seo-audit"],
+      "internalLinksIn": ["/", "/guides/seo-audit"],
+      "structuredDataTypes": ["TechArticle"],
+      "templateId": "doc-page",
+      "wordCount": 980,
+      "language": "en"
+    },
+    {
+      "id": "seo-audit",
+      "locator": "file:static-site/guides/seo-audit.html",
+      "route": "/guides/seo-audit",
+      "title": "SEO audit guide",
+      "canonical": "https://docs.example.test/guides/seo-audit",
+      "robotsMeta": "index,follow",
+      "headings": ["h1:SEO audit", "h2:Local inventory", "h2:Live crawl"],
+      "internalLinksOut": ["/guides/install", "/guides/seo-audit-checklist"],
+      "internalLinksIn": ["/", "/guides/install"],
+      "structuredDataTypes": ["TechArticle", "FAQPage"],
+      "templateId": "doc-page",
+      "wordCount": 1540,
+      "language": "en"
+    },
+    {
+      "id": "seo-checklist",
+      "locator": "file:static-site/guides/seo-audit-checklist.html",
+      "route": "/guides/seo-audit-checklist",
+      "title": "SEO audit checklist",
+      "canonical": "https://docs.example.test/guides/seo-audit-checklist",
+      "robotsMeta": "index,follow",
+      "headings": ["h1:Checklist"],
+      "internalLinksOut": ["/guides/seo-audit"],
+      "internalLinksIn": ["/guides/seo-audit"],
+      "structuredDataTypes": [],
+      "templateId": "doc-page",
+      "wordCount": 310,
+      "language": "en"
+    },
+    {
+      "id": "release-notes",
+      "locator": "file:static-site/blog/release-notes.html",
+      "route": "/blog/release-notes",
+      "title": "Release notes",
+      "canonical": "https://docs.example.test/blog/release-notes",
+      "robotsMeta": "index,follow",
+      "headings": ["h1:Release notes", "h2:0.19.0"],
+      "internalLinksOut": ["/"],
+      "internalLinksIn": ["/"],
+      "structuredDataTypes": ["BlogPosting"],
+      "templateId": "blog-post",
+      "wordCount": 640,
+      "language": "en"
+    },
+    {
+      "id": "orphan-legacy",
+      "locator": "file:static-site/legacy/old-api.html",
+      "route": "/legacy/old-api",
+      "title": "Legacy API (deprecated)",
+      "canonical": null,
+      "robotsMeta": "noindex,follow",
+      "headings": ["h1:Legacy API"],
+      "internalLinksOut": [],
+      "internalLinksIn": [],
+      "structuredDataTypes": [],
+      "templateId": "legacy",
+      "wordCount": 180,
+      "language": "en"
+    }
+  ],
+  "templateClusters": [
+    {
+      "id": "doc-page",
+      "label": "Documentation article",
+      "pageIds": ["install", "seo-audit", "seo-checklist"],
+      "sharedSignals": ["TechArticle or FAQPage JSON-LD", "guides/ route prefix", "sidebar TOC placeholder"],
+      "duplicateRisk": "low"
+    },
+    {
+      "id": "landing",
+      "label": "Marketing landing",
+      "pageIds": ["home"],
+      "sharedSignals": ["hero block", "primary CTA to /guides/install"],
+      "duplicateRisk": "none"
+    },
+    {
+      "id": "blog-post",
+      "label": "Blog post",
+      "pageIds": ["release-notes"],
+      "sharedSignals": ["BlogPosting JSON-LD", "published date meta"],
+      "duplicateRisk": "none"
+    }
+  ],
+  "orphanCandidates": [
+    {
+      "pageId": "orphan-legacy",
+      "reason": "Zero inbound internal links from the supplied static tree; only reachable if owner adds a URL manually.",
+      "inboundInternalLinks": 0
+    }
+  ],
+  "intentMap": [
+    {
+      "intent": "install the product",
+      "pageIds": ["install"],
+      "coverage": "served",
+      "notes": "Primary install guide with prerequisites and verify steps."
+    },
+    {
+      "intent": "run an SEO audit",
+      "pageIds": ["seo-audit", "seo-checklist"],
+      "coverage": "cannibalized",
+      "notes": "Guide and checklist overlap on checklist-style headings; compare before recommending consolidation."
+    },
+    {
+      "intent": "read release history",
+      "pageIds": ["release-notes"],
+      "coverage": "served",
+      "notes": null
+    },
+    {
+      "intent": "migrate from legacy API",
+      "pageIds": [],
+      "coverage": "gap",
+      "notes": "Legacy page is deprecated and noindex; no migration guide in tree."
+    }
+  ],
+  "cannibalizationCandidates": [
+    {
+      "intent": "run an SEO audit",
+      "pageIds": ["seo-audit", "seo-checklist"],
+      "reason": "Both pages target the same checklist intent with overlapping h2 sections and mutual internal links."
+    }
+  ],
+  "contentGaps": [
+    {
+      "intent": "migrate from legacy API",
+      "reason": "No non-legacy page explains migration; orphan legacy page is noindex.",
+      "suggestedRoute": "/guides/migrate-from-legacy-api"
+    }
+  ],
+  "notMeasured": [
+    {
+      "surface": "live-crawl",
+      "reason": "Local mode reads the supplied static tree only; no network crawl was authorized."
+    },
+    {
+      "surface": "production-rendering",
+      "reason": "No production URL or rendered build output was supplied beyond static HTML files."
+    },
+    {
+      "surface": "backlinks",
+      "reason": "No backlink database or export was in the owner-approved source list."
+    },
+    {
+      "surface": "search-console",
+      "reason": "Search Console export was not supplied; use Connected mode when the owner provides one."
+    },
+    {
+      "surface": "analytics",
+      "reason": "Analytics export was not supplied; use Connected mode when the owner provides one."
+    },
+    {
+      "surface": "field-performance",
+      "reason": "No CrUX or field performance export was supplied."
+    },
+    {
+      "surface": "lab-performance",
+      "reason": "No Lighthouse JSON or HAR was in the approved source list."
+    },
+    {
+      "surface": "rankings",
+      "reason": "Rankings are never inferred in Local mode."
+    }
+  ],
+  "renderedBuildOutput": {
+    "available": false,
+    "path": null,
+    "notes": "Static HTML fixture only; no SSR/build artifact was supplied for rendered comparison."
+  }
+}
