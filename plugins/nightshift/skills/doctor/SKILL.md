@@ -103,6 +103,10 @@ The report tags every suggestion:
 Invoking Doctor alone must leave the tree byte-identical. Never perform a repair merely because
 Doctor was invoked.
 
+When cross-host continuity is relevant, Doctor may reference
+`continuity-handoff.sh transition-history` output for compact stand-down/revival reasons (no secrets)
+and `continuity-handoff.sh fence-check` when a duplicate worker or unfenced prior owner is suspected.
+
 ## 3. After the report
 
 Offer the classified repairs after the report. If the owner explicitly asks to apply a `[safe]`

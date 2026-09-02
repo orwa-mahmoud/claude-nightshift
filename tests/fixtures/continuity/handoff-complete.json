@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "stateVersion": 1,
+  "contract": "punch-list.md",
+  "workTarget": "/Users/dev/app",
+  "completedItems": ["01A", "01B"],
+  "openItems": ["01C"],
+  "capabilityLocators": ["file:.nightshift/capabilities.json"],
+  "evidenceLocators": ["file:.nightshift/findings.jsonl"],
+  "decisions": ["park: use fast profile"],
+  "deadlineSemantics": "soft-cap",
+  "lease": "lease-abc",
+  "nonce": "nonce-1",
+  "session": "claude:session-1",
+  "priorHost": "claude",
+  "cleanStandDownProof": "watchman-stood-down"
+}

@@ -132,6 +132,12 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  Windows, read pid and start time, and `Stop-Process -Id` only when
  `Test-NSRecordedProcess` returns Alive — a reused pid is not this watchman. A
  watchman must not be able to advance the old lease while Start removes markers.
+- **Cross-host handoff.** When resuming on a different host (Claude Code, Codex, or Cursor), build
+ a versioned handoff manifest and run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/continuity-handoff.sh" fence-check --input <manifest.json>`
+ before arming. Takeover is allowed only when the prior owner is fenced, no duplicate worker is
+ active, and `continuity-handoff.sh handoff-package` reports `complete`. Never permit two active
+ workers or duplicate mutable punch-list state.
 - **Reset stale lease state through the shared library, never by reading or deleting its files
  directly.** After the liveness checks and stale-watchman shutdown above, run:
  ```bash

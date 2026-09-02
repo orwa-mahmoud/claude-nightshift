@@ -119,5 +119,10 @@ below for punch-list titles, parking lot, and product evolution detail Doctor do
  Windows, `Get-NSReasonLabel` after the same module import). Do not print
  transcript paths, session ids, prompts, or any other payload. Line 2 is optional non-sensitive
  detail only.
+- **Transition history** — when `$NS/shift-log.md` or a handoff manifest records stand-down,
+ revival, or host changes, summarize reason-coded transitions with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/continuity-handoff.sh" transition-history --input <events.json>`
+ (compact, no secrets). Multi-night campaigns are independent bounded shifts; the next night begins
+ only after the prior archives or the owner accepts its handoff (`continuity-handoff.sh campaign-sequence`).
 
 Keep it a compact glanceable summary. Do not modify any file, do not begin work.

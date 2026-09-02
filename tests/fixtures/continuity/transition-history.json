@@ -1,0 +1,6 @@
+{
+  "events": [
+    {"at": "2026-09-02T10:00:00Z", "kind": "stand-down", "reason": "owner-stop", "host": "claude", "leaseUsed": "lease-abc"},
+    {"at": "2026-09-02T10:10:00Z", "kind": "revival", "reason": "watchman-resume", "host": "cursor", "sessionKind": "cursor"}
+  ]
+}
