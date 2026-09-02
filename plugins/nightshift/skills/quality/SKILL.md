@@ -101,7 +101,13 @@ required capabilities are unavailable and do not pause to provision.
 
 Detect the stack from the gates catalog (monorepo-aware) when the work mode is repository,
 including a plugin or marketplace manifest at the work-target root or under `plugins/<name>/`,
-and inspect repository-owned tooling and evidence. In artifact mode inspect the persistent
+and inspect repository-owned tooling and evidence. Build the ranked queue with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/quality-scan.sh"` and
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/quality-workflow.sh pipeline --manifest …"` (native Windows:
+use the same helpers under `runtime/windows/` when present, otherwise the POSIX scripts via
+Git Bash). Compose Automatic plan input with
+`quality-workflow.sh compose-discovery --scan …` before calling `shift-planner.sh`.
+In artifact mode inspect the persistent
 folder's files and any existing manifests or reports; do not require git history or stack
 detection that needs a repository. Completion in that folder is `$NS/receipts/`, not a git log.
 Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory.

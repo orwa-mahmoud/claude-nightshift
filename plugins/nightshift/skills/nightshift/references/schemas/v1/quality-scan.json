@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/quality-scan.json",
+  "title": "Nightshift quality scan result",
+  "description": "Raw captures and normalized findings from a read-only quality scan. Never mutates project scripts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workTarget", "sources", "findings"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "workTarget": { "type": "string" },
+    "workMode": { "type": "string", "enum": ["repository", "artifact"] },
+    "host": { "type": "string" },
+    "scannedAt": { "type": "string" },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceClass", "scope", "format"],
+        "properties": {
+          "sourceClass": { "type": "string" },
+          "source": { "type": "string" },
+          "scope": { "type": "string" },
+          "format": { "type": "string", "enum": ["eslint-json", "text-lines", "unavailable"] },
+          "command": { "type": "string" },
+          "rawDigest": { "type": "string" },
+          "unavailable": { "type": "boolean" }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "queue": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/queueItem" }
+    },
+    "dedupeSummary": {
+      "type": "object",
+      "properties": {
+        "inputCount": { "type": "integer" },
+        "outputCount": { "type": "integer" },
+        "groups": { "type": "array" }
+      }
+    }
+  },
+  "definitions": {
+    "queueItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "digest", "locator", "sources", "rank"],
+      "properties": {
+        "id": { "type": "string" },
+        "digest": { "type": "string" },
+        "locator": { "type": "string" },
+        "sources": { "type": "array", "items": { "type": "string" } },
+        "sourceIds": { "type": "array", "items": { "type": "string" } },
+        "severity": { "type": "string" },
+        "confidence": { "type": "string" },
+        "impact": { "type": "string" },
+        "scope": { "type": "string" },
+        "package": { "type": ["string", "null"] },
+        "rank": { "type": "integer" },
+        "established": { "type": "boolean" },
+        "message": { "type": "string" }
+      }
+    }
+  }
+}

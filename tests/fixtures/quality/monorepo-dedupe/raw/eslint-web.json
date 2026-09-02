@@ -1,0 +1,14 @@
+[
+  {
+    "filePath": "packages/web/src/imports.js",
+    "messages": [
+      {
+        "ruleId": "no-unused-vars",
+        "severity": 1,
+        "message": "'helper' is defined but never used",
+        "line": 4,
+        "column": 7
+      }
+    ]
+  }
+]

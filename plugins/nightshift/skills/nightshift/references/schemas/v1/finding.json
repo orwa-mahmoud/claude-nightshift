@@ -53,5 +53,13 @@
     "action",
     "host",
     "workTarget"
+  ],
+  "optional": [
+    "sourceTool",
+    "sources",
+    "duplicateOf",
+    "rootCauseKey",
+    "established",
+    "message"
   ]
 }

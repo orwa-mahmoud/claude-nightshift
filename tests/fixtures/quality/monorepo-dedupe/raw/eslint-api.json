@@ -1,0 +1,14 @@
+[
+  {
+    "filePath": "packages/api/src/imports.js",
+    "messages": [
+      {
+        "ruleId": "import/no-cycle",
+        "severity": 2,
+        "message": "Dependency cycle via orders and customers modules",
+        "line": 12,
+        "column": 1
+      }
+    ]
+  }
+]
