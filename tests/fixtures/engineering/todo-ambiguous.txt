@@ -1,0 +1,1 @@
+// FIXME: product needs to decide whether checkout supports guest mode

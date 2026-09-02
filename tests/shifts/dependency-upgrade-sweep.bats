@@ -1,5 +1,9 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/dependency-upgrade-sweep.md"
 
+@test "dependency upgrade sweep batches with engineering evidence" {
+  grep -qF 'engineering-evidence.sh dep-batch' "$E"
+}
+
 # A version bump that compiles is not an upgrade. The release notes are the work, and skipping
 # them is how a green gate hides a behaviour change nobody read about.
 @test "the upgrade sweep reads the release notes and adapts the code" {
@@ -16,7 +20,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 
 @test "the upgrade sweep refuses prereleases and stays on direct dependencies" {
   grep -qi 'Never take a prerelease' "$E"
-  grep -qF 'Direct dependencies only' "$E"
+  grep -qi 'Direct dependencies only' "$E"
 }
 
 # One package per commit is what makes a failing gate diagnosable at 4am.

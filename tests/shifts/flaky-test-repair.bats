@@ -1,5 +1,9 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/flaky-test-repair.md"
 
+@test "flaky-test repair uses the engineering evidence matrix" {
+  grep -qF 'engineering-evidence.sh flaky-matrix' "$E"
+}
+
 @test "flaky-test repair declares evidence and a repetition budget" {
   grep -qi 'existing flake evidence' "$E"
   grep -qi 'declare a repetition budget' "$E"

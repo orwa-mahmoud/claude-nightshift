@@ -16,10 +16,11 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 - [ ] **CI warning cleanup — fix repository-owned warnings and deprecations at the cause.**
   - Never select this entry when work mode is artifact.
   - Discovery: run the project's CI-equivalent or item-gate commands in the configuration this
-    repository already uses. Capture the warning/deprecation lines, dedupe against snag-log.md
-    (ALL seen — fixed and rejected), and split **repository-owned** (this repo's code, scripts,
-    config) from **external** (upstream libraries, the runner image, a tool this repo does not
-    control).
+    repository already uses. Normalize captures with `runtime/engineering-evidence.sh ci-warnings`
+    (workflow/job/step, new vs recurrent, cause class, relevant log excerpt). Split
+    **repository-owned** (this repo's code, scripts, config) from **external** (upstream libraries,
+    the runner image, a tool this repo does not control). Dedupe against snag-log.md (ALL seen —
+    fixed and rejected).
   - Work repository-owned warnings one cluster at a time: fix the cause, run the item gate,
     commit. Re-run the same capture after each cluster.
   - External warnings stay in the receipt as unresolved — name the emitter and why it is not

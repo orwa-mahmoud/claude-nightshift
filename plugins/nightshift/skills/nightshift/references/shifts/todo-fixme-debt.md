@@ -10,9 +10,10 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 ```text
 - [ ] **TODO and FIXME debt — resolve actionable comments and stage ambiguous decisions.**
   - Discovery: search tracked, human-authored source and tests for TODO, FIXME, HACK, and XXX
-    markers. Exclude generated, vendored, dependency, build, and archive paths. Dedupe against
-    snag-log.md (ALL seen — fixed and rejected), then inventory the marker, path, and nearby
-    contract for each finding.
+    markers. Classify each with `runtime/engineering-evidence.sh todo-classify` using age/blame/
+    context (actionable vs ambiguous product decisions). Exclude generated, vendored, dependency,
+    build, and archive paths. Dedupe against snag-log.md (ALL seen — fixed and rejected), then
+    inventory the marker, path, and nearby contract for each finding.
   - Never select this entry when work mode is artifact.
   - Classify each finding before editing. Actionable means existing behaviour, tests, issue links,
     or an explicit comment defines the required result. Ambiguous means product intent, UX,

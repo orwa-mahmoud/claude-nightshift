@@ -12,8 +12,11 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 - [ ] **Dead-code cleanup — remove only code the project's existing tooling proves unused.**
   - Never select this entry when work mode is artifact.
   - Discovery: detect and run the repository's configured unused-code tooling, compiler checks, or
-    dependency analyzer. Record its exact command and findings; dedupe against snag-log.md (ALL
-    seen — fixed and rejected). Do not introduce a new analyzer without owner approval.
+    dependency analyzer. Evaluate each finding with `runtime/engineering-evidence.sh dead-code-guard`
+    for public export, reflection, dynamic import, registration, configuration, generated code,
+    plugin entry, serialization, and compatibility guards plus blast-radius grouping. Record its
+    exact command and findings; dedupe against snag-log.md (ALL seen — fixed and rejected). Do not
+    introduce a new analyzer without owner approval.
   - Take one coherent finding at a time. Confirm it is not reached through reflection, dynamic
     imports, registration, configuration, generated code, public exports, or external consumers.
     Remove it, run the item gate and the original analyzer, commit.

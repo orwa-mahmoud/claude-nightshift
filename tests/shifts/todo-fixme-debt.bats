@@ -6,6 +6,10 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
+@test "todo-fixme debt classifies markers with engineering evidence" {
+  grep -qF 'engineering-evidence.sh todo-classify' "$E"
+}
+
 @test "TODO debt inventories tracked human-authored markers" {
   grep -qi 'tracked, human-authored' "$E"
   grep -qi 'TODO, FIXME, HACK, and XXX' "$E"
