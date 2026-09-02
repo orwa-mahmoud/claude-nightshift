@@ -1,5 +1,9 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/accessibility-repair.md"
 
+@test "accessibility repair uses product-truth evidence report" {
+  grep -qF 'product-truth-evidence.sh a11y-report' "$E"
+}
+
 @test "accessibility repair requires existing configured checks" {
   grep -qi 'already configure' "$E"
   grep -qi 'must not start' "$E"

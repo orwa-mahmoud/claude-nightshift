@@ -1,5 +1,9 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/localization-parity.md"
 
+@test "localization parity uses product-truth validation" {
+  grep -qF 'product-truth-evidence.sh l10n-validate' "$E"
+}
+
 @test "localization parity refuses unsupported projects" {
   grep -qi 'Supported only when' "$E"
   grep -qi 'must not start' "$E"

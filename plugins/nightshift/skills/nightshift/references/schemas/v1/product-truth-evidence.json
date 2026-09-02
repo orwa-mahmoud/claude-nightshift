@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/product-truth-evidence.json",
+  "title": "Nightshift product truth evidence",
+  "description": "Structured outputs for API, accessibility, localization, and documentation truth shifts.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": {
+      "type": "string",
+      "enum": ["api-drift", "a11y-evidence", "l10n-parity", "doc-claim-matrix", "doc-outline"]
+    }
+  }
+}

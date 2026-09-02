@@ -9,8 +9,10 @@ Supported on any repository or artifact folder that can hold the deliverable. Fo
 
 ```text
 - [ ] **Documentation writing — turn named sources into a scoped, cited deliverable.**
-  - Discovery: read only the owner-approved outline, URL list, and local files. Write a dated
-    source manifest (`ok` / `unavailable`) first. Repository evidence is files in the work
+  - Discovery: read only the owner-approved outline, URL list, and local files. Shape the deliverable
+    with `runtime/product-truth-evidence.sh doc-outline` from audience, decision/action,
+    prerequisites, architecture, source hierarchy, and verified examples; run a fresh-reader pass
+    for ambiguity. Write a dated source manifest (`ok` / `unavailable`) first. Repository evidence is files in the work
     target; do not invent flags, commands, or behaviour those files do not show.
   - Work one deliverable: create, revise, consolidate, or write a gap analysis. Every important
     claim is cited `[ID]`. Observations stay in Observations; policy or UX recommendations stay

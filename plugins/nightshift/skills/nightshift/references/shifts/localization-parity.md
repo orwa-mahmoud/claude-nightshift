@@ -13,7 +13,9 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 - [ ] **Localization parity — repair objective key drift without inventing translations.**
   - Never select this entry when work mode is artifact.
   - Discovery: detect the repository's locale catalogs, canonical source locale, and configured
-    localization check, generator, or typed-key command. Use those established sources to find
+    localization check, generator, or typed-key command. Validate key parity, placeholders, and
+    structural drift with `runtime/product-truth-evidence.sh l10n-validate`; never certify
+    translation or cultural quality without named human sources. Use those established sources to find
     missing, unused, duplicate, or structurally inconsistent keys. Dedupe against snag-log.md
     (ALL seen — fixed and rejected).
   - Fix objective structure one cluster at a time: restore a key from an existing canonical value,

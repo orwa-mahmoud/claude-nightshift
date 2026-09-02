@@ -3,6 +3,10 @@ CHECK="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/check-report.sh"
 FIXTURE="$BATS_TEST_DIRNAME/../fixtures/documentation-writing"
 WIN="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/windows/check-report.ps1"
 
+@test "documentation writing uses product-truth outline helper" {
+  grep -qF 'product-truth-evidence.sh doc-outline' "$E"
+}
+
 @test "documentation writing discovers named sources and refuses invented behaviour" {
   grep -qi 'Discovery' "$E"
   grep -qi 'owner-approved outline' "$E"

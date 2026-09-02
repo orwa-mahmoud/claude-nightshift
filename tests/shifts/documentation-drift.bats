@@ -6,6 +6,10 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
+@test "documentation drift uses claim-to-authority matrix" {
+  grep -qF 'product-truth-evidence.sh doc-claim-matrix' "$E"
+}
+
 @test "documentation drift discovers local references against the tree" {
   grep -qi 'Discovery' "$E"
   grep -qi 'relative links' "$E"

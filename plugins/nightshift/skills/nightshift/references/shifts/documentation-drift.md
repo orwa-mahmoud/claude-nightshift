@@ -13,7 +13,8 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 ```text
 - [ ] **Documentation drift — make in-repo docs match the current tree.**
   - Discovery: walk tracked documentation (README, docs/, skill and command files, examples) and
-    collect local references — relative links, fenced commands, filenames, version strings that
+    build a claim-to-authority matrix with `runtime/product-truth-evidence.sh doc-claim-matrix`
+    across README, manifests, CLI/help, examples, versions, and released behavior. Collect local references — relative links, fenced commands, filenames, version strings that
     claim to describe this repository. Resolve each against the tree and the manifests that
     already exist here (plugin.json version, PATH commands the repo documents, files on disk).
     Do not query the network for "current" product claims.

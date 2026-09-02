@@ -12,7 +12,9 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 - [ ] **API contract drift — align existing API artifacts without silently changing the public API.**
   - Never select this entry when work mode is artifact.
   - Discovery: identify the repository's authoritative API source and run its configured generation,
-    diff, schema, compatibility, or consumer-contract command. Compare server routes, checked-in
+    diff, schema, compatibility, or consumer-contract command. Classify each mismatch with
+    `runtime/product-truth-evidence.sh api-classify` (authoritative source, consumer blast radius,
+    additive/compatible/deprecated/breaking, migration note requirement). Compare server routes, checked-in
     schemas, generated clients, fixtures, and contract tests as applicable. Dedupe findings against
     snag-log.md (ALL seen — fixed and rejected).
   - Classify each mismatch before editing: non-breaking artifact drift with an authoritative source,

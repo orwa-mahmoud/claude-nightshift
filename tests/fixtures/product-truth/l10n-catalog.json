@@ -1,0 +1,7 @@
+{
+  "canonicalLocale": "en",
+  "locales": {
+    "en": {"greeting": "Hello {name}", "items": "{count, plural, one {# item} other {# items}}"},
+    "fr": {"greeting": "Bonjour {name}"}
+  }
+}
