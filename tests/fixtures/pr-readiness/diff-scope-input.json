@@ -1,0 +1,10 @@
+{
+  "branch": "feat/auth-refactor",
+  "baseRef": "main",
+  "dirtyWorktree": false,
+  "changedFiles": [
+    {"path": "src/auth.ts", "unrelated": false},
+    {"path": "docs/README.md", "unrelated": false},
+    {"path": "package-lock.json", "unrelated": true}
+  ]
+}

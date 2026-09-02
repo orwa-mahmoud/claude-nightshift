@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/orwa-mahmoud/nightshift/main/plugins/nightshift/skills/nightshift/references/schemas/v1/pr-readiness-evidence.json",
+  "title": "Nightshift pull-request readiness evidence",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "pr-acceptance-map",
+        "pr-review-map",
+        "pr-diff-scope",
+        "pr-owner-action-refusal"
+      ]
+    }
+  }
+}
