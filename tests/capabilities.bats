@@ -142,26 +142,9 @@ load helpers
 # must emit byte-identical JSON for the same fixture and PATH. The pwsh leg runs whenever a pwsh
 # binary exists and is skipped, never silently, when it does not.
 
-have_pwsh() { [ -n "$PWSH_BIN" ]; }
-
-# controlled_bin <dir-name> — makes and echoes an empty $BATS_TEST_TMPDIR/<dir-name> for a
-# test to drop fake executables into.
-controlled_bin() {
-  local d="$BATS_TEST_TMPDIR/$1"
-  mkdir -p "$d"
-  printf '%s' "$d"
-}
-
-# fake_exe <dir> <name> <script-line...> — writes an executable POSIX shell script.
-fake_exe() {
-  local dir="$1" name="$2"
-  shift 2
-  {
-    printf '#!/bin/sh\n'
-    printf '%s\n' "$@"
-  } >"$dir/$name"
-  chmod +x "$dir/$name"
-}
+# controlled_bin, fake_exe, resolve_tool_path, build_toolset_bin, and have_pwsh live in
+# tests/helpers.bash — evidence.bats needs the identical toolset-construction pattern, so it
+# isn't duplicated here.
 
 # fake_node <bin-dir> — a `node` that always prints a fixed version string, so the `test`
 # capability probe is deterministic regardless of what real node (if any) the host has.
@@ -181,42 +164,6 @@ build_fixture_js() {
   printf '%s\n' "$p" >"$p/.nightshift/work-target"
   printf '%s\n' '## Gates' '- [ ] ship it' >"$p/.nightshift/punch-list.md"
   printf '%s' "$p"
-}
-
-# resolve_tool_path <tool> — prints an absolute path for <tool>. Bypasses any shell function
-# or alias of the same name in the calling shell (a wrapped `grep`/`find`, say) so it can never
-# leak into a fixture's controlled PATH, and falls back to /bin or /usr/bin for builtins like
-# `test`, `printf`, `true`, `false` that `command -v` reports by bare name only.
-resolve_tool_path() {
-  local tool="$1" real cand
-  real="$(unset -f "$tool" 2>/dev/null; command -v "$tool" 2>/dev/null)"
-  case "$real" in
-  */*)
-    printf '%s' "$real"
-    return 0
-    ;;
-  esac
-  for cand in "/bin/$tool" "/usr/bin/$tool"; do
-    if [ -x "$cand" ]; then
-      printf '%s' "$cand"
-      return 0
-    fi
-  done
-  return 1
-}
-
-# build_toolset_bin <dir-name> <tool...> — makes $BATS_TEST_TMPDIR/<dir-name> containing a
-# symlink to each named tool's real, resolved location. Echoes the dir path.
-build_toolset_bin() {
-  local d tool real
-  d="$BATS_TEST_TMPDIR/$1"
-  shift
-  mkdir -p "$d"
-  for tool in "$@"; do
-    real="$(resolve_tool_path "$tool")" || { echo "test host is missing required tool: $tool" >&2; return 1; }
-    ln -s "$real" "$d/$tool"
-  done
-  printf '%s' "$d"
 }
 
 # The exact POSIX toolset a from-scratch bash implementation may lean on (per lib/state.sh

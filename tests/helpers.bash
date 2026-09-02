@@ -108,3 +108,67 @@ is_deny() { printf '%s' "$1" | grep -q '"permissionDecision":"deny"' && printf '
 # assertion at all. These read bats' own $status/$output, so call them with no arguments.
 is_allow() { [ "$status" -eq 0 ] && [ -z "$output" ]; }
 is_release() { [ "$status" -eq 0 ] && [ -z "$output" ]; }
+
+# ---------------------------------------------------------------------------------------------
+# Engine-parity helpers, shared by any suite comparing a native (bash/PowerShell) reimplementation
+# against the Python reference: building a controlled, minimal PATH of symlinks to real tools so
+# a script can be run against an exact, known toolset (with or without jq/python3) and compared
+# byte-for-byte across engines. A test file that uses these sets its own `PWSH_BIN` (empty when no
+# pwsh binary exists on the real PATH) before relying on `have_pwsh`.
+
+have_pwsh() { [ -n "$PWSH_BIN" ]; }
+
+# controlled_bin <dir-name> — makes and echoes an empty $BATS_TEST_TMPDIR/<dir-name> for a
+# test to drop fake executables into.
+controlled_bin() {
+  local d="$BATS_TEST_TMPDIR/$1"
+  mkdir -p "$d"
+  printf '%s' "$d"
+}
+
+# fake_exe <dir> <name> <script-line...> — writes an executable POSIX shell script.
+fake_exe() {
+  local dir="$1" name="$2"
+  shift 2
+  {
+    printf '#!/bin/sh\n'
+    printf '%s\n' "$@"
+  } >"$dir/$name"
+  chmod +x "$dir/$name"
+}
+
+# resolve_tool_path <tool> — prints an absolute path for <tool>. Bypasses any shell function
+# or alias of the same name in the calling shell (a wrapped `grep`/`find`, say) so it can never
+# leak into a fixture's controlled PATH, and falls back to /bin or /usr/bin for builtins like
+# `test`, `printf`, `true`, `false` that `command -v` reports by bare name only.
+resolve_tool_path() {
+  local tool="$1" real cand
+  real="$(unset -f "$tool" 2>/dev/null; command -v "$tool" 2>/dev/null)"
+  case "$real" in
+  */*)
+    printf '%s' "$real"
+    return 0
+    ;;
+  esac
+  for cand in "/bin/$tool" "/usr/bin/$tool"; do
+    if [ -x "$cand" ]; then
+      printf '%s' "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# build_toolset_bin <dir-name> <tool...> — makes $BATS_TEST_TMPDIR/<dir-name> containing a
+# symlink to each named tool's real, resolved location. Echoes the dir path.
+build_toolset_bin() {
+  local d tool real
+  d="$BATS_TEST_TMPDIR/$1"
+  shift
+  mkdir -p "$d"
+  for tool in "$@"; do
+    real="$(resolve_tool_path "$tool")" || { echo "test host is missing required tool: $tool" >&2; return 1; }
+    ln -s "$real" "$d/$tool"
+  done
+  printf '%s' "$d"
+}

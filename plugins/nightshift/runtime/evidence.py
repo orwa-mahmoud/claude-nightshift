@@ -30,6 +30,9 @@ SECRET = re.compile(
 
 
 def utcnow():
+    fixed = os.environ.get("NIGHTSHIFT_EVIDENCE_NOW")
+    if fixed:
+        return fixed
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -88,7 +91,7 @@ def validate_record(rec, schema, prev=None):
     locator = rec.get("locator") or ""
     if "://" in locator and not rec.get("untrusted"):
         errors.append("remote locator requires untrusted=true")
-    raw = json.dumps(rec)
+    raw = json.dumps(rec, sort_keys=True, separators=(",", ":"))
     if SECRET.search(raw):
         errors.append("record contains a secret pattern")
     if prev is not None:
@@ -169,7 +172,7 @@ def cmd_append(project, record_json, raw_text=None):
     rec.setdefault("schemaVersion", 1)
     rec.setdefault("firstSeen", utcnow())
     rec.setdefault("lastChecked", rec["firstSeen"])
-    rec.setdefault("digest", digest_text(json.dumps(rec, sort_keys=True)))
+    rec.setdefault("digest", digest_text(json.dumps(rec, sort_keys=True, separators=(",", ":"))))
     rec.setdefault("action", "")
     rec.setdefault("fix", "")
     rec.setdefault("verificationLocator", "")

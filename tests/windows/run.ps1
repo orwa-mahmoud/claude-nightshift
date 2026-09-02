@@ -494,6 +494,10 @@ try {
     $detectCapabilitiesLogicRun = Invoke-TestScript $detectCapabilitiesLogic
     Assert-Equal 0 $detectCapabilitiesLogicRun.ExitCode `
         "detect-capabilities fixtures and byte format: $($detectCapabilitiesLogicRun.Stdout) $($detectCapabilitiesLogicRun.Stderr)"
+    $evidenceLogic = Join-Path $PSScriptRoot 'evidence-logic.ps1'
+    $evidenceLogicRun = Invoke-TestScript $evidenceLogic
+    Assert-Equal 0 $evidenceLogicRun.ExitCode `
+        "evidence ledger fixtures and canonical JSON: $($evidenceLogicRun.Stdout) $($evidenceLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

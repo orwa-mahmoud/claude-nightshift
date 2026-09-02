@@ -3,14 +3,15 @@
   Versioned findings ledger for native Windows (JSON Lines).
 
 .DESCRIPTION
-  Mirrors runtime/evidence.sh. Validates records. Does not verify a Nightshift tick
-  or interpret domain meaning.
+  Mirrors runtime/evidence.sh byte for byte on the bundled PowerShell alone.
+  Validates records. Does not verify a Nightshift tick or interpret domain meaning.
+  Exit: 0 ok - 1 usage / no .nightshift - 2 contract failure
 #>
 param(
     [string]$Project = [Environment]::CurrentDirectory,
     [Parameter(Position = 0)]
-    [ValidateSet('init', 'validate', 'append', 'disposition', 'render', 'export-tsv', 'migrate')]
-    [string]$Command = 'validate',
+    [ValidateSet('', 'init', 'validate', 'append', 'disposition', 'render', 'export-tsv', 'migrate')]
+    [string]$Command = '',
     [string]$Record = '',
     [string]$Raw = '',
     [string]$Id = '',
@@ -22,32 +23,10 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
-$py = Join-Path $pluginRoot 'runtime/evidence.py'
-$python = Get-Command python3 -ErrorAction SilentlyContinue
-if (-not $python) {
-    $python = Get-Command python -ErrorAction SilentlyContinue
-}
-if (-not $python) {
-    [Console]::Error.WriteLine('evidence: python3 is required for the ledger helper')
-    exit 1
-}
+Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
 
-$argsList = @($py, '--project', $Project, $Command)
-switch ($Command) {
-    'append' {
-        if (-not $Record) { [Console]::Error.WriteLine('evidence: -Record is required'); exit 1 }
-        $argsList += @('--record', $Record)
-        if ($Raw) { $argsList += @('--raw', $Raw) }
-    }
-    'disposition' {
-        if (-not $Id -or -not $Disposition) {
-            [Console]::Error.WriteLine('evidence: -Id and -Disposition are required')
-            exit 1
-        }
-        $argsList += @($Id, $Disposition)
-        if ($Ladder) { $argsList += $Ladder }
-    }
-}
+# The render table carries an em dash, so pin stdout to UTF-8 whatever the host
+# console code page is.
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
 
-& $python.Source @argsList
-exit $LASTEXITCODE
+exit (Invoke-NSEvidenceCommand -Project $Project -Command $Command -Record $Record -Raw $Raw -Id $Id -Disposition $Disposition -Ladder $Ladder)

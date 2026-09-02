@@ -2580,7 +2580,9 @@ function Get-NSRelativePath {
 
 # The canonical capability document: recursively sorted keys,
 # two-space indent, "key": value, [] and {} for empties, \uXXXX for every
-# character outside printable ASCII, no escaped slash, LF only.
+# character outside printable ASCII, no escaped slash, LF only. -Compact drops
+# every newline and space, giving Python json.dumps(sort_keys=True,
+# separators=(",", ":")) - the one-line form the evidence ledger stores.
 function ConvertTo-NSJsonStringLiteral {
     param([AllowNull()][AllowEmptyString()][string]$Text)
     $builder = New-Object Text.StringBuilder
@@ -2603,11 +2605,33 @@ function ConvertTo-NSJsonStringLiteral {
     return $builder.ToString()
 }
 
+function Test-NSJsonInteger {
+    param($Value)
+    return ($Value -is [int] -or $Value -is [long] -or $Value -is [int16] -or $Value -is [byte] -or $Value -is [uint16] -or $Value -is [uint32] -or $Value -is [uint64] -or $Value -is [sbyte])
+}
+
+function Test-NSJsonFloat {
+    param($Value)
+    return ($Value -is [double] -or $Value -is [single] -or $Value -is [decimal])
+}
+
+# repr() of a Python float: shortest round-trip, and always a fractional part so
+# 1.0 never collapses to 1.
+function Format-NSJsonFloat {
+    param($Value)
+    $text = ([double]$Value).ToString('R', [Globalization.CultureInfo]::InvariantCulture)
+    if ($text.IndexOf('.') -lt 0 -and $text.IndexOf('E') -lt 0 -and $text.IndexOf('e') -lt 0 -and $text.IndexOf('N') -lt 0 -and $text.IndexOf('I') -lt 0) {
+        $text = $text + '.0'
+    }
+    return $text
+}
+
 function Write-NSCanonicalJsonValue {
     param(
         [Parameter(Mandatory = $true)]$Builder,
         $Value,
-        [int]$Level = 0
+        [int]$Level = 0,
+        [switch]$Compact
     )
     if ($null -eq $Value) {
         $null = $Builder.Append('null')
@@ -2621,12 +2645,24 @@ function Write-NSCanonicalJsonValue {
         $null = $Builder.Append((ConvertTo-NSJsonStringLiteral $Value))
         return
     }
-    if ($Value -is [int] -or $Value -is [long] -or $Value -is [int16] -or $Value -is [byte] -or $Value -is [uint16] -or $Value -is [uint32] -or $Value -is [uint64]) {
+    if (Test-NSJsonInteger $Value) {
         $null = $Builder.Append(([long]$Value).ToString([Globalization.CultureInfo]::InvariantCulture))
+        return
+    }
+    if (Test-NSJsonFloat $Value) {
+        $null = $Builder.Append((Format-NSJsonFloat $Value))
         return
     }
     $pad = ' ' * (2 * ($Level + 1))
     $tail = ' ' * (2 * $Level)
+    $break = "`n"
+    $colon = ': '
+    if ($Compact) {
+        $pad = ''
+        $tail = ''
+        $break = ''
+        $colon = ':'
+    }
     if ($Value -is [Collections.IDictionary]) {
         $keys = Sort-NSOrdinal (@($Value.Keys))
         if ($keys.Count -eq 0) {
@@ -2637,14 +2673,14 @@ function Write-NSCanonicalJsonValue {
         $index = 0
         foreach ($key in $keys) {
             if ($index -gt 0) { $null = $Builder.Append(',') }
-            $null = $Builder.Append("`n")
+            $null = $Builder.Append($break)
             $null = $Builder.Append($pad)
             $null = $Builder.Append((ConvertTo-NSJsonStringLiteral $key))
-            $null = $Builder.Append(': ')
-            Write-NSCanonicalJsonValue $Builder $Value[$key] ($Level + 1)
+            $null = $Builder.Append($colon)
+            Write-NSCanonicalJsonValue $Builder $Value[$key] ($Level + 1) -Compact:$Compact
             $index++
         }
-        $null = $Builder.Append("`n")
+        $null = $Builder.Append($break)
         $null = $Builder.Append($tail)
         $null = $Builder.Append('}')
         return
@@ -2659,12 +2695,12 @@ function Write-NSCanonicalJsonValue {
         $index = 0
         foreach ($item in $items) {
             if ($index -gt 0) { $null = $Builder.Append(',') }
-            $null = $Builder.Append("`n")
+            $null = $Builder.Append($break)
             $null = $Builder.Append($pad)
-            Write-NSCanonicalJsonValue $Builder $item ($Level + 1)
+            Write-NSCanonicalJsonValue $Builder $item ($Level + 1) -Compact:$Compact
             $index++
         }
-        $null = $Builder.Append("`n")
+        $null = $Builder.Append($break)
         $null = $Builder.Append($tail)
         $null = $Builder.Append(']')
         return
@@ -2673,9 +2709,9 @@ function Write-NSCanonicalJsonValue {
 }
 
 function ConvertTo-NSCanonicalJson {
-    param([AllowNull()]$InputObject)
+    param([AllowNull()]$InputObject, [switch]$Compact)
     $builder = New-Object Text.StringBuilder
-    Write-NSCanonicalJsonValue $builder $InputObject 0
+    Write-NSCanonicalJsonValue $builder $InputObject 0 -Compact:$Compact
     return $builder.ToString()
 }
 
@@ -3444,6 +3480,587 @@ function Get-NSCapabilityDocument {
         capabilities        = $capabilities
         contracts           = $contracts
         provisioningDefault = (Get-NSSchemaDocument 'capabilities.json').provisioningDefault
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Evidence ledger - the native side of runtime/windows/evidence.ps1.
+# Validates records. Does not verify a Nightshift tick or interpret domain
+# meaning. Every byte it writes matches runtime/evidence.py for the same input.
+# ---------------------------------------------------------------------------
+
+$script:NSEvidenceLadderRank = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
+$script:NSEvidenceLadderRank['declared'] = 0
+$script:NSEvidenceLadderRank['observed'] = 1
+$script:NSEvidenceLadderRank['reproduced'] = 2
+$script:NSEvidenceLadderRank['measured'] = 3
+$script:NSEvidenceLadderRank['verified-after-change'] = 4
+$script:NSEvidenceLadderRank['human-accepted'] = 5
+
+$script:NSEvidenceSecret = New-Object Text.RegularExpressions.Regex(
+    '(api[_-]?key|secret|token|password|authorization:\s*bearer)\s*[:=]\s*\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----',
+    ([Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [Text.RegularExpressions.RegexOptions]::CultureInvariant))
+
+$script:NSEvidenceTsvColumns = @(
+    'id', 'domain', 'sourceClass', 'source', 'scope', 'severity',
+    'confidence', 'impact', 'status', 'ladder', 'locator', 'host'
+)
+
+# ConvertFrom-Json turns any string that looks like a timestamp into a DateTime,
+# which would rewrite firstSeen/lastChecked on the way through. Prefixing every
+# string literal with one guard character before the parse - and dropping it
+# again after - keeps every value the text it was.
+$script:NSJsonGuard = '~'
+
+function Add-NSJsonStringGuard {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+    $builder = New-Object Text.StringBuilder
+    $inString = $false
+    $i = 0
+    while ($i -lt $Text.Length) {
+        $ch = $Text[$i]
+        if (-not $inString) {
+            $null = $builder.Append($ch)
+            if ($ch -eq '"') {
+                $inString = $true
+                $null = $builder.Append($script:NSJsonGuard)
+            }
+            $i++
+            continue
+        }
+        if ($ch -eq '\') {
+            $null = $builder.Append($ch)
+            if ($i + 1 -lt $Text.Length) { $null = $builder.Append($Text[$i + 1]) }
+            $i += 2
+            continue
+        }
+        $null = $builder.Append($ch)
+        if ($ch -eq '"') { $inString = $false }
+        $i++
+    }
+    return $builder.ToString()
+}
+
+function Remove-NSJsonStringGuard {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+    if ($Text.Length -eq 0) { return $Text }
+    return $Text.Substring(1)
+}
+
+function New-NSOrdinalMap {
+    return (New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal))
+}
+
+function ConvertFrom-NSJsonNode {
+    param($Node)
+    if ($null -eq $Node) { return $null }
+    if ($Node -is [string]) { return (Remove-NSJsonStringGuard $Node) }
+    if ($Node -is [bool] -or (Test-NSJsonInteger $Node) -or (Test-NSJsonFloat $Node)) { return $Node }
+    if ($Node -is [Collections.IDictionary]) {
+        $map = New-NSOrdinalMap
+        foreach ($key in @($Node.Keys)) {
+            $map[(Remove-NSJsonStringGuard ([string]$key))] = ConvertFrom-NSJsonNode $Node[$key]
+        }
+        return $map
+    }
+    if ($Node -is [Collections.IEnumerable]) {
+        $items = New-Object Collections.Generic.List[object]
+        foreach ($item in $Node) { $items.Add((ConvertFrom-NSJsonNode $item)) }
+        return , $items.ToArray()
+    }
+    $map = New-NSOrdinalMap
+    foreach ($property in $Node.PSObject.Properties) {
+        $map[(Remove-NSJsonStringGuard $property.Name)] = ConvertFrom-NSJsonNode $property.Value
+    }
+    return $map
+}
+
+# json.loads: ordered dictionaries with ordinal keys, so "id" and "ID" stay two
+# keys and the canonical serializer sees them the way Python does.
+function ConvertFrom-NSJsonText {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+    $parsed = ConvertFrom-Json (Add-NSJsonStringGuard $Text) -ErrorAction Stop
+    return (ConvertFrom-NSJsonNode $parsed)
+}
+
+function Get-NSMapValue {
+    param($Map, [Parameter(Mandatory = $true)][string]$Key)
+    if (-not ($Map -is [Collections.IDictionary])) { return $null }
+    if (-not $Map.Contains($Key)) { return $null }
+    return $Map[$Key]
+}
+
+function Copy-NSMap {
+    param($Map)
+    $copy = New-NSOrdinalMap
+    if ($Map -is [Collections.IDictionary]) {
+        foreach ($key in @($Map.Keys)) { $copy[$key] = $Map[$key] }
+    }
+    return $copy
+}
+
+# Python truth testing: empty string, zero, empty container and None are false.
+function Test-NSPyTruthy {
+    param($Value)
+    if ($null -eq $Value) { return $false }
+    if ($Value -is [bool]) { return [bool]$Value }
+    if ($Value -is [string]) { return ($Value.Length -gt 0) }
+    if (Test-NSJsonInteger $Value) { return ([long]$Value -ne 0) }
+    if (Test-NSJsonFloat $Value) { return ([double]$Value -ne 0) }
+    if ($Value -is [Collections.IDictionary]) { return ($Value.Count -gt 0) }
+    if ($Value -is [Collections.ICollection]) { return ($Value.Count -gt 0) }
+    return $true
+}
+
+# Python str(): None renders None, booleans render True/False.
+function ConvertTo-NSPyText {
+    param($Value)
+    if ($null -eq $Value) { return 'None' }
+    if ($Value -is [bool]) {
+        if ($Value) { return 'True' }
+        return 'False'
+    }
+    if (Test-NSJsonFloat $Value) { return (Format-NSJsonFloat $Value) }
+    return [string]$Value
+}
+
+# Python ==: same type and same value, so 1 and "1" stay different.
+function Test-NSPyEqual {
+    param($Left, $Right)
+    return ((ConvertTo-NSCanonicalJson $Left -Compact) -ceq (ConvertTo-NSCanonicalJson $Right -Compact))
+}
+
+function Write-NSEvidenceOut {
+    param([AllowEmptyString()][string]$Text)
+    [Console]::Out.Write($Text)
+    [Console]::Out.Write("`n")
+}
+
+function Write-NSEvidenceError {
+    param([AllowEmptyString()][string]$Text)
+    [Console]::Error.WriteLine($Text)
+}
+
+function Write-NSEvidenceUsage {
+    Write-NSEvidenceError 'usage: evidence.ps1 -Project DIR -Command {init|validate|append|disposition|render|export-tsv|migrate} ...'
+    return 1
+}
+
+function Get-NSEvidenceNow {
+    $fixed = $env:NIGHTSHIFT_EVIDENCE_NOW
+    if (-not [string]::IsNullOrEmpty($fixed)) { return $fixed }
+    return [DateTime]::UtcNow.ToString('yyyy-MM-dd\THH:mm:ss\Z', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-NSTextSha256 {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash($script:NSUtf8NoBom.GetBytes($Text))
+    }
+    finally {
+        $sha.Dispose()
+    }
+    $builder = New-Object Text.StringBuilder
+    foreach ($byte in $hash) { $null = $builder.Append($byte.ToString('x2')) }
+    return $builder.ToString()
+}
+
+function Protect-NSEvidenceText {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+    return [regex]::Replace($Text, $script:NSEvidenceSecret.ToString(), '[redacted]', $script:NSEvidenceSecret.Options)
+}
+
+function Test-NSEvidenceSecret {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
+    return $script:NSEvidenceSecret.IsMatch($Text)
+}
+
+function Get-NSEvidencePaths {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $ns = Join-NSPath (Get-NSAbsolutePath $Project) '.nightshift'
+    $evidence = Join-NSPath $ns 'evidence'
+    $paths = New-NSOrdinalMap
+    $paths['ns'] = $ns
+    $paths['dir'] = $evidence
+    $paths['jsonl'] = Join-NSPath $evidence 'findings.jsonl'
+    $paths['md'] = Join-NSPath $evidence 'findings.md'
+    $paths['raw'] = Join-NSPath $evidence 'raw'
+    $paths['version'] = Join-NSPath $evidence 'schema-version'
+    return $paths
+}
+
+function Write-NSEvidenceFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
+    )
+    [IO.File]::WriteAllText($Path, $Text, $script:NSUtf8NoBom)
+}
+
+function Write-NSEvidenceFileAtomic {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
+    )
+    $tmp = $Path + '.tmp'
+    Write-NSEvidenceFile -Path $tmp -Text $Text
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        # [NullString]::Value, not $null: PowerShell would bind $null to "" and
+        # Replace rejects an empty backup path.
+        [IO.File]::Replace($tmp, $Path, [NullString]::Value)
+        return
+    }
+    [IO.File]::Move($tmp, $Path)
+}
+
+function Test-NSEvidenceSchemaOne {
+    param($Value)
+    if ($null -eq $Value) { return $false }
+    if ($Value -is [bool]) { return [bool]$Value }
+    if (Test-NSJsonInteger $Value) { return ([long]$Value -eq 1) }
+    if (Test-NSJsonFloat $Value) { return ([double]$Value -eq 1) }
+    return $false
+}
+
+# Python "value in list": exact, case-sensitive, and never true across types.
+function Test-NSEvidenceEnum {
+    param($Value, $Allowed)
+    if (-not ($Value -is [string])) { return $false }
+    foreach ($candidate in @($Allowed)) {
+        if (($candidate -is [string]) -and ($candidate -ceq $Value)) { return $true }
+    }
+    return $false
+}
+
+function Get-NSEvidenceLadderRank {
+    param($Ladder)
+    if (-not ($Ladder -is [string])) { return -1 }
+    if (-not $script:NSEvidenceLadderRank.Contains($Ladder)) { return -1 }
+    return [int]$script:NSEvidenceLadderRank[$Ladder]
+}
+
+function Test-NSEvidenceRecord {
+    param($Record, $Schema, $Previous)
+    $errors = New-Object Collections.Generic.List[string]
+    if (-not ($Record -is [Collections.IDictionary])) {
+        $errors.Add('record is not an object')
+        return , $errors
+    }
+    foreach ($key in $Schema.required) {
+        if (-not $Record.Contains($key)) { $errors.Add('missing ' + $key) }
+    }
+    if (-not (Test-NSEvidenceSchemaOne (Get-NSMapValue $Record 'schemaVersion'))) { $errors.Add('unsupported schemaVersion') }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'severity') $Schema.severity)) { $errors.Add('invalid severity') }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'confidence') $Schema.confidence)) { $errors.Add('invalid confidence') }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'impact') $Schema.impact)) { $errors.Add('invalid impact') }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'status') $Schema.status)) { $errors.Add('invalid status') }
+    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'ladder') $Schema.ladder)) { $errors.Add('invalid ladder') }
+    $locator = Get-NSMapValue $Record 'locator'
+    if (-not (Test-NSPyTruthy $locator)) { $locator = '' }
+    if (([string]$locator).Contains('://') -and -not (Test-NSPyTruthy (Get-NSMapValue $Record 'untrusted'))) {
+        $errors.Add('remote locator requires untrusted=true')
+    }
+    if (Test-NSEvidenceSecret (ConvertTo-NSCanonicalJson $Record -Compact)) { $errors.Add('record contains a secret pattern') }
+    if ($null -ne $Previous) {
+        $oldRank = Get-NSEvidenceLadderRank (Get-NSMapValue $Previous 'ladder')
+        $newRank = Get-NSEvidenceLadderRank (Get-NSMapValue $Record 'ladder')
+        $promoteBy = Get-NSMapValue $Record 'promoteBy'
+        if ($oldRank -ge 0 -and $newRank -ge 0 -and $newRank -gt $oldRank -and ($promoteBy -is [string]) -and ($promoteBy -ceq 'prose')) {
+            $errors.Add('ladder must not be promoted by prose')
+        }
+    }
+    return , $errors
+}
+
+# SystemExit in the reference: the message goes to stderr and the process
+# leaves with 1, whichever command was running.
+function New-NSEvidenceHalt {
+    param([Parameter(Mandatory = $true)][string]$Message)
+    return (New-Object ApplicationException($Message))
+}
+
+function Read-NSEvidenceRecords {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $records = New-Object Collections.Generic.List[object]
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return , $records }
+    $lines = [regex]::Split([IO.File]::ReadAllText($Path, $script:NSUtf8NoBom), "\r\n|\n|\r")
+    for ($i = 0; $i -lt $lines.Length; $i++) {
+        $line = $lines[$i].Trim()
+        if ($line.Length -eq 0) { continue }
+        $record = $null
+        try {
+            $record = ConvertFrom-NSJsonText $line
+        }
+        catch {
+            throw (New-NSEvidenceHalt ('evidence: malformed JSON on line ' + ($i + 1)))
+        }
+        $records.Add($record)
+    }
+    return , $records
+}
+
+function Write-NSEvidenceRecords {
+    param([Parameter(Mandatory = $true)][string]$Path, $Records)
+    $builder = New-Object Text.StringBuilder
+    foreach ($record in $Records) {
+        $null = $builder.Append((ConvertTo-NSCanonicalJson $record -Compact))
+        $null = $builder.Append("`n")
+    }
+    Write-NSEvidenceFileAtomic -Path $Path -Text $builder.ToString()
+}
+
+function Invoke-NSEvidenceInit {
+    param([Parameter(Mandatory = $true)][string]$Project, [switch]$Quiet)
+    $paths = Get-NSEvidencePaths $Project
+    if (-not (Test-Path -LiteralPath $paths['ns'] -PathType Container)) {
+        Write-NSEvidenceError ('evidence: no .nightshift/ at ' + $Project)
+        return 1
+    }
+    $null = [IO.Directory]::CreateDirectory($paths['raw'])
+    if (-not (Test-Path -LiteralPath $paths['jsonl'] -PathType Leaf)) {
+        Write-NSEvidenceFile -Path $paths['jsonl'] -Text ''
+    }
+    if (-not (Test-Path -LiteralPath $paths['version'] -PathType Leaf)) {
+        Write-NSEvidenceFile -Path $paths['version'] -Text "1`n"
+    }
+    if (-not $Quiet) { Write-NSEvidenceOut $paths['jsonl'] }
+    return 0
+}
+
+function Invoke-NSEvidenceValidate {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $paths = Get-NSEvidencePaths $Project
+    if (-not (Test-Path -LiteralPath $paths['jsonl'] -PathType Leaf)) {
+        Write-NSEvidenceOut 'evidence: no ledger (valid empty workspace)'
+        return 0
+    }
+    $schema = Get-NSSchemaDocument 'finding.json'
+    $records = Read-NSEvidenceRecords $paths['jsonl']
+    $seen = New-NSOrdinalMap
+    $code = 0
+    foreach ($record in $records) {
+        $id = Get-NSMapValue $record 'id'
+        $key = ConvertTo-NSCanonicalJson $id -Compact
+        $previous = $null
+        if ($seen.Contains($key)) { $previous = $seen[$key] }
+        $errors = Test-NSEvidenceRecord $record $schema $previous
+        if ($errors.Count -gt 0) {
+            $code = 2
+            $label = '?'
+            if (Test-NSPyTruthy $id) { $label = ConvertTo-NSPyText $id }
+            foreach ($error in $errors) { Write-NSEvidenceError ('evidence: ' + $label + ': ' + $error) }
+        }
+        if (Test-NSPyTruthy $id) { $seen[$key] = $record }
+    }
+    return $code
+}
+
+function Invoke-NSEvidenceAppend {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$RecordJson,
+        [AllowEmptyString()][string]$RawText = ''
+    )
+    $paths = Get-NSEvidencePaths $Project
+    $null = Invoke-NSEvidenceInit -Project $Project -Quiet
+    $record = ConvertFrom-NSJsonText $RecordJson
+    if ($record -is [Collections.IDictionary]) {
+        if (-not $record.Contains('schemaVersion')) { $record['schemaVersion'] = 1 }
+        if (-not $record.Contains('firstSeen')) { $record['firstSeen'] = Get-NSEvidenceNow }
+        if (-not $record.Contains('lastChecked')) { $record['lastChecked'] = $record['firstSeen'] }
+        if (-not $record.Contains('digest')) {
+            $record['digest'] = Get-NSTextSha256 (ConvertTo-NSCanonicalJson $record -Compact)
+        }
+        foreach ($key in @('action', 'fix', 'verificationLocator', 'disposition', 'rollback')) {
+            if (-not $record.Contains($key)) { $record[$key] = '' }
+        }
+        $source = Get-NSMapValue $record 'source'
+        if (-not (Test-NSPyTruthy $source)) { $source = Get-NSMapValue $record 'sourceCommand' }
+        if (-not (Test-NSPyTruthy $source)) { $source = '' }
+        $record['source'] = $source
+        $sourceClass = Get-NSMapValue $record 'sourceClass'
+        if (-not (Test-NSPyTruthy $sourceClass)) { $sourceClass = Get-NSMapValue $record 'sourceTool' }
+        if (-not (Test-NSPyTruthy $sourceClass)) { $sourceClass = 'unknown' }
+        $record['sourceClass'] = $sourceClass
+    }
+    $schema = Get-NSSchemaDocument 'finding.json'
+    $records = Read-NSEvidenceRecords $paths['jsonl']
+    $previous = $null
+    foreach ($existing in $records) {
+        if (Test-NSPyEqual (Get-NSMapValue $existing 'id') (Get-NSMapValue $record 'id')) {
+            $previous = $existing
+            break
+        }
+    }
+    $errors = Test-NSEvidenceRecord $record $schema $previous
+    if ($errors.Count -gt 0) {
+        foreach ($error in $errors) { Write-NSEvidenceError ('evidence: ' + $error) }
+        return 2
+    }
+    if (Test-NSPyTruthy $RawText) {
+        $record['rawPath'] = 'evidence/raw/' + [string]$record['id'] + '.txt'
+        $redacted = Protect-NSEvidenceText $RawText
+        $onDisk = $redacted
+        if (-not $redacted.EndsWith("`n")) { $onDisk = $redacted + "`n" }
+        Write-NSEvidenceFile -Path (Join-NSPath $paths['ns'] $record['rawPath']) -Text $onDisk
+        $record['rawDigest'] = Get-NSTextSha256 $redacted
+    }
+    $records.Add($record)
+    Write-NSEvidenceRecords -Path $paths['jsonl'] -Records $records
+    Write-NSEvidenceOut (ConvertTo-NSPyText (Get-NSMapValue $record 'id'))
+    return 0
+}
+
+function Invoke-NSEvidenceDisposition {
+    param(
+        [Parameter(Mandatory = $true)][string]$Project,
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Disposition,
+        [AllowEmptyString()][string]$Ladder = ''
+    )
+    $paths = Get-NSEvidencePaths $Project
+    $records = Read-NSEvidenceRecords $paths['jsonl']
+    $schema = Get-NSSchemaDocument 'finding.json'
+    $found = $false
+    foreach ($record in $records) {
+        $recordId = Get-NSMapValue $record 'id'
+        if (-not (($recordId -is [string]) -and ($recordId -ceq $Id))) { continue }
+        $found = $true
+        $previous = Copy-NSMap $record
+        $record['disposition'] = $Disposition
+        $record['lastChecked'] = Get-NSEvidenceNow
+        if (Test-NSPyTruthy $Ladder) { $record['ladder'] = $Ladder }
+        $errors = Test-NSEvidenceRecord $record $schema $previous
+        if ($errors.Count -gt 0) {
+            foreach ($error in $errors) { Write-NSEvidenceError ('evidence: ' + $error) }
+            return 2
+        }
+    }
+    if (-not $found) {
+        Write-NSEvidenceError ('evidence: unknown id ' + $Id)
+        return 2
+    }
+    Write-NSEvidenceRecords -Path $paths['jsonl'] -Records $records
+    return 0
+}
+
+function Get-NSEvidenceMarkdown {
+    param($Records)
+    $dash = [string][char]0x2014
+    $lines = New-Object Collections.Generic.List[string]
+    $lines.Add('# Evidence ledger')
+    $lines.Add('')
+    $lines.Add('Machine source: `evidence/findings.jsonl`. Helpers validate records; they do not')
+    $lines.Add('verify a Nightshift tick or interpret domain meaning.')
+    $lines.Add('')
+    $lines.Add('| ID | Domain | Severity | Ladder | Status | Locator |')
+    $lines.Add('| --- | --- | --- | --- | --- | --- |')
+    $count = 0
+    foreach ($record in $Records) {
+        $cells = New-Object Collections.Generic.List[string]
+        foreach ($column in @('id', 'domain', 'severity', 'ladder', 'status', 'locator')) {
+            $cells.Add((ConvertTo-NSPyText (Get-NSMapValue $record $column)))
+        }
+        $lines.Add('| ' + ($cells -join ' | ') + ' |')
+        $count++
+    }
+    if ($count -eq 0) {
+        $empty = @($dash, $dash, $dash, $dash, $dash, 'empty')
+        $lines.Add('| ' + ($empty -join ' | ') + ' |')
+    }
+    return (($lines -join "`n") + "`n")
+}
+
+function Invoke-NSEvidenceRender {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $paths = Get-NSEvidencePaths $Project
+    $records = Read-NSEvidenceRecords $paths['jsonl']
+    $text = Get-NSEvidenceMarkdown $records
+    $null = [IO.Directory]::CreateDirectory($paths['dir'])
+    Write-NSEvidenceFile -Path $paths['md'] -Text $text
+    [Console]::Out.Write($text)
+    return 0
+}
+
+function Invoke-NSEvidenceExportTsv {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $paths = Get-NSEvidencePaths $Project
+    $records = Read-NSEvidenceRecords $paths['jsonl']
+    Write-NSEvidenceOut ($script:NSEvidenceTsvColumns -join "`t")
+    foreach ($record in $records) {
+        $cells = New-Object Collections.Generic.List[string]
+        foreach ($column in $script:NSEvidenceTsvColumns) {
+            $value = ''
+            if (($record -is [Collections.IDictionary]) -and $record.Contains($column)) {
+                $value = ConvertTo-NSPyText $record[$column]
+            }
+            $cells.Add($value.Replace("`t", ' '))
+        }
+        Write-NSEvidenceOut ($cells -join "`t")
+    }
+    return 0
+}
+
+function Invoke-NSEvidenceMigrate {
+    param([Parameter(Mandatory = $true)][string]$Project)
+    $paths = Get-NSEvidencePaths $Project
+    $hasDir = Test-Path -LiteralPath $paths['dir'] -PathType Container
+    $hasLedger = Test-Path -LiteralPath $paths['jsonl'] -PathType Leaf
+    if (-not $hasDir -and -not $hasLedger) {
+        Write-NSEvidenceOut 'evidence: nothing to migrate'
+        return 0
+    }
+    $version = '0'
+    if (Test-Path -LiteralPath $paths['version'] -PathType Leaf) {
+        $version = ([IO.File]::ReadAllText($paths['version'], $script:NSUtf8NoBom)).Trim()
+        if ($version.Length -eq 0) { $version = '0' }
+    }
+    if (($version -ceq '0') -or ($version -ceq '1')) {
+        $null = [IO.Directory]::CreateDirectory($paths['raw'])
+        Write-NSEvidenceFile -Path $paths['version'] -Text "1`n"
+        if (-not (Test-Path -LiteralPath $paths['jsonl'] -PathType Leaf)) {
+            Write-NSEvidenceFile -Path $paths['jsonl'] -Text ''
+        }
+        Write-NSEvidenceOut 'evidence: schema-version 1'
+        return 0
+    }
+    Write-NSEvidenceError ('evidence: unsupported evidence schema-version ' + $version)
+    return 2
+}
+
+function Invoke-NSEvidenceCommand {
+    param(
+        [AllowEmptyString()][string]$Project = '',
+        [AllowEmptyString()][string]$Command = '',
+        [AllowEmptyString()][string]$Record = '',
+        [AllowEmptyString()][string]$Raw = '',
+        [AllowEmptyString()][string]$Id = '',
+        [AllowEmptyString()][string]$Disposition = '',
+        [AllowEmptyString()][string]$Ladder = ''
+    )
+    try {
+        if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Command)) { return (Write-NSEvidenceUsage) }
+        switch ($Command) {
+            'init' { return (Invoke-NSEvidenceInit -Project $Project) }
+            'validate' { return (Invoke-NSEvidenceValidate -Project $Project) }
+            'append' {
+                if ([string]::IsNullOrEmpty($Record)) { return (Write-NSEvidenceUsage) }
+                return (Invoke-NSEvidenceAppend -Project $Project -RecordJson $Record -RawText $Raw)
+            }
+            'disposition' {
+                if ([string]::IsNullOrEmpty($Id) -or [string]::IsNullOrEmpty($Disposition)) { return (Write-NSEvidenceUsage) }
+                return (Invoke-NSEvidenceDisposition -Project $Project -Id $Id -Disposition $Disposition -Ladder $Ladder)
+            }
+            'render' { return (Invoke-NSEvidenceRender -Project $Project) }
+            'export-tsv' { return (Invoke-NSEvidenceExportTsv -Project $Project) }
+            'migrate' { return (Invoke-NSEvidenceMigrate -Project $Project) }
+        }
+        return (Write-NSEvidenceUsage)
+    }
+    catch [ApplicationException] {
+        Write-NSEvidenceError $_.Exception.Message
+        return 1
     }
 }
 
