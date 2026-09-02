@@ -514,6 +514,10 @@ try {
     $morningReceiptLogicRun = Invoke-TestScript $morningReceiptLogic
     Assert-Equal 0 $morningReceiptLogicRun.ExitCode `
         "morning receipt sections and views: $($morningReceiptLogicRun.Stdout) $($morningReceiptLogicRun.Stderr)"
+    $provisionRecoverLogic = Join-Path $PSScriptRoot 'provision-recover-logic.ps1'
+    $provisionRecoverLogicRun = Invoke-TestScript $provisionRecoverLogic
+    Assert-Equal 0 $provisionRecoverLogicRun.ExitCode `
+        "provisioning recovery and rollback: $($provisionRecoverLogicRun.Stdout) $($provisionRecoverLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

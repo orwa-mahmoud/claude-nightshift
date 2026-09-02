@@ -1217,25 +1217,31 @@ function Enter-NSMutex {
     finally {
         $sha.Dispose()
     }
+    $mutexName = if (Test-NSWindows) { "Global\Nightshift-$suffix" } else { "Nightshift-$suffix" }
     $mutex = $null
     try {
         $created = $false
-        $mutexSecurity = New-NSMutexSecurity
-        if ($PSVersionTable.PSVersion.Major -lt 6) {
-            $mutex = [Threading.Mutex]::new(
-                $false,
-                "Global\Nightshift-$suffix",
-                [ref]$created,
-                $mutexSecurity
-            )
+        if (Test-NSWindows) {
+            $mutexSecurity = New-NSMutexSecurity
+            if ($PSVersionTable.PSVersion.Major -lt 6) {
+                $mutex = [Threading.Mutex]::new(
+                    $false,
+                    $mutexName,
+                    [ref]$created,
+                    $mutexSecurity
+                )
+            }
+            else {
+                $mutex = [Threading.MutexAcl]::Create(
+                    $false,
+                    $mutexName,
+                    [ref]$created,
+                    $mutexSecurity
+                )
+            }
         }
         else {
-            $mutex = [Threading.MutexAcl]::Create(
-                $false,
-                "Global\Nightshift-$suffix",
-                [ref]$created,
-                $mutexSecurity
-            )
+            $mutex = New-Object Threading.Mutex($false, $mutexName, [ref]$created)
         }
         try {
             $acquired = $mutex.WaitOne($TimeoutMilliseconds)
@@ -6693,21 +6699,33 @@ function Get-NSProvisionSkipReasons {
     )
     $resolution = Get-NSPolicyResolution $Workspace
     $settings = $resolution['settings']
-    $policy = [string]$settings['toolingPolicy']['value']
+    $toolingPolicy = [string]$settings['toolingPolicy']['value']
+    $shiftPolicy = $resolution['policy']
     # Named a recipe, the elevation question narrows to the categories that
     # recipe declares; without one, any category tonight permits is a prompt
     # waiting to happen. An unreadable recipe narrows nothing.
     $categories = @($script:NSPolicyCategories)
     if (-not [string]::IsNullOrEmpty($RecipePath)) {
         try {
-            $categories = @(Get-NSProvisionElevationCategories (Read-NSProvisionRecipe $RecipePath))
+            $categories = [string[]](Get-NSProvisionElevationCategories (Read-NSProvisionRecipe $RecipePath))
         }
         catch {
             $categories = @($script:NSPolicyCategories)
         }
     }
     $elevationRequested = $false
-    foreach ($category in $categories) {
+    foreach ($category in @($categories)) {
+        if (-not ($category -is [string]) -or [string]::IsNullOrEmpty($category)) { continue }
+        if ($null -ne $shiftPolicy) {
+            if ($null -ne (Get-NSPolicyCategoryAllowance $shiftPolicy $category)) {
+                $elevationRequested = $true
+                continue
+            }
+            if ((Get-NSPolicyExactPlanAllowances $shiftPolicy $category).Count -gt 0) {
+                $elevationRequested = $true
+                continue
+            }
+        }
         if (-not $settings.Contains('elevation.' + $category)) { continue }
         if ([string]$settings['elevation.' + $category]['value'] -cne 'deny') { $elevationRequested = $true }
     }
@@ -6715,10 +6733,10 @@ function Get-NSProvisionSkipReasons {
     $prompt = ((-not $PermissionGrant.IsPresent) -and (-not $Attended.IsPresent))
     if ($NativeWindows.IsPresent -and $elevationRequested -and (-not $Elevated.IsPresent)) { $prompt = $true }
     if ($prompt) { $reasons.Add('permission-prompt-required') }
-    if ($NativeWindows.IsPresent -and ($policy -ceq 'auto-add')) {
+    if ($NativeWindows.IsPresent -and ($toolingPolicy -ceq 'auto-add')) {
         $reasons.Add('provisioning-runtime-unavailable')
     }
-    return , $reasons.ToArray()
+    return @($reasons.ToArray())
 }
 
 function Test-NSProvisionElevatedToken {

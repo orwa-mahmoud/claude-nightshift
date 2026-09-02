@@ -414,7 +414,12 @@ malformed() { # <field>
     printf 'malformed%sprovision-transaction.json is malformed (%s)\n' "$TAB" "$1"
     exit 0
   fi
-  printf '{"detail":"malformed transaction: %s","malformed":true,"ok":false,"recovered":false}\n' "$1"
+  JSON_TOOL="$(ns_policy_json_tool)" || {
+    printf '{"detail":"malformed transaction: (unprintable)","malformed":true,"ok":false,"recovered":false}\n'
+    exit 2
+  }
+  "$JSON_TOOL" -n --arg field "$1" \
+    '{detail: ("malformed transaction: " + $field), malformed: true, ok: false, recovered: false}'
   exit 2
 }
 

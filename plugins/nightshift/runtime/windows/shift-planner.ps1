@@ -14,13 +14,8 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$py = Join-Path (Split-Path $PSScriptRoot -Parent) 'shift-planner.py'
-if (-not (Test-Path -LiteralPath $py)) {
-    Write-Error 'runtime/shift-planner.py is not installed'
-    exit 2
-}
-$args = @('--input', $InputPath, '--hours', "$Hours", '--selection', $Selection, '--launch', $Launch)
-if ($Learning) { $args += @('--learning', $Learning) }
-if ($SelectionIds) { $args += @('--selection-ids', $SelectionIds) }
-& python3 $py @args
-exit $LASTEXITCODE
+Write-Error @'
+shift planner is optional on native Windows until a PowerShell port ships.
+Use the POSIX runtime/shift-planner.sh from a bash host, or run Hunt/Quality on Claude Code or Codex.
+'@
+exit 2

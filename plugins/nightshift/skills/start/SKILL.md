@@ -241,10 +241,12 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh" --project "$NIGHTSHIFT_WORKSPACE" check`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision-preflight.ps1" -Project "$NIGHTSHIFT_WORKSPACE" check`).
- If `$NS/provision-transaction.json` exists, recover first with
+ If `$NS/provision-transaction.json` exists, recover before any product work with
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" recover`
  (native Windows:
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
+ When recovery exits unproven, Start refuses to arm and names the repair:
+ `.nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again.`
 - **Refresh capability detection.** Run
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/refresh-inventory.sh" --project "$NIGHTSHIFT_WORKSPACE"`
  (native Windows:

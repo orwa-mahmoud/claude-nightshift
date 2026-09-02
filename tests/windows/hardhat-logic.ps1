@@ -298,6 +298,8 @@ try {
     [IO.File]::WriteAllText((Join-Path $leaseNs '.shift-armed'), '')
 
     $recordedSession = 'lease-recorded-session'
+    [IO.File]::WriteAllText((Join-Path $leaseNs '.shift-session'), "$recordedSession`n`n`n`ncodex`n")
+    [IO.File]::WriteAllText((Join-Path $leaseNs 'shift-log.md'), '')
     $deadStart = '2000-01-01T00:00:00.0000000Z'
     $deadPid = [string]$PID # a real, live pid - but this birthday can never match it, so it reads dead
 

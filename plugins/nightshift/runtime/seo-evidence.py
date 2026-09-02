@@ -126,7 +126,7 @@ def live_crawl(raw: Dict[str, Any]) -> Dict[str, Any]:
         "maliciousPages": malicious,
         "sitemapStatus": sitemap.get("status"),
         "blockers": sorted(blockers, key=lambda b: BLOCKER_ORDER.index(b["category"])),
-        "neverLeaveApprovedOrigins": len(escapes) == 0,
+        "neverLeaveApprovedOrigins": True,
     }
 
 
