@@ -1,0 +1,25 @@
+{
+  "declaredPaths": ["make build"],
+  "environmentTested": "local-isolated",
+  "runs": [
+    {
+      "runId": "warm",
+      "cacheState": "warm",
+      "artifacts": [
+        {"path": "build/output.bin", "digest": "sha256:warm", "determinismExpected": true}
+      ]
+    },
+    {
+      "runId": "cold",
+      "cacheState": "cold",
+      "artifacts": [
+        {
+          "path": "build/output.bin",
+          "digest": "sha256:cold",
+          "determinismExpected": true,
+          "hiddenAssumptions": [{"kind": "cache", "detail": ".cache/build required", "action": "document"}]
+        }
+      ]
+    }
+  ]
+}

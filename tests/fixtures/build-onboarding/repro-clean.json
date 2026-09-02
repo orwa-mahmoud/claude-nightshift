@@ -1,0 +1,25 @@
+{
+  "declaredPaths": ["npm ci", "npm run build"],
+  "environmentTested": "local-isolated",
+  "packageContents": ["dist/app.js", "dist/app.css"],
+  "runs": [
+    {
+      "runId": "clean-a",
+      "cacheState": "cold",
+      "environment": {"node": "20"},
+      "artifacts": [
+        {"path": "dist/app.js", "digest": "sha256:aaa", "determinismExpected": true, "includedInPackage": true},
+        {"path": "dist/app.css", "digest": "sha256:bbb", "determinismExpected": true, "includedInPackage": true}
+      ]
+    },
+    {
+      "runId": "clean-b",
+      "cacheState": "cold",
+      "environment": {"node": "20"},
+      "artifacts": [
+        {"path": "dist/app.js", "digest": "sha256:aaa", "determinismExpected": true},
+        {"path": "dist/app.css", "digest": "sha256:bbb", "determinismExpected": true}
+      ]
+    }
+  ]
+}

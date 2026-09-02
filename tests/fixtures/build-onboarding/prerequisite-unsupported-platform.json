@@ -1,0 +1,8 @@
+{
+  "declaredPrerequisites": ["git"],
+  "discoveredPrerequisites": [
+    {"name": "git", "documented": true, "blocking": true}
+  ],
+  "commands": [],
+  "platform": {"requested": "windows-arm", "supported": false, "reason": "native bindings unavailable"}
+}

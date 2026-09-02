@@ -1,0 +1,15 @@
+{
+  "repositoryOwnedCommands": true,
+  "humanDecisionRequired": true,
+  "steps": [
+    {"phase": "clone", "command": "git clone https://github.com/acme/widget.git", "status": "passed", "documented": true},
+    {
+      "phase": "install",
+      "command": "brew install widget-deps",
+      "status": "blocked",
+      "documented": true,
+      "blockerReason": "unsupported platform",
+      "blockerDetail": "Windows shell — brew unavailable"
+    }
+  ]
+}

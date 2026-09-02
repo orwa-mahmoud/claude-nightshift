@@ -1,0 +1,11 @@
+{
+  "repositoryOwnedCommands": true,
+  "freshReaderPassApplied": true,
+  "steps": [
+    {"phase": "clone", "command": "git clone https://github.com/acme/widget.git", "status": "passed", "documented": true},
+    {"phase": "install", "command": "npm ci", "status": "passed", "documented": true},
+    {"phase": "build", "command": "npm run build", "status": "passed", "documented": true},
+    {"phase": "verify", "command": "npm test", "status": "passed", "documented": true},
+    {"phase": "change", "command": "npm run lint --fix", "status": "passed", "documented": true}
+  ]
+}

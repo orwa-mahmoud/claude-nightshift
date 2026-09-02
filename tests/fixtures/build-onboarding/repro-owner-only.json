@@ -1,0 +1,19 @@
+{
+  "declaredPaths": ["./install.sh"],
+  "imposeStack": ["docker", "pnpm"],
+  "environmentTested": "local-isolated",
+  "runs": [
+    {
+      "runId": "attempt",
+      "cacheState": "cold",
+      "artifacts": [
+        {
+          "path": "bin/cli",
+          "digest": "sha256:cli1",
+          "ownerOnlyInstall": true,
+          "ownerOnlyReason": "system-wide install"
+        }
+      ]
+    }
+  ]
+}
