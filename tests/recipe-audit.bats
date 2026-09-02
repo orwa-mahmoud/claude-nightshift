@@ -14,9 +14,9 @@ setup() { export NIGHTSHIFT_EVIDENCE_NOW=2026-09-02T00:00:00Z; }
 @test "index lists every registered recipe in byte order" {
   run bash "$AUDIT" --project "$ROOT" index --json
   [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .count == 23' >/dev/null
+  printf '%s\n' "$output" | jq -e '.ok == true and .count == 32' >/dev/null
   [ -f "$REGISTRY/index.json" ]
-  [ "$(jq 'length' "$REGISTRY/index.json")" -eq 23 ]
+  [ "$(jq 'length' "$REGISTRY/index.json")" -eq 32 ]
   jq -e 'sort_by(.ecosystem, .capabilityId) == .' "$REGISTRY/index.json" >/dev/null
   while IFS= read -r path; do
     rel="${path#"$REGISTRY/"}"

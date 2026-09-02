@@ -1,0 +1,6 @@
+version = 1
+requires-python = ">=3.9"
+
+[[package]]
+name = "nightshift-security-fixture"
+version = "0.0.0"

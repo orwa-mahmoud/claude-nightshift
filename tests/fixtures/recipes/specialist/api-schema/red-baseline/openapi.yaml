@@ -1,0 +1,15 @@
+openapi: 3.0.3
+info:
+  title: Broken fixture API
+  version: 0.0.0
+paths:
+  /broken:
+    get:
+      responses:
+        "200":
+          description: ok
+      parameters:
+        - name: missing-ref
+          in: query
+          schema:
+            $ref: "#/components/schemas/Missing"

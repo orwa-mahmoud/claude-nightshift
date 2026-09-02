@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info:
+  title: Nightshift fixture API
+  version: 0.0.0
+paths:
+  /health:
+    get:
+      responses:
+        "200":
+          description: ok

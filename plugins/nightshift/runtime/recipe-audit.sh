@@ -9,8 +9,10 @@
 # ecosystem then capabilityId, pretty-printed with sorted keys. It reads the registry and runs
 # nothing.
 #
-# audit reports every recipe as one of missing-maintenance, missing-upstream, stale, unresolved
-# or ok — the first state it matches, in that order. A recipe is stale when lastVerified is
+# audit reports every recipe as one of inadmissible, missing-maintenance, missing-upstream, stale,
+# unresolved or ok — the first state it matches, in that order. Specialist recipes — any whose
+# enabledShifts entries carry a fallback — must ship a complete admission block; a recipe is
+# stale when lastVerified is
 # absent, unusable or more than 180 days before NIGHTSHIFT_EVIDENCE_NOW (today when unset), and
 # unresolved when its maintenance.resolves query does not succeed. Only audit runs that query,
 # so only audit reaches the network; it runs it as argv in a scratch directory, never through a
@@ -31,7 +33,7 @@ _here="${BASH_SOURCE[0]%/*}"
 
 TAB=$(printf '\t')
 STALE_DAYS=180
-STATES="missing-maintenance missing-upstream stale unresolved ok"
+STATES="inadmissible missing-maintenance missing-upstream stale unresolved ok"
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0" >&2
@@ -183,7 +185,13 @@ else
   ("u\t" + (.upstream | p)),
   ("m\t" + (.maintenance | type)),
   ("c\t" + (if (.maintenance | type) == "object" then (.maintenance.check | p) else "null" end)),
-  ("r\t" + (if (.maintenance | type) == "object" then (.maintenance.resolves | p) else "null" end))
+  ("r\t" + (if (.maintenance | type) == "object" then (.maintenance.resolves | p) else "null" end)),
+  ("y\t" + (.enabledShifts | type)),
+  ("ys\t" + (if (.enabledShifts | type) == "array" then (([.enabledShifts[] | type] | any(. == "object")) | tostring) else "false" end)),
+  ("a\t" + (.admission | type)),
+  ("ac\t" + (if (.admission | type) == "object" then (.admission.contract | p) else "null" end)),
+  ("af\t" + (if (.admission | type) == "object" then (.admission.fixture | p) else "null" end)),
+  ("ad\t" + (if (.admission | type) == "object" then (.admission.demand | p) else "null" end))
 end'
 
 FACTS_PY='import json, sys
@@ -226,6 +234,20 @@ else:
         check, resolves = p(m.get("check")), p(m.get("resolves"))
     out.append("c\t%s" % check)
     out.append("r\t%s" % resolves)
+    shifts = d.get("enabledShifts")
+    out.append("y\t%s" % jtype(shifts))
+    specialist = "false"
+    if isinstance(shifts, list):
+        specialist = str(any(isinstance(item, dict) for item in shifts))
+    out.append("ys\t%s" % specialist)
+    adm = d.get("admission")
+    out.append("a\t%s" % jtype(adm))
+    ac, af, ad = "null", "null", "null"
+    if isinstance(adm, dict):
+        ac, af, ad = p(adm.get("contract")), p(adm.get("fixture")), p(adm.get("demand"))
+    out.append("ac\t%s" % ac)
+    out.append("af\t%s" % af)
+    out.append("ad\t%s" % ad)
 sys.stdout.write("".join(line + "\n" for line in out))
 '
 
@@ -240,7 +262,7 @@ split("\n") | map(select(length > 0)) | map(split("\t")) | map({
   lastVerified: (.[3] | fromjson),
   upstream: (.[4] | fromjson),
   path: .[5]
-})'
+}) | sort_by(.ecosystem, .capabilityId)'
 
 INDEX_PY='import json, sys
 rows = [line for line in sys.stdin.read().split("\n") if line]
@@ -250,6 +272,7 @@ for row in rows:
     out.append({"ecosystem": eco, "capabilityId": cap,
                 "recipeVersion": json.loads(version), "lastVerified": json.loads(last),
                 "upstream": json.loads(upstream), "path": path})
+out.sort(key=lambda row: (row["ecosystem"], row["capabilityId"]))
 sys.stdout.write(json.dumps(out, sort_keys=True, indent=2, ensure_ascii=False) + "\n")
 '
 
@@ -269,7 +292,7 @@ AUDIT_JQ='
   staleDays: ($stale | tonumber),
   total: ($rows | length),
   counts: (reduce $rows[] as $row (
-    {"missing-maintenance": 0, "missing-upstream": 0, "stale": 0, "unresolved": 0, "ok": 0};
+    {"inadmissible": 0, "missing-maintenance": 0, "missing-upstream": 0, "stale": 0, "unresolved": 0, "ok": 0};
     .[$row.state] += 1)),
   recipes: $rows
 }'
@@ -277,7 +300,7 @@ AUDIT_JQ='
 AUDIT_PY='import json, sys
 now, stale = sys.argv[1], int(sys.argv[2])
 rows = []
-counts = {"missing-maintenance": 0, "missing-upstream": 0, "stale": 0, "unresolved": 0, "ok": 0}
+counts = {"inadmissible": 0, "missing-maintenance": 0, "missing-upstream": 0, "stale": 0, "unresolved": 0, "ok": 0}
 for line in sys.stdin.read().split("\n"):
     if not line:
         continue
@@ -332,6 +355,12 @@ F_UPSTREAM=null
 F_MAINT=null
 F_CHECK=null
 F_RESOLVES=null
+F_SHIFTS=null
+F_SPECIALIST=false
+F_ADM=null
+F_ADM_CONTRACT=null
+F_ADM_FIXTURE=null
+F_ADM_DEMAND=null
 
 # _parse_facts <stream> — load one recipe's facts into the F_* view.
 _parse_facts() {
@@ -344,6 +373,12 @@ _parse_facts() {
   F_MAINT=null
   F_CHECK=null
   F_RESOLVES=null
+  F_SHIFTS=null
+  F_SPECIALIST=false
+  F_ADM=null
+  F_ADM_CONTRACT=null
+  F_ADM_FIXTURE=null
+  F_ADM_DEMAND=null
   while IFS="$TAB" read -r tag value; do
     case "$tag" in
       k) F_TYPE="$value" ;;
@@ -354,6 +389,12 @@ _parse_facts() {
       m) F_MAINT="$value" ;;
       c) F_CHECK="$value" ;;
       r) F_RESOLVES="$value" ;;
+      y) F_SHIFTS="$value" ;;
+      ys) F_SPECIALIST="$value" ;;
+      a) F_ADM="$value" ;;
+      ac) F_ADM_CONTRACT="$value" ;;
+      af) F_ADM_FIXTURE="$value" ;;
+      ad) F_ADM_DEMAND="$value" ;;
     esac
   done <<<"$1"
 }
@@ -445,7 +486,11 @@ _load() {
   _parse_facts "$stream"
   [ "$F_TYPE" = object ] || die "$rel: a recipe must be an object" 2
   _plain "$F_CAP" || die "$rel: capabilityId is missing or is not a plain string" 2
-  [ "$PLAIN" = "$2" ] || die "$rel: capabilityId is $PLAIN, not $2" 2
+}
+
+# _admission_field_ok <json-text> — a non-empty admission string.
+_admission_field_ok() {
+  _plain "$1" && [ -n "$PLAIN" ]
 }
 
 # ---------------------------------------------------------------- index
@@ -457,7 +502,8 @@ cmd_index() {
     eco="${entry%%/*}"
     cap="${entry##*/}"
     _load "$eco" "$cap"
-    rows="${rows}${eco}${TAB}${cap}${TAB}${F_VERSION}${TAB}${F_LAST}${TAB}${F_UPSTREAM}${TAB}${REGISTRY_NAME}/${eco}/${cap}.json
+    _plain "$F_CAP" || die "$REGISTRY_NAME/$eco/$cap.json: capabilityId is missing or is not a plain string" 2
+    rows="${rows}${eco}${TAB}${PLAIN}${TAB}${F_VERSION}${TAB}${F_LAST}${TAB}${F_UPSTREAM}${TAB}${REGISTRY_NAME}/${eco}/${cap}.json
 "
     count=$((count + 1))
   done <<<"$(_recipes)"
@@ -487,9 +533,34 @@ cmd_index() {
 STATE=""
 DETAIL=""
 _state() {
-  local last days age
+  local last days age need_adm
   STATE=""
   DETAIL=""
+  need_adm=false
+  [ "$F_SPECIALIST" = true ] && need_adm=true
+  [ "$F_ADM" != null ] && need_adm=true
+  if [ "$need_adm" = true ]; then
+    if [ "$F_ADM" != object ]; then
+      STATE=inadmissible
+      DETAIL='no admission block'
+      return 0
+    fi
+    if ! _admission_field_ok "$F_ADM_CONTRACT"; then
+      STATE=inadmissible
+      DETAIL='no admission.contract'
+      return 0
+    fi
+    if ! _admission_field_ok "$F_ADM_FIXTURE"; then
+      STATE=inadmissible
+      DETAIL='no admission.fixture'
+      return 0
+    fi
+    if ! _admission_field_ok "$F_ADM_DEMAND"; then
+      STATE=inadmissible
+      DETAIL='no admission.demand'
+      return 0
+    fi
+  fi
   if [ "$F_MAINT" != object ]; then
     STATE=missing-maintenance
     DETAIL='no maintenance'

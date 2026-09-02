@@ -1,0 +1,87 @@
+{
+  "admission": {
+    "contract": "seo-audit",
+    "demand": "evals/cases/v1.json#seo-audit.positive.artifact-notes",
+    "fixture": "tests/fixtures/recipes/specialist/seo-perf/static-site"
+  },
+  "allowedFiles": [
+    ".htmlhintrc",
+    "package-lock.json",
+    "package.json"
+  ],
+  "capabilityId": "seo-performance",
+  "detect": {
+    "ambiguous": "refuse",
+    "command": "count=0\npm=\"\"\nhtml=0\nif find . -name '*.html' ! -path './node_modules/*' ! -path './.git/*' -print -quit | grep -q .; then\n  html=1\nfi\nif [ \"$html\" -eq 0 ]; then\n  echo \"nightshift: seo-performance unavailable, no html files in the tree\" >&2\n  exit 78\nfi\nif [ ! -f package.json ]; then\n  echo \"nightshift: package.json is required to provision html lint tooling\" >&2\n  exit 78\nfi\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\nprintf '%s\\n' \"$pm\"\n",
+    "manifest": "package.json",
+    "packageManagers": [
+      {
+        "lockfile": "package-lock.json",
+        "manager": "npm"
+      },
+      {
+        "lockfile": "pnpm-lock.yaml",
+        "manager": "pnpm"
+      },
+      {
+        "lockfile": "yarn.lock",
+        "manager": "yarn"
+      }
+    ],
+    "signals": ["*.html"]
+  },
+  "ecosystems": [
+    "javascript-typescript"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    {
+      "contract": "seo-audit",
+      "fallback": "audit owner-supplied local files only; cite file sizes and html lint findings from the tree without lab timings when performance tooling is unavailable"
+    }
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "lastVerified older than 180 days, or the pinned htmlhint range no longer resolves in the lockfile's manager",
+    "resolves": "npm view htmlhint@^1.1.4 version"
+  },
+  "minimalConfig": {
+    ".htmlhintrc": "{\n  \"tagname-lowercase\": true,\n  \"attr-value-double-quotes\": true,\n  \"title-require\": true,\n  \"doctype-first\": true\n}\n"
+  },
+  "packageManagerAdditions": [
+    {
+      "command": "count=0\npm=\"\"\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\ndeclared=\"$(sed -n 's/.*\"packageManager\"[^\"]*\"//p' package.json | cut -d@ -f1 | head -n 1)\"\nif [ -n \"$declared\" ] && [ \"$declared\" != \"$pm\" ]; then\n  echo \"nightshift: package.json names $declared, the lockfile names $pm\" >&2\n  exit 78\nfi\nif ! find . -name '*.html' ! -path './node_modules/*' ! -path './.git/*' -print -quit | grep -q .; then\n  echo \"nightshift: seo-performance unavailable, no html files in the tree\" >&2\n  exit 78\nfi\nif [ -f .htmlhintrc ] && grep -q '\"htmlhint\"' package.json; then\n  echo \"nightshift: htmlhint is already configured here; the repository tooling wins\" >&2\n  exit 78\nfi\n"
+    },
+    {
+      "command": "if [ -f package-lock.json ]; then npm install --save-dev \"htmlhint@^1.1.4\" \"serve@^14.0.0\"; fi\n"
+    },
+    {
+      "command": "if [ -f pnpm-lock.yaml ]; then pnpm add --save-dev \"htmlhint@^1.1.4\" \"serve@^14.0.0\"; fi\n"
+    },
+    {
+      "command": "if [ -f yarn.lock ]; then yarn add --dev \"htmlhint@^1.1.4\" \"serve@^14.0.0\"; fi\n"
+    }
+  ],
+  "permissionRequirements": [
+    "receipt: evidence lines only — file byte sizes, local fetch timings, and html lint rule ids; never rankings, traffic, field data, or strategy",
+    "package-index-network"
+  ],
+  "probe": {
+    "alreadyProvisionedWhen": "exit-zero",
+    "command": "if [ ! -f .htmlhintrc ]; then exit 1; fi\nif grep -qE '\"htmlhint\"[[:space:]]*:' package.json; then exit 0; fi\nif [ -d node_modules/htmlhint ]; then exit 0; fi\nexit 1\n"
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "if [ -f package-lock.json ]; then npm uninstall htmlhint serve\nelif [ -f pnpm-lock.yaml ]; then pnpm remove htmlhint serve\nelif [ -f yarn.lock ]; then yarn remove htmlhint serve\nfi\n"
+  },
+  "safetyClass": "local-dev-with-config",
+  "smoke": {
+    "command": "set -u\nrun_pm() {\n  if [ -f package-lock.json ]; then npm exec --no -- \"$@\"\n  elif [ -f pnpm-lock.yaml ]; then pnpm exec \"$@\"\n  elif [ -f yarn.lock ]; then yarn run \"$@\"\n  else\n    echo \"nightshift: no lockfile, the package manager is not decidable\" >&2\n    exit 78\n  fi\n}\nfind . -type f \\( -name '*.html' -o -name '*.css' -o -name '*.js' \\) ! -path './node_modules/*' ! -path './.git/*' -print0 |\n  while IFS= read -r -d '' f; do\n    bytes=$(wc -c <\"$f\" | tr -d ' ')\n    printf 'evidence: file-size %s %s bytes\\n' \"$bytes\" \"$f\"\n  done\nrun_pm htmlhint '**/*.html'\nrc=$?\nif [ \"$rc\" -gt 1 ]; then exit \"$rc\"; fi\nport=3456\nwhile command -v nc >/dev/null 2>&1 && nc -z 127.0.0.1 \"$port\" 2>/dev/null; do port=$((port + 1)); done\nrun_pm serve -l \"$port\" . >/dev/null 2>&1 &\npid=$!\ntrap 'kill \"$pid\" 2>/dev/null || true' EXIT INT TERM\nsleep 1\nfor page in index.html about.html; do\n  if [ -f \"$page\" ]; then\n    curl -o /dev/null -s -w 'evidence: local-timing %s %{time_total}s\\n' \"http://127.0.0.1:$port/$page\" || exit 1\n  fi\ndone\nwait \"$pid\" 2>/dev/null || true\n"
+  },
+  "upstream": "https://github.com/htmlhint/HTMLHint",
+  "versionConstraints": {
+    "htmlhint": "^1.1.4",
+    "node": ">=18.0.0",
+    "serve": "^14.0.0"
+  }
+}

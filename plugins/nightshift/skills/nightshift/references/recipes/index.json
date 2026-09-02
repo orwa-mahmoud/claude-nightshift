@@ -16,6 +16,14 @@
     "upstream": "https://pkg.go.dev/cmd/vet"
   },
   {
+    "capabilityId": "security",
+    "ecosystem": "go",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/go/dependency-audit-govulncheck.json",
+    "recipeVersion": "1",
+    "upstream": "https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck"
+  },
+  {
     "capabilityId": "test",
     "ecosystem": "go",
     "lastVerified": "2026-09-02",
@@ -32,6 +40,22 @@
     "upstream": "https://pkg.go.dev/cmd/go#hdr-Compile_packages_and_dependencies"
   },
   {
+    "capabilityId": "accessibility",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/accessibility.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/dequelabs/axe-core-npm"
+  },
+  {
+    "capabilityId": "api-schema",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/api-schema-openapi.json",
+    "recipeVersion": "1",
+    "upstream": "https://redocly.com/docs/cli"
+  },
+  {
     "capabilityId": "coverage",
     "ecosystem": "javascript-typescript",
     "lastVerified": "2026-09-02",
@@ -40,12 +64,44 @@
     "upstream": "https://vitest.dev/guide/coverage"
   },
   {
+    "capabilityId": "dead-code",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/dead-code-knip.json",
+    "recipeVersion": "1",
+    "upstream": "https://knip.dev"
+  },
+  {
     "capabilityId": "lint",
     "ecosystem": "javascript-typescript",
     "lastVerified": "2026-09-02",
     "path": "recipes/javascript-typescript/lint.json",
     "recipeVersion": "1",
     "upstream": "https://eslint.org"
+  },
+  {
+    "capabilityId": "localization",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/localization.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/i18next/i18next-parser"
+  },
+  {
+    "capabilityId": "security",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/dependency-audit-npm.json",
+    "recipeVersion": "1",
+    "upstream": "https://docs.npmjs.com/cli/v10/commands/npm-audit"
+  },
+  {
+    "capabilityId": "seo-performance",
+    "ecosystem": "javascript-typescript",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/javascript-typescript/seo-performance.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/htmlhint/HTMLHint"
   },
   {
     "capabilityId": "test",
@@ -104,6 +160,14 @@
     "upstream": "https://github.com/pytest-dev/pytest-cov"
   },
   {
+    "capabilityId": "dead-code",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/dead-code-vulture.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/jendrikseipp/vulture"
+  },
+  {
     "capabilityId": "documentation-link",
     "ecosystem": "python",
     "lastVerified": "2026-09-02",
@@ -118,6 +182,14 @@
     "path": "recipes/python/lint.json",
     "recipeVersion": "1",
     "upstream": "https://github.com/astral-sh/ruff"
+  },
+  {
+    "capabilityId": "security",
+    "ecosystem": "python",
+    "lastVerified": "2026-09-02",
+    "path": "recipes/python/dependency-audit-pip.json",
+    "recipeVersion": "1",
+    "upstream": "https://github.com/pypa/pip-audit"
   },
   {
     "capabilityId": "test",

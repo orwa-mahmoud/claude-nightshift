@@ -1,0 +1,75 @@
+{
+  "admission": {
+    "contract": "vulnerability-sweep",
+    "demand": "evals/fixtures/v1/repo-js",
+    "fixture": "tests/fixtures/recipes/specialist/security/minimal-npm-audit.sh"
+  },
+  "allowedFiles": [
+    "package-lock.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "yarn.lock"
+  ],
+  "capabilityId": "security",
+  "detect": {
+    "ambiguous": "refuse",
+    "command": "count=0\npm=\"\"\nif [ ! -f package.json ]; then\n  echo \"nightshift: no package.json, this is not a JavaScript or TypeScript project\" >&2\n  exit 78\nfi\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\nprintf '%s\\n' \"$pm\"\n",
+    "manifest": "package.json",
+    "packageManagers": [
+      {
+        "lockfile": "package-lock.json",
+        "manager": "npm"
+      },
+      {
+        "lockfile": "pnpm-lock.yaml",
+        "manager": "pnpm"
+      },
+      {
+        "lockfile": "yarn.lock",
+        "manager": "yarn"
+      }
+    ]
+  },
+  "ecosystems": [
+    "javascript-typescript"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    {
+      "contract": "dependency-upgrade-sweep",
+      "fallback": "list dependencies from the lockfile without advisory severity, reachability, or runtime exposure"
+    },
+    {
+      "contract": "vulnerability-sweep",
+      "fallback": "report that no advisory source is available and record only dependency names from the lockfile"
+    }
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "lastVerified older than 180 days, or npm audit stops accepting the lockfile the recipe reads",
+    "resolves": "npm help audit"
+  },
+  "minimalConfig": {},
+  "packageManagerAdditions": [],
+  "permissionRequirements": [
+    "package-index-network",
+    "fallback: npm audit output is advisory only; reachability is unknown when the registry cannot prove it; record runtime versus development exposure from the lockfile, never compliance or exploitability"
+  ],
+  "probe": {
+    "alreadyProvisionedWhen": "exit-zero",
+    "command": "if [ ! -f package-lock.json ]; then exit 1; fi\nnpm audit --audit-level=none >/dev/null 2>&1\n"
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "true"
+  },
+  "safetyClass": "local-dev-free",
+  "smoke": {
+    "command": "if [ -f package-lock.json ]; then npm audit --audit-level=none --json\nelif [ -f pnpm-lock.yaml ]; then pnpm audit --audit-level=none\nelif [ -f yarn.lock ]; then yarn npm audit --audit-level=none\nelse\n  echo \"nightshift: no lockfile, the package manager is not decidable\" >&2\n  exit 78\nfi\n"
+  },
+  "upstream": "https://docs.npmjs.com/cli/v10/commands/npm-audit",
+  "versionConstraints": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "admission": {
+    "contract": "accessibility-repair",
+    "demand": "plugins/nightshift/skills/nightshift/references/shifts/accessibility-repair.md",
+    "fixture": "tests/fixtures/recipes/specialist/a11y-l10n/minimal-npm-a11y"
+  },
+  "allowedFiles": [
+    ".pa11yci",
+    ".pa11yci.json",
+    "axe.config.js",
+    "axe.config.mjs",
+    "package-lock.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "yarn.lock"
+  ],
+  "capabilityId": "accessibility",
+  "detect": {
+    "ambiguous": "refuse",
+    "command": "count=0\npm=\"\"\nif [ ! -f package.json ]; then\n  echo \"nightshift: no package.json, this is not a JavaScript or TypeScript project\" >&2\n  exit 78\nfi\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\nif [ -z \"$(find . \\( -name node_modules -o -name .git \\) -prune -o -name '*.html' -print 2>/dev/null | head -n 1)\" ]; then\n  echo \"nightshift: accessibility unavailable, no local HTML fixtures found\" >&2\n  exit 78\nfi\nprintf '%s\\n' \"$pm\"\n",
+    "manifest": "package.json",
+    "packageManagers": [
+      {
+        "lockfile": "package-lock.json",
+        "manager": "npm"
+      },
+      {
+        "lockfile": "pnpm-lock.yaml",
+        "manager": "pnpm"
+      },
+      {
+        "lockfile": "yarn.lock",
+        "manager": "yarn"
+      }
+    ]
+  },
+  "ecosystems": [
+    "javascript-typescript"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    {
+      "contract": "accessibility-repair",
+      "fallback": "automated checks; not WCAG or user conformance — record local HTML paths and any configured scanner output when @axe-core/cli is unavailable"
+    }
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "lastVerified older than 180 days, or the pinned range no longer resolves in the manager the lockfile names",
+    "resolves": "npm view @axe-core/cli@^4.10.0 version"
+  },
+  "minimalConfig": {
+    "axe.config.mjs": "/** @type {import('@axe-core/cli').AxeConfig} */\nexport default {\n  rules: {\n    'html-has-lang': { enabled: true }\n  }\n};\n"
+  },
+  "packageManagerAdditions": [
+    {
+      "command": "count=0\npm=\"\"\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\ndeclared=\"$(sed -n 's/.*\"packageManager\"[^\"]*\"//p' package.json | cut -d@ -f1 | head -n 1)\"\nif [ -n \"$declared\" ] && [ \"$declared\" != \"$pm\" ]; then\n  echo \"nightshift: package.json names $declared, the lockfile names $pm\" >&2\n  exit 78\nfi\nver=\"$(node -v 2>/dev/null)\" || ver=\"\"\nmajor=\"${ver#v}\"\nmajor=\"${major%%.*}\"\ncase \"$major\" in \"\" | *[!0-9]*) major=0 ;; esac\nif [ \"$major\" -lt 20 ]; then\n  echo \"nightshift: this recipe needs Node 20 or newer, the host reports major $major\" >&2\n  exit 78\nfi\nhtml=\"$(find . \\( -name node_modules -o -name .git \\) -prune -o -name '*.html' -print 2>/dev/null | head -n 1)\"\nif [ -z \"$html\" ]; then\n  echo \"nightshift: accessibility unavailable, no local HTML fixtures found\" >&2\n  exit 78\nfi\n"
+    },
+    {
+      "command": "if [ -f package-lock.json ]; then npm install --save-dev \"@axe-core/cli@^4.10.0\"; fi\n"
+    },
+    {
+      "command": "if [ -f pnpm-lock.yaml ]; then pnpm add --save-dev \"@axe-core/cli@^4.10.0\"; fi\n"
+    },
+    {
+      "command": "if [ -f yarn.lock ]; then yarn add --dev \"@axe-core/cli@^4.10.0\"; fi\n"
+    }
+  ],
+  "permissionRequirements": [
+    "fallback: automated checks; not WCAG or user conformance — axe scans local HTML only; no browser session or assistive-technology emulation",
+    "fallback: pa11y on PATH satisfies probe when configured; this recipe does not install a global runner",
+    "fallback: projects without local HTML report unavailable; the recipe never fetches remote pages"
+  ],
+  "probe": {
+    "alreadyProvisionedWhen": "exit-zero",
+    "command": "for f in axe.config.js axe.config.mjs axe.config.cjs .pa11yci .pa11yci.json; do\n  if [ -f \"$f\" ]; then exit 0; fi\ndone\nif grep -qE '\"(@axe-core/cli|pa11y|pa11y-ci)\"[[:space:]]*:' package.json; then exit 0; fi\nif grep -qE '\"(a11y|accessibility|axe|pa11y)\"[[:space:]]*:' package.json; then exit 0; fi\ncommand -v pa11y >/dev/null 2>&1 && exit 0\nexit 1\n"
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "if [ -f package-lock.json ]; then npm uninstall @axe-core/cli\nelif [ -f pnpm-lock.yaml ]; then pnpm remove @axe-core/cli\nelif [ -f yarn.lock ]; then yarn remove @axe-core/cli\nfi\n"
+  },
+  "safetyClass": "local-dev-with-config",
+  "smoke": {
+    "command": "html=\"$(find . \\( -name node_modules -o -name .git \\) -prune -o -name '*.html' -print 2>/dev/null | head -n 1)\"\nif [ -z \"$html\" ]; then\n  echo \"nightshift: accessibility smoke needs a local HTML file\" >&2\n  exit 78\nfi\nurl=\"file://$(cd \"$(dirname \"$html\")\" && pwd)/$(basename \"$html\")\"\nif [ -f package-lock.json ]; then npm exec --no -- axe \"$url\" --stdout --exit\nelif [ -f pnpm-lock.yaml ]; then pnpm exec axe \"$url\" --stdout --exit\nelif [ -f yarn.lock ]; then yarn run axe \"$url\" --stdout --exit\nelse\n  echo \"nightshift: no lockfile, the package manager is not decidable\" >&2\n  exit 78\nfi\n"
+  },
+  "upstream": "https://github.com/dequelabs/axe-core-npm",
+  "versionConstraints": {
+    "@axe-core/cli": "^4.10.0",
+    "node": ">=20.0.0"
+  }
+}

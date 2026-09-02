@@ -1,0 +1,88 @@
+{
+  "admission": {
+    "contract": "localization-parity",
+    "demand": "plugins/nightshift/skills/nightshift/references/shifts/localization-parity.md",
+    "fixture": "tests/fixtures/recipes/specialist/a11y-l10n/minimal-npm-l10n"
+  },
+  "allowedFiles": [
+    "package-lock.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "scripts/check-locale-parity.mjs",
+    "yarn.lock"
+  ],
+  "capabilityId": "localization",
+  "detect": {
+    "ambiguous": "refuse",
+    "command": "count=0\npm=\"\"\nif [ ! -f package.json ]; then\n  echo \"nightshift: no package.json, this is not a JavaScript or TypeScript project\" >&2\n  exit 78\nfi\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\nfound=0\nfor d in locales i18n translations lang; do\n  if [ -d \"$d\" ] && [ -n \"$(find \"$d\" -maxdepth 1 -name '*.json' -print 2>/dev/null | head -n 1)\" ]; then\n    found=1\n    break\n  fi\ndone\nif [ \"$found\" -ne 1 ]; then\n  echo \"nightshift: localization unavailable, no locale JSON catalogs found\" >&2\n  exit 78\nfi\nprintf '%s\\n' \"$pm\"\n",
+    "manifest": "package.json",
+    "packageManagers": [
+      {
+        "lockfile": "package-lock.json",
+        "manager": "npm"
+      },
+      {
+        "lockfile": "pnpm-lock.yaml",
+        "manager": "pnpm"
+      },
+      {
+        "lockfile": "yarn.lock",
+        "manager": "yarn"
+      }
+    ]
+  },
+  "ecosystems": [
+    "javascript-typescript"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    {
+      "contract": "localization-parity",
+      "fallback": "compare locale JSON keys only; no translation or language judgment when the parity script is unavailable"
+    }
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "lastVerified older than 180 days, or the pinned range no longer resolves in the manager the lockfile names",
+    "resolves": "npm view i18next-parser@^9.0.0 version"
+  },
+  "minimalConfig": {
+    "scripts/check-locale-parity.mjs": "import fs from \"node:fs\";\nimport path from \"node:path\";\n\nconst roots = [\"locales\", \"i18n\", \"translations\", \"lang\"];\nlet dir = \"\";\nfor (const candidate of roots) {\n  if (\n    fs.existsSync(candidate) &&\n    fs.readdirSync(candidate).some((name) => name.endsWith(\".json\"))\n  ) {\n    dir = candidate;\n    break;\n  }\n}\nif (!dir) {\n  console.error(\"check-locale-parity: no locale JSON directory\");\n  process.exit(78);\n}\nconst files = fs\n  .readdirSync(dir)\n  .filter((name) => name.endsWith(\".json\"))\n  .sort();\nif (files.length < 2) {\n  console.error(\"check-locale-parity: need at least two locale files\");\n  process.exit(78);\n}\nconst keySets = Object.fromEntries(\n  files.map((file) => {\n    const data = JSON.parse(fs.readFileSync(path.join(dir, file), \"utf8\"));\n    return [file, new Set(Object.keys(data))];\n  })\n);\nconst union = new Set();\nfor (const keys of Object.values(keySets)) {\n  for (const key of keys) {\n    union.add(key);\n  }\n}\nlet drift = 0;\nfor (const file of files) {\n  for (const key of union) {\n    if (!keySets[file].has(key)) {\n      console.log(`missing ${key} in ${dir}/${file}`);\n      drift += 1;\n    }\n  }\n}\nfor (const file of files) {\n  for (const key of keySets[file]) {\n    let unused = true;\n    for (const other of files) {\n      if (other !== file && keySets[other].has(key)) {\n        unused = false;\n        break;\n      }\n    }\n    if (unused) {\n      console.log(`unused ${key} in ${dir}/${file}`);\n      drift += 1;\n    }\n  }\n}\nif (drift > 0) {\n  process.exit(1);\n}\nconsole.log(\"locale keys aligned\");\n"
+  },
+  "packageManagerAdditions": [
+    {
+      "command": "count=0\npm=\"\"\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\ndeclared=\"$(sed -n 's/.*\"packageManager\"[^\"]*\"//p' package.json | cut -d@ -f1 | head -n 1)\"\nif [ -n \"$declared\" ] && [ \"$declared\" != \"$pm\" ]; then\n  echo \"nightshift: package.json names $declared, the lockfile names $pm\" >&2\n  exit 78\nfi\nver=\"$(node -v 2>/dev/null)\" || ver=\"\"\nmajor=\"${ver#v}\"\nmajor=\"${major%%.*}\"\ncase \"$major\" in \"\" | *[!0-9]*) major=0 ;; esac\nif [ \"$major\" -lt 20 ]; then\n  echo \"nightshift: this recipe needs Node 20 or newer, the host reports major $major\" >&2\n  exit 78\nfi\nfound=0\nfor d in locales i18n translations lang; do\n  if [ -d \"$d\" ] && [ -n \"$(find \"$d\" -maxdepth 1 -name '*.json' -print 2>/dev/null | head -n 1)\" ]; then\n    found=1\n    break\n  fi\ndone\nif [ \"$found\" -ne 1 ]; then\n  echo \"nightshift: localization unavailable, no locale JSON catalogs found\" >&2\n  exit 78\nfi\nif grep -qE '\"i18next-parser\"[[:space:]]*:' package.json; then\n  exit 0\nfi\n"
+    },
+    {
+      "command": "if [ -f package-lock.json ]; then npm install --save-dev \"i18next-parser@^9.0.0\"; fi\n"
+    },
+    {
+      "command": "if [ -f pnpm-lock.yaml ]; then pnpm add --save-dev \"i18next-parser@^9.0.0\"; fi\n"
+    },
+    {
+      "command": "if [ -f yarn.lock ]; then yarn add --dev \"i18next-parser@^9.0.0\"; fi\n"
+    }
+  ],
+  "permissionRequirements": [
+    "fallback: missing and unused keys are structural findings only; never invent translations",
+    "fallback: the parity script requires a locales, i18n, or translations directory with JSON catalogs",
+    "fallback: i18next-parser satisfies probe when configured; this recipe adds a key-diff script when none exists"
+  ],
+  "probe": {
+    "alreadyProvisionedWhen": "exit-zero",
+    "command": "for f in scripts/check-locale-parity.mjs scripts/check-locale-keys.mjs; do\n  if [ -f \"$f\" ]; then exit 0; fi\ndone\nif grep -qE '\"(i18next-parser|i18next-scanner|@lingual/i18n-check)\"[[:space:]]*:' package.json; then exit 0; fi\nif grep -qE '\"(i18n:check|locale:check|check-locale)\"[[:space:]]*:' package.json; then exit 0; fi\nexit 1\n"
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "if [ -f package-lock.json ]; then npm uninstall i18next-parser\nelif [ -f pnpm-lock.yaml ]; then pnpm remove i18next-parser\nelif [ -f yarn.lock ]; then yarn remove i18next-parser\nfi\nrm -f scripts/check-locale-parity.mjs\n"
+  },
+  "safetyClass": "local-dev-with-config",
+  "smoke": {
+    "command": "node scripts/check-locale-parity.mjs\n"
+  },
+  "upstream": "https://github.com/i18next/i18next-parser",
+  "versionConstraints": {
+    "i18next-parser": "^9.0.0",
+    "node": ">=20.0.0"
+  }
+}

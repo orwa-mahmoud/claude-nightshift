@@ -1,0 +1,84 @@
+{
+  "admission": {
+    "contract": "api-contract-drift",
+    "demand": "evals/reports/latest.json",
+    "fixture": "tests/fixtures/recipes/specialist/api-schema/"
+  },
+  "allowedFiles": [
+    "package-lock.json",
+    "package.json",
+    "pnpm-lock.yaml",
+    "redocly.yaml",
+    "yarn.lock"
+  ],
+  "capabilityId": "api-schema",
+  "detect": {
+    "ambiguous": "refuse",
+    "command": "count=0\npm=\"\"\nschema=\"\"\nif [ ! -f package.json ]; then\n  echo \"nightshift: no package.json, this is not a JavaScript or TypeScript project\" >&2\n  exit 78\nfi\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\nfor f in openapi.yaml openapi.yml openapi.json; do\n  if [ -f \"$f\" ]; then schema=\"$f\"; break; fi\ndone\nif [ -z \"$schema\" ]; then\n  echo \"nightshift: no repository-owned OpenAPI file here\" >&2\n  exit 78\nfi\nprintf '%s\\n' \"$pm\"\n",
+    "manifest": "package.json",
+    "packageManagers": [
+      {
+        "lockfile": "package-lock.json",
+        "manager": "npm"
+      },
+      {
+        "lockfile": "pnpm-lock.yaml",
+        "manager": "pnpm"
+      },
+      {
+        "lockfile": "yarn.lock",
+        "manager": "yarn"
+      }
+    ]
+  },
+  "ecosystems": [
+    "javascript-typescript"
+  ],
+  "elevationCategories": [],
+  "enabledShifts": [
+    {
+      "contract": "api-contract-drift",
+      "fallback": "compare repository-owned OpenAPI artifacts by hand against the checked-in source; do not fetch or adopt an external schema"
+    }
+  ],
+  "lastVerified": "2026-09-02",
+  "maintenance": {
+    "check": "lastVerified older than 180 days, or the pinned range no longer resolves in the manager the lockfile names",
+    "resolves": "npm view @redocly/cli@^1.25.15 version"
+  },
+  "minimalConfig": {},
+  "packageManagerAdditions": [
+    {
+      "command": "count=0\npm=\"\"\nif [ -f package-lock.json ]; then count=$((count + 1)); pm=npm; fi\nif [ -f pnpm-lock.yaml ]; then count=$((count + 1)); pm=pnpm; fi\nif [ -f yarn.lock ]; then count=$((count + 1)); pm=yarn; fi\nif [ \"$count\" -ne 1 ]; then\n  echo \"nightshift: $count lockfiles present, the package manager is not decidable\" >&2\n  exit 78\nfi\ndeclared=\"$(sed -n 's/.*\"packageManager\"[^\"]*\"//p' package.json | cut -d@ -f1 | head -n 1)\"\nif [ -n \"$declared\" ] && [ \"$declared\" != \"$pm\" ]; then\n  echo \"nightshift: package.json names $declared, the lockfile names $pm\" >&2\n  exit 78\nfi\nver=\"$(node -v 2>/dev/null)\" || ver=\"\"\nmajor=\"${ver#v}\"\nmajor=\"${major%%.*}\"\ncase \"$major\" in \"\" | *[!0-9]*) major=0 ;; esac\nif [ \"$major\" -lt 20 ]; then\n  echo \"nightshift: this recipe needs Node 20 or newer, the host reports major $major\" >&2\n  exit 78\nfi\nschema=\"\"\nfor f in openapi.yaml openapi.yml openapi.json; do\n  if [ -f \"$f\" ]; then schema=\"$f\"; break; fi\ndone\nif [ -z \"$schema\" ]; then\n  echo \"nightshift: no repository-owned OpenAPI file here\" >&2\n  exit 78\nfi\n"
+    },
+    {
+      "command": "if [ -f package-lock.json ]; then npm install --save-dev \"@redocly/cli@^1.25.15\"; fi\n"
+    },
+    {
+      "command": "if [ -f pnpm-lock.yaml ]; then pnpm add --save-dev \"@redocly/cli@^1.25.15\"; fi\n"
+    },
+    {
+      "command": "if [ -f yarn.lock ]; then yarn add --dev \"@redocly/cli@^1.25.15\"; fi\n"
+    }
+  ],
+  "permissionRequirements": [
+    "package-index-network"
+  ],
+  "probe": {
+    "alreadyProvisionedWhen": "exit-zero",
+    "command": "if grep -qE '\"@redocly/cli\"[[:space:]]*:' package.json; then exit 0; fi\nif grep -qE '\"swagger-cli\"[[:space:]]*:' package.json; then exit 0; fi\nfor f in redocly.yaml .redocly.yaml redocly.yml .redocly.yml; do\n  if [ -f \"$f\" ]; then exit 0; fi\ndone\nexit 1\n"
+  },
+  "recipeVersion": "1",
+  "rollback": {
+    "command": "if [ -f package-lock.json ]; then npm uninstall @redocly/cli\nelif [ -f pnpm-lock.yaml ]; then pnpm remove @redocly/cli\nelif [ -f yarn.lock ]; then yarn remove @redocly/cli\nfi\n"
+  },
+  "safetyClass": "local-dev-with-config",
+  "smoke": {
+    "command": "schema=\"\"\nfor f in openapi.yaml openapi.yml openapi.json; do\n  if [ -f \"$f\" ]; then schema=\"$f\"; break; fi\ndone\nif [ -z \"$schema\" ]; then\n  echo \"nightshift: no repository-owned OpenAPI file here\" >&2\n  exit 78\nfi\ncase \"$schema\" in\n  http://*|https://*)\n    echo \"nightshift: smoke validates a local file only, not a remote schema URL\" >&2\n    exit 78\n    ;;\nesac\nif [ -f package-lock.json ]; then npm exec --no -- @redocly/cli lint \"$schema\"\nelif [ -f pnpm-lock.yaml ]; then pnpm exec @redocly/cli lint \"$schema\"\nelif [ -f yarn.lock ]; then yarn run redocly lint \"$schema\"\nelse\n  echo \"nightshift: no lockfile, the package manager is not decidable\" >&2\n  exit 78\nfi\n"
+  },
+  "upstream": "https://redocly.com/docs/cli",
+  "versionConstraints": {
+    "@redocly/cli": "^1.25.15",
+    "node": ">=20.0.0"
+  }
+}

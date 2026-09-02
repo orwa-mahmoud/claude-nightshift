@@ -32,6 +32,8 @@ for arg in "$@"; do
     pytest*) scripts=pytest ;;
     ruff*) scripts=ruff ;;
     mypy*) scripts=mypy ;;
+    pip-audit*) scripts=pip-audit ;;
+    vulture*) scripts=vulture ;;
     sphinx*) scripts='sphinx-build' ;;
     *) continue ;;
   esac

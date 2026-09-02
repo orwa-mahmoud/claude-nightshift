@@ -1,0 +1,8 @@
+{
+  "name": "nightshift-security-fixture",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "audit": "npm audit --audit-level=moderate"
+  }
+}

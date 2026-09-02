@@ -1,0 +1,11 @@
+{
+  "name": "nightshift-a11y-configured",
+  "private": true,
+  "version": "0.0.0",
+  "devDependencies": {
+    "@axe-core/cli": "4.10.0"
+  },
+  "scripts": {
+    "a11y": "axe public/index.html"
+  }
+}
