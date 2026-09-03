@@ -34,6 +34,7 @@ try {
 
     $script:cwd = $root
     $script:ns = Join-Path $root '.nightshift'
+    $null = New-Item -ItemType Directory -Path $script:ns -Force
 
     Expect-True (Test-NSControlTarget 'Remove-Item -Force .nightshift\.shift-armed') `
         'backslash control path is denied'
@@ -159,6 +160,52 @@ try {
     }
     Expect-True (-not (Test-NSControlTarget 'printf x > deadline')) `
         'a deadline file outside .nightshift is not a control target'
+
+    foreach ($form in @(
+            '.nightshift//STOP',
+            '.nightshift/./STOP',
+            '.nightshift/../.nightshift/STOP',
+            '.nightshift\STOP',
+            '.nightshift\\STOP'
+        )) {
+        Expect-True (Test-NSControlTarget "touch $form") "Bash forge $form"
+        Expect-True (Test-NSControlTarget $form) "Write/Edit path forge $form"
+        $patchTargets = @(Get-NSPayloadTargets $null 'apply_patch' "*** Update File: $form")
+        Expect-True ($patchTargets.Count -ge 1 -and (Test-NSControlTarget $patchTargets[0])) `
+            "apply_patch forge $form"
+    }
+    $twin = Join-Path (Split-Path -Parent $root) ("ns-hardhat-twin-" + [guid]::NewGuid().ToString('N'))
+    $twinCreated = $false
+    try {
+        $null = New-Item -ItemType SymbolicLink -Path $twin -Target $root -ErrorAction Stop
+        $twinCreated = $true
+    }
+    catch {
+        try {
+            $null = New-Item -ItemType Junction -Path $twin -Target $root -ErrorAction Stop
+            $twinCreated = $true
+        }
+        catch { }
+    }
+    if ($twinCreated) {
+        try {
+            $twinStop = Join-Path $twin '.nightshift/STOP'
+            Expect-True (Test-NSControlTarget "touch $twinStop") "Bash absolute twin $twinStop"
+            Expect-True (Test-NSControlTarget $twinStop) "Write/Edit absolute twin $twinStop"
+            $twinPatch = @(Get-NSPayloadTargets $null 'apply_patch' "*** Update File: $twinStop")
+            Expect-True ($twinPatch.Count -ge 1 -and (Test-NSControlTarget $twinPatch[0])) `
+                "apply_patch absolute twin $twinStop"
+        }
+        finally {
+            Remove-Item -LiteralPath $twin -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $canonRoot = $null
+    try { $canonRoot = Resolve-NSCanonicalPath $root } catch { }
+    if (-not [string]::IsNullOrEmpty($canonRoot) -and $canonRoot -cne $root) {
+        $canonStop = Join-Path $canonRoot '.nightshift/STOP'
+        Expect-True (Test-NSControlTarget $canonStop) "absolute twin via canonical root $canonStop"
+    }
 
     # --- elevation categories ---
 

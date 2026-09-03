@@ -215,27 +215,11 @@ function Test-NSNightshiftDirContext {
 
 # The shift policy, the remembered defaults and the derived deadline are control files too:
 # tonight's authority is written before arming, so an armed agent that could rewrite it could
-# widen its own permissions.
-function Test-NSControlRewritePath {
+# widen its own permissions. Regex is a pre-filter; a write is a hit only when the
+# target's canonical absolute path equals $ns/<control-file>.
+function Test-NSControlPrefilter {
     param([AllowEmptyString()][string]$Target)
-    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)(/|$|[^A-Za-z0-9_.-])'
-}
-
-function Test-NSControlListPath {
-    param([AllowEmptyString()][string]$Target)
-    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/punch-list\.md(/|$|[^A-Za-z0-9_.-])'
-}
-
-function Test-NSControlRewriteName {
-    param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)([;&|()\s]|$)'
-}
-
-function Test-NSControlListName {
-    param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?punch-list\.md([;&|()\s]|$)'
+    return $Target -match '(?i)(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline|punch-list\.md)'
 }
 
 function Test-NSControlDeleteVerb {
@@ -243,20 +227,170 @@ function Test-NSControlDeleteVerb {
     return $Target -match '(?i)(^|[;&|()\s])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([\s]|$)'
 }
 
+function Test-NSControlBareName {
+    param([AllowEmptyString()][string]$Token)
+    return $Token -match '(?i)^(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline|punch-list\.md)$'
+}
+
+# Physical directory path, including symlink and junction ancestors. Matches POSIX cd -P.
+function Resolve-NSPhysicalDirectory {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $full = [IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $full -PathType Container)) {
+        throw 'not a directory'
+    }
+    if (Test-Path -LiteralPath '/bin/pwd' -PathType Leaf) {
+        $here = Get-Location
+        try {
+            Set-Location -LiteralPath $full
+            $physical = & /bin/pwd -P
+            if (-not [string]::IsNullOrWhiteSpace($physical)) {
+                return [string]$physical
+            }
+        }
+        finally {
+            Set-Location $here
+        }
+    }
+    $root = [IO.Path]::GetPathRoot($full)
+    $relative = $full.Substring($root.Length).Trim([char]'\', [char]'/')
+    if ($root -eq '/' -or $root -eq '\') {
+        $acc = '/'
+    }
+    else {
+        $acc = $root
+    }
+    if (-not [string]::IsNullOrEmpty($relative)) {
+        foreach ($part in ($relative -split '[\\/]+')) {
+            if ([string]::IsNullOrEmpty($part) -or $part -eq '.') {
+                continue
+            }
+            $next = if ($acc -eq '/') { "/$part" } else { Join-Path $acc $part }
+            $item = Get-Item -LiteralPath $next -Force
+            $target = $null
+            if ($item.PSObject.Properties['LinkType'] -and $item.LinkType) {
+                $raw = $item.Target
+                $target = if ($raw -is [System.Array]) { [string]$raw[0] } else { [string]$raw }
+            }
+            elseif ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                $raw = $item.Target
+                $target = if ($raw -is [System.Array]) { [string]$raw[0] } else { [string]$raw }
+            }
+            if (-not [string]::IsNullOrEmpty($target)) {
+                if (-not [IO.Path]::IsPathRooted($target)) {
+                    $target = Join-Path (Split-Path -Parent $next) $target
+                }
+                $acc = [IO.Path]::GetFullPath($target)
+            }
+            else {
+                $acc = $item.FullName
+            }
+        }
+    }
+    return [IO.Path]::GetFullPath($acc)
+}
+
+function Resolve-NSWriteTarget {
+    param([AllowEmptyString()][string]$Target)
+    $normalized = $Target.Replace('"', '').Replace("'", '')
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $null
+    }
+    if (-not [IO.Path]::IsPathRooted($normalized)) {
+        $base = $null
+        if (-not [string]::IsNullOrEmpty($script:cwd)) {
+            $base = $script:cwd
+        }
+        elseif (-not [string]::IsNullOrEmpty($script:ns)) {
+            $base = Split-Path -Parent $script:ns
+        }
+        if ([string]::IsNullOrEmpty($base)) {
+            return $null
+        }
+        $normalized = Join-Path $base $normalized
+    }
+    $full = [IO.Path]::GetFullPath($normalized)
+    $parent = Split-Path -Parent $full
+    $leaf = Split-Path -Leaf $full
+    if ([string]::IsNullOrEmpty($parent) -or -not (Test-Path -LiteralPath $parent -PathType Container)) {
+        return $null
+    }
+    try {
+        $parentCanon = Resolve-NSPhysicalDirectory $parent
+    }
+    catch {
+        try {
+            $parentCanon = Resolve-NSCanonicalPath $parent
+        }
+        catch {
+            return $null
+        }
+    }
+    return (Join-Path $parentCanon $leaf)
+}
+
+function Test-NSControlRewriteHit {
+    param([AllowEmptyString()][string]$Canon)
+    if ([string]::IsNullOrEmpty($Canon) -or [string]::IsNullOrEmpty($script:ns)) {
+        return $false
+    }
+    foreach ($name in @(
+            'STOP', '.shift-armed', '.ended', '.shift-session', '.shift-worker',
+            'work-target', 'work-mode', 'shift-policy.json', 'shift-defaults.json', 'deadline'
+        )) {
+        $expected = Resolve-NSWriteTarget (Join-Path $script:ns $name)
+        if ($null -ne $expected -and $Canon -ceq $expected) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-NSControlListHit {
+    param([AllowEmptyString()][string]$Canon)
+    if ([string]::IsNullOrEmpty($Canon) -or [string]::IsNullOrEmpty($script:ns)) {
+        return $false
+    }
+    $expected = Resolve-NSWriteTarget (Join-Path $script:ns 'punch-list.md')
+    return ($null -ne $expected -and $Canon -ceq $expected)
+}
+
+function Test-NSControlCandidateHits {
+    param(
+        [AllowEmptyString()][string]$Candidate,
+        [AllowEmptyString()][string]$Full
+    )
+    $leaf = Split-Path -Leaf ($Candidate.Replace('/', [IO.Path]::DirectorySeparatorChar))
+    $canon = $null
+    if ((Test-NSControlBareName $Candidate) -and (Test-NSNightshiftDirContext $Full)) {
+        $canon = Resolve-NSWriteTarget (Join-Path $script:ns $leaf)
+    }
+    else {
+        $canon = Resolve-NSWriteTarget $Candidate
+    }
+    if (Test-NSControlRewriteHit $canon) {
+        return $true
+    }
+    return (Test-NSControlListHit $canon) -and (Test-NSControlDeleteVerb $Full)
+}
+
 function Test-NSControlTarget {
     param([AllowEmptyString()][string]$Target)
     $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    if (Test-NSControlRewritePath $normalized) {
-        return $true
+    if (-not (Test-NSControlPrefilter $normalized)) {
+        return $false
     }
-    if ((Test-NSControlListPath $normalized) -and (Test-NSControlDeleteVerb $normalized)) {
-        return $true
+    if ([string]::IsNullOrEmpty($script:ns)) {
+        return $false
     }
-    if (Test-NSNightshiftDirContext $normalized) {
-        if (Test-NSControlRewriteName $normalized) {
-            return $true
+    if ($normalized -notmatch '[\s;&|<>()]') {
+        return Test-NSControlCandidateHits $normalized $normalized
+    }
+    foreach ($candidate in ($normalized -split '[\s;&|<>()]+')) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
         }
-        if ((Test-NSControlListName $normalized) -and (Test-NSControlDeleteVerb $normalized)) {
+        if (Test-NSControlCandidateHits $candidate $normalized) {
             return $true
         }
     }
@@ -666,6 +800,18 @@ if ($stateKind -in @('malformed', 'future')) {
 }
 
 $ns = Join-Path $workspace '.nightshift'
+$script:cwd = $cwd
+try {
+    $script:ns = Resolve-NSPhysicalDirectory $ns
+}
+catch {
+    try {
+        $script:ns = Resolve-NSCanonicalPath $ns
+    }
+    catch {
+        $script:ns = $ns
+    }
+}
 $punch = Join-Path $ns 'punch-list.md'
 $armed = Join-Path $ns '.shift-armed'
 $ended = Join-Path $ns '.ended'

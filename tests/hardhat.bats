@@ -861,6 +861,58 @@ STUB
   is_deny "$out"
 }
 
+@test "slash tricks and absolute twins cannot forge armed-shift control files" {
+  p="$(new_project)"
+  punch_open "$p"
+  phys="$(cd -P "$p" && pwd -P)"
+  twin="$BATS_TEST_TMPDIR/control-twin"
+  ln -s "$phys" "$twin"
+
+  deny_control() {
+    local out="$1" label="$2"
+    is_deny "$out" || { echo "allowed: $label -> $out"; return 1; }
+    printf '%s' "$out" | grep -q "control files" || { echo "wrong deny: $label -> $out"; return 1; }
+  }
+
+  write_tool() {
+    jq -nc --arg t "$1" --arg fp "$2" \
+      '{tool_name:$t,tool_input:{file_path:$fp,content:"forged",old_string:"a",new_string:"b"}}' |
+      env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  }
+
+  patch_tool() {
+    jq -nc --arg proj "$p" --arg fp "$1" \
+      '{tool_name:"apply_patch",cwd:$proj,tool_input:{command:("*** Begin Patch\n*** Update File: " + $fp + "\n@@\n+x\n*** End Patch")}}' |
+      env CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+  }
+
+  check_form() {
+    local form="$1"
+    run hardhat_bash "$p" "touch $form"
+    deny_control "$output" "Bash $form" || return 1
+    deny_control "$(write_tool Write "$form")" "Write $form" || return 1
+    deny_control "$(write_tool Edit "$form")" "Edit $form" || return 1
+    deny_control "$(patch_tool "$form")" "apply_patch $form" || return 1
+  }
+
+  check_form '.nightshift//STOP' || return 1
+  check_form '.nightshift/./STOP' || return 1
+  check_form '.nightshift/../.nightshift/STOP' || return 1
+  run hardhat_bash "$p" 'touch .nightshift\STOP'
+  deny_control "$output" 'Bash .nightshift\\STOP' || return 1
+  run hardhat_bash "$p" 'touch .nightshift\\STOP'
+  deny_control "$output" 'Bash .nightshift\\\\STOP' || return 1
+  deny_control "$(write_tool Write '.nightshift\STOP')" 'Write .nightshift\\STOP' || return 1
+  deny_control "$(write_tool Edit '.nightshift\STOP')" 'Edit .nightshift\\STOP' || return 1
+  deny_control "$(patch_tool '.nightshift\STOP')" 'apply_patch .nightshift\\STOP' || return 1
+  deny_control "$(write_tool Write '.nightshift\\STOP')" 'Write .nightshift\\\\STOP' || return 1
+  deny_control "$(write_tool Edit '.nightshift\\STOP')" 'Edit .nightshift\\\\STOP' || return 1
+  deny_control "$(patch_tool '.nightshift\\STOP')" 'apply_patch .nightshift\\\\STOP' || return 1
+  check_form "$twin/.nightshift/STOP" || return 1
+  check_form "$phys/.nightshift/STOP" || return 1
+  check_form "$phys/.nightshift//STOP" || return 1
+}
+
 @test "punch-list ticks stay allowed and Start can still create the armed marker" {
   p="$(new_project)"
   punch_open "$p"

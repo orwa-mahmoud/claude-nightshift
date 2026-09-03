@@ -218,35 +218,163 @@ sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/de
 # remembered defaults and the derived deadline join them: tonight's authority is written before
 # arming, so an armed agent that could rewrite it could widen its own permissions.
 # punch-list.md may be edited; only a delete/rename of that file is denied.
-ns_hardhat_control_rewrite_path() {
-  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)(/|$|[^[:alnum:]_.-])'
-}
-
-ns_hardhat_control_list_path() {
-  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/punch-list\.md(/|$|[^[:alnum:]_.-])'
-}
-
-ns_hardhat_control_rewrite_name() {
-  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline)([;&|()[:space:]]|$)'
-}
-
-ns_hardhat_control_list_name() {
-  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?punch-list\.md([;&|()[:space:]]|$)'
+# Regex is a pre-filter. A write is a hit only when the target's canonical absolute path
+# equals $NS/<control-file>, so // /./ /../ backslashes and absolute twins cannot slip past.
+ns_hardhat_control_prefilter() {
+  printf '%s' "$1" | grep -qE \
+    '(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline|punch-list\.md)'
 }
 
 ns_hardhat_control_delete_verb() {
   printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([[:space:]]|$)'
 }
 
-ns_hardhat_control_targeted() {
-  local normalized
-  normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
-  ns_hardhat_control_rewrite_path "$normalized" && return 0
-  ns_hardhat_control_list_path "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
-  if ns_hardhat_nightshift_dir_context "$normalized"; then
-    ns_hardhat_control_rewrite_name "$normalized" && return 0
-    ns_hardhat_control_list_name "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
+ns_hardhat_control_bare_name() {
+  case "$1" in
+    STOP | .shift-armed | .ended | .shift-session | .shift-worker | work-target | work-mode \
+      | shift-policy.json | shift-defaults.json | deadline | punch-list.md \
+      | ./STOP | ./.shift-armed | ./.ended | ./.shift-session | ./.shift-worker \
+      | ./work-target | ./work-mode | ./shift-policy.json | ./shift-defaults.json \
+      | ./deadline | ./punch-list.md)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+# Lexically collapse // /./ /../ on an absolute slash path. Directory need not exist.
+ns_hardhat_lex_abs() {
+  local p="$1" out="" part rest
+  case "$p" in /*) ;; *) return 1 ;; esac
+  rest="${p#/}"
+  while [ -n "$rest" ]; do
+    case "$rest" in
+      */*)
+        part="${rest%%/*}"
+        rest="${rest#*/}"
+        ;;
+      *)
+        part="$rest"
+        rest=""
+        ;;
+    esac
+    case "$part" in
+      '' | .) continue ;;
+      ..) out="${out%/*}" ;;
+      *) out="$out/$part" ;;
+    esac
+  done
+  [ -n "$out" ] || out=/
+  printf '%s' "$out"
+}
+
+# Canonical absolute path of a write target. The leaf need not exist; directory
+# symlinks are followed. Relative paths resolve against CWD, then PROJECT_DIR.
+ns_hardhat_canon_write_target() {
+  local p="$1" base dir leaf
+  [ -n "$p" ] || return 1
+  p="$(printf '%s' "$p" | sed "s#\\\\#/#g; s#[\"']##g")"
+  [ -n "$p" ] || return 1
+  case "$p" in
+    /*) ;;
+    *)
+      if [ -n "${CWD:-}" ]; then
+        base="${CWD%/}"
+      elif [ -n "${PROJECT_DIR:-}" ]; then
+        base="${PROJECT_DIR%/}"
+      else
+        return 1
+      fi
+      case "$base" in
+        /*) ;;
+        *)
+          [ -n "${PROJECT_DIR:-}" ] || return 1
+          base="${PROJECT_DIR%/}/$base"
+          ;;
+      esac
+      p="$base/$p"
+      ;;
+  esac
+  p="$(ns_hardhat_lex_abs "$p")" || return 1
+  if [ "$p" = / ]; then
+    printf '/'
+    return 0
   fi
+  leaf="${p##*/}"
+  dir="${p%/*}"
+  [ -n "$dir" ] || dir=/
+  dir="$(cd -P "$dir" >/dev/null 2>&1 && pwd -P)" || return 1
+  if [ "$dir" = / ]; then
+    printf '/%s' "$leaf"
+  else
+    printf '%s/%s' "$dir" "$leaf"
+  fi
+}
+
+ns_hardhat_control_expected() {
+  [ -n "${NS:-}" ] || return 1
+  ns_hardhat_canon_write_target "$NS/$1"
+}
+
+ns_hardhat_control_rewrite_hit() {
+  local name exp
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    exp="$(ns_hardhat_control_expected "$name")" || continue
+    [ "$1" = "$exp" ] && return 0
+  done <<'EOF'
+STOP
+.shift-armed
+.ended
+.shift-session
+.shift-worker
+work-target
+work-mode
+shift-policy.json
+shift-defaults.json
+deadline
+EOF
+  return 1
+}
+
+ns_hardhat_control_list_hit() {
+  local exp
+  exp="$(ns_hardhat_control_expected punch-list.md)" || return 1
+  [ "$1" = "$exp" ]
+}
+
+ns_hardhat_control_candidates() {
+  printf '%s\n' "$1" | tr ';|&()<>' '\n' | tr -s '[:space:]' '\n'
+}
+
+ns_hardhat_control_candidate_hits() {
+  local cand="$1" full="$2" canon leaf
+  leaf="${cand##*/}"
+  leaf="${leaf#./}"
+  if ns_hardhat_control_bare_name "$cand" && ns_hardhat_nightshift_dir_context "$full"; then
+    canon="$(ns_hardhat_control_expected "$leaf")" || return 1
+  else
+    canon="$(ns_hardhat_canon_write_target "$cand")" || return 1
+  fi
+  ns_hardhat_control_rewrite_hit "$canon" && return 0
+  ns_hardhat_control_list_hit "$canon" && ns_hardhat_control_delete_verb "$full"
+}
+
+ns_hardhat_control_targeted() {
+  local normalized candidate
+  normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
+  ns_hardhat_control_prefilter "$normalized" || return 1
+  [ -n "${NS:-}" ] || return 1
+  if ! printf '%s' "$normalized" | grep -qE '[[:space:];&|<>()]'; then
+    ns_hardhat_control_candidate_hits "$normalized" "$normalized"
+    return
+  fi
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    ns_hardhat_control_candidate_hits "$candidate" "$normalized" && return 0
+  done <<EOF
+$(ns_hardhat_control_candidates "$normalized")
+EOF
   return 1
 }
 
