@@ -2,14 +2,16 @@
 # The fake untrusted-source scanner is gone. Nightshift does not ship a replacement.
 
 ROOT="$BATS_TEST_DIRNAME/.."
-SP="$ROOT/plugins/nightshift/runtime/source-policy-evidence.sh"
-PY="$ROOT/plugins/nightshift/runtime/source-policy-evidence.py"
+PLUGIN="$ROOT/plugins/nightshift"
+TEMPLATES="$PLUGIN/skills/nightshift/references/receipt-templates.md"
+
+@test "source-policy python wrapper is gone" {
+  [ ! -e "$PLUGIN/runtime/source-policy-evidence.sh" ]
+  [ ! -e "$PLUGIN/runtime/source-policy-evidence.py" ]
+}
 
 @test "redact-untrusted is not a shipped command" {
-  ! grep -qF 'redact-untrusted' "$SP"
-  ! grep -qF 'redact-untrusted' "$PY"
-  ! grep -qF 'SECRET_PATTERNS' "$PY"
-  ! grep -qF 'INJECTION_PATTERNS' "$PY"
-  run bash "$SP" redact-untrusted --input /dev/null
-  [ "$status" -ne 0 ]
+  ! grep -R --include='*.sh' --include='*.ps1' --include='*.py' -qF 'redact-untrusted' "$PLUGIN/runtime" \
+    || { echo 'redact-untrusted still invoked from runtime'; return 1; }
+  grep -qF 'that command is gone' "$TEMPLATES"
 }

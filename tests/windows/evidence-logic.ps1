@@ -1,12 +1,10 @@
 # Portable PowerShell coverage for the native Windows evidence ledger.
 # Run on macOS or Windows: pwsh -File tests/windows/evidence-logic.ps1
 #
-# Behavioural spec: plugins/nightshift/runtime/evidence.py (with the two
-# canonicalization changes the controller applies before lanes start). The
-# native ledger at plugins/nightshift/runtime/windows/evidence.ps1 must be
-# byte-identical to that spec for the same inputs. This suite builds temp
-# projects, shells out to the native ledger like a real caller would, and
-# checks exit codes, exact byte formatting, and python3 parity.
+# Behavioural spec: plugins/nightshift/runtime/windows/evidence.ps1. This suite
+# builds temp projects, shells out to the native ledger like a real caller
+# would, and checks exit codes and exact byte formatting. The Python reference
+# was removed; skip that parity leg when evidence.py is absent.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
@@ -608,8 +606,8 @@ try {
     Expect-True ($missingNsRun.StderrText.Trim() -eq "evidence: no .nightshift/ at $missingNsProject") `
         "missing .nightshift/ stderr names the project path (got '$($missingNsRun.StderrText.Trim())')"
 
-    # === 7. python3 parity leg ===
-    if ($null -ne $pythonCommand) {
+    # === 7. python3 parity leg (skipped when the Python reference is absent) ===
+    if (($null -ne $pythonCommand) -and (Test-Path -LiteralPath $pythonScript -PathType Leaf)) {
         $pyProject = Join-Path $root 'python-parity'
         $null = New-EvidenceScratchProject $pyProject
         $pyResults = Invoke-EvidenceSequence -Mode python -ProjectPath $pyProject -PythonPath $pythonCommand.Source -Steps $steps
@@ -632,6 +630,7 @@ try {
     }
     else {
         Write-Host 'skip: python3 not found on PATH; parity leg not run'
+        Write-Host 'skip: python reference removed; parity leg not run'
     }
 }
 finally {

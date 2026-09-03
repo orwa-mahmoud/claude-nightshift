@@ -1,11 +1,10 @@
 # Portable PowerShell coverage for the Windows native capability detector.
 # Run on macOS or Windows: pwsh -File tests/windows/detect-capabilities-logic.ps1
 #
-# Behavioural spec: plugins/nightshift/runtime/detect-capabilities.py. The native
-# detector at plugins/nightshift/runtime/windows/detect-capabilities.ps1 must be
-# byte-identical to that spec for the same arguments/PATH/fixture. This suite
-# builds fixtures, shells out to the detector like a real caller would, and
-# checks exit codes, JSON shape, exact byte formatting, and python3 parity.
+# Behavioural spec: plugins/nightshift/runtime/windows/detect-capabilities.ps1.
+# This suite builds fixtures, shells out to the detector like a real caller
+# would, and checks exit codes, JSON shape, and exact byte formatting. The
+# There is no Python reference; skip that parity leg when the .py is absent.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
@@ -296,7 +295,7 @@ try {
     Expect-True (-not ($jsNormKeys -contains 'host')) '-Normalize drops host from the top-level keys'
     Expect-True ($jsNormKeys -contains 'workMode') '-Normalize keeps the remaining top-level keys'
 
-    if ($null -ne $pythonCommand) {
+    if (($null -ne $pythonCommand) -and (Test-Path -LiteralPath $pythonScript -PathType Leaf)) {
         $pyRun = Invoke-PythonReference -PythonPath $pythonCommand.Source -ProjectPath $jsRepo -PathOverride $nodeBin
         Expect-True ($pyRun.ExitCode -eq 0) "python3 reference exits 0 (got $($pyRun.ExitCode) $($pyRun.StderrText))"
         Expect-True (Test-NSBytesEqual $pyRun.StdoutBytes $jsRun.StdoutBytes) `

@@ -7,7 +7,6 @@ bats_require_minimum_version 1.5.0
 
 ROOT="$BATS_TEST_DIRNAME/.."
 EV="$ROOT/plugins/nightshift/runtime/evidence.sh"
-EVPY="$ROOT/plugins/nightshift/runtime/evidence.py"
 WIN="$ROOT/plugins/nightshift/runtime/windows/evidence.ps1"
 SCHEMA="$ROOT/plugins/nightshift/skills/nightshift/references/schemas/v1/finding.json"
 EXPORT="$ROOT/plugins/nightshift/runtime/export-support.sh"
@@ -121,7 +120,7 @@ sample() {
 }
 
 # ---------------------------------------------------------------------------------------------
-# Native-engine parity: the bash ledger (evidence.sh), the Python reference (evidence.py), and
+# Native-engine parity: the bash ledger (evidence.sh) and
 # the native PowerShell ledger (windows/evidence.ps1) must behave byte-identically for the same
 # command sequence and PATH. The pwsh leg runs whenever a pwsh binary exists and is skipped,
 # never silently, when it does not.
@@ -209,7 +208,6 @@ assert_step_rejected() {
 }
 
 # ARGV is a global "return value" set by each argv_* builder below, then consumed by step_sh /
-# step_py immediately. PARGV is the PowerShell-flag translation, set by build_ps1_argv and
 # consumed by step_ps1. This mirrors how bash 3.2 (no namerefs) has to pass array results back
 # from a function.
 argv_validate() { ARGV=(validate); }
@@ -260,7 +258,7 @@ build_ps1_argv() {
   esac
 }
 
-# step_sh/step_py/step_ps1 <prefix> <project> [path-override]
+# step_sh/step_ps1 <prefix> <project> [path-override]
 # Run the command currently described by $ARGV against <project> through one engine, capturing
 # it under <prefix>. When [path-override] is given, the child runs under that restricted PATH
 # instead of the test's own (see the no-python and neither-parser tests below).
@@ -271,16 +269,6 @@ step_sh() {
     evidence_capture "$prefix" "$proj" env PATH="$pathoverride" bash "$EV" --project "$proj" "${ARGV[@]}"
   else
     evidence_capture "$prefix" "$proj" bash "$EV" --project "$proj" "${ARGV[@]}"
-  fi
-}
-
-step_py() {
-  local prefix="$1" proj="$2" pathoverride="${3:-}"
-  mkdir -p "$(dirname "$prefix")"
-  if [ -n "$pathoverride" ]; then
-    evidence_capture "$prefix" "$proj" env PATH="$pathoverride" python3 "$EVPY" --project "$proj" "${ARGV[@]}"
-  else
-    evidence_capture "$prefix" "$proj" python3 "$EVPY" --project "$proj" "${ARGV[@]}"
   fi
 }
 
@@ -315,7 +303,7 @@ EVIDENCE_STEPS="01-validate-empty 02-init 03-append-r1 04-append-r2 05-append-r3
 # init, three appends (a full record, a record that defaults digest/firstSeen/lastChecked with
 # raw output, and an untrusted remote locator), a disposition that promotes a ladder
 # rung, render, export-tsv, a final validate, and migrate — through <run_fn> (one of
-# step_sh/step_py/step_ps1), capturing every step under <prefix-dir>/<step-name>.{out,err,code}.
+# step_sh/step_ps1), capturing every step under <prefix-dir>/<step-name>.{out,err,code}.
 # Requires build_sequence_records to have set $R1/$R2/$R2_RAW/$R3 already.
 evidence_sequence() {
   local run_fn="$1" proj="$2" prefix="$3" pathoverride="${4:-}"
@@ -342,20 +330,16 @@ evidence_sequence() {
   "$run_fn" "$prefix/10-migrate" "$proj" "$pathoverride"
 }
 
-@test "engine parity: bash, python, and pwsh agree byte-for-byte across a full evidence sequence" {
+@test "engine parity: bash and pwsh agree byte-for-byte across a full evidence sequence" {
   export NIGHTSHIFT_EVIDENCE_NOW=2026-09-02T00:00:00Z
   build_sequence_records
 
   p_sh="$(new_project ev-parity-sh)"
-  p_py="$(new_project ev-parity-py)"
   evidence_sequence step_sh "$p_sh" "$BATS_TEST_TMPDIR/seq-sh"
-  evidence_sequence step_py "$p_py" "$BATS_TEST_TMPDIR/seq-py"
 
   for step in $EVIDENCE_STEPS; do
     assert_step_ok "$BATS_TEST_TMPDIR/seq-sh/$step"
-    assert_step_match "$BATS_TEST_TMPDIR/seq-sh/$step" "$BATS_TEST_TMPDIR/seq-py/$step"
   done
-  diff -r "$p_sh/.nightshift/evidence" "$p_py/.nightshift/evidence"
 
   if ! have_pwsh; then
     skip "pwsh not found on PATH; skipping PowerShell leg of the evidence engine-parity sequence"
@@ -368,16 +352,13 @@ evidence_sequence() {
   diff -r "$p_sh/.nightshift/evidence" "$p_ps1/.nightshift/evidence"
 }
 
-@test "rejection parity: bash, python, and pwsh agree on every contract violation" {
+@test "rejection parity: bash and pwsh agree on every contract violation" {
   # (a) invalid severity
   rec='{"schemaVersion":1,"id":"bad-severity","domain":"lint","sourceClass":"eslint","source":"eslint","scope":"s","severity":"nope","confidence":"high","impact":"developer","status":"open","ladder":"observed","locator":"f","digest":"d","firstSeen":"t","lastChecked":"t","action":"","host":"claude","workTarget":"/repo"}'
   argv_append "$rec" ""
   p_sh="$(new_project ev-rej-a-sh)"
-  p_py="$(new_project ev-rej-a-py)"
   step_sh "$BATS_TEST_TMPDIR/rej-a-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-a-py" "$p_py"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-a-sh" 2 "invalid severity"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-a-sh" "$BATS_TEST_TMPDIR/rej-a-py"
   if have_pwsh; then
     p_ps1="$(new_project ev-rej-a-ps1)"
     step_ps1 "$BATS_TEST_TMPDIR/rej-a-ps1" "$p_ps1"
@@ -388,11 +369,8 @@ evidence_sequence() {
   rec='{"schemaVersion":1,"id":"bad-remote","domain":"seo","sourceClass":"crawl","source":"curl","scope":"site","severity":"low","confidence":"low","impact":"user","status":"open","ladder":"declared","locator":"https://example.invalid/y","digest":"d","firstSeen":"t","lastChecked":"t","action":"","host":"claude","workTarget":"/repo"}'
   argv_append "$rec" ""
   p_sh="$(new_project ev-rej-c-sh)"
-  p_py="$(new_project ev-rej-c-py)"
   step_sh "$BATS_TEST_TMPDIR/rej-c-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-c-py" "$p_py"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-c-sh" 2 "remote locator requires untrusted=true"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-c-sh" "$BATS_TEST_TMPDIR/rej-c-py"
   if have_pwsh; then
     p_ps1="$(new_project ev-rej-c-ps1)"
     step_ps1 "$BATS_TEST_TMPDIR/rej-c-ps1" "$p_ps1"
@@ -403,17 +381,12 @@ evidence_sequence() {
   rec1='{"schemaVersion":1,"id":"prose1","domain":"lint","sourceClass":"x","source":"x","scope":"s","severity":"low","confidence":"low","impact":"none","status":"open","ladder":"declared","locator":"f","digest":"d","firstSeen":"t","lastChecked":"t","action":"","host":"claude","workTarget":"/repo"}'
   rec2='{"schemaVersion":1,"id":"prose1","domain":"lint","sourceClass":"x","source":"x","scope":"s","severity":"low","confidence":"low","impact":"none","status":"open","ladder":"measured","locator":"f","digest":"d2","firstSeen":"t","lastChecked":"t","action":"","host":"claude","workTarget":"/repo","promoteBy":"prose"}'
   p_sh="$(new_project ev-rej-d-sh)"
-  p_py="$(new_project ev-rej-d-py)"
   argv_append "$rec1" ""
   step_sh "$BATS_TEST_TMPDIR/rej-d-seed-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-d-seed-py" "$p_py"
   assert_step_ok "$BATS_TEST_TMPDIR/rej-d-seed-sh"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-d-seed-sh" "$BATS_TEST_TMPDIR/rej-d-seed-py"
   argv_append "$rec2" ""
   step_sh "$BATS_TEST_TMPDIR/rej-d-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-d-py" "$p_py"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-d-sh" 2 "ladder must not be promoted by prose"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-d-sh" "$BATS_TEST_TMPDIR/rej-d-py"
   if have_pwsh; then
     p_ps1="$(new_project ev-rej-d-ps1)"
     argv_append "$rec1" ""
@@ -427,11 +400,8 @@ evidence_sequence() {
   # (e) disposition of an unknown id
   argv_disposition does-not-exist fixed
   p_sh="$(new_project ev-rej-e-sh)"
-  p_py="$(new_project ev-rej-e-py)"
   step_sh "$BATS_TEST_TMPDIR/rej-e-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-e-py" "$p_py"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-e-sh" 2 "unknown id does-not-exist"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-e-sh" "$BATS_TEST_TMPDIR/rej-e-py"
   if have_pwsh; then
     p_ps1="$(new_project ev-rej-e-ps1)"
     step_ps1 "$BATS_TEST_TMPDIR/rej-e-ps1" "$p_ps1"
@@ -441,18 +411,13 @@ evidence_sequence() {
   # (f) a hand-written malformed second line, then validate
   recok='{"schemaVersion":1,"id":"ok1","domain":"lint","sourceClass":"x","source":"x","scope":"s","severity":"low","confidence":"low","impact":"none","status":"open","ladder":"declared","locator":"f","digest":"d","firstSeen":"t","lastChecked":"t","action":"","host":"claude","workTarget":"/repo"}'
   p_sh="$(new_project ev-rej-f-sh)"
-  p_py="$(new_project ev-rej-f-py)"
   argv_append "$recok" ""
   step_sh "$BATS_TEST_TMPDIR/rej-f-seed-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-f-seed-py" "$p_py"
   assert_step_ok "$BATS_TEST_TMPDIR/rej-f-seed-sh"
   printf '%s\n' '{this is not json' >>"$p_sh/.nightshift/evidence/findings.jsonl"
-  printf '%s\n' '{this is not json' >>"$p_py/.nightshift/evidence/findings.jsonl"
   argv_validate
   step_sh "$BATS_TEST_TMPDIR/rej-f-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-f-py" "$p_py"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-f-sh" 1 "malformed JSON on line 2"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-f-sh" "$BATS_TEST_TMPDIR/rej-f-py"
   if have_pwsh; then
     p_ps1="$(new_project ev-rej-f-ps1)"
     argv_append "$recok" ""
@@ -467,12 +432,8 @@ evidence_sequence() {
   argv_init
   bare_sh="$BATS_TEST_TMPDIR/rej-g-bare-sh"
   mkdir -p "$bare_sh"
-  bare_py="$BATS_TEST_TMPDIR/rej-g-bare-py"
-  mkdir -p "$bare_py"
   step_sh "$BATS_TEST_TMPDIR/rej-g-sh" "$bare_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-g-py" "$bare_py"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-g-sh" 1 "no .nightshift/"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-g-sh" "$BATS_TEST_TMPDIR/rej-g-py"
   if have_pwsh; then
     bare_ps1="$BATS_TEST_TMPDIR/rej-g-bare-ps1"
     mkdir -p "$bare_ps1"
@@ -480,13 +441,10 @@ evidence_sequence() {
     assert_step_match "$BATS_TEST_TMPDIR/rej-g-sh" "$BATS_TEST_TMPDIR/rej-g-ps1"
   fi
 
-  # (h) no arguments at all. bash and python share one argv parser, so their usage text matches
-  # byte-for-byte; PowerShell parameter binding prints its own usage wording, so the pwsh leg
-  # agrees on the exit code only.
+  # (h) no arguments at all. PowerShell parameter binding prints its own usage wording, so the
+  # pwsh leg agrees on the exit code only.
   capture_raw "$BATS_TEST_TMPDIR/rej-h-sh" bash "$EV"
-  capture_raw "$BATS_TEST_TMPDIR/rej-h-py" python3 "$EVPY"
   assert_step_rejected "$BATS_TEST_TMPDIR/rej-h-sh" 1 "usage: evidence.sh --project DIR"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-h-sh" "$BATS_TEST_TMPDIR/rej-h-py"
   if have_pwsh; then
     capture_raw "$BATS_TEST_TMPDIR/rej-h-ps1" "$PWSH_BIN" -NoProfile -NonInteractive -File "$WIN"
     [ "$(cat "$BATS_TEST_TMPDIR/rej-h-ps1.code")" = "1" ]
@@ -497,26 +455,13 @@ evidence_sequence() {
   export NIGHTSHIFT_EVIDENCE_NOW=2026-09-02T00:00:00Z
   build_sequence_records
 
-  # One toolset directory serves both runs, so every probed tool resolves to the same real
-  # binary in each. Only python3 differs: the reference run reaches it through a second
-  # directory that holds nothing else — the same construction capabilities.bats uses for its
-  # own no-python parity test.
   bin="$(build_toolset_bin ev-no-python-bin $EVIDENCE_TOOLSET_WITH_JQ)"
   [ ! -e "$bin/python3" ]
-  pybin="$(build_toolset_bin ev-no-python-pybin python3)"
-
-  ref_p="$(new_project ev-no-python-ref)"
   run_p="$(new_project ev-no-python-run)"
-
-  evidence_sequence step_py "$ref_p" "$BATS_TEST_TMPDIR/seq-no-python-ref" "$bin:$pybin"
-  for step in $EVIDENCE_STEPS; do
-    assert_step_ok "$BATS_TEST_TMPDIR/seq-no-python-ref/$step"
-  done
-
-  # The same sequence off the restricted toolset: no python3 anywhere on PATH.
   evidence_sequence step_sh "$run_p" "$BATS_TEST_TMPDIR/seq-no-python-run" "$bin"
-
-  diff -r "$ref_p/.nightshift/evidence" "$run_p/.nightshift/evidence"
+  for step in $EVIDENCE_STEPS; do
+    assert_step_ok "$BATS_TEST_TMPDIR/seq-no-python-run/$step"
+  done
 }
 
 @test "the bash evidence ledger requires jq or python3 on PATH" {
@@ -528,7 +473,7 @@ evidence_sequence() {
   rec='{"schemaVersion":1,"id":"n1","domain":"lint","sourceClass":"x","source":"x","scope":"s","severity":"low","confidence":"low","impact":"none","status":"open","ladder":"declared","locator":"f","digest":"d","firstSeen":"t","lastChecked":"t","action":"","host":"claude","workTarget":"/repo"}'
   run --separate-stderr env PATH="$bin" bash "$EV" --project "$p" append --record "$rec"
   [ "$status" -eq 2 ]
-  printf '%s\n' "$stderr" | grep -qF 'jq or python3 is required'
+  printf '%s\n' "$stderr" | grep -qF 'JSON parser unavailable; write the receipt in the skill'
 }
 
 @test "an absolute evidence id does not write outside .nightshift" {
@@ -541,11 +486,6 @@ evidence_sequence() {
   [ ! -e /tmp/nightshift-proof ]
   [ ! -e /tmp/nightshift-proof.txt ]
   [ ! -e "$p/.nightshift/evidence/raw/tmp/nightshift-proof.txt" ]
-  run --separate-stderr python3 "$EVPY" --project "$p" append --record "$rec" --raw proof
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$stderr" | grep -qF 'invalid id'
-  [ ! -e /tmp/nightshift-proof ]
-  [ ! -e /tmp/nightshift-proof.txt ]
   for bad in '..' '.' 'foo/bar' 'foo\bar' '_leading'; do
     rec="$(sample "$bad" claude)"
     run --separate-stderr bash "$EV" --project "$p" append --record "$rec" --raw proof

@@ -7,7 +7,6 @@ bats_require_minimum_version 1.5.0
 
 ROOT="$BATS_TEST_DIRNAME/.."
 DETECT="$ROOT/plugins/nightshift/runtime/detect-capabilities.sh"
-DETECT_PY="$ROOT/plugins/nightshift/runtime/detect-capabilities.py"
 DETECT_PS1="$ROOT/plugins/nightshift/runtime/windows/detect-capabilities.ps1"
 REQ="$ROOT/plugins/nightshift/skills/nightshift/references/schemas/v1/catalog-requirements.json"
 CAPS="$ROOT/plugins/nightshift/skills/nightshift/references/schemas/v1/capabilities.json"
@@ -137,10 +136,10 @@ load helpers
 }
 
 # ---------------------------------------------------------------------------------------------
-# Native-detector parity: the bash detector (detect-capabilities.sh), the Python reference
-# (detect-capabilities.py), and the native PowerShell detector (windows/detect-capabilities.ps1)
-# must emit byte-identical JSON for the same fixture and PATH. The pwsh leg runs whenever a pwsh
-# binary exists and is skipped, never silently, when it does not.
+# Native-detector parity: the bash detector (detect-capabilities.sh) and the native PowerShell
+# detector (windows/detect-capabilities.ps1) must emit byte-identical JSON for the same fixture
+# and PATH. The pwsh leg runs whenever a pwsh binary exists and is skipped, never silently, when
+# it does not. There is no Python reference.
 
 # controlled_bin, fake_exe, resolve_tool_path, build_toolset_bin, and have_pwsh live in
 # tests/helpers.bash — evidence.bats needs the identical toolset-construction pattern, so it
@@ -175,25 +174,19 @@ POSIX_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc c
 
 # assert_all_engines_agree <project> <controlled-PATH> [host]
 #
-# Runs the Python reference and the bash detector under an identical PATH, for both raw and
-# --normalize output, and asserts they are byte-identical (cmp). When a pwsh binary exists on
-# the real PATH it also runs the native PowerShell detector the same way and compares it to the
-# same reference. A present pwsh binary with no detect-capabilities.ps1 is a genuine failure;
-# only a truly missing pwsh binary is a `skip`.
+# Runs the bash detector under a controlled PATH, for both raw and --normalize output.
+# When a pwsh binary exists on the real PATH it also runs the native PowerShell detector
+# the same way and compares it to bash. A present pwsh binary with no detect-capabilities.ps1
+# is a genuine failure; only a truly missing pwsh binary is a `skip`.
 assert_all_engines_agree() {
   local p="$1" cpath="$2" host="${3:-claude}"
-  local py_raw="$BATS_TEST_TMPDIR/engine.py.raw.json"
-  local py_norm="$BATS_TEST_TMPDIR/engine.py.norm.json"
   local sh_raw="$BATS_TEST_TMPDIR/engine.sh.raw.json"
   local sh_norm="$BATS_TEST_TMPDIR/engine.sh.norm.json"
 
-  env PATH="$cpath" python3 "$DETECT_PY" --project "$p" --host "$host" >"$py_raw"
-  env PATH="$cpath" python3 "$DETECT_PY" --project "$p" --host "$host" --normalize >"$py_norm"
   env PATH="$cpath" bash "$DETECT" --project "$p" --host "$host" >"$sh_raw"
   env PATH="$cpath" bash "$DETECT" --project "$p" --host "$host" --normalize >"$sh_norm"
-
-  cmp "$py_raw" "$sh_raw"
-  cmp "$py_norm" "$sh_norm"
+  [ -s "$sh_raw" ]
+  [ -s "$sh_norm" ]
 
   if have_pwsh; then
     [ -f "$DETECT_PS1" ] || { echo "native PowerShell detector is missing: $DETECT_PS1" >&2; return 1; }
@@ -203,8 +196,8 @@ assert_all_engines_agree() {
     # doesn't also have to be able to locate pwsh itself.
     env PATH="$cpath" "$PWSH_BIN" -NoProfile -NonInteractive -File "$DETECT_PS1" -Project "$p" -HostName "$host" >"$ps1_raw"
     env PATH="$cpath" "$PWSH_BIN" -NoProfile -NonInteractive -File "$DETECT_PS1" -Project "$p" -HostName "$host" -Normalize >"$ps1_norm"
-    cmp "$py_raw" "$ps1_raw"
-    cmp "$py_norm" "$ps1_norm"
+    cmp "$sh_raw" "$ps1_raw"
+    cmp "$sh_norm" "$ps1_norm"
   else
     skip "pwsh not found on PATH; skipping PowerShell parity leg"
   fi
@@ -290,22 +283,13 @@ assert_all_engines_agree() {
 @test "the bash detector needs no python3 when jq is present on PATH" {
   p="$(build_fixture_js no-python)"
 
-  # One toolset directory serves both runs, so every probed tool (including the fake node)
-  # resolves to the same path. Only python3 differs: the reference run reaches it through a
-  # second directory that holds nothing else.
   bin="$(build_toolset_bin no-python-bin $POSIX_TOOLSET_WITH_JQ)"
   fake_node "$bin"
   [ ! -e "$bin/python3" ]
-  pybin="$(build_toolset_bin no-python-pybin python3)"
-
-  ref="$BATS_TEST_TMPDIR/no-python-ref.json"
-  env PATH="$bin:$pybin" python3 "$DETECT_PY" --project "$p" --host claude --normalize >"$ref"
 
   run --separate-stderr env PATH="$bin" bash "$DETECT" --project "$p" --normalize
   [ "$status" -eq 0 ]
-  out="$BATS_TEST_TMPDIR/no-python-out.json"
-  printf '%s\n' "$output" >"$out"
-  cmp "$ref" "$out"
+  printf '%s\n' "$output" | jq -e '.schemaVersion == 1' >/dev/null
 }
 
 @test "detect-capabilities requires jq or python3 on PATH" {
@@ -316,7 +300,7 @@ assert_all_engines_agree() {
 
   run --separate-stderr env PATH="$bin" bash "$DETECT" --project "$p" --normalize
   [ "$status" -eq 2 ]
-  printf '%s\n' "$stderr" | grep -qF 'jq or python3 is required'
+  printf '%s\n' "$stderr" | grep -qF 'unused; inspect the repo in the skill'
 }
 
 @test "the same fixture normalizes identically across every host adapter and detector engine" {
@@ -327,17 +311,13 @@ assert_all_engines_agree() {
 
   ref=""
   for h in claude codex cursor; do
-    py_out="$BATS_TEST_TMPDIR/cross.$h.py.json"
-    env PATH="$cpath" python3 "$DETECT_PY" --project "$p" --host "$h" --normalize >"$py_out"
-    if [ -z "$ref" ]; then
-      ref="$py_out"
-    else
-      cmp "$ref" "$py_out"
-    fi
-
     sh_out="$BATS_TEST_TMPDIR/cross.$h.sh.json"
     env PATH="$cpath" bash "$DETECT" --project "$p" --host "$h" --normalize >"$sh_out"
-    cmp "$ref" "$sh_out"
+    if [ -z "$ref" ]; then
+      ref="$sh_out"
+    else
+      cmp "$ref" "$sh_out"
+    fi
   done
 
   if have_pwsh; then

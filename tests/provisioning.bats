@@ -3,7 +3,6 @@
 
 ROOT="$BATS_TEST_DIRNAME/.."
 PROVISION="$ROOT/plugins/nightshift/runtime/provision.sh"
-PROVISION_PY="$ROOT/plugins/nightshift/runtime/provision.py"
 PREFLIGHT="$ROOT/plugins/nightshift/runtime/provision-preflight.sh"
 LINKER="$ROOT/plugins/nightshift/runtime/link-workspace.sh"
 WIN="$ROOT/plugins/nightshift/runtime/windows/provision.ps1"
@@ -24,11 +23,7 @@ mkdir cp rm mv ln env date uname test dirname basename printf true false mktemp 
 load helpers
 
 provision() {
-  if [ -f "$PROVISION" ]; then
-    bash "$PROVISION" "$@"
-  else
-    python3 "$PROVISION_PY" "$@"
-  fi
+  bash "$PROVISION" "$@"
 }
 
 enable_auto_add() {
