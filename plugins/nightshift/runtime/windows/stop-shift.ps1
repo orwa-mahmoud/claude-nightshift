@@ -3,7 +3,7 @@ param(
     [string]$Reason = 'stopped by owner'
 )
 
-# stop-shift.ps1  -  pause the shift immediately. Hooks become inert without a later Stop event.
+# stop-shift.ps1  -  issue a stop-work order. Hardhat stays until clock-out writes ENDED.
 #   stop-shift.ps1 -Project DIR [-Reason TEXT]
 # -Project is required. Does not use the current working directory.
 

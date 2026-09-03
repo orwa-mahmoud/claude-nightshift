@@ -35,6 +35,15 @@ try {
     $script:cwd = $root
     $script:ns = Join-Path $root '.nightshift'
     $null = New-Item -ItemType Directory -Path $script:ns -Force
+    [IO.File]::WriteAllText((Join-Path $script:ns 'punch-list.md'), "## Items`n- [x] **1. done.**`n")
+    $null = New-Item -ItemType File -Path (Join-Path $script:ns '.shift-armed') -Force
+    Expect-True (-not (Test-NSHardhatActive $script:ns)) 'ticked list is inert without STOP'
+    [IO.File]::WriteAllText((Join-Path $script:ns 'STOP'), "stopped`n")
+    Expect-True (Test-NSHardhatActive $script:ns) 'STOP keeps hardhat without open boxes'
+    [IO.File]::WriteAllText((Join-Path $script:ns '.ended'), "ended`n")
+    Expect-True (-not (Test-NSHardhatActive $script:ns)) 'ENDED stands hardhat down'
+    Remove-Item -LiteralPath (Join-Path $script:ns 'STOP') -Force
+    Remove-Item -LiteralPath (Join-Path $script:ns '.ended') -Force
 
     Expect-True (Test-NSControlTarget 'Remove-Item -Force .nightshift\.shift-armed') `
         'backslash control path is denied'

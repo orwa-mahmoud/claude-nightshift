@@ -43,11 +43,11 @@ On native Windows:
 ```
 
 The helper writes `$NS/STOP` with a reason and UTC timestamp, appends `stopped by owner` to
-`$NS/shift-log.md`, kills only a verified live Nightshift watchman, removes `$NS/.shift-armed`,
-releases the process lease, and drops runtime ownership markers. Open boxes stay open. The
-deadline, punch list, rules, parking lot, work orders, receipts, archives, research, opportunities,
-and shift history stay on disk. Hooks remain installed; without `.shift-armed` they are inert. Do
-not wait for a later Stop event.
+`$NS/shift-log.md`, and kills only a verified live Nightshift watchman. It does not remove
+`$NS/.shift-armed`. Open boxes stay open as the record. Hardhat stays until clock-out writes
+`$NS/.ended`. Reset is the manual escape. The deadline, punch list, rules, parking lot, work
+orders, receipts, archives, research, opportunities, and shift history stay on disk. Do not wait
+for a later Stop event to write the marker — the helper writes it now.
 
 Report the helper's `open-items` count and that the deadline was preserved. A second Stop is safe.
 

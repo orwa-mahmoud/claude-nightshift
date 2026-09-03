@@ -490,6 +490,10 @@ try {
     $controlLogicRun = Invoke-TestScript $controlLogic
     Assert-Equal 0 $controlLogicRun.ExitCode `
         "control stop/reset/purge: $($controlLogicRun.Stdout) $($controlLogicRun.Stderr)"
+    $fenceCheckLogic = Join-Path $PSScriptRoot 'fence-check-logic.ps1'
+    $fenceCheckLogicRun = Invoke-TestScript $fenceCheckLogic
+    Assert-Equal 0 $fenceCheckLogicRun.ExitCode `
+        "fence-check on-disk lease: $($fenceCheckLogicRun.Stdout) $($fenceCheckLogicRun.Stderr)"
     $detectCapabilitiesLogic = Join-Path $PSScriptRoot 'detect-capabilities-logic.ps1'
     $detectCapabilitiesLogicRun = Invoke-TestScript $detectCapabilitiesLogic
     Assert-Equal 0 $detectCapabilitiesLogicRun.ExitCode `

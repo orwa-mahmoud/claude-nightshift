@@ -117,7 +117,8 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/stop-shift.sh" --project "$NIGHTSHIFT_WORKSPACE"`
  on POSIX, or
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\stop-shift.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
- on native Windows. That disarms immediately. The panic form that only writes the marker —
+ on native Windows. That writes `STOP` and stands the watchman down. Hardhat stays until
+ clock-out writes `ENDED`. Reset is the manual escape. The panic form that only writes the marker —
  `touch "$NS/STOP"` on POSIX, or `New-Item -ItemType File -Force "$NS\STOP"` in native Windows
  PowerShell — waits for the next Stop event. A record whose process is provably dead is last
  night's leftover: fall through and clear it below.
@@ -132,12 +133,16 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  Windows, read pid and start time, and `Stop-Process -Id` only when
  `Test-NSRecordedProcess` returns Alive — a reused pid is not this watchman. A
  watchman must not be able to advance the old lease while Start removes markers.
-- **Cross-host handoff.** When resuming on a different host (Claude Code, Codex, or Cursor), build
- a versioned handoff manifest and run
- `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/continuity-handoff.sh" fence-check --input <manifest.json>`
- before arming. Takeover is allowed only when the prior owner is fenced, no duplicate worker is
- active, and `continuity-handoff.sh handoff-package` reports `complete`. Never permit two active
- workers or duplicate mutable punch-list state.
+- **Cross-host handoff.** When resuming on a different host (Claude Code, Codex, or Cursor), run
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/continuity-handoff.sh" fence-check --project "$NIGHTSHIFT_WORKSPACE"`
+ before arming (native Windows:
+ `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\continuity-handoff.ps1" -Command fence-check -Project "$NIGHTSHIFT_WORKSPACE"`
+ after `Import-Module`, or `Test-NSHandoffFence -Project "$NIGHTSHIFT_WORKSPACE"`). The helper
+ reads the on-disk lease, session, and pid. Model-authored flags and omitted fields cannot grant
+ takeover. A missing or unreadable fence refuses to arm (non-zero). Takeover proceeds only when
+ that disk state shows the prior worker is fenced and no duplicate is live, and
+ `continuity-handoff.sh handoff-package` reports `complete`. Never permit two active workers or
+ duplicate mutable punch-list state.
 - **Reset stale lease state through the shared library, never by reading or deleting its files
  directly.** After the liveness checks and stale-watchman shutdown above, run:
  ```bash

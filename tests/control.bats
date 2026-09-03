@@ -27,7 +27,7 @@ stop_cmd() { # <project>
   grep -qi 'deadline is cleared only if it has already passed' "$START"
 }
 
-@test "Stop immediately makes hooks inert without waiting for a Stop event" {
+@test "Stop writes STOP and keeps hardhat armed until ENDED" {
   p="$(new_project)"
   punch_open "$p"
   future=$(( $(date +%s) + 3600 ))
@@ -37,7 +37,7 @@ stop_cmd() { # <project>
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'deadline preserved'
   [ -f "$p/.nightshift/STOP" ]
-  [ ! -f "$p/.nightshift/.shift-armed" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
   [ ! -f "$p/.nightshift/.ended" ]
   [ -f "$p/.nightshift/deadline" ]
   [ "$(cat "$p/.nightshift/deadline")" = "$future" ]
@@ -45,6 +45,12 @@ stop_cmd() { # <project>
   [ -f "$p/.nightshift/punch-list.md" ]
   [ -f "$p/.nightshift/rules.json" ]
   grep -q 'stopped by owner' "$p/.nightshift/shift-log.md"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  punch_done "$p"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  : >"$p/.nightshift/.ended"
   run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
   is_allow
   run "$STOP" --project "$p"
@@ -79,7 +85,7 @@ stop_cmd() { # <project>
   printf '%s' "$output" | grep -qF 'watchman unverified'
   kill -0 "$spid"
   [ -f "$p2/.nightshift/.watchman" ]
-  [ ! -f "$p2/.nightshift/.shift-armed" ]
+  [ -f "$p2/.nightshift/.shift-armed" ]
   kill "$spid"
   wait "$spid" 2>/dev/null || true
 
@@ -96,7 +102,7 @@ stop_cmd() { # <project>
   wait "$rpid" 2>/dev/null || true
 }
 
-@test "Stop releases a valid lease and recovers a failed terminal clock-out nonce" {
+@test "Stop keeps the lease and still allows the trusted helper through a recovery nonce" {
   p="$(new_project)"
   punch_open "$p"
   bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" shift-session claude' \
@@ -104,7 +110,8 @@ stop_cmd() { # <project>
   [ -f "$p/.nightshift/.shift-lease" ]
   run "$STOP" --project "$p"
   [ "$status" -eq 0 ]
-  [ ! -e "$p/.nightshift/.shift-lease" ]
+  [ -e "$p/.nightshift/.shift-lease" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
 
   q="$(new_project nonce)"
   punch_open "$q"
@@ -127,9 +134,9 @@ stop_cmd() { # <project>
   is_deny "$out"
   run "$STOP" --project "$q"
   [ "$status" -eq 0 ]
-  [ ! -e "$q/.nightshift/.shift-lease" ]
-  [ ! -f "$q/.nightshift/.shift-armed" ]
-  [ ! -f "$q/.nightshift/.shift-session" ]
+  [ -e "$q/.nightshift/.shift-lease" ]
+  [ -f "$q/.nightshift/.shift-armed" ]
+  [ -f "$q/.nightshift/.shift-session" ]
 }
 
 @test "hardhat allows only the trusted Stop helper and still protects the lease" {
@@ -312,7 +319,7 @@ stop_cmd() { # <project>
   run "$STOP" --project "$host"
   [ "$status" -eq 0 ]
   [ -f "$workspace/.nightshift/STOP" ]
-  [ ! -f "$workspace/.nightshift/.shift-armed" ]
+  [ -f "$workspace/.nightshift/.shift-armed" ]
   [ -f "$workspace/.nightshift/deadline" ]
   [ -f "$host/.nightshift-link" ]
   ns="$(cd -P "$workspace/.nightshift" && pwd -P)"

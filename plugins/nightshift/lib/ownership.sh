@@ -843,3 +843,104 @@ ns_lease_pid_live() { # <ns>
   [ -n "$NS_LEASE_PID" ] || return 1
   ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
 }
+
+ns_fence_print() { # <action> <duplicate> <fenced> <active> <takeover>
+  local action="$1" duplicate="$2" fenced="$3" active="$4" takeover="$5"
+  local json_true=true json_false=false
+  printf '{\n'
+  printf '  "action": "%s",\n' "$action"
+  printf '  "duplicateWorkerRejected": %s,\n' "$([ "$duplicate" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "kind": "handoff-fence",\n'
+  printf '  "priorOwnerFenced": %s,\n' "$([ "$fenced" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "priorWorkerActive": %s,\n' "$([ "$active" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "schemaVersion": 1,\n'
+  printf '  "takeoverAllowed": %s,\n' "$([ "$takeover" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "twoActiveWorkersAllowed": false\n'
+  printf '}\n'
+}
+
+# Worker fence from on-disk lease / session / pid. Model-authored flags are not consulted.
+# Prints a handoff-fence object. 0 proceed · 1 refuse · 2 unavailable
+ns_fence_check() { # <ns>
+  local ns="$1"
+  local prior_fenced=0 prior_active=0 duplicate=0 takeover=0 action=refuse
+  local session_exists=0 session_pid="" session_start="" session_host="" session_sid=""
+  local lease_rc sess_rc
+
+  if [ -z "$ns" ] || [ ! -d "$ns" ] || [ -L "$ns" ]; then
+    ns_fence_print refuse 0 0 0 0
+    return 2
+  fi
+
+  if ! ns_lease_load "$ns"; then
+    ns_fence_print refuse 0 0 0 0
+    return 2
+  fi
+
+  if [ -e "$ns/.shift-session" ] || [ -L "$ns/.shift-session" ]; then
+    if ! ns_session_present "$ns"; then
+      ns_fence_print refuse 0 0 0 0
+      return 2
+    fi
+    session_exists=1
+    session_sid="$(ns_session_line "$ns" 1)"
+    session_pid="$(ns_session_line "$ns" 3 | tr -d '[:space:]')"
+    session_start="$(ns_session_line "$ns" 4)"
+    session_host="$(ns_session_line "$ns" 5 | tr -d '[:space:]')"
+    [ -n "$session_host" ] || session_host=claude
+    case "$session_host" in
+      claude | codex | cursor) ;;
+      *)
+        ns_fence_print refuse 0 0 0 0
+        return 2
+        ;;
+    esac
+    [ -n "$session_sid" ] || {
+      ns_fence_print refuse 0 0 0 0
+      return 2
+    }
+  fi
+
+  if [ -z "$NS_LEASE_PID" ]; then
+    prior_fenced=1
+  else
+    ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+    lease_rc=$?
+    case "$lease_rc" in
+      0) prior_active=1 ;;
+      1) prior_fenced=1 ;;
+      *)
+        ns_fence_print refuse 0 0 0 0
+        return 2
+        ;;
+    esac
+  fi
+
+  if [ "$session_exists" -eq 1 ] && [ -n "$session_pid" ]; then
+    ns_recorded_process "$session_pid" "$session_start"
+    sess_rc=$?
+    case "$sess_rc" in
+      0)
+        if [ -n "$NS_LEASE_PID" ] && [ "$session_pid" != "$NS_LEASE_PID" ]; then
+          duplicate=1
+        fi
+        prior_active=1
+        prior_fenced=0
+        ;;
+      1) ;;
+      *)
+        ns_fence_print refuse 0 0 0 0
+        return 2
+        ;;
+    esac
+  fi
+
+  if [ "$prior_active" -eq 0 ] && [ "$duplicate" -eq 0 ] && [ "$prior_fenced" -eq 1 ]; then
+    takeover=1
+    action=proceed
+    ns_fence_print "$action" "$duplicate" "$prior_fenced" "$prior_active" "$takeover"
+    return 0
+  fi
+  ns_fence_print refuse "$duplicate" "$prior_fenced" "$prior_active" 0
+  return 1
+}

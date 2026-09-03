@@ -176,7 +176,9 @@ Nightshift moves the contract outside the conversation so the list and decisions
   remain in plain files.
 - **The owner can always stop it.** Use the host command or
   `runtime/stop-shift.sh --project /absolute/task/root` (native Windows: `stop-shift.ps1 -Project`)
-  to pause immediately even when the model is stuck. `touch .nightshift/STOP` in the
+  to pause immediately even when the model is stuck. That writes `STOP` and stands the
+  watchman down; hardhat stays until clock-out writes `ENDED`. Reset is the manual escape.
+  `touch .nightshift/STOP` in the
   folder that contains `.nightshift/` (not beside `.nightshift-link`) is the panic marker and
   waits for the next Stop event; unfinished boxes remain open.
 

@@ -36,8 +36,9 @@ exact next action, and remaining verification in `opportunity-map.md`.
 
 Only checkboxes under `## Items` in `punch-list.md` belong to the active contract. A list alone does
 not activate hooks: Start, or a Hunt or Quality path that starts immediately, creates
-`.shift-armed` after preflight. The clock-out gate and owner rules are active only while that marker
-exists, open Items remain, and the shift has not ended.
+`.shift-armed` after preflight. The clock-out gate and owner rules are active while that marker
+exists and the shift has not ended. A `STOP` order keeps hardhat on until clock-out writes
+`ENDED`; open boxes stay as the record. Reset is the manual escape.
 
 Archive files ticked items and never resets the leftover Shift contract or Gates. An empty
 `## Items` section still binds the next Hunt or Start cut — review those sections before
@@ -269,10 +270,11 @@ Native Windows PowerShell:
 plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
 ```
 
-That writes `STOP`, kills only a verified watchman, removes `.shift-armed`, and releases the
-lease immediately. Hooks stay installed and become inert. The deadline and punch list stay. Reset
-(`reset-shift.sh` / `reset-shift.ps1`) also drops the deadline. Purge deletes that project's
-`.nightshift/` after an exact `--confirm-path`. None of them uninstall the plugin.
+That writes `STOP` and kills only a verified watchman. `.shift-armed` stays, so hardhat
+remains until clock-out writes `ENDED`. Reset is the manual escape. The deadline and punch list
+stay. Reset (`reset-shift.sh` / `reset-shift.ps1`) drops runtime markers and the deadline. Purge
+deletes that project's `.nightshift/` after an exact `--confirm-path`. None of them uninstall the
+plugin.
 
 The panic form in the folder that contains `.nightshift/` (not beside `.nightshift-link`) still
 works, but it waits for the next Stop event:
