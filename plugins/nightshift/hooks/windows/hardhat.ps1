@@ -605,16 +605,35 @@ function Get-NSProspectiveGitPaths {
     }
 }
 
+# A simple quoted payload after eval or a shell -c. Hardening only: one pair of
+# quotes, no nested parser, not a sandbox.
+function Get-NSElevationInner {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command)
+    if ($Command -notmatch '(^|[;&|()\s])(eval|[A-Za-z0-9./_-]*sh\s+-[a-zA-Z]*c)\s') {
+        return ''
+    }
+    if ($Command -match "eval\s+'([^']*)'") { return $Matches[1] }
+    if ($Command -match 'eval\s+"([^"]*)"') { return $Matches[1] }
+    if ($Command -match "[A-Za-z0-9./_-]*sh\s+-[a-zA-Z]*c\s+'([^']*)'") { return $Matches[1] }
+    if ($Command -match '[A-Za-z0-9./_-]*sh\s+-[a-zA-Z]*c\s+"([^"]*)"') { return $Matches[1] }
+    return ''
+}
+
 # Elevation gates creating system state, never using what already runs. The category patterns come
 # from rules.elevation (or the shipped defaults) through Get-NSElevationPattern, which the
 # permission preflight reads too, so the guard and the preflight cannot disagree about what a
 # command needs. Whether tonight lifts a deny is Test-NSPolicyAllowed's answer alone - it carries
 # the whole precedence table, including the exact-plan binding. A pattern the owner broke denies.
+# A simple eval / sh -c quoted payload is matched as well as the outer text; that is hardening,
+# not isolation.
 function Get-NSElevationDenyReason {
     param(
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Scrubbed,
         [Parameter(Mandatory = $true)][string]$Workspace
     )
+    $subject = $Scrubbed
+    $inner = Get-NSElevationInner $Scrubbed
+    if (-not [string]::IsNullOrEmpty($inner)) { $subject = "$Scrubbed $inner" }
     foreach ($category in @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')) {
         $pattern = [string](Get-NSElevationPattern -Workspace $Workspace -Category $category)
         if ([string]::IsNullOrEmpty($pattern)) { continue }
@@ -624,7 +643,7 @@ function Get-NSElevationDenyReason {
         catch {
             return "BLOCKED: elevation.$category.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
         }
-        if (-not $regex.IsMatch($Scrubbed)) { continue }
+        if (-not $regex.IsMatch($subject)) { continue }
         $status = Test-NSPolicyAllowed -Workspace $Workspace -Category $category -Command $Scrubbed
         if ($status -eq 0) { continue }
         $reason = "BLOCKED: this command needs the '$category' elevation category, which is denied for this shift."

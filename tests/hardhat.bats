@@ -1240,6 +1240,42 @@ git commit -m ship
 CMDS
 }
 
+@test "create-state elevation denies bypass forms and leaves read-only forms alone" {
+  p="$(new_project)"
+  punch_open "$p"
+  while IFS='|' read -r category command; do
+    [ -n "$category" ] || continue
+    run hardhat_bash "$p" "$command"
+    is_deny "$output" || { echo "allowed: $command"; return 1; }
+    [ "$(deny_reason "$output")" = "$(elevation_message "$p" "$category")" ] \
+      || { echo "wrong message for $command: $(deny_reason "$output")"; return 1; }
+  done <<'ROWS'
+sudo|/usr/bin/sudo id
+sudo|sudo;id
+sudo|eval 'sudo id'
+sudo|sh -c 'sudo apt-get install -y jq'
+containers|docker run alpine
+containers|docker create alpine
+containers|docker start web
+containers|docker build .
+containers|curl --unix-socket /var/run/docker.sock http://localhost/info
+global-packages|pip install black
+global-packages|cargo install ripgrep
+global-packages|go install example.com/cmd@latest
+global-packages|apt-get upgrade jq
+global-packages|brew uninstall shellcheck
+ROWS
+  while IFS= read -r command; do
+    [ -n "$command" ] || continue
+    run hardhat_bash "$p" "$command"
+    is_allow || { echo "denied: $command -> $output"; return 1; }
+  done <<'CMDS'
+docker ps
+docker logs web
+brew list
+CMDS
+}
+
 @test "elevation rules are shift-scoped: inert once every box is ticked" {
   p="$(new_project)"
   punch_done "$p"

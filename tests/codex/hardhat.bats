@@ -381,6 +381,21 @@ ROWS
   is_allow
 }
 
+@test "codex create-state elevation denies bypass forms and leaves reads alone" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_bash "$p" "/usr/bin/sudo id"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+  run codex_hardhat_bash "$p" "sh -c 'sudo apt-get install -y jq'"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+  run codex_hardhat_bash "$p" "docker ps"
+  is_allow
+  run codex_hardhat_bash "$p" "brew list"
+  is_allow
+}
+
 # ---- the owner's emergency helpers outrank the process fence; disarm is total ----
 
 PLUGIN_ROOT="$(cd -P "$BATS_TEST_DIRNAME/../../plugins/nightshift" && pwd -P)"

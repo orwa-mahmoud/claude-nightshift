@@ -70,7 +70,7 @@ Nightshift separates **what the project always forbids**, **what the owner usual
 
 | File | Role |
 | --- | --- |
-| `rules.json` | Permanent boundaries: tool denies, commit guards, retention, and elevation defaults (`sudo`, Docker socket, global packages, daemons, external services). Shipped templates deny `sudo` and container socket access unless the owner explicitly allows them. |
+| `rules.json` | Permanent boundaries: tool denies, commit guards, retention, and the five elevation categories (`sudo`, containers, global-packages, daemons, external-services). The shipped template denies each by default. Containers cover the Docker socket and create-state verbs (`run`, `create`, `compose up`, `start`, `build`); read-only forms such as `docker ps` and `brew list` are not gated. Hardhat is hardening, not a sandbox. |
 | `shift-defaults.json` | Remembered convenience: verification profile, typical hours, tooling policy, execution mode. Prefills Hunt and Quality; never appears as the source of an effective value. |
 | `shift-policy.json` | Tonight's authoritative snapshot: deadline, verification level, tooling policy, one-shift elevation allowances with provenance, and the shift identity they bind to. Written by composition or Start; guarded while armed. |
 
@@ -99,10 +99,12 @@ On both Claude Code and Codex, an attempted stop with open punch-list items rece
 contract again. On both hosts, hook-backed rules can deny commands, protected paths, suspicious
 secret patterns, or commits under the wrong identity.
 
-Optional command, path, identity, and secret guards are off by default; Setup proposes them and the
-owner chooses. The two explicit question-tool entries are the exception: the shipped rules park
-questions so an unattended shift does not wait, and the owner may set either value to an empty
-string to allow that host's question tool. Active rules hold in every permission mode, including a
+The five elevation categories deny by default. Optional command, path, identity, and secret
+guards (`forbiddenCommands`, `protectedDirs`, `expectedEmail`, `neverCommitPatterns`) stay empty
+until the owner sets them; Setup proposes them and the owner chooses. The two explicit
+question-tool entries are the exception: the shipped rules park questions so an unattended shift
+does not wait, and the owner may set either value to an empty string to allow that host's
+question tool. Active rules hold in every permission mode, including a
 broadly permitted unattended session. That combination lets the host run without approval prompts
 while hooks still enforce the owner's configured boundaries—a frictionless permission mode plus
 an owner-specific denylist that host permissions alone do not express.
@@ -509,8 +511,8 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
 - **Progress is approximate:** the stall guard treats ticks, commits, and artifact receipts as progress, so a failed
   attempt committed by the agent can look alive. Item checks and the deadline remain the backstop.
 - **No built-in push block:** pushing is allowed unless the owner adds it to the shift rules.
-- **Guards are not a sandbox:** shell-command rules match command text. The pattern rules prevent
-  accidental drift by a cooperative agent, not deliberate evasion.
+- **Hardhat is hardening, not a sandbox:** shell-command rules match command text. The pattern
+  rules prevent accidental drift by a cooperative agent; they are not unbypassable isolation.
 - **The process lease fences observed tools:** it rejects stale-process calls delivered to the
   host's PreToolUse hook after ownership transfers. It cannot revoke a call already admitted,
   refresh the IDE, terminate a host process, suppress generated text, or control commands a human

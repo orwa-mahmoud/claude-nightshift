@@ -99,13 +99,30 @@ validate() {
     printf '%s' "$2" | grep -qE "$(jq -r --arg c "$1" '.elevation[$c].pattern' "$TEMPLATE")"
   }
   match sudo 'sudo apt-get install ripgrep'
+  match sudo '/usr/bin/sudo id'
+  match sudo 'sudo;id'
+  match sudo "sh -c 'sudo apt-get install -y jq'"
+  match sudo "eval 'sudo id'"
   match containers 'docker compose up -d'
+  match containers 'docker run alpine'
+  match containers 'docker create alpine'
+  match containers 'docker start web'
+  match containers 'docker build .'
   match containers 'podman run alpine'
+  match containers 'curl --unix-socket /var/run/docker.sock http://localhost/info'
   match global-packages 'npm install -g pnpm'
   match global-packages 'pip3 install --user black'
+  match global-packages 'pip install black'
+  match global-packages 'cargo install ripgrep'
+  match global-packages 'go install example.com/cmd@latest'
+  match global-packages 'brew install shellcheck'
+  match global-packages 'apt-get upgrade jq'
   match daemons 'systemctl start postgres'
   match external-services 'gh auth login'
+  ! match containers 'docker ps'
+  ! match containers 'docker logs web'
   ! match containers 'npm test'
+  ! match global-packages 'brew list'
   ! match sudo 'psql -h localhost -c "select 1"'
   ! match daemons 'pytest tests/'
 }

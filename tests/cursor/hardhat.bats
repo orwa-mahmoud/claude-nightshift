@@ -178,6 +178,21 @@ cursor_shell() {
   is_allow
 }
 
+@test "cursor create-state elevation denies bypass forms and leaves reads alone" {
+  p="$(new_project)"
+  punch_open "$p"
+  run cursor_shell "$p" "/usr/bin/sudo id"
+  is_cursor_deny
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+  run cursor_shell "$p" "docker run alpine"
+  is_cursor_deny
+  printf '%s' "$output" | grep -qF "needs allowance: containers"
+  run cursor_shell "$p" "docker ps"
+  is_allow
+  run cursor_shell "$p" "brew list"
+  is_allow
+}
+
 # ---- the owner's emergency helpers outrank the process fence; disarm is total ----
 
 PLUGIN_ROOT="$(cd -P "$BATS_TEST_DIRNAME/../../plugins/nightshift" && pwd -P)"

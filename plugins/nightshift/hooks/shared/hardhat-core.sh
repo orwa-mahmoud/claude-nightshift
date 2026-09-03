@@ -558,6 +558,22 @@ ns_hardhat_is_commit() {
   ns_hardhat_git_verb "$1" commit
 }
 
+# Print a simple quoted payload after eval or a shell -c, or nothing.
+# Hardening only: one pair of quotes, no nested parser, not a sandbox.
+ns_hardhat_elevation_inner() {
+  local s="$1" inner
+  printf '%s' "$s" | grep -qE '(^|[;&|()[:space:]])(eval|[A-Za-z0-9./_-]*sh[[:space:]]+-[a-zA-Z]*c)[[:space:]]' || return 1
+  inner="$(printf '%s' "$s" | sed -n "s/.*eval[[:space:]]\{1,\}'\([^']*\)'.*/\1/p")"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  inner="$(printf '%s' "$s" | sed -n 's/.*eval[[:space:]]\{1,\}"\([^"]*\)".*/\1/p')"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  inner="$(printf '%s' "$s" | sed -n "s/.*[A-Za-z0-9./_-]*sh[[:space:]]\{1,\}-[a-zA-Z]*c[[:space:]]\{1,\}'\([^']*\)'.*/\1/p")"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  inner="$(printf '%s' "$s" | sed -n 's/.*[A-Za-z0-9./_-]*sh[[:space:]]\{1,\}-[a-zA-Z]*c[[:space:]]\{1,\}"\([^"]*\)".*/\1/p')"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  return 1
+}
+
 # Print a deny reason when the command needs an elevation category this shift does not allow,
 # or return 1 to allow. Uses globals: SCRUBBED PROJECT_DIR
 #
@@ -567,8 +583,13 @@ ns_hardhat_is_commit() {
 # command needs. Whether tonight lifts a deny is the resolver's answer alone — ns_policy_allowed
 # carries the whole precedence table, including the exact-plan binding — so this reads a status
 # and writes the sentence the agent acts on. A pattern the owner broke denies rather than lapses.
+# A simple eval / sh -c quoted payload is matched as well as the outer text; that is hardening,
+# not isolation — a determined rewrite still gets through.
 ns_hardhat_elevation_reason() {
-  local _cat _pat _rc _reason _patterns
+  local _cat _pat _rc _reason _patterns _subject _inner
+  _subject="$SCRUBBED"
+  _inner="$(ns_hardhat_elevation_inner "$SCRUBBED" || true)"
+  [ -n "$_inner" ] && _subject="$SCRUBBED $_inner"
   # One parse of the rules for all five categories; each line is category<TAB>pattern.
   _patterns="$(ns_policy_elevation_patterns "$PROJECT_DIR")" || return 1
   while IFS="$(printf '\t')" read -r _cat _pat; do
@@ -577,7 +598,7 @@ ns_hardhat_elevation_reason() {
       printf '%s' "BLOCKED: elevation.$_cat.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
       return 0
     }
-    printf '%s' "$SCRUBBED" | grep -qE "$_pat" || continue
+    printf '%s' "$_subject" | grep -qE "$_pat" || continue
     ns_policy_allowed "$PROJECT_DIR" "$_cat" "$SCRUBBED"
     _rc=$?
     [ "$_rc" -eq 0 ] && continue
