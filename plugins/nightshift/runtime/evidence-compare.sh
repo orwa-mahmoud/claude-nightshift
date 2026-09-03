@@ -22,6 +22,7 @@
 #                       no re-measurement speaks for; or the source itself is unavailable, which
 #                       overrides every class below
 #   cleared             status fixed, or a re-measurement of the source no longer reports the id
+#                       (never when the environment moved — that absence is unavailable)
 #   rejected-duplicate  status rejected with disposition duplicate or rejected-duplicate
 #   parked              disposition parked, or any other rejected record
 #   new                 reported now, and the baseline did not see it
@@ -117,18 +118,27 @@ _ec_is_str() {
 
 _ec_mktmp() {
   local base="${TMPDIR:-/tmp}" n=0 d
-  case "$base" in
-    */) base="${base%/}" ;;
-  esac
-  while [ "$n" -lt 64 ]; do
-    d="$base/ns-compare-$$-$n"
-    if mkdir "$d" 2>/dev/null; then
-      TMPD="$d"
-      return 0
-    fi
-    n=$((n + 1))
-  done
-  die 'cannot create a temporary directory' 2
+  if command -v mktemp >/dev/null 2>&1; then
+    TMPD="$(mktemp -d "${base%/}/ns-compare.XXXXXX")" || die 'cannot create a temporary directory' 2
+  else
+    case "$base" in
+      */) base="${base%/}" ;;
+    esac
+    while [ "$n" -lt 64 ]; do
+      d="$base/ns-compare-$$-$n"
+      if mkdir "$d" 2>/dev/null; then
+        TMPD="$d"
+        break
+      fi
+      n=$((n + 1))
+    done
+    [ -n "${TMPD:-}" ] || die 'cannot create a temporary directory' 2
+  fi
+  chmod 700 "$TMPD" || {
+    rm -rf "$TMPD"
+    TMPD=""
+    die 'cannot create a temporary directory' 2
+  }
 }
 
 _ec_cleanup() { [ -z "${TMPD:-}" ] || rm -rf "$TMPD"; }
@@ -605,7 +615,7 @@ _ec_row() {
     if [ "$RECHECKED" -ne 1 ]; then
       class=unavailable
     elif [ "$now" -lt 0 ]; then
-      class=cleared
+      if [ "$ENV_MOVED" -eq 1 ]; then class=unavailable; else class=cleared; fi
     elif [ "$obs" -lt 0 ]; then
       class=new
     elif [ "${OBS_DIGJ[$now]}" = "${OBS_DIGJ[$obs]}" ] && _ec_is_str "${OBS_DIGJ[$now]}"; then

@@ -4,6 +4,30 @@
 ns_gate_open_boxes() { ns_open_boxes "$PUNCH"; }
 ns_gate_ticked_boxes() { ns_ticked_boxes "$PUNCH"; }
 
+# ns_gate_boxes — set OPEN, TICKED, TOTAL from the punch list. Return 1 when
+# the file exists but cannot be read; then the counts are not a verdict and
+# the caller must not release as "0 open".
+ns_gate_boxes() {
+  OPEN=0
+  TICKED=0
+  TOTAL=0
+  [ -f "$PUNCH" ] || return 0
+  OPEN="$(ns_open_boxes "$PUNCH")" || {
+    OPEN=0
+    TICKED=0
+    TOTAL=0
+    return 1
+  }
+  TICKED="$(ns_ticked_boxes "$PUNCH")" || {
+    OPEN=0
+    TICKED=0
+    TOTAL=0
+    return 1
+  }
+  TOTAL=$((OPEN + TICKED))
+  return 0
+}
+
 ns_gate_project_head() {
   local r
   if r="$(ns_work_target "$PROJECT_DIR")"; then

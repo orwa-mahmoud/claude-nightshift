@@ -129,7 +129,11 @@ else
   die 'jq or python3 is required to read JSON' 2
 fi
 
-TMPD="$(mktemp -d)" || die 'cannot create a temporary directory' 2
+TMPD="$(mktemp -d "${TMPDIR:-/tmp}/ns-receipt.XXXXXX")" || die 'cannot create a temporary directory' 2
+chmod 700 "$TMPD" || {
+  rm -rf "$TMPD"
+  die 'cannot create a temporary directory' 2
+}
 trap 'rm -rf "$TMPD"' EXIT
 
 # ---------------------------------------------------------------- small helpers
@@ -859,7 +863,10 @@ _ending() {
     return 0
   fi
   if [ -f "$PUNCH" ] && [ ! -L "$PUNCH" ]; then
-    open="$(ns_open_boxes "$PUNCH")"
+    if ! open="$(ns_open_boxes "$PUNCH")"; then
+      ENDING=unknown
+      return 0
+    fi
   fi
   if [ "${open:-0}" -eq 0 ]; then
     ENDING=done
@@ -925,10 +932,14 @@ _lines_shift() {
   ticked=0
   open=0
   if [ -f "$PUNCH" ] && [ ! -L "$PUNCH" ]; then
-    ticked="$(ns_ticked_boxes "$PUNCH")"
-    open="$(ns_open_boxes "$PUNCH")"
+    if ticked="$(ns_ticked_boxes "$PUNCH")" && open="$(ns_open_boxes "$PUNCH")"; then
+      :
+    else
+      sec_add "- Items: unknown"
+      ticked=""
+    fi
   fi
-  sec_add "- Items: $ticked ticked, $open open"
+  [ -z "$ticked" ] || sec_add "- Items: $ticked ticked, $open open"
   mode="$(ns_work_mode "$WORKSPACE" 2>/dev/null)" || mode=repository
   if [ "$VIEW" = artifact ] || [ "$mode" = artifact ]; then
     sec_add "- Receipts: $(ns_receipts_count "$WORKSPACE")"

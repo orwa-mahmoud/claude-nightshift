@@ -398,13 +398,15 @@ try {
         Write-Release
     }
 
-    if (-not (Test-Path -LiteralPath $punch -PathType Leaf)) {
-        Complete-NSShift "shift done: $($counts.Ticked)/$($counts.Total)"
-        Write-Release
-    }
-    if ($counts.Open -eq 0) {
-        Complete-NSShift "shift done: $($counts.Ticked)/$($counts.Total)"
-        Write-Release
+    if ($counts.Readable) {
+        if (-not (Test-Path -LiteralPath $punch -PathType Leaf)) {
+            Complete-NSShift "shift done: $($counts.Ticked)/$($counts.Total)"
+            Write-Release
+        }
+        if ($counts.Open -eq 0) {
+            Complete-NSShift "shift done: $($counts.Ticked)/$($counts.Total)"
+            Write-Release
+        }
     }
     if (Test-NSDeadlinePassed) {
         Write-NSLogLine "quitting time - shift ended, $($counts.Ticked)/$($counts.Total) done, items left open"

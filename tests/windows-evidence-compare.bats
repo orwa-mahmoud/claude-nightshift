@@ -79,6 +79,7 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'a source the ledger marked unavailable never passes clear-all' "$LOGIC"
   grep -qF 'an unavailable tool clears nothing' "$LOGIC"
   grep -qF 'a changed environment digest is reported as unavailable, never as improvement' "$LOGIC"
+  grep -qF 'environment-moved absence is unavailable, never cleared' "$LOGIC"
 }
 
 @test "Windows comparison logic checks exact byte formatting" {

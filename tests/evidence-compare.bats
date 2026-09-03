@@ -240,6 +240,17 @@ class_of() {
   printf '%s\n' "$output" | jq -e '.summary.cleared == 0 and .pass == false' >/dev/null
 }
 
+@test "environment-moved absence is unavailable, not cleared" {
+  p="$(new_project ec-env-absence)"
+  ledger "$p"
+  append "$p" "$(baseline_json b1 open env-1 gone1=dg1)"
+  append "$p" "$(baseline_json b2 open env-2)"
+  run compare "$p" b1 --json
+  [ "$status" -eq 3 ]
+  [ "$(class_of gone1)" = unavailable ]
+  printf '%s\n' "$output" | jq -e '.summary.cleared == 0 and .pass == false' >/dev/null
+}
+
 @test "an id no record and no re-measurement speaks for is unavailable, not cleared" {
   p="$(new_project ec-unmeasured)"
   ledger "$p"
@@ -398,8 +409,8 @@ class_of() {
 # render the same bytes for the same ledger. controlled_bin, resolve_tool_path and
 # build_toolset_bin come from tests/helpers.bash.
 
-COMPARE_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs"
-COMPARE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs"
+COMPARE_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs mktemp chmod"
+COMPARE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs mktemp chmod"
 
 @test "the jq and python3 halves render identical JSON and Markdown" {
   p="$(new_project ec-parity)"
@@ -447,4 +458,9 @@ COMPARE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc
   bash "$EC" --project "$p" --baseline b1 --md >/dev/null || [ $? -eq 3 ]
   [ "$(find "$p/.nightshift" -type f | LC_ALL=C sort)" = "$before" ]
   [ "$(cat "$p/.nightshift/evidence/findings.jsonl")" = "$digest_before" ]
+}
+
+@test "compare temps are created mode 700" {
+  grep -qF 'mktemp -d' "$EC"
+  grep -qF 'chmod 700' "$EC"
 }

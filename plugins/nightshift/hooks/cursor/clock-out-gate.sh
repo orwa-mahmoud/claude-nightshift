@@ -161,8 +161,10 @@ end_shift() {
   whistle "$1"
 }
 
-if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
-TOTAL=$((OPEN + TICKED))
+PUNCH_UNREADABLE=0
+if ! ns_gate_boxes; then
+  PUNCH_UNREADABLE=1
+fi
 
 honor_stop() {
   local reason summary
@@ -244,16 +246,19 @@ if [ -f "$STOP" ]; then
   exit 0
 fi
 
-# 2. Done — no punch list at all, or every box ticked.
-if [ ! -f "$PUNCH" ]; then
-  end_shift "shift done: $TICKED/$TOTAL"
-  cursor_emit_release
-  exit 0
-fi
-if [ "$OPEN" -eq 0 ]; then
-  end_shift "shift done: $TICKED/$TOTAL"
-  cursor_emit_release
-  exit 0
+# 2. Done — no punch list at all, or every box ticked. An unreadable punch
+# list is not zero open: do not release.
+if [ "$PUNCH_UNREADABLE" -ne 1 ]; then
+  if [ ! -f "$PUNCH" ]; then
+    end_shift "shift done: $TICKED/$TOTAL"
+    cursor_emit_release
+    exit 0
+  fi
+  if [ "$OPEN" -eq 0 ]; then
+    end_shift "shift done: $TICKED/$TOTAL"
+    cursor_emit_release
+    exit 0
+  fi
 fi
 
 # 3. Quitting time — mechanical deadline.

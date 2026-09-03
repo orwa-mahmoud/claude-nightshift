@@ -13,6 +13,8 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'untrusted' "$LOGIC"
   grep -qF 'prose' "$LOGIC"
   grep -qF 'unknown id' "$LOGIC"
+  grep -qF 'invalid id' "$LOGIC"
+  grep -qF '/tmp/nightshift-proof' "$LOGIC"
   grep -qF 'malformed JSON on line' "$LOGIC"
   grep -qF 'no .nightshift/' "$LOGIC"
 }

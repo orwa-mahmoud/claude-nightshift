@@ -134,8 +134,8 @@ sample() {
 # hash text, and shell out to jq: everything evidence.sh needs to walk a project, hash raw
 # text, and rewrite the ledger atomically — deliberately excluding python3 for the
 # first list, and excluding both jq and python3 for the second.
-EVIDENCE_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
-EVIDENCE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
+EVIDENCE_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl mktemp chmod"
+EVIDENCE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl mktemp chmod"
 
 # capture_raw <prefix> -- <argv...> — runs argv, capturing stdout/stderr/exit code verbatim to
 # <prefix>.out, <prefix>.err, <prefix>.code.
@@ -529,4 +529,32 @@ evidence_sequence() {
   run --separate-stderr env PATH="$bin" bash "$EV" --project "$p" append --record "$rec"
   [ "$status" -eq 2 ]
   printf '%s\n' "$stderr" | grep -qF 'jq or python3 is required'
+}
+
+@test "an absolute evidence id does not write outside .nightshift" {
+  p="$(new_project ev-escape)"
+  bash "$EV" --project "$p" init >/dev/null
+  rec="$(sample /tmp/nightshift-proof claude)"
+  run --separate-stderr bash "$EV" --project "$p" append --record "$rec" --raw proof
+  [ "$status" -eq 2 ]
+  printf '%s\n' "$stderr" | grep -qF 'invalid id'
+  [ ! -e /tmp/nightshift-proof ]
+  [ ! -e /tmp/nightshift-proof.txt ]
+  [ ! -e "$p/.nightshift/evidence/raw/tmp/nightshift-proof.txt" ]
+  run --separate-stderr python3 "$EVPY" --project "$p" append --record "$rec" --raw proof
+  [ "$status" -eq 2 ]
+  printf '%s\n' "$stderr" | grep -qF 'invalid id'
+  [ ! -e /tmp/nightshift-proof ]
+  [ ! -e /tmp/nightshift-proof.txt ]
+  for bad in '..' '.' 'foo/bar' 'foo\bar' '_leading'; do
+    rec="$(sample "$bad" claude)"
+    run --separate-stderr bash "$EV" --project "$p" append --record "$rec" --raw proof
+    [ "$status" -eq 2 ]
+    printf '%s\n' "$stderr" | grep -qF 'invalid id'
+  done
+}
+
+@test "evidence temps are created mode 700" {
+  grep -qF 'mktemp -d' "$EV"
+  grep -qF 'chmod 700' "$EV"
 }

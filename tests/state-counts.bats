@@ -8,6 +8,34 @@ DOCTOR_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
 SCHED_SH="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/schedule.sh"
 SCHED_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/schedule.ps1"
 
+MR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/morning-receipt.sh"
+
+@test "ns_count_boxes fails closed on an unreadable punch list" {
+  f="$BATS_TEST_TMPDIR/unreadable-punch.md"
+  printf '## Items\n- [ ] **open.**\n' >"$f"
+  chmod 000 "$f"
+  run bash -c '. "$1"; ns_count_boxes "$2" "^."' _ "$LIB" "$f"
+  chmod 644 "$f"
+  [ "$status" -ne 0 ]
+  [ -z "$output" ]
+}
+
+@test "an unreadable punch list reports Ending unknown" {
+  p="$(new_project mr-unread)"
+  punch_open "$p"
+  chmod 000 "$p/.nightshift/punch-list.md"
+  run bash "$MR" --project "$p"
+  chmod 644 "$p/.nightshift/punch-list.md"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | grep -qF 'Ending: unknown'
+  ! printf '%s\n' "$output" | grep -qF 'Ending: done'
+}
+
+@test "morning-receipt temps are created mode 700" {
+  grep -qF 'mktemp -d' "$MR"
+  grep -qF 'chmod 700' "$MR"
+}
+
 @test "ns_open_boxes_file counts every open box and treats a missing file as zero" {
   f="$BATS_TEST_TMPDIR/orders.md"
   printf '# Work Orders\n\n- [ ] **one.**\n- [x] **done.**\n- [ ] **two.**\n' >"$f"
@@ -58,6 +86,7 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
   grep -qF 'Get-NSBoxCounts' "$LOGIC"
   grep -qF 'Get-NSOpenDrafts' "$LOGIC"
   grep -qF 'function Get-NSBoxCounts' "$PSM1"
+  grep -qF 'an unreadable punch list is not counted as zero open' "$LOGIC"
 }
 
 @test "Windows box counts ignore contract checkboxes when pwsh is present" {

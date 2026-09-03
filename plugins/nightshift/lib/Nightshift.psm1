@@ -830,23 +830,31 @@ function Get-NSBoxCounts {
     $open = 0
     $ticked = 0
     $inItems = $false
+    $readable = $true
     if (Test-Path -LiteralPath $PunchList -PathType Leaf) {
-        foreach ($line in [IO.File]::ReadLines($PunchList)) {
-            if (-not $inItems) {
-                if ($line -match '^## Items\s*$') {
-                    $inItems = $true
+        try {
+            foreach ($line in [IO.File]::ReadLines($PunchList)) {
+                if (-not $inItems) {
+                    if ($line -match '^## Items\s*$') {
+                        $inItems = $true
+                    }
+                    continue
                 }
-                continue
-            }
-            if ($line -match '^\s*-\s*\[\s\]') {
-                $open++
-            }
-            elseif ($line -match '^\s*-\s*\[[xX]\]') {
-                $ticked++
+                if ($line -match '^\s*-\s*\[\s\]') {
+                    $open++
+                }
+                elseif ($line -match '^\s*-\s*\[[xX]\]') {
+                    $ticked++
+                }
             }
         }
+        catch {
+            $readable = $false
+            $open = 0
+            $ticked = 0
+        }
     }
-    return [pscustomobject]@{ Open = $open; Ticked = $ticked; Total = ($open + $ticked) }
+    return [pscustomobject]@{ Open = $open; Ticked = $ticked; Total = ($open + $ticked); Readable = $readable }
 }
 
 function Get-NSOpenBoxesInFile {
@@ -2826,6 +2834,54 @@ function Get-NSAbsolutePath {
     return $full
 }
 
+function Test-NSEvidenceId {
+    param([AllowEmptyString()][string]$Id)
+    if ([string]::IsNullOrEmpty($Id)) { return $false }
+    return [regex]::IsMatch($Id, '^[A-Za-z0-9][A-Za-z0-9_-]*$')
+}
+
+# Join a directory and a leaf name. Never treats Name as a path, even when
+# it looks rooted — Join-NSPath's rooted-name rule is how an evidence id
+# such as /tmp/nightshift-proof escaped .nightshift/.
+function Join-NSLeaf {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Base,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Name
+    )
+    if ([string]::IsNullOrEmpty($Base)) { return $Name }
+    $last = $Base[$Base.Length - 1]
+    if ($last -eq [IO.Path]::DirectorySeparatorChar -or $last -eq [IO.Path]::AltDirectorySeparatorChar) {
+        return ($Base + $Name)
+    }
+    return ($Base + [IO.Path]::DirectorySeparatorChar + $Name)
+}
+
+function Get-NSEvidenceRawDestination {
+    param(
+        [Parameter(Mandatory = $true)][string]$Ns,
+        [AllowEmptyString()][string]$Id
+    )
+    if (-not (Test-NSEvidenceId $Id)) { return $null }
+    $rawDir = Join-NSPath $Ns 'evidence'
+    $rawDir = Join-NSPath $rawDir 'raw'
+    if (-not (Test-Path -LiteralPath $rawDir -PathType Container)) {
+        $null = New-Item -ItemType Directory -Path $rawDir -Force
+    }
+    $parent = Get-NSAbsolutePath $rawDir
+    $nsRoot = Get-NSAbsolutePath $Ns
+    $sep = [string][IO.Path]::DirectorySeparatorChar
+    if ($parent -ne $nsRoot -and -not $parent.StartsWith($nsRoot + $sep, [StringComparison]::Ordinal)) {
+        return $null
+    }
+    $dest = Join-NSLeaf $parent ($Id + '.txt')
+    $destParent = Get-NSAbsolutePath ([IO.Path]::GetDirectoryName($dest))
+    if ($destParent -ne $parent) { return $null }
+    $result = New-NSOrdinalMap
+    $result['rel'] = (Join-NSLeaf (Join-NSLeaf 'evidence' 'raw') ($Id + '.txt')) -replace '\\', '/'
+    $result['abs'] = $dest
+    return $result
+}
+
 function Join-NSPath {
     param(
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Base,
@@ -4028,6 +4084,7 @@ function Test-NSEvidenceRecord {
     if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'impact') $Schema.impact)) { $errors.Add('invalid impact') }
     if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'status') $Schema.status)) { $errors.Add('invalid status') }
     if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Record 'ladder') $Schema.ladder)) { $errors.Add('invalid ladder') }
+    if ($Record.Contains('id') -and -not (Test-NSEvidenceId (Get-NSMapValue $Record 'id'))) { $errors.Add('invalid id') }
     $locator = Get-NSMapValue $Record 'locator'
     if (-not (Test-NSPyTruthy $locator)) { $locator = '' }
     if (([string]$locator).Contains('://') -and -not (Test-NSPyTruthy (Get-NSMapValue $Record 'untrusted'))) {
@@ -4170,10 +4227,15 @@ function Invoke-NSEvidenceAppend {
         return 2
     }
     if (Test-NSPyTruthy $RawText) {
-        $record['rawPath'] = 'evidence/raw/' + [string]$record['id'] + '.txt'
+        $contained = Get-NSEvidenceRawDestination -Ns $paths['ns'] -Id ([string](Get-NSMapValue $record 'id'))
+        if ($null -eq $contained) {
+            Write-NSEvidenceError 'evidence: invalid id'
+            return 2
+        }
+        $record['rawPath'] = [string]$contained['rel']
         $onDisk = $RawText
         if (-not $RawText.EndsWith("`n")) { $onDisk = $RawText + "`n" }
-        Write-NSEvidenceFile -Path (Join-NSPath $paths['ns'] $record['rawPath']) -Text $onDisk
+        Write-NSEvidenceFile -Path ([string]$contained['abs']) -Text $onDisk
         $record['rawDigest'] = Get-NSTextSha256 $RawText
     }
     $records.Add($record)
@@ -7464,7 +7526,8 @@ function Get-NSEvidenceComparison {
         }
         else {
             # An id the baseline saw and the ledger no longer carries is not a
-            # fix: absence is not evidence, so the row reports it unavailable.
+            # fix: absence is not evidence. Environment-moved absence is never
+            # cleared either — the two hosts agree.
             $row['class'] = 'unavailable'
             $row['digest'] = [string]$seenMap[$id]
             $row['locator'] = ''
@@ -7654,7 +7717,7 @@ function Get-NSReceiptLogEnd {
 # done when every box is ticked, otherwise whatever STOP says. Stop writes
 # "<reason> MIDDOT <timestamp>"; the gate writes the bare word.
 function Get-NSReceiptEnding {
-    param([Parameter(Mandatory = $true)][string]$NightshiftDir, [int]$Open)
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir, [int]$Open, [bool]$Readable = $true)
     $stop = Join-NSPath $NightshiftDir 'STOP'
     if (Test-Path -LiteralPath $stop -PathType Leaf) {
         $first = ''
@@ -7672,6 +7735,7 @@ function Get-NSReceiptEnding {
         if ($reason -ceq 'stalled') { return 'stall' }
         return 'stop'
     }
+    if (-not $Readable) { return $script:NSReceiptEndingUnknown }
     if ($Open -eq 0) { return 'done' }
     return $script:NSReceiptEndingUnknown
 }
@@ -7909,7 +7973,8 @@ function Get-NSReceiptContext {
     $counts = Get-NSBoxCounts $context['punch']
     $context['ticked'] = [int]$counts.Ticked
     $context['open'] = [int]$counts.Open
-    $context['ending'] = Get-NSReceiptEnding -NightshiftDir $ns -Open ([int]$counts.Open)
+    $context['punchReadable'] = [bool]$counts.Readable
+    $context['ending'] = Get-NSReceiptEnding -NightshiftDir $ns -Open ([int]$counts.Open) -Readable ([bool]$counts.Readable)
 
     $ended = Get-NSReceiptLogEnd (Join-NSPath $ns 'shift-log.md')
     $context['ended'] = $ended
@@ -8003,7 +8068,12 @@ function Get-NSReceiptShiftLines {
     Add-NSReceiptField $lines 'started' ([string]$Context['started'])
     Add-NSReceiptField $lines 'ended' ([string]$Context['ended'])
     Add-NSReceiptField $lines 'ending' ([string]$Context['ending'])
-    Add-NSReceiptField $lines 'items' ($script:NSReceiptItemsFormat -f ([int]$Context['ticked']), ([int]$Context['open']))
+    if ($Context.Contains('punchReadable') -and -not [bool]$Context['punchReadable']) {
+        Add-NSReceiptField $lines 'items' 'unknown'
+    }
+    else {
+        Add-NSReceiptField $lines 'items' ($script:NSReceiptItemsFormat -f ([int]$Context['ticked']), ([int]$Context['open']))
+    }
     $artifactView = ([string]$Context['view']) -ceq 'artifact'
     if ($artifactView -or (([string]$Context['workMode']) -ceq 'artifact')) {
         Add-NSReceiptField $lines 'receipts' ([string](Get-NSReceiptsCount ([string]$Context['workspace'])))

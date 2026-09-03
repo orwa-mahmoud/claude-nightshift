@@ -5,6 +5,7 @@ from __future__ import print_function
 import hashlib
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -23,6 +24,7 @@ LADDER_RANK = {
 }
 
 EVIDENCE_PREFIX = "evidence: %s"
+EVIDENCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
 
 def utcnow():
@@ -55,6 +57,36 @@ def ledger_paths(ns):
 def fail(msg, code=2):
     print(EVIDENCE_PREFIX % msg, file=sys.stderr)
     return code
+
+
+def valid_evidence_id(eid):
+    return isinstance(eid, str) and bool(EVIDENCE_ID.match(eid))
+
+
+def join_leaf(base, name):
+    """Join without treating name as a path, even when it looks absolute."""
+    if not base:
+        return name
+    if base.endswith(os.sep):
+        return base + name
+    return base + os.sep + name
+
+
+def contained_raw_path(ns, eid):
+    """Relative and absolute raw paths under .nightshift/, or None if unsafe."""
+    if not valid_evidence_id(eid):
+        return None
+    raw_dir = os.path.join(ns, "evidence", "raw")
+    os.makedirs(raw_dir, exist_ok=True)
+    parent = os.path.realpath(raw_dir)
+    ns_real = os.path.realpath(ns)
+    if parent != ns_real and not parent.startswith(ns_real + os.sep):
+        return None
+    dest = join_leaf(parent, eid + ".txt")
+    dest_parent = os.path.realpath(os.path.dirname(dest))
+    if dest_parent != parent:
+        return None
+    return join_leaf(join_leaf("evidence", "raw"), eid + ".txt"), dest
 
 
 def digest_text(text):
@@ -112,6 +144,8 @@ def validate_record(rec, schema, prev=None):
     if errors:
         return errors
     errors.extend(validate_enum_fields(rec, schema))
+    if "id" in rec and not valid_evidence_id(rec.get("id")):
+        errors.append("invalid id")
     errors.extend(validate_locator(rec))
     errors.extend(validate_ladder_promotion(rec, prev))
     return errors
@@ -207,8 +241,12 @@ def cmd_append(project, record_json, raw_text=None):
             print(EVIDENCE_PREFIX % e, file=sys.stderr)
         return 2
     if raw_text:
-        rec["rawPath"] = os.path.join("evidence", "raw", rec["id"] + ".txt")
-        raw_abs = os.path.join(ns, rec["rawPath"])
+        contained = contained_raw_path(ns, rec.get("id"))
+        if contained is None:
+            print(EVIDENCE_PREFIX % "invalid id", file=sys.stderr)
+            return 2
+        rec["rawPath"] = contained[0]
+        raw_abs = contained[1]
         with open(raw_abs, "w") as fh:
             fh.write(raw_text)
             if not raw_text.endswith("\n"):

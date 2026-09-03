@@ -427,6 +427,26 @@ try {
     Expect-True (Test-Path -LiteralPath (Join-Path $blockedNs '.ended') -PathType Leaf) `
         'a receipt render failure still clocks the shift out'
 
+    # === 6b. An unreadable punch list is never reported as done ===
+    $onWindows = [bool](Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -and $IsWindows
+    if (-not $onWindows) {
+        $unreadProject = Join-Path $root 'unreadable-punch'
+        $unreadNs = New-ReceiptProject -Path $unreadProject
+        $unreadPunch = Join-Path $unreadNs 'punch-list.md'
+        & chmod 000 $unreadPunch
+        try {
+            $unreadRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $unreadProject)
+            Expect-Equal 0 $unreadRun.ExitCode "an unreadable punch list still renders ($($unreadRun.StderrText))"
+            Expect-True $unreadRun.StdoutText.Contains('- Ending: unknown') `
+                'an unreadable punch list reports Ending unknown, never done'
+            Expect-True (-not $unreadRun.StdoutText.Contains('- Ending: done')) `
+                'an unreadable punch list is not reported as done'
+        }
+        finally {
+            & chmod 644 $unreadPunch
+        }
+    }
+
     # === 7. The archive moves the morning receipt and copies the rest ===
     $archiveProject = Join-Path $root 'archive'
     $archiveNs = New-ReceiptProject -Path $archiveProject
