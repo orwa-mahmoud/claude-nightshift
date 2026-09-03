@@ -10,7 +10,6 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 
 @test "Windows evidence logic covers the frozen interface scenarios" {
   grep -qF 'invalid severity' "$LOGIC"
-  grep -qF 'secret pattern' "$LOGIC"
   grep -qF 'untrusted' "$LOGIC"
   grep -qF 'prose' "$LOGIC"
   grep -qF 'unknown id' "$LOGIC"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# source-policy-evidence.sh — source policies, query manifests, and untrusted redaction.
+# source-policy-evidence.sh — source policies, query manifests, and connector bounds.
 #
-#   source-policy-evidence.sh policy-resolve|query-manifest|redact-untrusted|artifact-receipt-plan|connector-boundary --input PATH
+#   source-policy-evidence.sh policy-resolve|query-manifest|artifact-receipt-plan|connector-boundary --input PATH
 #
 # Exit: 0 ok · 1 usage · 2 missing runtime
 set -u
@@ -20,7 +20,7 @@ INPUT=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    policy-resolve | query-manifest | redact-untrusted | artifact-receipt-plan | connector-boundary)
+    policy-resolve | query-manifest | artifact-receipt-plan | connector-boundary)
       CMD="$1"
       shift
       ;;

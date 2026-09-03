@@ -189,10 +189,32 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -F 'should-never-appear' "$bundle"
   ! grep -F '/etc/shadow' "$bundle"
   ! grep -F "$HOME/secret-dir" "$bundle"
-  grep -qE 'normal schedule line at \$(WORKSPACE|WORK_TARGET)' "$bundle"
+  ! grep -qF 'normal schedule line' "$bundle"
   grep -q 'keys:' "$bundle"
   grep -q 'notifyCommand' "$bundle"
   grep -q 'session_record: present' "$bundle"
+}
+
+@test "default bundle omits scheduled.log tokens and does not claim a secret scanner" {
+  p="$(new_project)"
+  {
+    printf '%s\n' 'ghp_PLANTEDTOKENVALUE0000000000000000'
+    printf '%s\n' 'AKIAIOSFODNN7EXAMPLE'
+    printf '%s\n' '-----BEGIN RSA PRIVATE KEY-----' 'PLANTEDKEYMATERIAL' '-----END RSA PRIVATE KEY-----'
+  } >"$p/.nightshift/scheduled.log"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  [ -f "$bundle" ]
+  ! grep -F 'ghp_' "$bundle"
+  ! grep -F 'AKIA' "$bundle"
+  ! grep -F 'PRIVATE KEY' "$bundle"
+  ! grep -F 'PLANTEDKEYMATERIAL' "$bundle"
+  ! printf '%s' "$output" | grep -qF 'Omitted: secrets'
+  ! printf '%s' "$output" | grep -qiE 'secret scanner|scanned for secrets|sanitized'
+  ! grep -qi 'sanitized' "$bundle"
+  grep -qF '== runtime log ==' "$bundle"
+  grep -qF 'omitted' "$bundle"
 }
 
 @test "identities are tokenized to the three named roots" {
@@ -224,7 +246,7 @@ with open(p,"w") as f: json.dump(d,f)
   ! grep -qF '== capability policy ==' "$bundle"
 }
 
-@test "the support bundle includes a redacted evidence summary without raw ledger output" {
+@test "the support bundle includes evidence counts without raw ledger output" {
   p="$(new_project sb-evidence)"
   mkdir -p "$p/.nightshift/evidence"
   printf '{"schemaVersion":1,"id":"f1","domain":"test","severity":"low","confidence":"medium","impact":"local","status":"open","ladder":"declared","locator":"secret-token=abc","source":"fixture","sourceClass":"test","host":"local"}\n' \
@@ -280,7 +302,7 @@ LOGIC="$BATS_TEST_DIRNAME/windows/export-support-logic.ps1"
 RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-support.ps1"
 
-@test "Windows CI runs the portable export-support redaction suite" {
+@test "Windows CI runs the portable export-support allowlist suite" {
   [ -f "$LOGIC" ]
   grep -qF 'export-support-logic.ps1' "$RUN"
   grep -qF 'supersecret' "$LOGIC"
@@ -306,7 +328,7 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
 }
 
-@test "Windows export-support redaction logic passes when pwsh is present" {
+@test "Windows export-support allowlist logic passes when pwsh is present" {
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
   fi

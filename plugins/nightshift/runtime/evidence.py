@@ -5,7 +5,6 @@ from __future__ import print_function
 import hashlib
 import json
 import os
-import re
 import sys
 from datetime import datetime, timezone
 
@@ -22,11 +21,6 @@ LADDER_RANK = {
     "verified-after-change": 4,
     "human-accepted": 5,
 }
-
-SECRET = re.compile(
-    r"(?i)(api[_-]?key|secret|token|password|authorization:\s*bearer)\s*[:=]\s*\S+"
-    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
-)
 
 EVIDENCE_PREFIX = "evidence: %s"
 
@@ -67,10 +61,6 @@ def digest_text(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def redact_text(text):
-    return SECRET.sub("[redacted]", text)
-
-
 def validate_required_fields(rec, schema):
     errors = []
     if not isinstance(rec, dict):
@@ -98,14 +88,11 @@ def validate_enum_fields(rec, schema):
     return errors
 
 
-def validate_locator_and_secrets(rec):
+def validate_locator(rec):
     errors = []
     locator = rec.get("locator") or ""
     if "://" in locator and not rec.get("untrusted"):
         errors.append("remote locator requires untrusted=true")
-    raw = json.dumps(rec, sort_keys=True, separators=(",", ":"))
-    if SECRET.search(raw):
-        errors.append("record contains a secret pattern")
     return errors
 
 
@@ -125,7 +112,7 @@ def validate_record(rec, schema, prev=None):
     if errors:
         return errors
     errors.extend(validate_enum_fields(rec, schema))
-    errors.extend(validate_locator_and_secrets(rec))
+    errors.extend(validate_locator(rec))
     errors.extend(validate_ladder_promotion(rec, prev))
     return errors
 
@@ -222,12 +209,11 @@ def cmd_append(project, record_json, raw_text=None):
     if raw_text:
         rec["rawPath"] = os.path.join("evidence", "raw", rec["id"] + ".txt")
         raw_abs = os.path.join(ns, rec["rawPath"])
-        redacted = redact_text(raw_text)
         with open(raw_abs, "w") as fh:
-            fh.write(redacted)
-            if not redacted.endswith("\n"):
+            fh.write(raw_text)
+            if not raw_text.endswith("\n"):
                 fh.write("\n")
-        rec["rawDigest"] = digest_text(redacted)
+        rec["rawDigest"] = digest_text(raw_text)
     records.append(rec)
     write_jsonl(paths["jsonl"], records)
     print(rec["id"])

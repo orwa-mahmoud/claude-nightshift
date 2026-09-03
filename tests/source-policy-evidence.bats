@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Source-policy evidence — closed/bounded/connected policies, manifests, redaction.
+# Source-policy evidence — closed/bounded/connected policies and manifests.
 
 ROOT="$BATS_TEST_DIRNAME/.."
 SP="$ROOT/plugins/nightshift/runtime/source-policy-evidence.sh"

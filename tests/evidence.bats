@@ -65,24 +65,13 @@ sample() {
   bash "$EV" --project "$p" validate
 }
 
-@test "malformed and secret-bearing evidence is rejected" {
+@test "malformed evidence is rejected" {
   p="$(new_project ev4)"
   bash "$EV" --project "$p" init >/dev/null
   rec="$(sample f5 claude | jq '.severity="nope"')"
   run bash "$EV" --project "$p" append --record "$rec"
   [ "$status" -eq 2 ]
   printf '%s\n' "$output" | grep -q 'invalid severity'
-  rec="$(sample f6 claude | jq '. + {token:"secret", action:"token=supersecret"}')"
-  # action with secret pattern
-  rec="$(jq -nc '{
-    schemaVersion:1, id:"f6", domain:"lint", sourceClass:"x", source:"x",
-    scope:"s", severity:"low", confidence:"low", impact:"none", status:"open",
-    ladder:"declared", locator:"f", digest:"d", firstSeen:"t", lastChecked:"t",
-    action:"api_key=abcd", host:"claude", workTarget:"/r"
-  }')"
-  run bash "$EV" --project "$p" append --record "$rec"
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$output" | grep -q 'secret pattern'
 }
 
 @test "raw unrestricted remote locators are rejected unless marked untrusted" {
@@ -142,8 +131,8 @@ sample() {
 # it isn't duplicated here.
 
 # The exact POSIX toolset a from-scratch bash implementation may lean on to read JSON Lines,
-# hash text, and shell out to jq: everything evidence.sh needs to walk a project, redact and
-# hash raw text, and rewrite the ledger atomically — deliberately excluding python3 for the
+# hash text, and shell out to jq: everything evidence.sh needs to walk a project, hash raw
+# text, and rewrite the ledger atomically — deliberately excluding python3 for the
 # first list, and excluding both jq and python3 for the second.
 EVIDENCE_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
 EVIDENCE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
@@ -308,7 +297,7 @@ step_ps1() {
 
 # build_sequence_records — sets $R1 (a full record, firstSeen/lastChecked/digest already
 # populated), $R2 and $R2_RAW (a record that leaves firstSeen/lastChecked/digest for append to
-# default, whose raw text carries `api_key=abcd` on its own line so redaction is exercised), and
+# default, whose raw text is stored as given), and
 # $R3 (a full record with a remote locator marked untrusted). All literal strings, so every
 # engine receives byte-identical --record/--raw input.
 build_sequence_records() {
@@ -323,8 +312,8 @@ EVIDENCE_STEPS="01-validate-empty 02-init 03-append-r1 04-append-r2 05-append-r3
 # evidence_sequence <run_fn> <project> <prefix-dir> [path-override]
 #
 # Runs the fixed ten-step scenario from the frozen interface — validate on an empty workspace,
-# init, three appends (a full record, a record that defaults digest/firstSeen/lastChecked with a
-# raw secret to redact, and an untrusted remote locator), a disposition that promotes a ladder
+# init, three appends (a full record, a record that defaults digest/firstSeen/lastChecked with
+# raw output, and an untrusted remote locator), a disposition that promotes a ladder
 # rung, render, export-tsv, a final validate, and migrate — through <run_fn> (one of
 # step_sh/step_py/step_ps1), capturing every step under <prefix-dir>/<step-name>.{out,err,code}.
 # Requires build_sequence_records to have set $R1/$R2/$R2_RAW/$R3 already.
@@ -393,21 +382,6 @@ evidence_sequence() {
     p_ps1="$(new_project ev-rej-a-ps1)"
     step_ps1 "$BATS_TEST_TMPDIR/rej-a-ps1" "$p_ps1"
     assert_step_match "$BATS_TEST_TMPDIR/rej-a-sh" "$BATS_TEST_TMPDIR/rej-a-ps1"
-  fi
-
-  # (b) action carrying a secret pattern
-  rec='{"schemaVersion":1,"id":"bad-secret","domain":"lint","sourceClass":"x","source":"x","scope":"s","severity":"low","confidence":"low","impact":"none","status":"open","ladder":"declared","locator":"f","digest":"d","firstSeen":"t","lastChecked":"t","action":"api_key=abcd","host":"claude","workTarget":"/repo"}'
-  argv_append "$rec" ""
-  p_sh="$(new_project ev-rej-b-sh)"
-  p_py="$(new_project ev-rej-b-py)"
-  step_sh "$BATS_TEST_TMPDIR/rej-b-sh" "$p_sh"
-  step_py "$BATS_TEST_TMPDIR/rej-b-py" "$p_py"
-  assert_step_rejected "$BATS_TEST_TMPDIR/rej-b-sh" 2 "record contains a secret pattern"
-  assert_step_match "$BATS_TEST_TMPDIR/rej-b-sh" "$BATS_TEST_TMPDIR/rej-b-py"
-  if have_pwsh; then
-    p_ps1="$(new_project ev-rej-b-ps1)"
-    step_ps1 "$BATS_TEST_TMPDIR/rej-b-ps1" "$p_ps1"
-    assert_step_match "$BATS_TEST_TMPDIR/rej-b-sh" "$BATS_TEST_TMPDIR/rej-b-ps1"
   fi
 
   # (c) remote locator without untrusted

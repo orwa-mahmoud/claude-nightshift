@@ -6,7 +6,7 @@
 # native ledger at plugins/nightshift/runtime/windows/evidence.ps1 must be
 # byte-identical to that spec for the same inputs. This suite builds temp
 # projects, shells out to the native ledger like a real caller would, and
-# checks exit codes, exact byte formatting, redaction, and python3 parity.
+# checks exit codes, exact byte formatting, and python3 parity.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
@@ -476,23 +476,17 @@ try {
         if (Test-Path -LiteralPath $rawPath -PathType Leaf) {
             $rawBytes = [IO.File]::ReadAllBytes($rawPath)
             $rawText = [Text.Encoding]::UTF8.GetString($rawBytes)
-            Expect-True ($rawText.Contains('[redacted]')) "R2 raw file redacts the secret (content: $rawText)"
-            Expect-True (-not $rawText.Contains('abcd')) "R2 raw file does not leak the secret value (content: $rawText)"
+            Expect-True ($rawText.Contains('api_key=abcd')) "R2 raw file stores the supplied text (content: $rawText)"
             Expect-True (Test-NSSingleTrailingNewline $rawBytes) 'R2 raw file ends with exactly one trailing newline'
-            $expectedRedacted = "context line one`n[redacted]`ncontext line three`n"
-            Expect-True ($rawText -eq $expectedRedacted) `
-                "R2 raw file matches the expected redacted text exactly (got: $rawText)"
-            # The reference hashes rawDigest from the redacted text BEFORE the
-            # guaranteed-trailing-newline fixup is applied to the file (see
-            # cmd_append in evidence.py: digest_text(redacted), not the bytes
-            # actually written when a newline still had to be appended). The
-            # file itself still gets the trailing newline; only the digest
-            # input excludes it here, since "byte-identical to the reference"
-            # is the actual correctness bar, not the interface's prose gloss.
-            $expectedRedactedPreFixup = "context line one`n[redacted]`ncontext line three"
-            $expectedRawDigest = Get-NSSha256HexOfText $expectedRedactedPreFixup
+            $expectedRaw = "context line one`napi_key=abcd`ncontext line three`n"
+            Expect-True ($rawText -eq $expectedRaw) `
+                "R2 raw file matches the supplied text exactly (got: $rawText)"
+            # rawDigest is sha256 of the supplied text BEFORE the
+            # guaranteed-trailing-newline fixup is applied to the file.
+            $expectedRawPreFixup = "context line one`napi_key=abcd`ncontext line three"
+            $expectedRawDigest = Get-NSSha256HexOfText $expectedRawPreFixup
             Expect-True ($r2Record.rawDigest -eq $expectedRawDigest) `
-                "R2 rawDigest matches sha256 of the redacted text before the trailing-newline fixup (expected $expectedRawDigest, got $($r2Record.rawDigest))"
+                "R2 rawDigest matches sha256 of the supplied text before the trailing-newline fixup (expected $expectedRawDigest, got $($r2Record.rawDigest))"
         }
     }
 
@@ -544,17 +538,6 @@ try {
     Expect-True ($sevRun.ExitCode -eq 2) "invalid severity rejects with exit 2 (got $($sevRun.ExitCode))"
     Expect-True ($sevRun.StderrText.Trim() -eq 'evidence: invalid severity') `
         "invalid severity stderr is exact (got '$($sevRun.StderrText.Trim())')"
-
-    # secret in action
-    $secretProject = New-EvidenceScratchProject (Join-Path $root 'reject-secret')
-    $null = Invoke-EvidenceNative -ProjectPath $secretProject -Command init
-    $secretRecord = '{"id":"X2","domain":"tests","sourceClass":"shell","source":"npm test","scope":"repo",' + `
-        '"severity":"medium","confidence":"high","impact":"developer","status":"open","ladder":"declared",' + `
-        '"locator":"tests/x2.spec.js","host":"claude","workTarget":"test-target","action":"token=abcd1234"}'
-    $secretRun = Invoke-EvidenceNative -ProjectPath $secretProject -Command append -Record $secretRecord
-    Expect-True ($secretRun.ExitCode -eq 2) "secret in action rejects with exit 2 (got $($secretRun.ExitCode))"
-    Expect-True ($secretRun.StderrText.Trim() -eq 'evidence: record contains a secret pattern') `
-        "secret in action stderr is exact (got '$($secretRun.StderrText.Trim())')"
 
     # remote locator without untrusted
     $remoteProject = New-EvidenceScratchProject (Join-Path $root 'reject-remote-locator')

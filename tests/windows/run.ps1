@@ -465,7 +465,7 @@ try {
     $exportSupportLogic = Join-Path $PSScriptRoot 'export-support-logic.ps1'
     $exportSupportLogicRun = Invoke-TestScript $exportSupportLogic
     Assert-Equal 0 $exportSupportLogicRun.ExitCode `
-        "export-support redaction: $($exportSupportLogicRun.Stdout) $($exportSupportLogicRun.Stderr)"
+        "export-support allowlist: $($exportSupportLogicRun.Stdout) $($exportSupportLogicRun.Stderr)"
     $writeReceiptLogic = Join-Path $PSScriptRoot 'write-receipt-logic.ps1'
     $writeReceiptLogicRun = Invoke-TestScript $writeReceiptLogic
     Assert-Equal 0 $writeReceiptLogicRun.ExitCode `

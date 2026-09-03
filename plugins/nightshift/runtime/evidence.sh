@@ -6,13 +6,12 @@
 # Validates records. Does not verify a Nightshift tick or interpret domain meaning.
 # Exit: 0 ok · 1 usage · 2 contract failure
 #
-# The ledger logic is bash. jq (preferred) or python3 covers exactly three jobs: reading the
-# JSON inputs (the v1 schema, the --record argument, every ledger line), writing a record back
-# as compact canonical JSON, and the two case-insensitive passes of the secret pattern. Every
-# decision — which defaults apply, which contract errors fire and in what order, which record
-# a disposition touches, what a render prints — happens here. A record travels as its own
-# canonical JSON text, one line each, so the ledger on disk and the ledger in hand are the
-# same bytes.
+# The ledger logic is bash. jq (preferred) or python3 covers exactly two jobs: reading the
+# JSON inputs (the v1 schema, the --record argument, every ledger line) and writing a record
+# back as compact canonical JSON. Every decision — which defaults apply, which contract
+# errors fire and in what order, which record a disposition touches, what a render prints —
+# happens here. A record travels as its own canonical JSON text, one line each, so the
+# ledger on disk and the ledger in hand are the same bytes.
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -27,10 +26,6 @@ VT=$(printf '\013')
 FF=$(printf '\014')
 FS=$(printf '\037')
 RS=$(printf '\036')
-
-# Applied case-insensitively, to the canonical JSON of a record and to raw output.
-SECRET_RE='(api[_-]?key|secret|token|password|authorization:\s*bearer)\s*[:=]\s*\S+'
-SECRET_RE="$SECRET_RE"'|-----BEGIN [A-Z ]*PRIVATE KEY-----'
 
 # Field slots in the fact stream. The order is the slot number; evidence-emit.jq is told the
 # same list, so both halves agree without either hard-coding the other.
@@ -298,13 +293,9 @@ _pick_json_tool() {
 }
 
 PY='
-import json, re, sys
+import json, sys
 
 OP = sys.argv[1]
-SECRET = re.compile(
-    r"(?i)(api[_-]?key|secret|token|password|authorization:\s*bearer)\s*[:=]\s*\S+"
-    r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
-)
 
 
 def canon(o):
@@ -358,13 +349,6 @@ elif OP == "check":
 elif OP == "canonlines":
     for line in lines:
         out.append(canon(json.loads(line)))
-elif OP == "secret":
-    for line in lines:
-        out.append("1" if SECRET.search(line) else "0")
-elif OP == "redact":
-    sys.stdout.buffer.write(
-        SECRET.sub("[redacted]", text).encode("utf-8", "surrogateescape")
-    )
 elif OP == "tojson":
     sys.stdout.write(canon(text))
 elif OP == "schema":
@@ -462,24 +446,6 @@ _canon_lines() {
   fi
 }
 
-# _secret_lines FILE — "1" or "0" per line, saying whether the secret pattern is in it.
-_secret_lines() {
-  if [ "$JSON_TOOL" = jq ]; then
-    jq -Rr --arg re "$SECRET_RE" 'if test($re; "i") then "1" else "0" end' <"$1"
-  else
-    python3 -c "$PY" secret <"$1"
-  fi
-}
-
-# _redact IN OUT — every match of the secret pattern replaced by [redacted].
-_redact() {
-  if [ "$JSON_TOOL" = jq ]; then
-    jq -Rsj --arg re "$SECRET_RE" 'gsub($re; "[redacted]"; "i")' <"$1" >"$2"
-  else
-    python3 -c "$PY" redact <"$1" >"$2"
-  fi
-}
-
 # _json_str TEXT -> JSONSTR, the text as a JSON string, in this backend's own escaping.
 _json_str() {
   printf '%s' "$1" >"$TMPD/str"
@@ -550,7 +516,6 @@ F_TYPE=()
 F_REQ=()
 F_HAS=()
 F_SV1=()
-F_SECRET=()
 F_ID=()
 F_SEVERITY=()
 F_CONFIDENCE=()
@@ -613,7 +578,7 @@ _read_ledger() {
 
 # _load_facts FILE BASE — read the fact stream for the canonical records in FILE.
 _load_facts() {
-  local base="$2" line kind idx rest slot flag i
+  local base="$2" line kind idx rest slot
   if [ "$JSON_TOOL" = jq ]; then
     _jq_args facts
     jq -sr -f "$EMIT_JQ" "${JQARGS[@]}" <"$1" >"$TMPD/facts"
@@ -652,12 +617,6 @@ _load_facts() {
         ;;
     esac
   done <"$TMPD/facts"
-  i="$base"
-  _secret_lines "$1" >"$TMPD/secret"
-  while IFS= read -r flag; do
-    F_SECRET[i]="$flag"
-    i=$((i + 1))
-  done <"$TMPD/secret"
 }
 
 # _load_rows FILE BASE — read the printable columns for the canonical records in FILE.
@@ -732,7 +691,6 @@ _validate() {
         ERRORS="${ERRORS}remote locator requires untrusted=true$NL"
       ;;
   esac
-  [ "${F_SECRET[$i]}" = 0 ] || ERRORS="${ERRORS}record contains a secret pattern$NL"
   if [ "$hasprev" = 1 ]; then
     _ladder_rank "$prevladder"
     old="$LRANK"
@@ -899,11 +857,10 @@ _cmd_append() {
     _join "$NS" "$rawpath"
     rawabs="$JOINED"
     printf '%s' "$RAW" >"$TMPD/raw"
-    _redact "$TMPD/raw" "$TMPD/redacted"
-    cp "$TMPD/redacted" "$rawabs.tmp"
-    _ends_nl "$TMPD/redacted" || printf '\n' >>"$rawabs.tmp"
+    cp "$TMPD/raw" "$rawabs.tmp"
+    _ends_nl "$TMPD/raw" || printf '\n' >>"$rawabs.tmp"
     mv "$rawabs.tmp" "$rawabs"
-    _sha256_file "$TMPD/redacted"
+    _sha256_file "$TMPD/raw"
     ops="${RS}rawPath${FS}s${FS}$rawpath${RS}rawDigest${FS}s${FS}$DIGEST"
     _edit_rec "$TMPD/three" "$TMPD/four" "$ops"
     IFS= read -r line <"$TMPD/four"

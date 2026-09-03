@@ -97,6 +97,7 @@ else {
 # The resolved view, never the policy files themselves. Owner free-form text and
 # any value over 80 characters ship as their length: the bundle carries where a
 # setting came from and when it expires, never what the owner wrote.
+# Known sensitive fields are omitted. This is not a complete sanitization.
 $policyFreeForm = @('forbiddenCommands', 'protectedDirs', 'neverCommitPatterns', 'expectedEmail')
 $policyLines = New-Object Collections.Generic.List[string]
 $policyState = 'unreadable'
@@ -276,6 +277,41 @@ foreach ($policyLine in $policyLines) {
     $null = $lines.Add($policyLine)
 }
 $null = $lines.Add('')
+$null = $lines.Add('== evidence summary ==')
+$null = $lines.Add((Get-NSEvidenceCountSummary $workspace))
+$watchMinutes = 0
+try {
+    $watchMinutes = [int](Get-NSRule $workspace 'watchMinutes' '')
+}
+catch {
+    $watchMinutes = 0
+}
+$null = $lines.Add(('liveness: {0}' -f (Get-NSStatusLiveness $workspace $watchMinutes)))
+$activity = Get-NSStatusLastActivity $workspace
+$null = $lines.Add(('last activity: {0}' -f $(if ($activity.Length -gt 0) { $activity } else { 'none' })))
+$null = $lines.Add(('last checkpoint: {0}' -f (Get-NSGateCheckpointToken $workspace)))
+$null = $lines.Add(('stall attempts: {0}' -f (Get-NSStatusStallAttempts $workspace)))
+$invPath = Join-Path $ns 'capabilities.json'
+if ((Test-Path -LiteralPath $invPath -PathType Leaf) -and -not (Test-NSReparsePoint $invPath)) {
+    try {
+        $invDoc = Get-Content -LiteralPath $invPath -Raw | ConvertFrom-Json -ErrorAction Stop
+        $invCount = 0
+        if ($null -ne $invDoc.PSObject.Properties['items'] -and $null -ne $invDoc.items) {
+            $invCount = @($invDoc.items).Count
+        }
+        $null = $lines.Add("inventory items: $invCount")
+    }
+    catch {
+        $null = $lines.Add('inventory items: omitted')
+    }
+}
+else {
+    $null = $lines.Add('inventory items: omitted')
+}
+$null = $lines.Add('')
+$null = $lines.Add('== runtime log ==')
+$null = $lines.Add('omitted')
+$null = $lines.Add('')
 $null = $lines.Add('== watchman reason ==')
 if (-not [string]::IsNullOrEmpty($reason)) {
     $null = $lines.Add("code: $reason")
@@ -283,35 +319,6 @@ if (-not [string]::IsNullOrEmpty($reason)) {
 }
 else {
     $null = $lines.Add('code: none')
-}
-$null = $lines.Add('')
-$null = $lines.Add('== runtime log tail ==')
-$logPath = Join-Path $ns 'scheduled.log'
-if ((Test-Path -LiteralPath $logPath -PathType Leaf) -and -not (Test-NSReparsePoint $logPath)) {
-    $tailOk = 0
-    $tailSkip = 0
-    $allLines = [IO.File]::ReadAllLines($logPath)
-    $start = [Math]::Max(0, $allLines.Count - 40)
-    for ($i = $start; $i -lt $allLines.Count; $i++) {
-        $line = [string]$allLines[$i]
-        if ($hostPath -ne $workspace) {
-            $line = $line.Replace($hostPath, $workspace)
-        }
-        $sanitized = Convert-NSSanitizedLine $line $homeRoot $workspace $target
-        if ($null -eq $sanitized) {
-            $tailSkip++
-        }
-        else {
-            $null = $lines.Add($sanitized)
-            $tailOk++
-        }
-    }
-    if ($tailOk -eq 0 -and $tailSkip -gt 0) {
-        $null = $lines.Add('omitted: every line failed sanitization')
-    }
-}
-else {
-    $null = $lines.Add('absent')
 }
 
 try {
@@ -327,7 +334,7 @@ catch {
 }
 
 Write-Output "Support bundle: $dest"
-Write-Output 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, the resolved policy view, reason codes, sanitized runtime-log tail'
-Write-Output 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory, policy files'
-Write-Output 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.'
+Write-Output 'Included: plugin version, markers, the resolved policy view, counts'
+Write-Output 'Omitted: scheduled.log, evidence ledger raw output, known sensitive fields, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, capability inventory contents, policy files'
+Write-Output 'Known sensitive fields are omitted. Inspect the file before sharing. Never uploaded, attached, or opened automatically.'
 exit 0

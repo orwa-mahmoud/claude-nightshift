@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# export-support.sh — write one redacted local support bundle.
+# export-support.sh — write one local support bundle of allowlisted fields.
 #
 # Explicit owner action after Doctor. Never upload, transmit, attach, or open
 # the file. Doctor itself stays read-only and must not invoke this.
+# Known sensitive fields are omitted. This is not a complete sanitization.
 #
 #   export-support.sh [--project DIR]
 #
@@ -91,8 +92,8 @@ else
 fi
 
 # The resolved view, never the policy files themselves. The four owner free-form rule
-# patterns are always redacted to their length, whatever it is; any other setting's value is
-# redacted the same way only past 80 characters. Sources and expiries always ship. The jq half
+# patterns always ship as their length, whatever it is; any other setting's value is
+# omitted the same way only past 80 characters. Sources and expiries always ship. The jq half
 # sits next to this file, resolved without dirname so a hostile PATH cannot reach it.
 NS_EXPORT_POLICY_JQ="$_here/export-policy.jq"
 NS_EXPORT_POLICY_PY='
@@ -249,35 +250,14 @@ dest="$outdir/${stamp}.txt"
   else
     printf 'inventory items: omitted\n'
   fi
+  printf '\n== runtime log ==\n'
+  printf 'omitted\n'
   printf '\n== watchman reason ==\n'
   if [ -n "$REASON" ]; then
     printf 'code: %s\n' "$REASON"
     printf 'label: %s\n' "$REASON_LABEL"
   else
     printf 'code: none\n'
-  fi
-  printf '\n== runtime log tail ==\n'
-  if [ -f "$NS/scheduled.log" ] && [ ! -L "$NS/scheduled.log" ]; then
-    tail_ok=0
-    tail_skip=0
-    while IFS= read -r line || [ -n "$line" ]; do
-      if [ "$PROJECT" != "$WORKSPACE" ]; then
-        line="$(printf '%s' "$line" | sed "s#$(ns_sed_escape "$PROJECT")#$(ns_sed_escape "$WORKSPACE")#g")"
-      fi
-      if sanitized="$(ns_sanitize_line "$line" "$HOME_ROOT" "$WORKSPACE" "$TARGET")"; then
-        printf '%s\n' "$sanitized"
-        tail_ok=$((tail_ok + 1))
-      else
-        tail_skip=$((tail_skip + 1))
-      fi
-    done <<EOF
-$(tail -n 40 "$NS/scheduled.log" 2>/dev/null)
-EOF
-    if [ "$tail_ok" -eq 0 ] && [ "$tail_skip" -gt 0 ]; then
-      printf 'omitted: every line failed sanitization\n'
-    fi
-  else
-    printf 'absent\n'
   fi
 } >"$tmp" || {
   rm -f "$tmp"
@@ -297,7 +277,7 @@ mv "$tmp" "$dest" || {
 }
 
 printf 'Support bundle: %s\n' "$dest"
-printf 'Included: plugin metadata, host, state version, tokenized identities, marker and lease state, rules validity and key names, the resolved policy view, redacted evidence summary, reason codes, sanitized runtime-log tail\n'
-printf 'Omitted: environment, secrets, rule values, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, evidence ledger raw output, capability inventory contents, policy files\n'
-printf 'Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
+printf 'Included: plugin version, markers, the resolved policy view, counts\n'
+printf 'Omitted: scheduled.log, evidence ledger raw output, known sensitive fields, repository contents, diffs, transcripts, prompts, owner files, credentials, network, session identities, lease capabilities, capability inventory contents, policy files\n'
+printf 'Known sensitive fields are omitted. Inspect the file before sharing. Never uploaded, attached, or opened automatically.\n'
 exit 0

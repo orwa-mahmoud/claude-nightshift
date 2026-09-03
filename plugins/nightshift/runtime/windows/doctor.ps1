@@ -616,7 +616,7 @@ if (-not [string]::IsNullOrEmpty($tpath) -and -not (Test-Path -LiteralPath $tpat
     Add-NSWarn 'recorded transcript/rollout path is not a readable file'
 }
 
-Add-NSAct confirm "export a redacted local support bundle with $(Join-Path $here 'export-support.ps1') - written under $(Join-Path $ns 'support'), never uploaded"
+Add-NSAct confirm "export a local support bundle with $(Join-Path $here 'export-support.ps1') - written under $(Join-Path $ns 'support'), never uploaded"
 Add-NSAct blocked 'Doctor never repairs, arms, stops, revives, or deletes'
 
 Write-NSDoctorReport -NightshiftLabel 'present' -Target $target -HostRec $hostRec `

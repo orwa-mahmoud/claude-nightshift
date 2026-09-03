@@ -1,4 +1,4 @@
-# The resolved-policy line for one support bundle, redacted.
+# The resolved-policy line for one support bundle. Known sensitive fields ship as length.
 #
 # export-support.sh never ships a policy file, only this view: for every effective setting,
 # its value, source, and expiry — except the four owner free-form rule patterns
