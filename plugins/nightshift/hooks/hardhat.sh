@@ -163,9 +163,6 @@ own_rc=$?
 # observable PreToolUse call here; tools the host does not expose to hooks remain outside it.
 TOOL_RULES="$(ns_tool_rules "$PROJECT_DIR" "${NIGHTSHIFT_TOOL_RULES:-}")"
 if ns_hardhat_tool_deny_broken; then
-  if [ "$TOOL_RULES" = "__nightshift_tool_rules_parser_missing__" ]; then
-    deny "BLOCKED: toolDeny cannot be read exactly because neither jq nor python3 is available. Install one parser before running an armed shift."
-  fi
   deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)."
 fi
 

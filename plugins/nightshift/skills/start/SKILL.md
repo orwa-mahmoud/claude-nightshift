@@ -209,13 +209,15 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `date +%Y-%m-%d` on POSIX, or `Get-Date -Format yyyy-MM-dd` on native Windows) and start a fresh one
  with the same one-line header. Only the mechanical journal auto-rotates — `snag-log.md` and
  `parking-lot.md` are the owner's review material; Archive files those on the owner's order.
-- **Require an exact JSON parser for tool rules.** `jq` or `python3` must be available before
- arming; without either, refuse to arm and name the missing prerequisite. The hardhat never
- approximates `toolDeny` with text matching. Native Windows uses PowerShell's built-in
- `ConvertFrom-Json`, so neither external parser is required there.
+- **Read `rules.json` before arming.** On POSIX, run
+ `bash -c '. "$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh"; ns_rules_check "$NIGHTSHIFT_WORKSPACE"'`.
+ Status 0 the file is the accepted shape. Status 1 prints one named reason — refuse to arm
+ and name that reason. Status 3 the file is missing — refuse to arm and point at Setup.
+ Native Windows uses PowerShell's built-in `ConvertFrom-Json` (not PowerShell 7). The hardhat
+ never approximates `toolDeny` with text matching.
 - **New knobs check:** if `$NS/rules.json` exists, compare the shipped template's
- top-level keys and nested `toolDeny` keys against the same objects in the file (`jq -r 'keys[]'`
- on each, or equivalent Python when jq is absent; on native Windows,
+ top-level keys and nested `toolDeny` keys against the same objects in the file
+ (`ns_rules_keys` on POSIX; on native Windows,
  `(Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json).PSObject.Properties.Name`
  and `.toolDeny.PSObject.Properties.Name`). Keys the template has that the file lacks mean
  a plugin update brought new knobs — say so once and point at Setup to review them; never add

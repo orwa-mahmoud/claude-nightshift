@@ -325,39 +325,17 @@ if [ "$DRAFTS" -gt 0 ] && [ "$ARMED" -eq 0 ]; then
 fi
 
 json_is_object() {
-  if command -v jq >/dev/null 2>&1; then
-    jq -e 'type == "object"' "$1" >/dev/null 2>&1
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d, dict) else 1)' "$1" 2>/dev/null
-  else
-    return 1
-  fi
+  ns_rules_load "$1"
 }
 
 json_tool_rule_state() { # $1 = rules file, $2 = exact tool name
-  if command -v jq >/dev/null 2>&1; then
-    jq -r --arg tool "$2" '
-      if (.toolDeny | type) != "object" then "invalid"
-      elif (.toolDeny | has($tool) | not) then "missing"
-      elif (.toolDeny[$tool] | type) != "string" then "invalid"
-      elif .toolDeny[$tool] == "" then "allow"
-      else "deny"
-      end
-    ' "$1" 2>/dev/null
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys
-d=json.load(open(sys.argv[1])); rules=d.get("toolDeny"); tool=sys.argv[2]
-print("invalid" if not isinstance(rules,dict) else "missing" if tool not in rules else "invalid" if not isinstance(rules[tool],str) else "allow" if rules[tool]=="" else "deny")' "$1" "$2" 2>/dev/null
-  fi
+  ns_rules_tool_state "$1" "$2"
 }
 
 RULES="$NS/rules.json"
 if [ ! -f "$RULES" ]; then
   warn "rules.json is missing — watchman will refuse to arm"
   act confirm "re-run setup and accept the shipped rules template"
-elif ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
-  warn "rules.json cannot be validated — neither jq nor python3 is available"
-  act blocked "install jq or python3 before arming; toolDeny never falls back to text matching"
 elif json_is_object "$RULES"; then
   fact "rules.json is a JSON object"
   wm="$(rule "$WORKSPACE" watchMinutes "")"
@@ -392,7 +370,11 @@ elif json_is_object "$RULES"; then
     esac
   done
 else
-  warn "rules.json is unreadable or not a JSON object"
+  if [ -n "$NS_RULES_ERR" ]; then
+    warn "rules.json is unreadable or not a JSON object ($NS_RULES_ERR)"
+  else
+    warn "rules.json is unreadable or not a JSON object"
+  fi
   act confirm "fix $NS/rules.json or re-run setup — never half-apply a broken file"
 fi
 

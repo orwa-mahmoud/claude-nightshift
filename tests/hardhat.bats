@@ -767,18 +767,19 @@ STUB
   printf '%s' "$out" | grep -q "park"
 }
 
-@test "tool rules fail closed when neither JSON parser exists" {
+@test "tool rules still deny the question tool without jq or python3" {
   p="$(new_project)"
   punch_open "$p"
   noparser="$BATS_TEST_TMPDIR/no-rules-parser"
   mkdir -p "$noparser"
-  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git; do
+  for t in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git cksum; do
     command -v "$t" >/dev/null && ln -sf "$(command -v "$t")" "$noparser/$t"
   done
-  out="$(jq -nc '{tool_name:"WebFetch",tool_input:{url:"https://example.com"}}' |
+  out="$(jq -nc '{tool_name:"AskUserQuestion",tool_input:{}}' |
     env PATH="$noparser" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
-  printf '%s' "$out" | grep -q "neither jq nor python3"
+  printf '%s' "$out" | grep -q "park"
+  ! printf '%s' "$out" | grep -q "jq or python3"
 }
 
 # ---- one copy: the rules file IS the config; env is only a session-start override ----

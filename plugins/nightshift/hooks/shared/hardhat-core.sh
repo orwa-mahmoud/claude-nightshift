@@ -400,8 +400,8 @@ ns_hardhat_payload_targets_lease() {
   rc=$?
   [ "$rc" -eq 0 ] && return 0
   [ "$rc" -eq 2 ] || return 1
-  # Start requires jq or python3. If that parser disappears mid-shift, unknown local tools fail
-  # closed rather than letting a helper conversation address the lease through an opaque payload.
+  # If toolDeny cannot be read exactly, unknown local tools fail closed rather than letting a
+  # helper conversation address the lease through an opaque payload.
   case "$1" in
     AskQuestion | AskUserQuestion | request_user_input | WebFetch | WebSearch | Task | TodoWrite) return 1 ;;
     *) return 0 ;;
@@ -489,27 +489,11 @@ ns_hardhat_scrub() {
 
 ns_hardhat_rules_has() {
   [ -n "${TOOL_RULES:-}" ] || return 1
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | jq -e --arg t "$1" 'has($t)' >/dev/null 2>&1
-  elif command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-sys.exit(0 if sys.argv[1] in d else 1)' "$1" >/dev/null 2>&1
-  else
-    return 1
-  fi
+  ns_rules_map_has "$TOOL_RULES" "$1"
 }
 
 ns_hardhat_rules_msg() {
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | jq -r --arg t "$1" '.[$t] // empty' 2>/dev/null
-  elif command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-print(d.get(sys.argv[1],""))' "$1" 2>/dev/null
-  else
-    return 1
-  fi
+  ns_rules_map_msg "$TOOL_RULES" "$1"
 }
 
 ns_hardhat_tool_deny_broken() {
@@ -517,15 +501,7 @@ ns_hardhat_tool_deny_broken() {
   case "$TOOL_RULES" in
     __nightshift_invalid_tool_rules__ | __nightshift_tool_rules_parser_missing__) return 0 ;;
   esac
-  if command -v jq >/dev/null 2>&1; then
-    ! printf '%s' "$TOOL_RULES" | jq -e 'type == "object" and all(.[]; type == "string")' >/dev/null 2>&1
-  elif command -v python3 >/dev/null 2>&1; then
-    ! printf '%s' "$TOOL_RULES" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-sys.exit(0 if isinstance(d,dict) and all(isinstance(v,str) for v in d.values()) else 1)' >/dev/null 2>&1
-  else
-    return 0
-  fi
+  ! ns_rules_map_parse "$TOOL_RULES"
 }
 
 ns_hardhat_tool_deny_reason() {
