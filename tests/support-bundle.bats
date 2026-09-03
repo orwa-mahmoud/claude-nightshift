@@ -211,7 +211,7 @@ with open(p,"w") as f: json.dump(d,f)
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF '== resolved policy ==' "$bundle"
   grep -qF 'shift_policy: absent' "$bundle"
-  grep -qF 'verificationLevel=per-item (built-in, -)' "$bundle"
+  grep -qF 'verificationLevel=none (built-in, -)' "$bundle"
   grep -qF 'toolingPolicy=existing-tools (built-in, -)' "$bundle"
   grep -qF 'elevation.sudo=deny (rules, permanent)' "$bundle"
   grep -qF 'watchMinutes=10 (rules, permanent)' "$bundle"
@@ -263,7 +263,7 @@ with open(p, "w") as f:
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'shift_policy: malformed' "$bundle"
-  grep -qF 'verificationLevel=per-item (built-in, -)' "$bundle"
+  grep -qF 'verificationLevel=none (built-in, -)' "$bundle"
   ! grep -F 'truncated' "$bundle"
 }
 

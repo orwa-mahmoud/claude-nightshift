@@ -102,10 +102,11 @@ ns_policy_default_pattern() {
 }
 
 # ns_policy_builtin <setting> — the lowest-precedence value, as compact JSON. Nothing decides
-# from a constant the resolved view does not print.
+# from a constant the resolved view does not print. verificationLevel is the shipped
+# fast profile: no gate cadence unless the owner or a profile sets one.
 ns_policy_builtin() {
   case "$1" in
-    verificationLevel) printf '"per-item"' ;;
+    verificationLevel) printf '"none"' ;;
     toolingPolicy) printf '"existing-tools"' ;;
     deadlineEpoch) printf 'null' ;;
     elevation.*) printf '"deny"' ;;

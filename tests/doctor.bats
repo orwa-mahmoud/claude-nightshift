@@ -506,7 +506,7 @@ EOF
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'resolved policy'
-  printf '%s' "$output" | grep -qF 'verificationLevel=per-item (built-in, -)'
+  printf '%s' "$output" | grep -qF 'verificationLevel=none (built-in, -)'
   printf '%s' "$output" | grep -qF 'toolingPolicy=existing-tools (built-in, -)'
   printf '%s' "$output" | grep -qF 'deadlineEpoch=null (built-in, -)'
   printf '%s' "$output" | grep -qF 'elevation.sudo=deny (rules, permanent)'
@@ -546,7 +546,7 @@ EOF
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'shift-policy.json is malformed (shiftId is missing); the shift resolves to built-in defaults and rules only'
   printf '%s' "$output" | grep -q '\[confirm\].*repair the named field in shift-policy.json'
-  printf '%s' "$output" | grep -qF 'verificationLevel=per-item (built-in, -)'
+  printf '%s' "$output" | grep -qF 'verificationLevel=none (built-in, -)'
 }
 
 @test "Doctor warns when the deadline file disagrees with the shift-policy deadlineEpoch" {

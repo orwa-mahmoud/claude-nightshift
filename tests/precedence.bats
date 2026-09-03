@@ -293,7 +293,7 @@ bound_plan() { # <project> <deadline JSON> <command>...
   ! printf '%s' "$output" | grep -qF '"source":"defaults"'
   # The remembered choices prefill the next question; they do not decide tonight.
   [ "$(setting "$p" toolingPolicy)" = 'existing-tools|built-in|-' ]
-  [ "$(setting "$p" verificationLevel)" = 'per-item|built-in|-' ]
+  [ "$(setting "$p" verificationLevel)" = 'none|built-in|-' ]
   # Once a composition step copies a choice into the policy, the policy is the source.
   policy "$p" ''
   [ "$(setting "$p" toolingPolicy)" = 'existing-tools|one-shift|shift' ]
@@ -336,7 +336,7 @@ bound_plan() { # <project> <deadline JSON> <command>...
   # A hand edit that breaks one field: the archived snapshot must not stand in for it.
   jq '.verificationLevel = "loud"' "$archived" >"$p/.nightshift/shift-policy.json"
   [ "$(setting "$p" elevation.containers)" = 'deny|rules|permanent' ]
-  [ "$(setting "$p" verificationLevel)" = 'per-item|built-in|-' ]
+  [ "$(setting "$p" verificationLevel)" = 'none|built-in|-' ]
   [ "$(setting "$p" toolingPolicy)" = 'existing-tools|built-in|-' ]
   [ "$(allowed "$p" containers 'docker compose up')" = 1 ]
 
