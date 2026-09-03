@@ -126,8 +126,10 @@ JSON
   grep -qF 'Do not call `shift-planner.sh`' "$hunt"
 }
 
-@test "Quality Automatic still documents planner helpers" {
+@test "Quality Automatic does not require the planner or preview helpers" {
   quality="$ROOT/plugins/nightshift/skills/quality/SKILL.md"
-  grep -qF 'runtime/shift-planner.sh' "$quality"
-  grep -qF 'runtime/shift-preview.sh' "$quality"
+  ! grep -qF 'runtime/shift-planner.sh' "$quality"
+  ! grep -qF 'runtime/shift-preview.sh' "$quality"
+  ! grep -qF 'runtime/plan-learning.sh' "$quality"
+  grep -qF 'Do not call `shift-planner.sh`' "$quality"
 }

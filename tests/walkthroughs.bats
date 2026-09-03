@@ -148,6 +148,16 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   ! grep -qF 'python3' "$HUNT"
 }
 
+@test "quality routes a feature objective to Hunt and drops Python compose" {
+  quality="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  grep -qF 'continue as Hunt / Product Evolution' "$quality"
+  grep -qF 'Do not show Quality catalog cards' "$quality"
+  grep -qF 'Do not call `shift-planner.sh`' "$quality"
+  grep -qF 'unavailable' "$quality"
+  ! grep -qF 'python3' "$quality"
+  ! grep -qF 'runtime/quality-workflow.sh' "$quality"
+}
+
 @test "hunt separates selection mode from launch mode" {
   grep -qi 'Guided' "$HUNT"
   grep -qi 'Automatic' "$HUNT"

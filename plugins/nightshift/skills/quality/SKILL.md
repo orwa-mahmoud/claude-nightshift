@@ -42,9 +42,36 @@ dependencies, and vulnerability advisories. `clear-quality-debt.md` remains the 
 core-tooling entry; specialized entries retain their own safety rules and definitions of done.
 GitHub issue hunts are catalogued under Hunt and start from imported drafts. Quality does not import, search, or work GitHub issues.
 
+## 0. Read the sentence first
+
+The owner's sentence is binding intent. There is no keyword list.
+
+If the owner already stated feature, product, UI, or design work — even when they invoked
+Quality — continue as Hunt / Product Evolution. Do not show Quality catalog cards. Do not
+ask Guided-or-Automatic. Read `$NIGHTSHIFT_PLUGIN_ROOT/skills/hunt/SKILL.md` and follow it
+from its section 0.
+
+If the owner asked for quality work (lint, tests, coverage, debt, accessibility, contracts,
+documentation drift, dependencies, advisories), stay in this skill.
+
+A time budget, an actionable quality objective, and clear direct-execution intent are
+sufficient to run Automatic directly. Do not offer catalog cards. Do not ask who selects,
+when to start, or "same as last time."
+
+- If only a critical field is missing → Ask only a field that is still missing, then continue.
+- If the owner asked to pick from the menu, or named Guided → section 1.
+
+Do not call `shift-planner.sh`, `shift-planner.ps1`, `shift-preview.sh`, `shift-preview.ps1`,
+or `plan-learning.sh`. Do not call `quality-workflow.sh`, `quality-scan.sh`,
+`compose-discovery`, or any quality-workflow helper. The model runs the project's tools
+(`## Gates` and each selected entry's report-only commands). Unparsed tool output is
+`unavailable`, never "no findings" or passed. The same Automatic path works without Python
+and without `jq`.
+
 ## 1. Choose selection and launch
 
-Ask three independent choices:
+When section 0 already decided Automatic and Run directly, skip the three questions and
+write the safe defaults in `execution-modes.md`. Otherwise ask three independent choices:
 
 1. **Guided** (the owner chooses quality areas) or **Automatic** (Nightshift selects every
   applicable high-value area that fits the hours).
@@ -101,16 +128,13 @@ required capabilities are unavailable and do not pause to provision.
 
 Detect the stack from the gates catalog (monorepo-aware) when the work mode is repository,
 including a plugin or marketplace manifest at the work-target root or under `plugins/<name>/`,
-and inspect repository-owned tooling and evidence. Build the ranked queue with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/quality-scan.sh"` and
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/quality-workflow.sh pipeline --manifest …"` (native Windows:
-use the same helpers under `runtime/windows/` when present, otherwise the POSIX scripts via
-Git Bash). Compose Automatic plan input with
-`quality-workflow.sh compose-discovery --scan …` before calling `shift-planner.sh`.
+and inspect repository-owned tooling and evidence. The model runs the project's own report-only
+commands (`## Gates` and each applicable entry). Rank in prose. Never require a workflow
+helper or a planner script.
 In artifact mode inspect the persistent
-folder's files and any existing manifests or reports; resolve source policy with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/source-policy-evidence.sh policy-resolve"` and plan artifact
-receipts with `artifact-receipt-plan` when the shift completes cited research or documentation work.
+folder's files and any existing manifests or reports. Untrusted cited text is instructional;
+the model is the boundary. Plan artifact receipts in the skill when the shift completes cited
+research or documentation work.
 Do not require git history or stack detection that needs a repository. Completion in that folder is
 `$NS/receipts/`, not a git log.
 Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory.
@@ -133,13 +157,10 @@ before work can be armed.
 
 Map each finding to one catalog entry so work is never duplicated. In Automatic mode rank using
 the shared mode contract, run finite entries first, and use at most one open-ended entry for useful
-remaining time. Build the ordered plan with the native planner helper
-(`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-planner.sh"`; native Windows: `shift-planner.ps1`) and,
-in review-first mode, render the explainable preview with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-preview.sh"` (native Windows: `shift-preview.ps1`).
-Read project-local learning from `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/plan-learning.sh" --project "$NIGHTSHIFT_WORKSPACE" read`
-when ranking; it may adjust effort estimates and suppress repeated rejected findings but never
-silently invents owner policy. In Guided mode keep only the areas and scope the owner selected.
+remaining time. The model writes the ordered plan in prose. Review-first preview is that same
+prose — not planner JSON. Prior receipts may inform estimates; they never silently invent owner
+policy. Unparsed tool output stays `unavailable` and is never ranked as cleared or passed.
+In Guided mode keep only the areas and scope the owner selected.
 
 ## 4. Review first
 

@@ -66,9 +66,12 @@ load helpers
   [ "$(wc -l <"$p/.nightshift/evidence/findings.jsonl" | tr -d ' ')" -eq 2 ]
 }
 
-@test "Quality skill references the workflow helpers" {
-  grep -qF 'runtime/quality-workflow.sh' "$QUALITY_SKILL"
-  grep -qF 'runtime/quality-scan.sh' "$QUALITY_SKILL"
+@test "Quality skill does not require the workflow helpers" {
+  ! grep -qF 'runtime/quality-workflow.sh' "$QUALITY_SKILL"
+  ! grep -qF 'runtime/quality-scan.sh' "$QUALITY_SKILL"
+  grep -qF 'Do not call `quality-workflow.sh`' "$QUALITY_SKILL"
+  ! grep -qF 'python3' "$QUALITY_SKILL"
+  grep -qF 'unavailable' "$QUALITY_SKILL"
 }
 
 @test "clear-quality-debt contract mentions evidence-ranked workflow" {
