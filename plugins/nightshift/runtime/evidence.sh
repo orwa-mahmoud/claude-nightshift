@@ -87,15 +87,48 @@ usage() {
 
 # ---------------------------------------------------------------- small helpers
 
-# _join DIR NAME -> JOINED, mirroring os.path.join for the two-argument case.
+# _join DIR NAME -> JOINED. NAME is always a leaf, never a path: an absolute
+# NAME stays under DIR. os.path.join's "rooted second argument wins" rule is
+# how an evidence id such as /tmp/nightshift-proof escaped .nightshift/.
 _join() {
-  case "$2" in
-    /*) JOINED="$2"; return 0 ;;
-  esac
   case "$1" in
     "" | */) JOINED="$1$2" ;;
     *) JOINED="$1/$2" ;;
   esac
+}
+
+# Evidence ids: a leading [A-Za-z0-9], then [A-Za-z0-9_-]* only.
+_valid_evidence_id() {
+  case "$1" in
+    '' | *[!A-Za-z0-9_-]*) return 1 ;;
+  esac
+  case "$1" in
+    [A-Za-z0-9]*) return 0 ;;
+  esac
+  return 1
+}
+
+# _contained_raw ID -> RAWPATH, RAWABS under .nightshift/. Resolves the parent
+# directory before the caller writes. Rejects anything that would escape.
+_contained_raw() {
+  local id="$1" parent ns_real dest_parent
+  _valid_evidence_id "$id" || return 1
+  _join evidence raw
+  _join "$JOINED" "$id.txt"
+  RAWPATH="$JOINED"
+  case "$RAWPATH" in
+    /* | *\\* | *..*) return 1 ;;
+  esac
+  _join "$NS" "$RAWPATH"
+  parent="${JOINED%/*}"
+  mkdir -p "$RAWDIR" || return 1
+  ns_real="$(cd -P "$NS" && pwd)" || return 1
+  dest_parent="$(cd -P "$parent" && pwd)" || return 1
+  case "$dest_parent" in
+    "$ns_real" | "$ns_real"/*) ;;
+    *) return 1 ;;
+  esac
+  RAWABS="$dest_parent/$id.txt"
 }
 
 # _strip_ws TEXT -> STRIPPED, mirroring str.strip() over ASCII whitespace.
@@ -228,19 +261,34 @@ _ends_nl() {
 
 _mktmp() {
   local base="${TMPDIR:-/tmp}" n=0 d
-  case "$base" in
-    */) base="${base%/}" ;;
-  esac
-  while [ "$n" -lt 64 ]; do
-    d="$base/ns-evidence-$$-$n"
-    if mkdir "$d" 2>/dev/null; then
-      TMPD="$d"
-      return 0
-    fi
-    n=$((n + 1))
-  done
-  printf 'evidence: cannot create a temporary directory\n' >&2
-  exit 2
+  if command -v mktemp >/dev/null 2>&1; then
+    TMPD="$(mktemp -d "${base%/}/ns-evidence.XXXXXX")" || {
+      printf 'evidence: cannot create a temporary directory\n' >&2
+      exit 2
+    }
+  else
+    case "$base" in
+      */) base="${base%/}" ;;
+    esac
+    while [ "$n" -lt 64 ]; do
+      d="$base/ns-evidence-$$-$n"
+      if mkdir "$d" 2>/dev/null; then
+        TMPD="$d"
+        break
+      fi
+      n=$((n + 1))
+    done
+    [ -n "${TMPD:-}" ] || {
+      printf 'evidence: cannot create a temporary directory\n' >&2
+      exit 2
+    }
+  fi
+  chmod 700 "$TMPD" || {
+    rm -rf "$TMPD"
+    TMPD=""
+    printf 'evidence: cannot create a temporary directory\n' >&2
+    exit 2
+  }
 }
 
 _cleanup() { [ -z "${TMPD:-}" ] || rm -rf "$TMPD"; }
@@ -705,7 +753,7 @@ _write_ledger() {
 
 # _validate I HASPREV PREVLADDER -> ERRORS, one contract failure per line, in schema order.
 _validate() {
-  local i="$1" hasprev="$2" prevladder="$3" bits key rest n=0 old new
+  local i="$1" hasprev="$2" prevladder="$3" bits key rest n=0 old new idjson
   ERRORS=""
   if [ "${F_TYPE[$i]}" != object ]; then
     ERRORS="record is not an object$NL"
@@ -726,6 +774,14 @@ _validate() {
   _has_line "$IMP_LIST" "${F_IMPACT[$i]}" || ERRORS="${ERRORS}invalid impact$NL"
   _has_line "$STAT_LIST" "${F_STATUS[$i]}" || ERRORS="${ERRORS}invalid status$NL"
   _has_line "$LADD_LIST" "${F_LADDER[$i]}" || ERRORS="${ERRORS}invalid ladder$NL"
+  case "${F_ID[$i]}" in
+    '"'*)
+      idjson="${F_ID[$i]}"
+      idjson="${idjson#\"}"
+      idjson="${idjson%\"}"
+      _valid_evidence_id "$idjson" || ERRORS="${ERRORS}invalid id$NL"
+      ;;
+  esac
   case "${F_LOCATOR[$i]}" in
     *"://"*)
       _py_truthy "${F_UNTRUSTED[$i]}" ||
@@ -807,7 +863,7 @@ _cmd_validate() {
 }
 
 _cmd_append() {
-  local hbits stype src srccmd srccls srctool ops i prev hasprev idstr rawpath rawabs line
+  local hbits stype src srccmd srccls srctool ops i prev hasprev idstr line
   _cmd_init 1 || :
   _load_schema
   printf '%s' "$RECORD" >"$TMPD/in"
@@ -893,18 +949,17 @@ _cmd_append() {
         ;;
     esac
     idstr="${P_ID[$NREC]}"
-    _join evidence raw
-    _join "$JOINED" "$idstr.txt"
-    rawpath="$JOINED"
-    _join "$NS" "$rawpath"
-    rawabs="$JOINED"
+    if ! _contained_raw "$idstr"; then
+      printf 'evidence: invalid id\n' >&2
+      exit 2
+    fi
     printf '%s' "$RAW" >"$TMPD/raw"
     _redact "$TMPD/raw" "$TMPD/redacted"
-    cp "$TMPD/redacted" "$rawabs.tmp"
-    _ends_nl "$TMPD/redacted" || printf '\n' >>"$rawabs.tmp"
-    mv "$rawabs.tmp" "$rawabs"
+    cp "$TMPD/redacted" "$RAWABS.tmp"
+    _ends_nl "$TMPD/redacted" || printf '\n' >>"$RAWABS.tmp"
+    mv "$RAWABS.tmp" "$RAWABS"
     _sha256_file "$TMPD/redacted"
-    ops="${RS}rawPath${FS}s${FS}$rawpath${RS}rawDigest${FS}s${FS}$DIGEST"
+    ops="${RS}rawPath${FS}s${FS}$RAWPATH${RS}rawDigest${FS}s${FS}$DIGEST"
     _edit_rec "$TMPD/three" "$TMPD/four" "$ops"
     IFS= read -r line <"$TMPD/four"
     REC[NREC]="$line"

@@ -91,6 +91,17 @@ SH
   [ ! -f "$p/.nightshift/.shift-armed" ]
 }
 
+@test "an unreadable punch list does not clock out as 0 open" {
+  p="$(new_project)"
+  punch_open "$p"
+  chmod 000 "$p/.nightshift/punch-list.md"
+  run gate "$p"
+  chmod 644 "$p/.nightshift/punch-list.md"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
+}
+
 @test "clock-out replaces a symlink ended marker with a regular file" {
   p="$(new_project)"
   punch_done "$p"

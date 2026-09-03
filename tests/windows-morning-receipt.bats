@@ -67,6 +67,7 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'section 1 names the unavailable source' "$LOGIC"
   grep -qF 'the artifact view names no repository term' "$LOGIC"
   grep -qF 'every allowance carries its provenance' "$LOGIC"
+  grep -qF 'an unreadable punch list reports Ending unknown, never done' "$LOGIC"
 }
 
 @test "Windows morning-receipt logic covers the gate and the archive" {

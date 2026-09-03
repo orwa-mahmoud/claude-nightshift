@@ -584,6 +584,21 @@ try {
     Expect-True ($proseSecondRun.StderrText.Trim() -eq 'evidence: ladder must not be promoted by prose') `
         "prose promotion stderr is exact (got '$($proseSecondRun.StderrText.Trim())')"
 
+    # absolute evidence id must not write outside .nightshift
+    $escapeProject = New-EvidenceScratchProject (Join-Path $root 'reject-absolute-id')
+    $null = Invoke-EvidenceNative -ProjectPath $escapeProject -Command init
+    $escapeRecord = '{"id":"/tmp/nightshift-proof","domain":"tests","sourceClass":"shell","source":"npm test","scope":"repo",' + `
+        '"severity":"medium","confidence":"high","impact":"developer","status":"open","ladder":"declared",' + `
+        '"locator":"tests/escape.spec.js","host":"claude","workTarget":"test-target"}'
+    $escapeRun = Invoke-EvidenceNative -ProjectPath $escapeProject -Command append -Record $escapeRecord -Raw 'proof'
+    Expect-True ($escapeRun.ExitCode -eq 2) "invalid id rejects with exit 2 (got $($escapeRun.ExitCode))"
+    Expect-True ($escapeRun.StderrText.Trim() -eq 'evidence: invalid id') `
+        "invalid id stderr is exact (got '$($escapeRun.StderrText.Trim())')"
+    Expect-True (-not (Test-Path -LiteralPath '/tmp/nightshift-proof')) `
+        '/tmp/nightshift-proof does not write outside .nightshift'
+    Expect-True (-not (Test-Path -LiteralPath '/tmp/nightshift-proof.txt')) `
+        '/tmp/nightshift-proof.txt is not created outside .nightshift'
+
     # unknown id
     $unknownProject = New-EvidenceScratchProject (Join-Path $root 'reject-unknown-id')
     $null = Invoke-EvidenceNative -ProjectPath $unknownProject -Command init

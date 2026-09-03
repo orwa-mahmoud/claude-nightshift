@@ -3,6 +3,7 @@ load helpers
 HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/clock-out-gate.ps1"
 CORE="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/clock-out-gate.sh"
 CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/codex/clock-out-gate.sh"
+CURSOR="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/cursor/clock-out-gate.sh"
 
 @test "Windows unreadable-rules clock-out names Setup like POSIX" {
   grep -qF '/nightshift:setup' "$CORE"
@@ -30,6 +31,13 @@ CODEX="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/codex/clock-out-gate.sh"
   grep -qF 'ns_gate_progress_token' "$CORE"
   grep -qF 'ns_gate_progress_token' "$CODEX"
   grep -qF 'Get-NSProgressToken' "$HELPER"
+}
+
+@test "Windows unreadable punch list does not clock out as 0 open" {
+  grep -qF '$counts.Readable' "$HELPER"
+  grep -qF 'PUNCH_UNREADABLE' "$CORE"
+  grep -qF 'PUNCH_UNREADABLE' "$CODEX"
+  grep -qF 'PUNCH_UNREADABLE' "$CURSOR"
 }
 
 @test "Windows stall skip matches POSIX symlink fail-closed" {

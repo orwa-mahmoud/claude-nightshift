@@ -75,8 +75,12 @@ print(json.dumps(json.load(open(sys.argv[1])).get("toolDeny",{}),separators=(","
 ns_items_section() { sed -n '/^## Items[[:space:]]*$/,$p' "$1" 2>/dev/null; }
 
 # grep -c prints the count AND exits 1 on zero matches; keep the number, drop the status.
+# An unreadable punch list is not zero work — return failure so callers fail closed.
 ns_count_boxes() { # $1 = punch list, $2 = ERE for the box state
   local n
+  if [ -e "$1" ] && [ ! -r "$1" ]; then
+    return 1
+  fi
   n="$(ns_items_section "$1" | grep -cE "$2" 2>/dev/null || true)"
   printf '%s' "${n:-0}"
 }

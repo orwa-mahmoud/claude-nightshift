@@ -520,6 +520,23 @@ try {
     Expect-Equal 'unavailable' (Get-RowClass $envDocument 'F-cleared') `
         'a changed environment digest is reported as unavailable, never as improvement'
 
+    $envAbsenceProject = Join-Path $root 'environment-absence'
+    $null = New-EvidenceProject $envAbsenceProject
+    $null = Invoke-Script -Path $baselineHelper -Arguments @(
+        '-Project', $envAbsenceProject, '-Id', 'B1', '-SourceClass', 'lint',
+        '-Command', 'npm run lint', '-Scope', 'repo',
+        '-Versions', 'os=test-os', 'node=20.11.1', '-Seen', "F-gone=$digestCleared")
+    $null = Invoke-Script -Path $baselineHelper -Arguments @(
+        '-Project', $envAbsenceProject, '-Id', 'B2', '-SourceClass', 'lint',
+        '-Command', 'npm run lint', '-Scope', 'repo',
+        '-Versions', 'os=test-os', 'node=22.0.0')
+    $envAbsenceRun = Invoke-Script -Path $compareHelper -Arguments @('-Project', $envAbsenceProject, '-Baseline', 'B1', '-Json')
+    Expect-Equal 3 $envAbsenceRun.ExitCode 'environment-moved absence never passes clear-all'
+    $envAbsenceDocument = $envAbsenceRun.StdoutText | ConvertFrom-Json
+    Expect-Equal 'unavailable' (Get-RowClass $envAbsenceDocument 'F-gone') `
+        'environment-moved absence is unavailable, never cleared'
+    Expect-Equal 0 $envAbsenceDocument.summary.cleared 'environment-moved absence clears nothing'
+
     # === 7. The validator accepts the two new policy fields, and only these values ===
     $policyProject = Join-Path $root 'policy'
     $policyNs = New-EvidenceProject $policyProject
