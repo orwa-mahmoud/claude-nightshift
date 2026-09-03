@@ -1,7 +1,7 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/architecture-health.md"
 
 @test "architecture health is review-first with concrete findings only" {
-  grep -qF 'runtime/specialist-evidence.sh architecture-findings' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'Review first writes the findings report only' "$E"
   grep -qi 'concrete dependency and boundary cost' "$E"
   grep -qi 'Reject taste-only observations' "$E"

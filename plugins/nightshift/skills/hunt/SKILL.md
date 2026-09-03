@@ -75,10 +75,10 @@ exists in the folder but not in the offer is a job the owner never gets.
 
 The GitHub issue-hunt entry is offered with the rest of the catalog. It consumes only
 drafting-table entries created by the Import issues skill (canonical Source URL and
-`Status: proposed`). List them with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --list-proposed`
-(on native Windows, `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -ListProposed`)
-and move a selection with the same qualified helper plus `--promote` / `-Promote` — a cut, never a copy. It
+`Status: proposed`). List them by reading `$NS/drafting-table.md` for `Status: proposed`
+items. Promote a selection by cutting the item — never a copy. The import-issues helper
+is optional; if it is missing or cannot parse, do the cut in the skill. Do not require
+Python. It
 does not replace defect hunt or product evolution, and it never searches GitHub or writes back to
 it. Never select it when work mode is artifact.
 Never select defect hunt when work mode is artifact.
@@ -146,13 +146,26 @@ remembered default holds a repository-tool policy, keep existing-tools.
  rollback. Wait for approval. Review-missing writes nothing. The work clock has not begun. Do
  not compose, cut, or arm until the owner approves. If they decline, stop.
 - **Automatically add standard development tools** — record authorization. Do not pause
- again to re-ask the policy. After authorization, call the provision helpers
- (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
- `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
- `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
+ again to re-ask the policy. Inspect the work-target package manager (lockfile, manifest,
+ virtualenv), choose a compatible tool the project already uses or the ecosystem expects,
+ install it, smoke it, and record the result. Do not ask the owner to install Python or
+ `jq`. Do not call a recipe engine or a pinned recipe runner.
+ Before writing, capture the write surface with
+ `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" baseline --surface <rel> [<rel>...]`
+ (native Windows: `provision.ps1 -Command baseline -Surface …`). After the install, run
+ `diff`. If smoke fails or the tooling commit fails, run `rollback` — the restore must
+ actually run. Write `$NS/capabilities.json` only after a successful tooling commit; on
+ failure leave inventory and Git consistent (no inventory row, rollback the surface).
+ A surface path that is a symlink or reparse point escaping the work target is refused;
+ never write through it. Unknown flags on the seatbelt do not mutate.
  Auto-add work runs only under the elevation categories the shift policy allows for tonight; a
- missing provisioning runtime is a skip reason and the shift continues under existing tools.
+ missing seatbelt is a skip reason and the shift continues under existing tools.
  Recovery runs before Start, so a shift never opens on an unproven baseline.
+ Composition writes `$NS/shift-policy.json` before arming. Start already reads
+ `$NS/rules.json` through the shipped subset reader. Do not install Python or `jq` to
+ parse `shift-policy.json`.
+ The model inspects the repo; do not call `detect-capabilities.sh` or
+ `refresh-inventory.sh`.
 
 Report unsupported permission modes the same way Start does **before arming** — a mid-shift prompt
 freezes the night.

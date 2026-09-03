@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Deterministic shift planner on native Windows (read-only).
+  Unused planner stub. Hunt and Quality plan in the skill. Do not call this.
 #>
 param(
-    [Parameter(Mandatory = $true)][string]$InputPath,
-    [Parameter(Mandatory = $true)][double]$Hours,
+    [Parameter(Mandatory = $false)][string]$InputPath = '',
+    [Parameter(Mandatory = $false)][double]$Hours = 0,
     [ValidateSet('automatic', 'guided')][string]$Selection = 'automatic',
     [ValidateSet('review-first', 'run-direct')][string]$Launch = 'review-first',
     [string]$Learning = '',
@@ -15,7 +15,6 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 Write-Error @'
-shift planner is optional on native Windows until a PowerShell port ships.
-Use the POSIX runtime/shift-planner.sh from a bash host, or run Hunt/Quality on Claude Code or Codex.
+shift-planner.ps1 is unused. Hunt and Quality plan in the skill. Do not call a planner.
 '@
 exit 2

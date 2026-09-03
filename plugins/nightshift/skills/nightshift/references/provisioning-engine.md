@@ -1,37 +1,38 @@
-# Provisioning engine contract (frozen)
+# Auto-add seatbelt (frozen)
 
-Shared engine for Auto-add. Skills never embed install logic; they call the helpers.
+The model installs. The helper only captures a write surface, diffs it, and restores.
 
 ## CLI
 
 ```text
-provision.sh --project DIR plan|apply|recover|rollback [--recipe PATH] [--capability ID] [--budget-seconds N]
+provision.sh --project DIR baseline --surface PATH [PATH ...]
+provision.sh --project DIR diff
+provision.sh --project DIR rollback
+provision.sh --project DIR recover
 ```
 
 Windows: `runtime/windows/provision.ps1` with the same verbs.
 
-Exit: `0` ok · `1` usage or a runtime failure · `2` refused · `3` a rollback whose restore could not be proven, leaving the transaction and the baseline store in place for repair.
+Exit: `0` ok · `1` usage or a runtime failure · `2` refused (symlink/reparse escape or locked
+path) · `3` a restore that could not be proven.
 
-## Stages
+`plan`, `apply`, `--recipe`, and `--capability` are gone. Unknown flags do not mutate.
 
-`authorize` → `capture-baseline` → `apply` → `smoke` → `record` → `commit-tooling`
+## Skill loop
 
-Any failure after `capture-baseline` must `rollback` recipe residue without touching unrelated owner work. Do not retry the same failure in one shift.
+Inspect the package manager → choose a compatible tool → `baseline` the files that will
+change → install → smoke → `diff` → record → tooling commit. On smoke or commit failure,
+`rollback` must actually run. Write `$NS/capabilities.json` only after the commit succeeds.
+Do not ask the owner to install Python or `jq`. No pinned recipe runner.
 
-## Authorization
+## Containment
 
-`apply` requires an effective tooling policy of `auto-add` from `shift-policy.sh --project DIR resolve --json` (native Windows: `shift-policy.ps1 … resolve -Json`) in repository mode. Artifact mode and other policies refuse with a `refusalReasons` code from `schemas/v1/capability-recipe.json`.
+A surface path that leaves the work target, names locked owner state, or is a symlink /
+reparse point escaping the tree is refused. Rollback unlinks a planted symlink and restores
+bytes in the work target — it never writes through the link.
 
-Elevation comes from the same resolved view, never from the engine. A recipe declares what it needs in `elevationCategories`, and each declared category must resolve to `allow` or to an `exact-plan` allowance that binds every command needing it; every command the engine may run is also matched against every category pattern and cleared through `ns_policy_allowed`, so an undeclared category is caught by the command that needs it. A category tonight does not authorize refuses with `elevation-denied:<category>`. Each elevated command that runs leaves one ledger line in the `provisioning` domain carrying its category, the allowance's provenance, and the exact command, and reaches `verified-after-change` only once the smoke has passed.
+## Recovery
 
-## State
-
-Incomplete work is recorded only in `.nightshift/provision-transaction.json`. `recover` finishes or rolls back that file before product work. A verified setup commit (`chore(tooling):`) is recognized and not reinstalled.
-
-## Smoke
-
-A verified red baseline (tool runs, reports findings) is success. Install failure is not a red baseline.
-
-## Permissions
-
-If install or smoke would prompt, skip that capability and continue. Never freeze the night. `provision-preflight.sh --project DIR [--recipe PATH] check` reports `permission-prompt-required` when the run is unattended without a grant, or when an allowed `sudo` category meets a recipe that may reach for it and `sudo -n true` does not succeed; under `auto-add` alone it also reports `provisioning-runtime-unavailable` when the provisioning runtime is missing.
+Incomplete work is `$NS/provision-surface` plus `$NS/provision-baseline/`. A leftover
+`provision-transaction.json` from an older engine still settles through `recover`.
+Start refuses to arm on an unproven restore.

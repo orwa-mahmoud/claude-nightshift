@@ -76,7 +76,7 @@ done
 
 cd -P "$PROJECT" >/dev/null 2>&1 || die "cannot cd to $PROJECT" 1
 
-ns_policy_json_tool >/dev/null || die 'jq or python3 is required to read JSON' 2
+ns_policy_json_tool >/dev/null || die 'JSON parser unavailable; recipe audit is unused without a parser' 2
 
 REGISTRY="$_here/../skills/nightshift/references/recipes"
 [ -z "${NIGHTSHIFT_RECIPE_REGISTRY:-}" ] || REGISTRY="$NIGHTSHIFT_RECIPE_REGISTRY"
@@ -481,7 +481,7 @@ _load() {
   esac
   stream="$(_facts "$file")"
   rc=$?
-  [ "$rc" -ne 2 ] || die 'jq or python3 is required to read JSON' 2
+  [ "$rc" -ne 2 ] || die 'JSON parser unavailable; recipe audit is unused without a parser' 2
   [ "$rc" -eq 0 ] || die "$rel: not JSON" 2
   _parse_facts "$stream"
   [ "$F_TYPE" = object ] || die "$rel: a recipe must be an object" 2

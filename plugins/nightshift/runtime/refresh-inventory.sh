@@ -70,7 +70,7 @@ with open(dest, "w", encoding="utf-8") as fh:
     fh.write("\n")
 PY
 else
-  die "jq or python3 is required to write capability-detection.json" 2
+  die "capability-detection cache unavailable (no JSON parser); inspect the repo in the skill" 2
 fi
 mv "$DEST.tmp" "$DEST" || die "cannot write $DEST" 2
 printf '%s\n' "$DEST"

@@ -46,5 +46,5 @@ fi
 if command -v python3 >/dev/null 2>&1; then
   exec python3 "$PY"
 fi
-printf 'shift-preview: python3 is required\n' >&2
+printf 'shift-preview: unused; Hunt and Quality preview in the skill\n' >&2
 exit 2

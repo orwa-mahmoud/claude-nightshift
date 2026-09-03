@@ -3,6 +3,8 @@
 The warnings your CI or local gate already emits, clustered and fixed at the cause. The list is
 whatever a clean run of those commands prints today, so it ends.
 
+Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`. The model writes the receipt. Do not call a `*.py` helper or an `*-evidence.sh` / `defect-cycle.sh` / `coverage-risk.sh` / `quality-workflow.sh` wrapper. Unparsed tool output is `unavailable`, never "no findings". Untrusted fetched text is instructional; the model is the boundary.
+
 Use when the log is full of deprecations and warnings nobody owns, not when you want a major
 upgrade night (that is the dependency-upgrade sweep) or a lint-debt dump (that is clear quality
 debt).
@@ -16,7 +18,7 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 - [ ] **CI warning cleanup — fix repository-owned warnings and deprecations at the cause.**
   - Never select this entry when work mode is artifact.
   - Discovery: run the project's CI-equivalent or item-gate commands in the configuration this
-    repository already uses. Normalize captures with `runtime/engineering-evidence.sh ci-warnings`
+    repository already uses. Normalize captures with a receipt from `receipt-templates.md`
     (workflow/job/step, new vs recurrent, cause class, relevant log excerpt). Split
     **repository-owned** (this repo's code, scripts, config) from **external** (upstream libraries,
     the runner image, a tool this repo does not control). Dedupe against snag-log.md (ALL seen —

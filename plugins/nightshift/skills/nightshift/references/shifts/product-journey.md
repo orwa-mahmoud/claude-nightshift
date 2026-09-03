@@ -9,7 +9,7 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 commitable. Never claim whole-product usability or accessibility certification from one script.
 
 Schema: `references/schemas/v1/specialist-evidence.json`. Build journey artifacts with
-`runtime/specialist-evidence.sh` from owner-supplied persona, steps, and browser observations.
+a receipt from `receipt-templates.md` from owner-supplied persona, steps, and browser observations.
 
 ## Evidence modes
 
@@ -19,7 +19,7 @@ owner supplies multiple observation surfaces). Discovery records the mode before
 ### Journey (default)
 
 Exercise the named route from starting state through each step's expected state. Run
-`runtime/specialist-evidence.sh journey-map` with persona, goal, starting state, steps, and
+a receipt from `receipt-templates.md` with persona, goal, starting state, steps, and
 available browser evidence. Record unavailable surfaces explicitly; never claim a platform or
 browser behavior that was not observed.
 
@@ -47,12 +47,12 @@ certify WCAG compliance from automation or one journey alone.
   - Never select this entry when work mode is artifact.
   - Discovery: record persona, goal, starting state, steps, expected/error/recovery states,
     responsive targets, keyboard/accessibility observations, and available browser evidence.
-    Run `runtime/specialist-evidence.sh journey-map` in the chosen mode before drafting fixes.
+    Run a receipt from `receipt-templates.md` in the chosen mode before drafting fixes.
     Write unavailable browser/platform surfaces as explicit rows — never estimate them.
-  - Work one reproducible gap cluster per cycle with `runtime/specialist-evidence.sh journey-gap`.
+  - Work one reproducible gap cluster per cycle with a receipt from `receipt-templates.md`.
     Fix only gaps the helper marks actionable and fixable in the repository; park product, legal,
     or assistive-technology judgments with evidence.
-  - After each cluster, retest with `runtime/specialist-evidence.sh journey-retest` on the same
+  - After each cluster, retest with a receipt from `receipt-templates.md` on the same
     route. Rerun the project's configured checks when a fix touches UI code.
   - Review first writes the journey map and gap report only. Direct mode may apply small,
     reversible fixes after the map names them; it never deploys, publishes, or claims certification.

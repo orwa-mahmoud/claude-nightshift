@@ -83,13 +83,17 @@ discovers a mid-shift owner decision:
   (capability, selected tool, exact writes, commands, enabled shifts, risks, permissions, rollback).
   Wait for approval before arming. The work clock has not begun. Review-first must write nothing.
 - **Automatically add standard development tools** — explicit authorization for eligible local
-  development tooling. Do not pause again to re-ask the policy. After authorization, call
-  `runtime/provision-preflight.sh` then `runtime/provision.sh` (native Windows:
-  `provision-preflight.ps1` then `provision.ps1`). Skills never embed install steps. Artifact
+  development tooling. Do not pause again to re-ask the policy. The model inspects the
+  package manager, chooses a compatible tool, installs, smokes, and records. Thin
+  `provision.sh` / `provision.ps1` only: baseline → write-surface diff → rollback.
+  No pinned recipe engine. Refuse symlink/reparse escape. Rollback must actually run.
+  Inventory and Git stay consistent on a failed tooling commit. Unknown flags do not
+  mutate. Do not ask the owner to install Python or `jq`. Artifact
   mode is never offered a repository-tool install. Auto-add work runs only under the elevation
-  categories the shift policy allows for tonight; a missing provisioning runtime is a skip reason
+  categories the shift policy allows for tonight; a missing seatbelt is a skip reason
   and the shift continues under existing tools. Recovery runs before Start, so a shift never
-  opens on an unproven baseline.
+  opens on an unproven baseline. Composition writes `$NS/shift-policy.json`; Start already
+  reads `rules.json`. Do not install Python to parse `shift-policy.json`.
 
 Artifact mode refuses repository-tool policies (`auto-add`, `review-missing`) and explains why;
 only existing-tools is valid there. Inventory in `$NS/capabilities.json` is a cache: re-probe each

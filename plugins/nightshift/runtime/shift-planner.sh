@@ -78,5 +78,5 @@ args=(--input "$INPUT" --hours "$HOURS" --selection "$SELECTION" --launch "$LAUN
 if command -v python3 >/dev/null 2>&1; then
   exec python3 "$PY" "${args[@]}"
 fi
-printf 'shift-planner: python3 is required\n' >&2
+printf 'shift-planner: unused; Hunt and Quality plan in the skill\n' >&2
 exit 2

@@ -106,13 +106,20 @@ write the safe defaults in `execution-modes.md`. Otherwise ask three independent
   nothing, and does not start the clock. Do not scan for findings, compose, cut, or arm until
   that plan is approved; if they decline, stop.
   **Automatically add standard development tools** records authorization and must not pause
-  again to re-ask. After authorization, call the provision helpers
-  (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision-preflight.sh"` then
-  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh"`; native Windows:
-  `provision-preflight.ps1` then `provision.ps1`). Do not embed install steps here.
+  again to re-ask. Inspect the work-target package manager, choose a compatible tool,
+  install, smoke, and record. Do not ask the owner to install Python or `jq`. Do not
+  call a recipe engine. Before writing, capture the write surface with
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" baseline --surface <rel> [<rel>...]`
+  (native Windows: `provision.ps1 -Command baseline -Surface …`). After the install, run
+  `diff`. If smoke fails or the tooling commit fails, run `rollback` — the restore must
+  actually run. Write inventory only after a successful tooling commit. Refuse
+  symlink/reparse escape. Unknown flags do not mutate.
   Auto-add work runs only under the elevation categories the shift policy allows for tonight; a
-  missing provisioning runtime is a skip reason and the shift continues under existing tools.
+  missing seatbelt is a skip reason and the shift continues under existing tools.
   Recovery runs before Start, so a shift never opens on an unproven baseline.
+  Composition writes `$NS/shift-policy.json`; Start already has `rules.json`. Do not
+  install Python to parse `shift-policy.json`. The model inspects the repo; do not call
+  `detect-capabilities.sh`.
 
 Automatic mode requires hours. Guided mode asks for scope and requires hours only when an
 open-ended entry is selected. In review-first mode scanning is read-only and the clock starts only

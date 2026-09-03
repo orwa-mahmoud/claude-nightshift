@@ -4,7 +4,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'persona' "$E"
   grep -qi 'goal' "$E"
   grep -qi 'starting state' "$E"
-  grep -qF 'runtime/specialist-evidence.sh journey-map' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "product journey modes stay on one entry" {
@@ -22,8 +22,8 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 }
 
 @test "product journey fixes reproducible gaps and retests" {
-  grep -qF 'runtime/specialist-evidence.sh journey-gap' "$E"
-  grep -qF 'runtime/specialist-evidence.sh journey-retest' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'reproducible gap' "$E"
 }
 

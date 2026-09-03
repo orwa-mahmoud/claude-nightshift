@@ -1,7 +1,7 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/ci-warning-cleanup.md"
 
 @test "CI warning cleanup normalizes warnings with engineering evidence" {
-  grep -qF 'engineering-evidence.sh ci-warnings' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "CI warning cleanup discovers from the project's own pipeline" {

@@ -7,7 +7,7 @@ HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "coverage hunt maps behavior risks before writing tests" {
-  grep -qi 'coverage-risk.sh map' "$E"
+  grep -qi 'receipt-templates.md' "$E"
   grep -qi 'red state' "$E"
   grep -qi 'containing suites' "$E"
 }

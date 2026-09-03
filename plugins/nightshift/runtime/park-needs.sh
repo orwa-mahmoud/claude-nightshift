@@ -58,7 +58,7 @@ NS="$WORKSPACE/.nightshift"
 LOT="$NS/parking-lot.md"
 
 no_parser() {
-  printf 'park-needs: jq or python3 is required to read JSON\n' >&2
+  printf 'park-needs: JSON parser unavailable; write the parking-lot row in the skill\n' >&2
   exit 2
 }
 

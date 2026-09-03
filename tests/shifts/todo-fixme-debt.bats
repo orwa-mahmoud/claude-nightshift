@@ -7,7 +7,7 @@ HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "todo-fixme debt classifies markers with engineering evidence" {
-  grep -qF 'engineering-evidence.sh todo-classify' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "TODO debt inventories tracked human-authored markers" {

@@ -4,17 +4,17 @@ QUALITY="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/quality/SKILL.md"
 MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/execution-modes.md"
 
 @test "release readiness compares named baseline and candidate" {
-  grep -qF 'release-readiness-evidence.sh baseline-compare' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'named baseline' "$E"
   grep -qi 'package contents and digests' "$E"
   grep -qi 'install/upgrade smoke' "$E"
 }
 
 @test "release readiness produces ready not-ready or conditionally ready verdict" {
-  grep -qF 'release-readiness-evidence.sh verdict' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'Not ready' "$E"
   grep -qi 'Conditionally ready' "$E"
-  grep -qF 'release-readiness-evidence.sh unmeasured-surfaces' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "release readiness never publishes or claims human acceptance" {

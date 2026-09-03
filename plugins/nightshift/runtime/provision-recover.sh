@@ -450,7 +450,7 @@ if [ ! -f "$TX" ]; then
   exit 0
 fi
 
-ns_policy_json_tool >/dev/null || die 'jq or python3 is required to read JSON' 1
+ns_policy_json_tool >/dev/null || die 'JSON parser unavailable; restore from provision-surface or by hand' 1
 
 FACTS="$(_facts "$TX")" || malformed document
 _parse_facts "$FACTS"

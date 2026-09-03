@@ -18,13 +18,13 @@ and `check-report` verification. Typical hours: 2–4.
 SEO audit runs in exactly one evidence mode per shift (or a declared combination when the owner
 supplies multiple approved source types). Discovery records the mode before findings are drafted.
 Schemas: `references/schemas/v1/local-inventory.json`, `live-crawl.json`, `connected-export.json`.
-Build inventories and crawl snapshots with `runtime/seo-evidence.sh` from owner-supplied files or
+Build inventories and crawl snapshots with a receipt from `receipt-templates.md` from owner-supplied files or
 tree metadata, then cite them in the manifest.
 
 ### Local (dependency-free)
 
 Read a supplied static site tree, build output, route list, or local HTML/markdown files. Run
-`runtime/seo-evidence.sh local-inventory` to cluster templates, orphan candidates, intent mapping,
+a receipt from `receipt-templates.md` to cluster templates, orphan candidates, intent mapping,
 cannibalization/content-gap notes, and rendered build output when the owner supplied it. Every
 surface Local cannot observe — live crawl, production rendering, backlinks, Search Console,
 analytics, field/lab performance, rankings — gets an explicit **not measured** row with a reason;
@@ -32,8 +32,10 @@ never estimate or invent those measurements.
 
 ### Live (approved origins, network permission)
 
+Refuse live-crawl when owner-approved origins, network permission, or URL/depth/page/time budgets are missing. Do not invent them. Never hardcode `neverLeaveApprovedOrigins: true`.
+
 Requires owner-approved origin(s), network permission, and declared URL/depth/page/time budgets.
-Run `runtime/seo-evidence.sh live-crawl` on a bounded crawl snapshot. Start with sitemap health
+Run a receipt from `receipt-templates.md` on a bounded crawl snapshot. Start with sitemap health
 and a bounded crawl that never leaves approved origins. Capture status, redirects, canonical,
 robots, links, headings, schema, language, content fingerprint, and source-vs-rendered differences
 where a rendered capture exists. Record crawler identity, timestamps, failures, blocks, and
@@ -44,7 +46,7 @@ host-native fetch is allowed only when supported and explicitly authorized.
 ### Connected (owner-supplied exports)
 
 Begin with owner-supplied Search Console and analytics CSV/JSON exports. Run
-`runtime/seo-evidence.sh connected-export` to keep metrics separate, compare periods, segment by
+a receipt from `receipt-templates.md` to keep metrics separate, compare periods, segment by
 query/page/device/country/search appearance where useful, and never claim clicks equal sessions.
 Optional direct API access comes only after export flows are proven; credentials stay outside
 `.nightshift/`. No indexing submissions, deployment, analytics configuration, or ranking/backlink
@@ -53,7 +55,7 @@ invention.
 ## Receipt and limits
 
 The shift receipt (commit message body or artifact receipt via `write-receipt.sh`) must include
-`runtime/seo-evidence.sh receipt-summary` output naming **which evidence mode ran**, which sources
+a receipt from `receipt-templates.md` output naming **which evidence mode ran**, which sources
 were `ok` vs `unavailable`, and what remains unknowable after honest not-measured rows are applied. Rank blockers first: crawl/indexing, canonical/redirect,
 rendered/schema, evidence-backed opportunity, internal discovery/intent, measured
 performance/accessibility, then editorial experiments.
@@ -63,7 +65,7 @@ performance/accessibility, then editorial experiments.
   - Discovery: read only the owner-approved site, URL list, local source tree, crawl snapshot, or
     Search Console/analytics export recorded in the work order or punch-list scope. Record the
     evidence mode (Local, Live, Connected, or declared combination) and run the matching
-    `runtime/seo-evidence.sh` helper before drafting findings. Write a dated source manifest
+    a receipt from `receipt-templates.md` helper before drafting findings. Write a dated source manifest
     (`ok` / `unavailable`) before drafting findings. Do not add URLs from memory or search.
   - For each `ok` source, evaluate the evidence that is actually present: metadata, canonicals,
     headings, indexability signals (robots, noindex, sitemap if in the tree or crawl snapshot),

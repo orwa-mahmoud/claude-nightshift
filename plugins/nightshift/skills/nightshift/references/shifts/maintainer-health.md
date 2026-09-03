@@ -9,17 +9,17 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 commitable.
 
 Schema: `references/schemas/v1/specialist-evidence.json`. Resolve the preset with
-`runtime/specialist-evidence.sh maintainer-health-preset` before running the composed helpers.
+a receipt from `receipt-templates.md` before running the composed helpers.
 
 ```text
 - [ ] **Maintainer health — run the onboarding, docs, CI, and public-claims preset.**
   - Never select this entry when work mode is artifact.
-  - Discovery: run `runtime/specialist-evidence.sh maintainer-health-preset` against available
+  - Discovery: run a receipt from `receipt-templates.md` against available
     contracts. For each available row, run the named helper only — developer onboarding via
-    `runtime/build-onboarding-evidence.sh onboarding-journey`, documentation drift via
-    `runtime/product-truth-evidence.sh doc-claim-matrix`, CI warnings via
-    `runtime/engineering-evidence.sh ci-warnings`, and public claims via
-    `runtime/release-readiness-evidence.sh public-claims-matrix`. Skip unavailable contracts
+    a receipt from `receipt-templates.md`, documentation drift via
+    a receipt from `receipt-templates.md`, CI warnings via
+    a receipt from `receipt-templates.md`, and public claims via
+    a receipt from `receipt-templates.md`. Skip unavailable contracts
     honestly; never invent tooling.
   - Work one preset segment per cycle in the order the preset lists. Fix only mechanical,
     reversible issues within each parent contract's authority. Park positioning, legal, and release

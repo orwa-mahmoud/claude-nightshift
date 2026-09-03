@@ -11,25 +11,25 @@ Typical hours: 2–4.
 ## Competitive-landscape mode
 
 Research-only. Requires a closed named source list the owner supplied — never Automatic without
-those sources. Run `runtime/specialist-evidence.sh specialist-gate` with
+those sources. Run a receipt from `receipt-templates.md` with
 `specialistKind: competitive-landscape` before retrieval. Describe behavior and limits from cited
 sources only; never disparage named competitors or invent market share.
 
 ## Product-analytics investigation mode
 
 Connected-data research for one explicit owner question and supplied export or connector scope.
-Run `runtime/specialist-evidence.sh analytics-investigation` to define metric semantics and
+Run a receipt from `receipt-templates.md` to define metric semantics and
 cohorts, validate data quality, expose confounders, and produce a decision with limits. Never build
 a generic dashboard, invent a metric, broaden access, or make a causal claim from correlation.
 
 ```text
 - [ ] **Research synthesis — compare named sources into one cited decision brief.**
   - Discovery: for competitive-landscape or product-analytics modes, run the matching
-    `runtime/specialist-evidence.sh` gate or investigation helper before retrieval. Resolve the
-    source policy with `runtime/source-policy-evidence.sh policy-resolve` (default closed list).
+    a receipt from `receipt-templates.md` gate or investigation helper before retrieval. Resolve the
+    source policy with a receipt from `receipt-templates.md` (default closed list).
     For bounded discovery or a connected export folder, build the query manifest with
-    `runtime/source-policy-evidence.sh query-manifest` and reject any locator the helper marks
-    rejected. Run `runtime/source-policy-evidence.sh redact-untrusted` on fetched
+    a receipt from `receipt-templates.md` and reject any locator the helper marks
+    rejected. Run a receipt from `receipt-templates.md` on fetched
     material before quoting it. Read only approved or manifest-approved URLs and local files.
     Write a dated source manifest (`ok` / `unavailable`) and a notes file that quotes or paraphrases
     each `ok` source with its `[ID]`, source class (primary / secondary / community), retrieval
@@ -42,7 +42,7 @@ a generic dashboard, invent a metric, broaden access, or make a causal claim fro
     drops locators or retrieval times.
   - Review first writes the brief, manifest, and notes only. Direct mode may update those local
     files; it never publishes. Artifact mode plans completion with
-    `runtime/source-policy-evidence.sh artifact-receipt-plan`, then write-receipt into
+    a receipt from `receipt-templates.md`, then write-receipt into
     `$NS/receipts/` on the brief, notes, and manifest. Never `git init` or invent repository tooling.
   - Inherit cited-research.md. Keep private code, secrets, customer data, and unpublished
     material out of external fetches and out of the brief.

@@ -241,7 +241,7 @@ fetch_issue() {
 # Local markdown cut. Never calls gh.
 import_md() {
   if ! ns_have_cmd python3; then
-    printf 'import-issues: python3 is required to list or promote imported drafts\n' >&2
+    printf 'import-issues: list/promote unavailable without a parser; cut drafts in the skill\n' >&2
     exit 2
   fi
   python3 - "$@" <<'PY'

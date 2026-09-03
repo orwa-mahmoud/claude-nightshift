@@ -882,7 +882,7 @@ PROJECT="$(cd -P "$PROJECT_ARG" 2>/dev/null && pwd -P)"
 JSONL="$PROJECT/.nightshift/evidence/findings.jsonl"
 [ -f "$JSONL" ] || die "no ledger at $JSONL" 2
 
-JSON_TOOL="$(ns_policy_json_tool)" || die 'jq or python3 is required to read JSON' 2
+JSON_TOOL="$(ns_policy_json_tool)" || die 'JSON parser unavailable; compare in the skill' 2
 MODE="$(ns_policy_completion_mode "$PROJECT")"
 _ec_utcnow
 

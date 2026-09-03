@@ -842,7 +842,7 @@ _ns_policy_load_shift_file() {
   rc=$?
   if [ "$rc" -eq 2 ]; then
     NS_POLICY_SHIFT_STATE=noparser
-    NS_POLICY_SHIFT_ERR="jq or python3 is required to read JSON"
+    NS_POLICY_SHIFT_ERR="JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json"
     return 0
   fi
   if [ "$rc" -ne 0 ]; then

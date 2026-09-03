@@ -50,10 +50,8 @@ Count the open `- [ ]` in `$NS/punch-list.md`:
 - **Items present** — say what they are in one line and carry on.
 - **None** — say so plainly and offer the ways to fix it: compose a shift now with
  Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), cut an
- ordinary draft from `$NS/drafting-table.md`, cut a `Status: proposed` import with
- `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --promote …`
- (on native Windows,
- `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`),
+ ordinary draft from `$NS/drafting-table.md`, cut a `Status: proposed` import in the
+ skill (do not require Python),
  or write an item by hand. Then re-check. Never schedule an empty list without saying it
  will do nothing.
 

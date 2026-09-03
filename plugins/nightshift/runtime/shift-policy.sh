@@ -105,7 +105,7 @@ NS="$WORKSPACE/.nightshift"
 POLICY="$NS/shift-policy.json"
 DEFAULTS="$NS/shift-defaults.json"
 
-ns_policy_json_tool >/dev/null || die 'jq or python3 is required to read JSON' 2
+ns_policy_json_tool >/dev/null || die 'JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json' 2
 
 # Every write lands by rename, so a reader never sees half a policy.
 atomic_write() { # <destination> — content on stdin
@@ -147,7 +147,7 @@ cmd_get() {
       printf '{}\n'
       exit 3
       ;;
-    4) die 'jq or python3 is required to read JSON' 2 ;;
+    4) die 'JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json' 2 ;;
     *) die "invalid shift-policy.json: $out" 2 ;;
   esac
 }
@@ -174,7 +174,7 @@ cmd_set() {
     rm -rf "$tmpd"
     case "$rc" in
       3) die 'the policy to write is empty' 2 ;;
-      4) die 'jq or python3 is required to read JSON' 2 ;;
+      4) die 'JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json' 2 ;;
       *) die "invalid shift-policy.json: $out" 2 ;;
     esac
   fi
@@ -230,9 +230,9 @@ cmd_defaults_set() {
 
 cmd_resolve() {
   if [ "$FORMAT" = table ]; then
-    ns_policy_resolve_table "$WORKSPACE" || die 'jq or python3 is required to read JSON' 2
+    ns_policy_resolve_table "$WORKSPACE" || die 'JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json' 2
   else
-    ns_policy_resolve "$WORKSPACE" || die 'jq or python3 is required to read JSON' 2
+    ns_policy_resolve "$WORKSPACE" || die 'JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json' 2
   fi
   exit 0
 }
@@ -244,7 +244,7 @@ cmd_archive() {
   case "$rc" in
     0) ;;
     3) die 'no shift-policy.json to archive' 3 ;;
-    4) die 'jq or python3 is required to read JSON' 2 ;;
+    4) die 'JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json' 2 ;;
     *) die "invalid shift-policy.json: $out" 2 ;;
   esac
   shift_id="$(ns_policy_shift_id "$WORKSPACE")" || die 'shift-policy.json carries no shiftId' 2

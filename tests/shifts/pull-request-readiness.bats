@@ -7,12 +7,12 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
   grep -qi 'named branch' "$E"
   grep -qi 'issue URL' "$E"
   grep -qi 'acceptance criteria' "$E"
-  grep -qF 'runtime/pr-readiness-evidence.sh acceptance-map' "$E"
-  grep -qF 'runtime/pr-readiness-evidence.sh diff-scope' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "pull-request readiness uses review-map with changed areas, risks, and commits" {
-  grep -qF 'runtime/pr-readiness-evidence.sh review-map' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'changed areas' "$E"
   grep -qi 'remaining risks' "$E"
   grep -qi 'unsupported surfaces' "$E"
@@ -22,7 +22,7 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
 }
 
 @test "pull-request readiness refuses owner-only actions without authority" {
-  grep -qF 'runtime/pr-readiness-evidence.sh owner-action-refusal' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'Never comment on, approve, push, merge' "$E"
   grep -qi 'explicit owner authorization' "$E"
   grep -qi 'does not approve' "$E"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Continuity handoff — cross-host packages, fencing, campaigns.
+# Continuity handoff — native fence; leftover commands folded into skills.
 
 load helpers
 
@@ -15,17 +15,14 @@ LIB="$ROOT/plugins/nightshift/lib/lib.sh"
   [ -x "$CH" ]
 }
 
-@test "handoff-package includes required continuity fields" {
+@test "leftover python commands are unused" {
   run bash "$CH" handoff-package --input "$FIX/handoff-complete.json"
-  [ "$status" -eq 0 ]
-  printf '%s' "$output" | jq -e '.complete == true and .priorHost == "claude"' >/dev/null
-  printf '%s' "$output" | jq -e '.evidenceLocators | length >= 1' >/dev/null
-}
-
-@test "handoff-package reports missing fields honestly" {
-  run bash "$CH" handoff-package --input "$FIX/handoff-incomplete.json"
-  [ "$status" -eq 0 ]
-  printf '%s' "$output" | jq -e '.complete == false and (.missingFields | length) >= 3' >/dev/null
+  [ "$status" -eq 2 ]
+  printf '%s\n' "$output" | grep -qi 'unused'
+  run bash "$CH" campaign-sequence --input "$FIX/campaign-valid.json"
+  [ "$status" -eq 2 ]
+  run bash "$CH" transition-history --input "$FIX/transition-history.json"
+  [ "$status" -eq 2 ]
 }
 
 @test "fence-check without a lease refuses and ignores model JSON flags" {
@@ -59,24 +56,10 @@ LIB="$ROOT/plugins/nightshift/lib/lib.sh"
   printf '%s' "$output" | jq -e '.takeoverAllowed == false and .priorWorkerActive == true' >/dev/null
 }
 
-@test "campaign-sequence requires prior night archived before next begins" {
-  run bash "$CH" campaign-sequence --input "$FIX/campaign-pending.json"
-  [ "$status" -eq 0 ]
-  printf '%s' "$output" | jq -e '.valid == false and .nextMayBegin == false' >/dev/null
-  run bash "$CH" campaign-sequence --input "$FIX/campaign-valid.json"
-  [ "$status" -eq 0 ]
-  printf '%s' "$output" | jq -e '.valid == true and .dispatcherRuntime == false' >/dev/null
-}
-
-@test "transition-history redacts secrets for status and doctor" {
-  run bash "$CH" transition-history --input "$FIX/transition-history.json"
-  [ "$status" -eq 0 ]
-  printf '%s' "$output" | jq -e '.exposeSecrets == false and (.events | length) == 2' >/dev/null
-}
-
-@test "start status and doctor skills reference continuity handoff" {
+@test "start status and doctor keep native fence and drop leftover python commands" {
   grep -qF 'runtime/continuity-handoff.sh" fence-check --project' "$START"
-  grep -qF 'continuity-handoff.sh handoff-package' "$START"
-  grep -qF 'runtime/continuity-handoff.sh" transition-history' "$STATUS"
-  grep -qF 'continuity-handoff.sh transition-history' "$DOCTOR"
+  ! grep -qF 'handoff-package' "$START"
+  ! grep -qF 'transition-history' "$STATUS"
+  ! grep -qF 'transition-history' "$DOCTOR"
+  grep -qF 'shift-log.md' "$STATUS"
 }

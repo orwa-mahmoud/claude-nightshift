@@ -4,8 +4,8 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'Discovery' "$E"
   grep -qi 'named migration' "$E"
   grep -qi 'authoritative guidance' "$E"
-  grep -qF 'runtime/migration-evidence.sh migration-inventory' "$E"
-  grep -qF 'runtime/migration-evidence.sh compatibility-assess' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "migration compatibility defaults to review-first for broad or irreversible risk" {
@@ -19,15 +19,15 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
   grep -qi 'Configuration parity mode' "$E"
   grep -qi 'presence and shape only' "$E"
   grep -qi 'never retrieve' "$E"
-  grep -qF 'runtime/migration-evidence.sh config-parity' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "data migration mode refuses production without owner approval" {
   grep -qi 'Data migration mode' "$E"
   grep -qi 'disposable or specifically owner-approved' "$E"
   grep -qi 'live production' "$E"
-  grep -qF 'runtime/migration-evidence.sh data-safety' "$E"
-  grep -qF 'runtime/migration-evidence.sh recovery-plan' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "migration compatibility never guesses legal or data authority" {

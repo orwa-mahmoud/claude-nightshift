@@ -1,9 +1,9 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/runbook-verification.md"
 
 @test "runbook verification uses operational evidence helpers" {
-  grep -qF 'operational-evidence.sh runbook-verify' "$E"
-  grep -qF 'operational-evidence.sh observability-surface' "$E"
-  grep -qF 'operational-evidence.sh measured-summary' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "runbook verification names safe environment and observability mode" {

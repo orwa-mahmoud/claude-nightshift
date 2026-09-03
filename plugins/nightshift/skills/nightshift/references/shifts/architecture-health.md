@@ -8,15 +8,15 @@ Supported on repositories with inspectable structure (packages, modules, manifes
 select this entry in artifact mode. Do not `git init` a notes folder to make findings commitable.
 
 Schema: `references/schemas/v1/specialist-evidence.json`. Gate selection with
-`runtime/specialist-evidence.sh specialist-gate` when composing automatic shifts. Build findings
-with `runtime/specialist-evidence.sh architecture-findings`.
+a receipt from `receipt-templates.md` when composing automatic shifts. Build findings
+with a receipt from `receipt-templates.md`.
 
 ```text
 - [ ] **Architecture health — report concrete dependency and boundary cost.**
   - Never select this entry when work mode is artifact.
   - Discovery: inspect repository-owned structure only — manifests, package boundaries, import
     graphs the project already generates, CI topology, and ownership files. Run
-    `runtime/specialist-evidence.sh architecture-findings` and accept only findings with concrete
+    a receipt from `receipt-templates.md` and accept only findings with concrete
     dependency, boundary, ownership, or measured cycle cost. Reject taste-only observations.
   - Review first writes the findings report only. Direct mode may apply one small, reversible edit
     per cycle when the helper marks `directEditAllowed`; never perform broad refactors unattended.

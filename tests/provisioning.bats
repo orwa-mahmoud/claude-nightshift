@@ -87,345 +87,118 @@ recover_seed_mutated() {
   printf 'new\n' >"$p/generated/nested/nightshift-fake.txt"
 }
 
-@test "plan refuses existing-tools and artifact mode" {
-  p="$(new_project prov-refuse)"
-  run provision --project "$p" --recipe "$FIXTURES/local-dev-free.json" plan
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$output" | jq -e '.ok == false and .refused == true and .reason == "policy-not-auto-add"' >/dev/null
-
-  printf 'artifact\n' >"$p/.nightshift/work-mode"
-  run provision --project "$p" --recipe "$FIXTURES/local-dev-free.json" plan
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$output" | jq -e '.ok == false and .refused == true and .reason == "artifact-mode"' >/dev/null
-}
-
-@test "plan accepts a local-dev-free fixture recipe" {
-  p="$(new_project prov-plan)"
+@test "unknown flags do not mutate" {
+  p="$(new_project prov-unknown)"
   enable_auto_add "$p"
-  while IFS= read -r field; do
-    jq -e --arg f "$field" 'has($f)' "$FIXTURES/local-dev-free.json" >/dev/null \
-      || { echo "fixture missing required field: $field"; return 1; }
-  done < <(jq -r '.requiredRecipeFields[]' "$SCHEMA")
-  jq -e '.safetyClass == "local-dev-free"' "$FIXTURES/local-dev-free.json" >/dev/null
-  run provision --project "$p" --recipe "$FIXTURES/local-dev-free.json" plan
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '
-    .ok == true
-    and .refused == false
-    and .capabilityId == "fixture-lint"
-    and .safetyClass == "local-dev-free"
-  ' >/dev/null
-}
-
-@test "apply local-dev-free writes allowed files and commits tooling" {
-  p="$(new_project prov-ok)"
-  enable_auto_add "$p"
-  run provision --project "$p" --recipe "$FIXTURES/local-dev-free.json" apply
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .capabilityId == "fixture-lint"' >/dev/null
-  [ -f "$p/nightshift-fake.txt" ]
-  [ "$(cat "$p/nightshift-fake.txt")" = "ok" ]
-  [ ! -e "$p/.nightshift/provision-transaction.json" ]
+  printf 'keep\n' >"$p/nightshift-keep.txt"
+  before="$(cksum "$p/nightshift-keep.txt")"
+  run provision --project "$p" --recipe /tmp/nope apply
+  [ "$status" -ne 0 ]
+  [ "$(cksum "$p/nightshift-keep.txt")" = "$before" ]
+  [ ! -e "$p/.nightshift/provision-surface" ]
   [ ! -e "$p/.nightshift/provision-baseline" ]
-  git -C "$p" log -1 --format=%s | grep -qx 'chore(tooling): fixture-lint'
 }
 
-@test "apply smoke failure leaves no residue outside allowedFiles" {
-  p="$(new_project prov-smoke)"
-  enable_auto_add "$p"
-  before="$(tree_outside "$p")"
-  run provision --project "$p" --recipe "$FIXTURES/smoke-fail.json" apply
-  [ "$status" -eq 1 ]
-  printf '%s\n' "$output" | jq -e '.ok == false and .failed == true' >/dev/null
-  [ ! -e "$p/nightshift-fake.txt" ]
-  [ ! -e "$p/.nightshift/provision-transaction.json" ]
-  [ ! -e "$p/.nightshift/provision-baseline" ]
-  [ "$(tree_outside "$p")" = "$before" ]
-}
-
-@test "rollback restores baseline and removes new files" {
-  p="$(new_project prov-roll)"
+@test "baseline diff and rollback restore the write surface" {
+  p="$(new_project prov-seatbelt)"
   enable_auto_add "$p"
   printf 'baseline\n' >"$p/nightshift-keep.txt"
-  mkdir -p "$p/.nightshift/provision-baseline"
-  blob="$(python3 -c 'import hashlib,sys; print(hashlib.sha256(sys.argv[1].encode()).hexdigest())' nightshift-keep.txt)"
-  cp "$p/nightshift-keep.txt" "$p/.nightshift/provision-baseline/$blob"
+  run provision --project "$p" baseline --surface nightshift-keep.txt --surface nightshift-fake.txt
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | jq -e '.ok == true' >/dev/null
+  [ -f "$p/.nightshift/provision-surface" ]
   printf 'mutated\n' >"$p/nightshift-keep.txt"
   printf 'new\n' >"$p/nightshift-fake.txt"
-  jq -nc --arg tgt "$p" --arg blob "$blob" '{
-    schemaVersion:1,
-    stage:"apply",
-    capabilityId:"fixture-lint",
-    workTarget:$tgt,
-    allowedFiles:["nightshift-keep.txt","nightshift-fake.txt"],
-    baseline:{
-      "nightshift-keep.txt":{existed:true, digest:"4b654bd1437066b13498661f3ca14774daf1066d072036beffaf06f0c014250e", blob:$blob},
-      "nightshift-fake.txt":{existed:false, digest:null}
-    },
-    touched:["nightshift-keep.txt","nightshift-fake.txt"],
-    failed:false
-  }' >"$p/.nightshift/provision-transaction.json"
+  run provision --project "$p" diff
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | jq -e '.touched | index("nightshift-keep.txt") and index("nightshift-fake.txt")' >/dev/null
   run provision --project "$p" rollback
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | jq -e '.ok == true and .rolledBack == true' >/dev/null
   [ "$(cat "$p/nightshift-keep.txt")" = "baseline" ]
   [ ! -e "$p/nightshift-fake.txt" ]
+  [ ! -e "$p/.nightshift/provision-surface" ]
   [ ! -e "$p/.nightshift/provision-transaction.json" ]
 }
 
-@test "recover clears incomplete provision-transaction.json" {
-  p="$(new_project prov-rec)"
+@test "symlink to /tmp/victim does not write outside the work target" {
+  p="$(new_project prov-symlink)"
   enable_auto_add "$p"
-  printf 'new\n' >"$p/nightshift-fake.txt"
-  jq -nc --arg tgt "$p" '{
-    schemaVersion:1,
-    stage:"smoke",
-    capabilityId:"fixture-lint",
-    workTarget:$tgt,
-    allowedFiles:["nightshift-fake.txt"],
-    baseline:{"nightshift-fake.txt":{existed:false, digest:null}},
-    touched:["nightshift-fake.txt"],
-    failed:false
-  }' >"$p/.nightshift/provision-transaction.json"
-  [ -f "$p/.nightshift/provision-transaction.json" ]
-  run provision --project "$p" recover
+  victim="$(mktemp "${TMPDIR:-/tmp}/ns-victim.XXXXXX")"
+  printf 'secret\n' >"$victim"
+  before="$(cksum "$victim")"
+  ln -s "$victim" "$p/nightshift-keep.txt"
+  run provision --project "$p" baseline --surface nightshift-keep.txt
+  [ "$status" -eq 2 ]
+  printf '%s\n' "$output" | jq -e '.ok == false and .refused == true' >/dev/null
+  [ "$(cksum "$victim")" = "$before" ]
+  [ "$(cat "$victim")" = "secret" ]
+  [ ! -e "$p/.nightshift/provision-surface" ]
+
+  rm -f "$p/nightshift-keep.txt"
+  printf 'baseline\n' >"$p/nightshift-keep.txt"
+  run provision --project "$p" baseline --surface nightshift-keep.txt --surface nightshift-fake.txt
   [ "$status" -eq 0 ]
-  [ ! -e "$p/.nightshift/provision-transaction.json" ]
+  rm -f "$p/nightshift-keep.txt"
+  ln -s "$victim" "$p/nightshift-keep.txt"
+  printf 'planted\n' >"$p/nightshift-fake.txt"
+  run provision --project "$p" rollback
+  [ "$status" -eq 0 ]
+  [ "$(cksum "$victim")" = "$before" ]
+  [ "$(cat "$victim")" = "secret" ]
+  [ "$(cat "$p/nightshift-keep.txt")" = "baseline" ]
+  [ ! -L "$p/nightshift-keep.txt" ]
   [ ! -e "$p/nightshift-fake.txt" ]
+  rm -f "$victim"
 }
 
-@test "owner-dirty file outside allowedFiles survives failed apply" {
-  p="$(new_project prov-dirty)"
+@test "failed tooling commit stays consistent when rollback runs" {
+  p="$(new_project prov-commit)"
   enable_auto_add "$p"
-  cp "$FIXTURES/owner-dirty.txt" "$p/owner-dirty.txt"
-  before="$(cksum "$p/owner-dirty.txt")"
-  run provision --project "$p" --recipe "$FIXTURES/smoke-fail.json" apply
-  [ "$status" -eq 1 ]
-  [ -f "$p/owner-dirty.txt" ]
-  [ "$(cksum "$p/owner-dirty.txt")" = "$before" ]
-  [ ! -e "$p/nightshift-fake.txt" ]
-  [ "$(cat "$p/owner-dirty.txt")" = "owner note — do not touch" ]
-}
-
-@test "a dotfile in allowedFiles keeps its leading dot" {
-  p="$(new_project prov-dotfile)"
-  enable_auto_add "$p"
-  run provision --project "$p" --recipe "$FIXTURES/dotfile-config.json" apply
+  printf 'baseline\n' >"$p/nightshift-keep.txt"
+  run provision --project "$p" baseline --surface nightshift-keep.txt --surface capabilities-row.txt
   [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.touched == [".fixture-lintrc.json"]' >/dev/null
-  [ -f "$p/.fixture-lintrc.json" ]
-  [ ! -e "$p/fixture-lintrc.json" ]
-  git -C "$p" log -1 --format=%s | grep -qx 'chore(tooling): fixture-dotfile-lint'
-}
-
-@test "apply keeps its state in the linked workspace" {
-  host="$(new_project prov-link-host)"
-  workspace="$(new_workspace prov-link-ws)"
-  bash "$LINKER" --host-root "$host" --workspace "$workspace" >/dev/null
-  enable_auto_add "$workspace"
-  run provision --project "$host" --recipe "$FIXTURES/local-dev-free.json" apply
+  printf 'tool\n' >"$p/nightshift-keep.txt"
+  printf '{"id":"fixture"}\n' >"$p/capabilities-row.txt"
+  # Model writes inventory only after commit. A failed commit rolls the surface back.
+  run provision --project "$p" rollback
   [ "$status" -eq 0 ]
-  [ -f "$workspace/.nightshift/capabilities.json" ]
-  [ -f "$workspace/nightshift-fake.txt" ]
-  [ ! -e "$host/.nightshift/capabilities.json" ]
-  [ ! -e "$host/nightshift-fake.txt" ]
+  [ "$(cat "$p/nightshift-keep.txt")" = "baseline" ]
+  [ ! -e "$p/capabilities-row.txt" ]
+  [ ! -e "$p/.nightshift/capabilities.json" ]
 }
 
-@test "a declared elevation category is denied without an allowance" {
-  p="$(new_project prov-elev-deny)"
-  auto_add "$p"
-  run provision --project "$p" --recipe "$FIXTURES/elevated-sudo.json" plan
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$output" | jq -e '
-    .ok == false
-    and .refused == true
-    and .reason == "elevation-denied:sudo"
-    and .refusalReasons == ["elevation-denied:sudo"]
-    and .elevationCategories == ["sudo"]
-  ' >/dev/null
-}
-
-@test "rules allow an elevation category permanently" {
-  p="$(new_project prov-elev-rules)"
-  auto_add "$p"
-  allow_in_rules "$p" sudo allow
-  run provision --project "$p" --recipe "$FIXTURES/elevated-sudo.json" plan
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .refusalReasons == []' >/dev/null
-}
-
-@test "a one-shift allowance lifts an elevation category for the night" {
-  p="$(new_project prov-elev-shift)"
-  auto_add "$p" --allow sudo
-  run provision --project "$p" --recipe "$FIXTURES/elevated-sudo.json" plan
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .refusalReasons == []' >/dev/null
-}
-
-@test "an exact-plan allowance binds the approved command and nothing else" {
-  p="$(new_project prov-elev-plan)"
-  auto_add "$p" --exact-plan sudo --command 'sudo install -m 644 /dev/null nightshift-fake.txt'
-  run provision --project "$p" --recipe "$FIXTURES/elevated-sudo.json" plan
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .refusalReasons == []' >/dev/null
-
-  run provision --project "$p" --recipe "$FIXTURES/elevated-sudo-variant.json" plan
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$output" | jq -e '.refusalReasons == ["elevation-denied:sudo"]' >/dev/null
-}
-
-@test "an undeclared elevation category is caught by the command it needs" {
-  p="$(new_project prov-elev-undeclared)"
-  auto_add "$p"
-  run provision --project "$p" --recipe "$FIXTURES/undeclared-containers.json" plan
-  [ "$status" -eq 2 ]
-  printf '%s\n' "$output" | jq -e '
-    .refusalReasons == ["elevation-denied:containers"] and .elevationCategories == []
-  ' >/dev/null
-}
-
-@test "the provisioning refusal codes are the frozen contract" {
-  jq -e '.refusalReasons == [
-    "policy-not-auto-add",
-    "artifact-mode",
-    "elevation-denied:sudo",
-    "elevation-denied:containers",
-    "elevation-denied:global-packages",
-    "elevation-denied:daemons",
-    "elevation-denied:external-services",
-    "incompatible-ecosystem",
-    "permission-prompt-required",
-    "provisioning-runtime-unavailable",
-    "owner-dirty-conflict",
-    "safety-forbidden"
-  ]' "$SCHEMA" >/dev/null
-  jq -e '.elevationCategories == [
-    "sudo", "containers", "global-packages", "daemons", "external-services"
-  ]' "$SCHEMA" >/dev/null
-  jq -e '.skipReasons == [
-    "permission-prompt-required", "provisioning-runtime-unavailable"
-  ]' "$SCHEMA" >/dev/null
-  # elevationCategories stays optional, so every registered recipe remains valid.
-  jq -e '.requiredRecipeFields | index("elevationCategories") == null' "$SCHEMA" >/dev/null
-
-  for f in "$PROVISION_PY" "$SCHEMA" "$ENGINE"; do
-    if grep -qE 'global-or-system|paid-or-account|daemon-or-cloud' "$f"; then
-      echo "retired refusal code still present in $f"
-      return 1
-    fi
-  done
-}
-
-@test "an elevated command that runs leaves one verified provisioning receipt" {
-  p="$(new_project prov-elev-receipt)"
-  auto_add "$p" --allow global-packages
-  bin="$(controlled_bin prov-elev-bin)"
-  fake_exe "$bin" brew 'exit 0'
-  export PATH="$bin:$PATH"
-
-  run provision --project "$p" --recipe "$FIXTURES/elevated-global-packages.json" apply
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .capabilityId == "fixture-global-lint"' >/dev/null
-
-  ledger="$p/.nightshift/evidence/findings.jsonl"
-  [ -f "$ledger" ]
-  [ "$(grep -c . "$ledger")" -eq 1 ]
-  jq -e '
-    .domain == "provisioning"
-    and .category == "global-packages"
-    and .provenance == "one-shift"
-    and .source == "brew install nightshift-fixture"
-    and .scope == "elevation.global-packages"
-    and .ladder == "verified-after-change"
-  ' "$ledger" >/dev/null
-}
-
-@test "preflight reports a prompt risk when allowed sudo is not passwordless" {
-  p="$(new_project prov-pre-sudo)"
-  auto_add "$p" --allow sudo
-  grant_unattended "$p"
-  bin="$(controlled_bin prov-pre-sudo-bin)"
-  fake_exe "$bin" sudo 'exit 1'
-  export PATH="$bin:$PATH"
-
-  run bash "$PREFLIGHT" --project "$p" --recipe "$FIXTURES/elevated-sudo.json" check
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '
-    .ok == false and .skipReasons == ["permission-prompt-required"]
-  ' >/dev/null
-
-  fake_exe "$bin" sudo 'exit 0'
-  run bash "$PREFLIGHT" --project "$p" --recipe "$FIXTURES/elevated-sudo.json" check
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .skipReasons == []' >/dev/null
-}
-
-@test "preflight leaves a denied sudo category to the engine" {
-  p="$(new_project prov-pre-sudo-deny)"
-  auto_add "$p"
-  grant_unattended "$p"
-  bin="$(controlled_bin prov-pre-deny-bin)"
-  fake_exe "$bin" sudo 'exit 1'
-  export PATH="$bin:$PATH"
-
-  run bash "$PREFLIGHT" --project "$p" --recipe "$FIXTURES/elevated-sudo.json" check
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .skipReasons == []' >/dev/null
-}
-
-@test "preflight reports the provisioning runtime missing only under auto-add" {
+@test "preflight does not require python under auto-add" {
   p="$(new_project prov-pre-runtime)"
   grant_unattended "$p"
   # shellcheck disable=SC2086
   bin="$(build_toolset_bin prov-no-python $PROVISION_TOOLSET_NO_PYTHON)"
   [ ! -e "$bin/python3" ]
-
   auto_add "$p"
-  run env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
-    bash "$PREFLIGHT" --project "$p" check
-  [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '
-    .ok == false and .skipReasons == ["provisioning-runtime-unavailable"]
-  ' >/dev/null
-
-  auto_add "$p" --tooling existing-tools
   run env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
     bash "$PREFLIGHT" --project "$p" check
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | jq -e '.ok == true and .skipReasons == []' >/dev/null
 }
 
-@test "Windows provision.ps1 exists and names plan apply recover rollback" {
+@test "Windows provision.ps1 names baseline diff recover rollback" {
   [ -f "$WIN" ]
-  grep -q 'ValidateSet' "$WIN"
-  grep -qF "'plan'" "$WIN"
-  grep -qF "'apply'" "$WIN"
-  grep -qF "'recover'" "$WIN"
-  grep -qF "'rollback'" "$WIN"
+  grep -qF 'baseline' "$WIN"
+  grep -qF 'diff' "$WIN"
+  grep -qF 'recover' "$WIN"
+  grep -qF 'rollback' "$WIN"
+  ! grep -qF "'plan'" "$WIN"
 }
 
-@test "Start and Hunt call out provision recover once landed" {
+@test "Start and Hunt name the thin seatbelt" {
   grep -qF 'provision.sh' "$ENGINE"
-  grep -qE 'plan\|apply\|recover\|rollback' "$ENGINE"
-  grep -qF 'provision.sh' "$HELPERS" || true
-
-  start_hit=0
-  hunt_hit=0
-  grep -qF 'provision.sh' "$START" && start_hit=1
-  grep -qF 'provision.sh' "$HUNT" && hunt_hit=1
-  if [ "$start_hit" -eq 0 ] && [ "$hunt_hit" -eq 0 ]; then
-    return 0
-  fi
-  if [ "$start_hit" -eq 1 ]; then
-    grep -qF 'provision.sh' "$START" || return 0
-    grep -qE 'provision\.sh[^`]* recover' "$START" || return 0
-  fi
-  if [ "$hunt_hit" -eq 1 ]; then
-    grep -qF 'provision.sh' "$HUNT" || return 0
-  fi
+  grep -qF 'baseline' "$ENGINE"
+  grep -qF 'provision.sh' "$START"
+  grep -qE 'provision\.sh[^`]* recover' "$START"
+  grep -qF 'provision.sh' "$HUNT"
+  grep -qF 'baseline' "$HUNT"
 }
 
-# ---------------------------------------------------------------------------------------------
 # Recovery residue, owner-file safety, and no-retry — every recover-tx-*.json fixture represents
 # a crash at that exact stage of `recover-recipe.json`'s transaction (capabilityId
 # "fixture-recover", allowedFiles nightshift-keep.txt + nightshift-config.json +
@@ -583,16 +356,17 @@ recover_seed_mutated() {
   [ "$(tree_outside "$p")" = "$before" ]
 }
 
-@test "apply refuses to retry a leftover failed transaction with the stable code" {
+@test "unknown apply does not mutate a leftover failed transaction; recover settles it" {
   p="$(new_project prov-no-retry)"
   enable_auto_add "$p"
   recover_seed_baseline "$p"
   recover_seed_mutated "$p"
   bash "$INSTALL_TX" "$FIXTURES/recover-tx-apply-failed.json" "$p" "$RECOVER_RECIPE"
   run provision --project "$p" --recipe "$FIXTURES/smoke-fail.json" apply
-  [ "$status" -eq 1 ]
-  printf '%s\n' "$output" | jq -e '.ok == false and .failed == true and .detail == "do not retry the same failure"' >/dev/null
-  # The refusal still rolls back the leftover transaction — no residue survives a refused retry.
+  [ "$status" -ne 0 ]
+  [ -f "$p/.nightshift/provision-transaction.json" ]
+  run provision --project "$p" recover
+  [ "$status" -eq 0 ]
   [ ! -e "$p/.nightshift/provision-transaction.json" ]
   [ "$(cat "$p/nightshift-keep.txt")" = "baseline" ]
   [ "$(cat "$p/nightshift-config.json")" = '{"ok":true}' ]

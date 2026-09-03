@@ -1,7 +1,7 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/data-migration.md"
 
 @test "data migration uses data-safety and production-refusal helpers" {
-  grep -qF 'migration-evidence.sh data-safety' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qF 'production-refusal' "$E"
 }
 

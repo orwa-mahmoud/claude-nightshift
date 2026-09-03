@@ -123,11 +123,7 @@ if [ -n "$RECIPE" ] && [ -f "$RECIPE" ]; then
   esac
 fi
 
-# The provisioning runtime is probed under auto-add and never otherwise: no other policy installs
-# anything, so no other policy has a prerequisite to report.
-if [ "$TOOLING" = auto-add ] && ! command -v python3 >/dev/null 2>&1; then
-  add_skip provisioning-runtime-unavailable
-fi
+# Auto-add no longer requires a Python runtime. The model installs; the seatbelt is bash.
 
 OK=true
 [ -z "$SKIP_JSON" ] || OK=false

@@ -11,15 +11,15 @@ select this entry in artifact mode. Typical hours: 1–3.
 ## Observability/diagnostics mode
 
 When the primary gap is missing logs, metrics, traces, or failure-surface visibility, run
-`runtime/operational-evidence.sh observability-surface` first. Record absent signals honestly;
+a receipt from `receipt-templates.md` first. Record absent signals honestly;
 never assume emitted telemetry reached production.
 
 ```text
 - [ ] **Runbook verification — replay a named safe procedure with supplied evidence.**
   - Discovery: record the procedure name, declared safe/disposable environment, and supplied
     logs/metrics/traces or failure-surface samples. For observability gaps, run
-    `runtime/operational-evidence.sh observability-surface` before proposing instrumentation.
-    Run `runtime/operational-evidence.sh runbook-verify` on each step cluster.
+    a receipt from `receipt-templates.md` before proposing instrumentation.
+    Run a receipt from `receipt-templates.md` on each step cluster.
   - Never select this entry when work mode is artifact.
   - Verify one step cluster per cycle in the named safe environment; fix repository automation or
     docs when a declared step fails; park production-only steps. Run the item gate, commit.
@@ -27,7 +27,7 @@ never assume emitted telemetry reached production.
     steps, or run production-only steps without explicit owner authority.
   - Never certify full operational readiness from one script — record verified, refused, and
     production-only steps separately.
-  - Finish with `runtime/operational-evidence.sh measured-summary` for every signal and step.
+  - Finish with a receipt from `receipt-templates.md` for every signal and step.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected).
   - Ends when every in-scope step is verified, refused with reason, or parked as production-only,
     and observability gaps are recorded absent — not inferred.

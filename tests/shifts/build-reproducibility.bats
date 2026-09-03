@@ -5,7 +5,7 @@ HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
   grep -qi 'Discovery' "$E"
   grep -qi 'declared clean setup and build paths' "$E"
   grep -qi 'repository-owned commands' "$E"
-  grep -qF 'runtime/build-onboarding-evidence.sh repro-compare' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "build reproducibility inventories artifacts and compares determinism honestly" {

@@ -233,7 +233,7 @@ _pick_json_tool() {
   elif command -v python3 >/dev/null 2>&1; then
     JSON_TOOL=python3
   else
-    die 'jq or python3 is required to read JSON' 2
+    die 'JSON parser unavailable; write the baseline receipt in the skill' 2
   fi
 }
 

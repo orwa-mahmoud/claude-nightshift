@@ -13,19 +13,19 @@ Requires repository mode. Never select this entry in artifact mode. Do not `git 
 folder to simulate migration state.
 
 Schema: `references/schemas/v1/migration-evidence.json`. Build evidence with
-`runtime/migration-evidence.sh` from owner-supplied plans, config inventories, and test results.
+a receipt from `receipt-templates.md` from owner-supplied plans, config inventories, and test results.
 
 ## Configuration parity mode
 
 Select when environments must agree on configuration shape before or after a migration. Compare
 secret **presence and shape only** — never retrieve, echo, or copy secret values. Run
-`runtime/migration-evidence.sh config-parity` across named environments and record gaps for the
+a receipt from `receipt-templates.md` across named environments and record gaps for the
 owner to reconcile outside the shift when values differ.
 
 ## Data migration mode
 
 Select when persisted data or schema changes need ordering, backfill, locks, or representative
-samples. Run `runtime/migration-evidence.sh data-safety` before any data operation. Execute data
+samples. Run a receipt from `receipt-templates.md` before any data operation. Execute data
 work only in disposable or specifically owner-approved environments; live production and
 destructive operations remain outside normal direct-mode authority unless the owner explicitly
 approved that exact environment in the punch-list scope.
@@ -35,11 +35,11 @@ approved that exact environment in the punch-list scope.
   - Discovery: require a named migration and authoritative guidance before editing. Inventory
     consumers, public compatibility surfaces, persisted state, ordering, defaults/nullability,
     backfill needs, locks, old/new overlap, idempotency, rollback steps, staged changes, and
-    representative data with `runtime/migration-evidence.sh migration-inventory`. Classify each
-    change with `runtime/migration-evidence.sh compatibility-assess`. When config/env parity is
-    in scope, run `runtime/migration-evidence.sh config-parity`. When data or schema migration is
-    in scope, run `runtime/migration-evidence.sh data-safety` and
-    `runtime/migration-evidence.sh recovery-plan` for mid-migration failure paths.
+    representative data with a receipt from `receipt-templates.md`. Classify each
+    change with a receipt from `receipt-templates.md`. When config/env parity is
+    in scope, run a receipt from `receipt-templates.md`. When data or schema migration is
+    in scope, run a receipt from `receipt-templates.md` and
+    a receipt from `receipt-templates.md` for mid-migration failure paths.
   - Never select this entry when work mode is artifact.
   - Work one bounded cluster per cycle: additive compatibility fixes, config shape alignment in
     repo-owned files, staged code changes with compatibility tests, then item gate and commit.
@@ -53,7 +53,7 @@ approved that exact environment in the punch-list scope.
     exact environment.
   - Never leave a half-applied migration without a recorded recovery plan and rollback steps.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected).
-  - Ends when `runtime/migration-evidence.sh verdict` reports a finite status, compatibility tests
+  - Ends when a receipt from `receipt-templates.md` reports a finite status, compatibility tests
     cover touched surfaces, rollback is documented, and every breaking or production blocker is
     fixed, rejected with reason, or parked.
   - Verify: the item gate is green at every commit; migration/config/data fixtures pass;

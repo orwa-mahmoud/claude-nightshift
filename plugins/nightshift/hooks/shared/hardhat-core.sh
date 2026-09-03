@@ -143,45 +143,8 @@ ns_hardhat_payload_targets() { # $1 = tool, $2 = raw payload, $3 = command/patch
             )
         ' 2>/dev/null)" || return 2
         decoder=jq
-      elif command -v python3 >/dev/null 2>&1; then
-        targets="$(printf '%s' "$2" | python3 -c 'import base64,json,re,sys
-d=json.load(sys.stdin).get("tool_input",{})
-k=re.compile(r"((^|_)(path|filepath|file|filename|directory|dir|uri|name)$|^(target|destination|dest|source|src)$)",re.I)
-c=re.compile(r"(^|_)(command|cmd|script)$",re.I)
-def emit(kind,item):
-    if "\n" in item:
-        encoded=base64.b64encode(item.encode()).decode()
-        print(f"{kind.upper()}\t{encoded}")
-    else:
-        print(f"{kind.lower()}\t{item}")
-def strings(v):
-    out=[]
-    if isinstance(v,str): out.append(v)
-    elif isinstance(v,list):
-        for x in v: out.extend(strings(x))
-    elif isinstance(v,dict):
-        for x in v.values(): out.extend(strings(x))
-    return out
-def walk(v):
-    if isinstance(v,dict):
-        dirs=[]
-        names=[]
-        for key,value in v.items():
-            values=strings(value)
-            if c.search(key):
-                for item in values: emit("C",item)
-            elif k.search(key):
-                for item in values: emit("P",item)
-            if re.fullmatch(r"(directory|dir)",key,re.I): dirs.extend(values)
-            if re.fullmatch(r"(name|filename|file)",key,re.I): names.extend(values)
-            walk(value)
-        for directory in dirs:
-            for name in names: emit("P",f"{directory}/{name}")
-    elif isinstance(v,list):
-        for x in v: walk(x)
-walk(d)' 2>/dev/null)" || return 2
-        decoder=python3
       else
+        # No general Bash JSON parser. Missing jq fails closed.
         return 2
       fi
       NS_HARDHAT_TARGETS_FOR="$2"
@@ -204,8 +167,7 @@ walk(d)' 2>/dev/null)" || return 2
               printf '\034'
             )" || return 2
           else
-            target="$(python3 -c 'import base64,sys
-sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/dev/null)" || return 2
+            return 2
           fi
           target="${target%$'\034'}"
           if [ "$record_type" = "C" ]; then

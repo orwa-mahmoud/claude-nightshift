@@ -74,7 +74,7 @@ retire_legacy_policy() {
     exit 1
   fi
   tool="$(ns_policy_json_tool)" || {
-    printf 'migrate-state: jq or python3 is required to read JSON\n' >&2
+    printf 'migrate-state: JSON parser unavailable; fold leftover state in the skill\n' >&2
     exit 2
   }
   policy="$(legacy_tooling_policy "$tool")"

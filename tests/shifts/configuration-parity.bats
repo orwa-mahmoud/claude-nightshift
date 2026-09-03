@@ -1,7 +1,7 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/configuration-parity.md"
 
 @test "configuration parity uses config-parity helper" {
-  grep -qF 'migration-evidence.sh config-parity' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "configuration parity never retrieves secret values" {

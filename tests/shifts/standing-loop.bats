@@ -9,7 +9,7 @@ T="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/prod
 @test "product evolution is research-led rather than a lint loop" {
   grep -qi 'product-research.md' "$E"
   grep -qi 'opportunity-map.md' "$E"
-  grep -qF 'runtime/owner-work-evidence.sh evolution-hypothesis' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'small validated slices' "$E"
   grep -qi 'disproved by prior receipts' "$E"
   grep -qi 'rather than supplying the roadmap' "$E"

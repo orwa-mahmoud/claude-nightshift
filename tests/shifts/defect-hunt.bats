@@ -6,8 +6,8 @@ HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "defect hunt rotates lenses and tracks cycle state" {
-  grep -qi 'defect-cycle.sh init' "$E"
-  grep -qi 'next-lens' "$E"
+  grep -qi 'defect-cycle receipt' "$E"
+  grep -qi 'rotate lenses' "$E"
   grep -qi 'correctness' "$E"
   grep -qi 'recent-change' "$E"
 }

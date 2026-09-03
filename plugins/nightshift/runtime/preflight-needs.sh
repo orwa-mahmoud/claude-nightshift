@@ -65,7 +65,7 @@ fi
 NS="$WORKSPACE/.nightshift"
 
 no_parser() {
-  printf 'preflight-needs: jq or python3 is required to read JSON\n' >&2
+  printf 'preflight-needs: JSON parser unavailable; park gaps in the skill\n' >&2
   exit 2
 }
 

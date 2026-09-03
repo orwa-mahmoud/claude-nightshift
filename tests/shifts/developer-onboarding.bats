@@ -5,8 +5,8 @@ HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
   grep -qi 'Discovery' "$E"
   grep -qi 'public checkout/setup path' "$E"
   grep -qi 'representative verified change' "$E"
-  grep -qF 'runtime/build-onboarding-evidence.sh onboarding-journey' "$E"
-  grep -qF 'runtime/build-onboarding-evidence.sh prerequisite-map' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "developer onboarding applies a fresh-reader pass" {

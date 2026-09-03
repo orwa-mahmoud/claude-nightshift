@@ -7,7 +7,7 @@ HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "documentation drift uses claim-to-authority matrix" {
-  grep -qF 'product-truth-evidence.sh doc-claim-matrix' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "documentation drift discovers local references against the tree" {
@@ -18,12 +18,12 @@ SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
 @test "documentation drift content-architecture mode uses specialist helper" {
   grep -qi 'Content-architecture mode' "$E"
-  grep -qF 'runtime/specialist-evidence.sh content-architecture' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "documentation drift public-claims mode uses release-readiness matrix" {
   grep -qi 'Public-claims mode' "$E"
-  grep -qF 'release-readiness-evidence.sh public-claims-matrix' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qi 'Never publish or deploy from this shift' "$E"
   grep -qi 'Route full baseline-vs-candidate release comparison to release-readiness' "$E"
 }

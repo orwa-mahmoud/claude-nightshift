@@ -4,14 +4,14 @@ FIXTURE="$BATS_TEST_DIRNAME/../fixtures/documentation-writing"
 WIN="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/windows/check-report.ps1"
 
 @test "documentation writing uses product-truth outline helper" {
-  grep -qF 'product-truth-evidence.sh doc-outline' "$E"
+  grep -qF 'receipt-templates.md' "$E"
 }
 
 @test "documentation writing resolves source policy for artifact folders" {
-  grep -qF 'source-policy-evidence.sh policy-resolve' "$E"
-  grep -qF 'source-policy-evidence.sh query-manifest' "$E"
-  grep -qF 'source-policy-evidence.sh redact-untrusted' "$E"
-  grep -qF 'source-policy-evidence.sh artifact-receipt-plan' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
   grep -qF 'git init' "$E"
 }
 

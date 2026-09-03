@@ -141,8 +141,9 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  reads the on-disk lease, session, and pid. Model-authored flags and omitted fields cannot grant
  takeover. A missing or unreadable fence refuses to arm (non-zero). Takeover proceeds only when
  that disk state shows the prior worker is fenced and no duplicate is live, and
- `continuity-handoff.sh handoff-package` reports `complete`. Never permit two active workers or
- duplicate mutable punch-list state.
+ the on-disk fence is clear. Never permit two active workers or
+ duplicate mutable punch-list state. Do not call `handoff-package`, `transition-history`,
+ or `campaign-sequence` — summarize those from `$NS/shift-log.md` in the skill.
 - **Reset stale lease state through the shared library, never by reading or deleting its files
  directly.** After the liveness checks and stale-watchman shutdown above, run:
  ```bash
@@ -193,13 +194,11 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  and `$NS/drafting-table.md`. If either holds work, show it in one short list and ask
  which to work now. On the owner's choice, **cut it — move, never copy**: the item goes under
  `## Items` and is removed from the file it came from, so it never exists in two places. An
- imported draft (`Status: proposed` and a canonical `Source:` GitHub URL) is cut with
- `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --promote …`
- (on native Windows,
- `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`)
- — never by editing the two markdown files by hand. A flagged import stays refused unless the
- owner overrides after seeing the flags (`--allow-flagged` / `-AllowFlagged`). Ordinary drafts
- keep the manual cut. From a work order, remove the whole `## Work order` section (heading,
+ imported draft (`Status: proposed` and a canonical `Source:` GitHub URL) is cut in the
+ skill — move the item under `## Items` and remove it from the drafting table; never copy.
+ The import-issues helper is optional and must not be required. Do not require Python.
+ A flagged import stays refused unless the owner overrides after seeing the flags.
+ Ordinary drafts keep the same cut. From a work order, remove the whole `## Work order` section (heading,
  hours, and item), not just the checkbox, then write `$NS/deadline` as a UNIX epoch from the
  recorded hours (`now + hours*3600`; compute now with `date +%s` on POSIX, or
  `Get-NSUnixTime` after
@@ -254,12 +253,10 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\provision.ps1" -Project "$NIGHTSHIFT_WORKSPACE" recover`).
  When recovery exits unproven, Start refuses to arm and names the repair:
  `.nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again.`
-- **Refresh capability detection.** Run
- `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/refresh-inventory.sh" --project "$NIGHTSHIFT_WORKSPACE"`
- (native Windows:
- `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\refresh-inventory.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`).
- The helper caches read-only detection in `$NS/capability-detection.json`; provisioning inventory in
- `$NS/capabilities.json` is preserved.
+- **Inspect capabilities in the skill.** Read manifests, lockfiles, and `## Gates` in the
+ work target. Do not call `detect-capabilities.sh` or `refresh-inventory.sh`. Do not
+ require a detector. `$NS/capabilities.json` is a cache the model may update after a
+ successful tooling commit only.
 - **Resolve tonight's shift policy.** Run
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" get`
  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" get`).
@@ -444,12 +441,9 @@ otherwise. From here the clock-out gate owns the session — it will not let
 you stop while any box is open.
 
 Whenever an item answers a tool, a scan, or a report, write that source's baseline before the first
-fix and once per source class, with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/evidence-baseline.sh" --project "$NIGHTSHIFT_WORKSPACE"
---source-class <class> --command '<exact command>' [--scope <text>] [--raw <output file>]`
-(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\evidence-baseline.ps1"`). Before a risky cluster — a migration, a codemod, a provisioning step — write a checkpoint against that
-baseline with `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/evidence-checkpoint.sh" --project
-"$NIGHTSHIFT_WORKSPACE" --baseline <id> --touched <paths> --rollback <ref or transaction id>
---plan '<how it gets verified>'` (native Windows:
-`& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\evidence-checkpoint.ps1"`), so the morning receipt can
-show where the work started and how to put it back.
+fix — once per source class — using the receipt templates in
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`. Before a risky
+cluster, write a checkpoint receipt naming the touched paths, the rollback ref, and the
+verification plan. The model writes the receipt. Do not call `evidence-baseline.sh`,
+`evidence-checkpoint.sh`, or `evidence.py`. Native `evidence.sh` fail-closed containment
+stays available and is never required. Do not require Python.

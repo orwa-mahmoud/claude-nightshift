@@ -126,7 +126,7 @@ if command -v jq >/dev/null 2>&1; then
 elif command -v python3 >/dev/null 2>&1; then
   JSON_TOOL=python3
 else
-  die 'jq or python3 is required to read JSON' 2
+  die 'JSON parser unavailable; write the morning receipt in the skill' 2
 fi
 
 TMPD="$(mktemp -d "${TMPDIR:-/tmp}/ns-receipt.XXXXXX")" || die 'cannot create a temporary directory' 2

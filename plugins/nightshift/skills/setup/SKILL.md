@@ -276,16 +276,16 @@ On native Windows, preview with
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.
 Applying requires an explicit yes and `--apply` / `-Apply`. Fill never overwrites an owner value. Replace
 shows the complete next file first. Profiles are a one-time local copy — no network, no
-subscription. Refuse `--apply` / `-Apply` while armed. After applying a profile, show the resolved
-preset with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/history-context.sh" preset-compose --input <preset-manifest.json>`
-so branch mode, allowed sources, verification profile, receipt retention, resource limits, and
-direct-mode boundaries trace to `rules.json` and `shift-defaults.json`. Owner rules remain
-authoritative; presets never capture hidden policy.
+subscription. Refuse `--apply` / `-Apply` while armed. After applying a profile, write a
+preset receipt from
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md` so branch mode,
+allowed sources, verification profile, receipt retention, resource limits, and
+direct-mode boundaries trace to `rules.json` and `shift-defaults.json`. Do not call
+`history-context.sh`. Owner rules remain authoritative; presets never capture hidden policy.
 
 **Template evolution — offer, never impose.** On a re-run with the file already present,
 compare the shipped template's top-level keys and its nested `toolDeny` keys to the owner's file
-(`jq -r 'keys[]'` on each object, or equivalent Python when jq is absent; on native Windows,
+(read the JSON in the skill; do not ask the owner to install `jq` or Python; on native Windows,
 `(Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json).PSObject.Properties.Name`
 and the same for `.toolDeny`): offer any missing key with its default — "this version added
 `request_user_input`; add it?" — and never touch a value the owner already has. A missing native

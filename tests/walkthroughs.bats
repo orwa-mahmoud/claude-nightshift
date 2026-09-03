@@ -40,15 +40,11 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 
 # Imported issues carry review flags the helper enforces. A hand-edit of the two markdown files
 # would skip that, so empty-list Start must use the same promote path Hunt already names.
-@test "start cuts a proposed import through the promote helper" {
+@test "start cuts a proposed import in the skill" {
   grep -qF 'Status: proposed' "$START"
-  grep -qF 'runtime/import-issues.sh' "$START"
-  grep -qF -- '--promote' "$START"
-  grep -qF 'runtime\windows\import-issues.ps1' "$START"
-  grep -qF -- '-Promote' "$START"
-  grep -qF -- '--allow-flagged' "$START"
-  grep -qF -- '-AllowFlagged' "$START"
-  grep -qi 'never by editing the two markdown files by hand' "$START"
+  grep -qF 'drafting table' "$START"
+  grep -qi 'Do not require Python' "$START"
+  grep -qi 'flagged import stays refused' "$START"
 }
 
 # Hunt writes a heading plus hours plus the item. Cutting only the checkbox leaves an empty

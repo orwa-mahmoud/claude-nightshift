@@ -40,7 +40,7 @@ done
 
 dir="${MANIFEST%/*}"
 if ! command -v python3 >/dev/null 2>&1; then
-  printf 'quality-scan: python3 is required\n' >&2
+  printf 'quality-scan: unused; run the project tools in the skill\n' >&2
   exit 2
 fi
 

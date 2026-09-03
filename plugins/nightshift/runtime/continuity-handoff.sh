@@ -14,7 +14,6 @@ _here="${BASH_SOURCE[0]%/*}"
 [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
-PY="$_here/continuity-handoff.py"
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0" >&2
@@ -74,10 +73,6 @@ if [ "$CMD" = "fence-check" ]; then
   exit "$?"
 fi
 
-[ -n "$INPUT" ] || usage
-[ -f "$PY" ] || {
-  printf 'continuity-handoff: runtime/continuity-handoff.py is not installed\n' >&2
-  exit 2
-}
-
-exec python3 "$PY" "$CMD" --input "$INPUT"
+# Leftover commands are folded into Status/Start. Do not require Python.
+printf 'continuity-handoff: %s is unused; summarize from shift-log.md in the skill\n' "$CMD" >&2
+exit 2

@@ -27,11 +27,9 @@ CLEAR="$SHIFTS/clear-quality-debt.md"
   grep -qF 'Tooling quality-debt entries are skipped in artifact mode' "$SHIFT_MODES"
 }
 
-@test "artifact quality uses source-policy helpers without git tooling" {
-  grep -qF 'source-policy-evidence.sh policy-resolve' "$CLEAR"
-  grep -qF 'source-policy-evidence.sh query-manifest' "$CLEAR"
-  grep -qF 'source-policy-evidence.sh redact-untrusted' "$CLEAR"
-  grep -qF 'source-policy-evidence.sh artifact-receipt-plan' "$CLEAR"
+@test "artifact quality uses source-policy receipts without git tooling" {
+  grep -qF 'receipt-templates.md' "$CLEAR"
   grep -qF 'git init' "$CLEAR"
   grep -qi 'artifact mode' "$CLEAR"
+  grep -qi 'untrusted' "$CLEAR"
 }
