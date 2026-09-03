@@ -236,9 +236,21 @@ try {
         Expect-True ($reason -ceq $expected) "$category default deny: $reason"
     }
 
-    foreach ($command in @("psql -c 'select 1'", 'curl http://localhost:3000', 'npm test')) {
+    foreach ($command in @("psql -c 'select 1'", 'curl http://localhost:3000', 'npm test', 'docker ps', 'docker logs web', 'brew list')) {
         $reason = Get-ElevationReason $command
         Expect-True ([string]::IsNullOrEmpty($reason)) "using what already runs is never elevation: $command -> $reason"
+    }
+    $bypass = @{
+        'sudo' = @('/usr/bin/sudo id', 'sudo;id', "eval 'sudo id'", "sh -c 'sudo apt-get install -y jq'")
+        'containers' = @('docker run alpine', 'docker create alpine', 'docker start web', 'docker build .', 'curl --unix-socket /var/run/docker.sock http://localhost/info')
+        'global-packages' = @('pip install black', 'cargo install ripgrep', 'go install example.com/cmd@latest', 'apt-get upgrade jq', 'brew uninstall shellcheck')
+    }
+    foreach ($category in @('sudo', 'containers', 'global-packages')) {
+        $expected = "BLOCKED: this command needs the '$category' elevation category, which is denied for this shift. The owner allows it in .nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as `"needs allowance: $category`" and keep working."
+        foreach ($command in $bypass[$category]) {
+            $reason = Get-ElevationReason $command
+            Expect-True ($reason -ceq $expected) "create-state deny $command : $reason"
+        }
     }
     $messageOnly = Get-ElevationReason "git commit -m 'sudo apt-get install jq and docker compose up'"
     Expect-True ([string]::IsNullOrEmpty($messageOnly)) "a commit message names no category: $messageOnly"

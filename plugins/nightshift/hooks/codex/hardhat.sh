@@ -12,8 +12,10 @@
 #   forbiddenCommands    deny any command matching this grep -E pattern during a shift
 #                        (the no-push recipe: set it to 'git .*push')
 #   elevation            per-category policy and grep -E pattern for the five categories that
-#                        create system state; denied by default, lifted by the owner in
-#                        rules.json or for one shift in shift-policy.json
+#                        create system state (sudo, containers, global-packages, daemons,
+#                        external-services); denied by default, lifted by the owner in
+#                        rules.json or for one shift in shift-policy.json. Hardhat is
+#                        hardening, not a sandbox.
 # An env var of the matching NIGHTSHIFT_ name overrides the file for the session; the file
 # itself is guarded during a shift, so only the owner sets or lifts a rule.
 #
