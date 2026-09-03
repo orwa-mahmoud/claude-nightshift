@@ -84,8 +84,7 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 # Only the Items list is the shift. A checkbox above it is prose — an owner's note, an example in
 # the contract — and counting it would hold a session over something nobody queued. The heading
 # must stand alone on its line, so the contract's inline `## Items` references never match.
-open_boxes() { ns_gate_open_boxes; }
-ticked_boxes() { ns_gate_ticked_boxes; }
+# ns_gate_boxes reads those counts.
 
 # Stall progress is a tick plus either work-target HEAD (repository mode) or the artifact
 # receipts fingerprint (artifact mode). ns_gate_progress_token chooses.

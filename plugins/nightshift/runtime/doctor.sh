@@ -512,7 +512,11 @@ fi
 fact "evidence $(ns_evidence_counts "$WORKSPACE")"
 fact "liveness $(ns_status_liveness "$NS" "$(rule "$WORKSPACE" watchMinutes "${NIGHTSHIFT_WATCH:-}")")"
 activity="$(ns_status_last_activity "$NS")"
-[ -n "$activity" ] && fact "last activity epoch $activity" || fact "last activity none"
+if [ -n "$activity" ]; then
+  fact "last activity epoch $activity"
+else
+  fact "last activity none"
+fi
 fact "last checkpoint $(ns_status_last_checkpoint "$WORKSPACE")"
 fact "stall attempts $(ns_status_stall_attempts "$NS")"
 

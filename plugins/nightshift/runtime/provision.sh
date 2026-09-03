@@ -218,7 +218,7 @@ do_baseline() {
 
 do_diff() {
   [ -f "$MANIFEST" ] || die "no provision-surface; run baseline first" 1
-  local rel existed digest path now touched="" first=1
+  local rel existed digest path now first=1
   printf '{"ok":true,"touched":['
   while IFS="$(printf '\t')" read -r rel existed digest; do
     [ -n "$rel" ] || continue
@@ -239,7 +239,6 @@ do_diff() {
     [ "$first" -eq 1 ] || printf ','
     first=0
     printf '"%s"' "$(json_escape "$rel")"
-    touched=1
   done <"$MANIFEST"
   printf ']}\n'
 }

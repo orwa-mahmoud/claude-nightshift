@@ -446,7 +446,7 @@ COMPARE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc
   [ ! -e "$bin/python3" ]
   run --separate-stderr env PATH="$bin" bash "$EC" --project "$p" --baseline b1 --json
   [ "$status" -eq 2 ]
-  printf '%s\n' "$stderr" | grep -qF 'jq or python3 is required'
+  printf '%s\n' "$stderr" | grep -qF 'JSON parser unavailable; compare in the skill'
 }
 
 @test "the comparison writes nothing" {

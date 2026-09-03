@@ -67,7 +67,7 @@ EC_FF=$(printf '\014')
 EC_FS=$(printf '\037')
 EC_RS=$(printf '\036')
 
-# The class names, in byte order. The summary object, the verdict line and the mode's blocking
+# The class names, in byte order. The summary object and the mode's blocking
 # set all read this one list, so no two of them can name a different set of classes.
 EC_CLASSES="cleared
 human-only
@@ -141,15 +141,8 @@ _ec_mktmp() {
   }
 }
 
+# shellcheck disable=SC2329 # trap EXIT invokes this
 _ec_cleanup() { [ -z "${TMPD:-}" ] || rm -rf "$TMPD"; }
-
-_ec_utcnow() {
-  if [ -n "${NIGHTSHIFT_EVIDENCE_NOW:-}" ]; then
-    NOW="$NIGHTSHIFT_EVIDENCE_NOW"
-    return 0
-  fi
-  NOW=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-}
 
 # ---------------------------------------------------------------- the fact stream
 
@@ -472,7 +465,7 @@ _ec_count() {
 # _ec_ids — every id this comparison covers, once each, in byte order: what the baseline saw,
 # what a re-measurement reports, and what the source's records carry.
 _ec_ids() {
-  local i k idx
+  local k idx
   {
     k=0
     while [ "$k" -lt "$NOBS" ]; do
@@ -482,19 +475,22 @@ _ec_ids() {
       fi
       k=$((k + 1))
     done
-    i=0
-    while [ "$i" -lt "$NREC" ]; do
-      if _ec_is_finding "$i" && _ec_in_scope "$i"; then
-        printf '%s\n' "${R_IDJ[$i]}"
+    k=0
+    while [ "$k" -lt "$NREC" ]; do
+      if _ec_is_finding "$k" && _ec_in_scope "$k"; then
+        printf '%s\n' "${R_IDJ[$k]}"
       fi
-      i=$((i + 1))
+      k=$((k + 1))
     done
   } | LC_ALL=C sort -u >"$TMPD/ids"
 }
 
 # _ec_record_source_lines I — every originating tool line for one record, tab-separated json+text.
 _ec_record_source_lines() {
-  local i="$1" cls="${R_CLASST[$i]:-}" src="${R_SOURCE[$i]:-}"
+  local i cls src
+  i="$1"
+  cls="${R_CLASST[$i]:-}"
+  src="${R_SOURCE[$i]:-}"
   if [ -n "${R_SRC[$i]}" ]; then
     printf '%s' "${R_SRC[$i]}"
     return 0
@@ -547,7 +543,7 @@ _ec_source_unavailable() {
   local i="$BPOS"
   SOURCE_UNAVAILABLE=0
   while [ "$i" -lt "$NREC" ]; do
-    if [ "${R_DOMAIN[$i]}" = '"baseline"' ] && _ec_in_scope "$i" ]; then
+    if [ "${R_DOMAIN[$i]}" = '"baseline"' ] && _ec_in_scope "$i"; then
       case "${R_STATUS[$i]}" in
         '"unavailable"') SOURCE_UNAVAILABLE=1; return 0 ;;
       esac
@@ -742,7 +738,7 @@ _ec_verdict() {
 # _ec_render_json — sorted keys, compact, one trailing newline. Every id, digest, locator and
 # tool is spliced in as the compact JSON the ledger holds, so the document needs no escaper.
 _ec_render_json() {
-  local out i=0 class first=1
+  local out i=0 class first=1 dfirst
   out="{\"baseline\":$BIDJ,\"mode\":\"$MODE\",\"pass\":$PASS,\"rows\":["
   while [ "$i" -lt "$NROW" ]; do
     [ "$i" -eq 0 ] || out="$out,"
@@ -754,53 +750,27 @@ _ec_render_json() {
   first=1
   while IFS= read -r class; do
     [ -n "$class" ] || continue
+    if [ "$class" = unavailable ]; then
+      out="$out,\"selectedDebtOutstanding\":["
+      i=0
+      dfirst=1
+      while [ "$i" -lt "$NOUT" ]; do
+        [ "$dfirst" -eq 1 ] || out="$out,"
+        dfirst=0
+        out="$out${OUTSTANDING_IDJ[$i]}"
+        i=$((i + 1))
+      done
+      out="$out],\"total\":$NROW"
+    fi
     _ec_count "$class"
     [ "$first" -eq 1 ] || out="$out,"
     first=0
     out="$out\"$class\":$COUNT"
-  done <<'EOF'
-cleared
-human-only
-new
-parked
-regressed
-rejected-duplicate
-EOF
-  out="$out,\"selectedDebtOutstanding\":["
-  i=0
-  first=1
-  while [ "$i" -lt "$NOUT" ]; do
-    [ "$first" -eq 1 ] || out="$out,"
-    first=0
-    out="$out${OUTSTANDING_IDJ[$i]}"
-    i=$((i + 1))
-  done
-  out="$out],\"total\":$NROW"
-  while IFS= read -r class; do
-    [ -n "$class" ] || continue
-    _ec_count "$class"
-    out="$out,\"$class\":$COUNT"
-  done <<'EOF'
-unavailable
-unchanged
-EOF
-  out="$out}}"
-  printf '%s\n' "$out"
-}
-
-# _ec_verdict_line -> VERDICT: one line carrying the decision, the mode, the baseline, the clock,
-# and every class count. It is the whole scoreboard, so a receipt can quote it on its own.
-_ec_verdict_line() {
-  local class counts="" word=fail
-  [ "$PASS" != true ] || word=pass
-  while IFS= read -r class; do
-    [ -n "$class" ] || continue
-    _ec_count "$class"
-    counts="$counts${counts:+, }$class $COUNT"
   done <<EOF
 $EC_CLASSES
 EOF
-  VERDICT="Verdict: $word — $MODE, baseline $BIDT, compared $NOW: $counts."
+  out="$out}}"
+  printf '%s\n' "$out"
 }
 
 _ec_render_md() {
@@ -884,7 +854,6 @@ JSONL="$PROJECT/.nightshift/evidence/findings.jsonl"
 
 JSON_TOOL="$(ns_policy_json_tool)" || die 'JSON parser unavailable; compare in the skill' 2
 MODE="$(ns_policy_completion_mode "$PROJECT")"
-_ec_utcnow
 
 TMPD=""
 trap _ec_cleanup EXIT

@@ -74,6 +74,7 @@ _mktmp() {
   die 'cannot create a temporary directory' 2
 }
 
+# shellcheck disable=SC2329 # trap EXIT invokes this
 _cleanup() { [ -z "${TMPD:-}" ] || rm -rf "$TMPD"; }
 
 # ---------------------------------------------------------------- digests and time
@@ -138,6 +139,7 @@ _pick_json_tool() {
   fi
 }
 
+# shellcheck disable=SC2016 # jq program; $baseline must not expand in bash
 JQ_HAS='
 [ .[]
   | select(type == "object")
@@ -147,6 +149,7 @@ JQ_HAS='
 | if length > 0 then "1" else "" end
 '
 
+# shellcheck disable=SC2016 # jq program; $paths/$digests must not expand in bash
 JQ_RECORD='
 def names($s): $s | split("\n") | map(select(length > 0));
 

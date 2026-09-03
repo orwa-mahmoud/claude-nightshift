@@ -102,7 +102,6 @@ fi
 # One resolve answers both remaining questions: what tonight allows, and which tooling policy
 # is in force. An unresolvable view claims neither.
 TABLE="$(ns_policy_resolve_table "$WORKSPACE" 2>/dev/null)" || TABLE=""
-TOOLING="$(printf '%s\n' "$TABLE" | sed -n 's/^toolingPolicy=\([^ ]*\).*$/\1/p')"
 SUDO_POLICY="$(printf '%s\n' "$TABLE" | sed -n 's/^elevation\.sudo=\([^ ]*\).*$/\1/p')"
 
 # Elevation the owner already lifted still has to run unattended. A recipe that may reach for

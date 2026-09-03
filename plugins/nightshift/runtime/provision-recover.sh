@@ -193,6 +193,7 @@ d["updatedAt"] = sys.argv[2]
 sys.stdout.write(json.dumps(d, indent=2, sort_keys=True))
 '
 
+# shellcheck disable=SC2016 # jq program; $recipe/$cap/$now must not expand in bash
 INVENTORY_JQ='
 ($recipe[0]) as $r
 | (if ($r.smoke | type) == "object"
@@ -307,21 +308,21 @@ _parse_facts() {
       g) F_TOUCHED_TYPE="$a" ;;
       a) F_ALLOWED_TYPE="$a" ;;
       u)
-        F_U[$F_TOUCHED_N]="$a"
+        F_U[F_TOUCHED_N]="$a"
         F_TOUCHED_N=$((F_TOUCHED_N + 1))
         ;;
       p)
-        F_P[$F_ALLOWED_N]="$a"
+        F_P[F_ALLOWED_N]="$a"
         F_ALLOWED_N=$((F_ALLOWED_N + 1))
         ;;
       b) F_BASELINE_TYPE="$a" ;;
       e)
-        F_E_REL[$F_E_N]="$a"
-        F_E_VTYPE[$F_E_N]="$b"
-        F_E_EXISTED[$F_E_N]="$c"
-        F_E_DIGEST[$F_E_N]="$d"
-        F_E_BLOB[$F_E_N]="$e"
-        F_E_CONTENT[$F_E_N]="$f"
+        F_E_REL[F_E_N]="$a"
+        F_E_VTYPE[F_E_N]="$b"
+        F_E_EXISTED[F_E_N]="$c"
+        F_E_DIGEST[F_E_N]="$d"
+        F_E_BLOB[F_E_N]="$e"
+        F_E_CONTENT[F_E_N]="$f"
         F_E_N=$((F_E_N + 1))
         ;;
     esac
@@ -339,6 +340,7 @@ _plain() {
   esac
   s="${s#\"}"
   s="${s%\"}"
+  # shellcheck disable=SC1003 # matching a literal backslash, not escaping a quote
   case "$s" in
     *'\'* | *'"'*) return 1 ;;
   esac
@@ -418,6 +420,7 @@ malformed() { # <field>
     printf '{"detail":"malformed transaction: (unprintable)","malformed":true,"ok":false,"recovered":false}\n'
     exit 2
   }
+  # shellcheck disable=SC2016 # jq program; $field is a jq --arg
   "$JSON_TOOL" -n --arg field "$1" \
     '{detail: ("malformed transaction: " + $field), malformed: true, ok: false, recovered: false}'
   exit 2
@@ -431,7 +434,7 @@ unproven() { # <detail>
 _touched_json() {
   local i=0 out=""
   while [ "$i" -lt "$TOUCHED_N" ]; do
-    out="$out${out:+,}\"${TOUCHED[$i]}\""
+    out="$out${out:+,}\"${TOUCHED[i]}\""
     i=$((i + 1))
   done
   printf '[%s]' "$out"
@@ -489,8 +492,8 @@ case "$F_TOUCHED_TYPE" in
   array)
     i=0
     while [ "$i" -lt "$F_TOUCHED_N" ]; do
-      _plain "${F_U[$i]}" || malformed touched
-      TOUCHED[$i]="$PLAIN"
+      _plain "${F_U[i]}" || malformed touched
+      TOUCHED[i]="$PLAIN"
       i=$((i + 1))
     done
     TOUCHED_N="$F_TOUCHED_N"
@@ -509,31 +512,31 @@ case "$F_BASELINE_TYPE" in
   object)
     i=0
     while [ "$i" -lt "$F_E_N" ]; do
-      _plain "${F_E_REL[$i]}" || malformed baseline
+      _plain "${F_E_REL[i]}" || malformed baseline
       rel="$PLAIN"
-      [ "${F_E_VTYPE[$i]}" = object ] || malformed "baseline[\"$rel\"]"
+      [ "${F_E_VTYPE[i]}" = object ] || malformed "baseline[\"$rel\"]"
       _rel_ok "$rel" || malformed "baseline[\"$rel\"]"
-      case "${F_E_EXISTED[$i]}" in
-        true) E_EXISTED[$i]=1 ;;
-        false) E_EXISTED[$i]=0 ;;
+      case "${F_E_EXISTED[i]}" in
+        true) E_EXISTED[i]=1 ;;
+        false) E_EXISTED[i]=0 ;;
         *) malformed "baseline[\"$rel\"].existed" ;;
       esac
-      if [ "${E_EXISTED[$i]}" -eq 1 ]; then
-        _plain "${F_E_DIGEST[$i]}" || malformed "baseline[\"$rel\"].digest"
+      if [ "${E_EXISTED[i]}" -eq 1 ]; then
+        _plain "${F_E_DIGEST[i]}" || malformed "baseline[\"$rel\"].digest"
         [ -n "$PLAIN" ] || malformed "baseline[\"$rel\"].digest"
-        E_DIGEST[$i]="$PLAIN"
+        E_DIGEST[i]="$PLAIN"
       else
-        E_DIGEST[$i]=""
+        E_DIGEST[i]=""
       fi
-      if [ "${F_E_BLOB[$i]}" = null ]; then
-        E_BLOB[$i]=""
+      if [ "${F_E_BLOB[i]}" = null ]; then
+        E_BLOB[i]=""
       else
-        _plain "${F_E_BLOB[$i]}" || malformed "baseline[\"$rel\"].blob"
+        _plain "${F_E_BLOB[i]}" || malformed "baseline[\"$rel\"].blob"
         _hex64 "$PLAIN" || malformed "baseline[\"$rel\"].blob"
-        E_BLOB[$i]="$PLAIN"
+        E_BLOB[i]="$PLAIN"
       fi
-      E_CONTENT[$i]="${F_E_CONTENT[$i]}"
-      E_REL[$i]="$rel"
+      E_CONTENT[i]="${F_E_CONTENT[i]}"
+      E_REL[i]="$rel"
       i=$((i + 1))
     done
     E_N="$F_E_N"
@@ -553,13 +556,13 @@ _restore() { # <index> <rel> <abs>
   fi
   [ -d "$parent" ] || mkdir -p "$parent" 2>/dev/null || return 0
   tmp="$abs.ns-restore.$$"
-  blob="${E_BLOB[$i]}"
+  blob="${E_BLOB[i]}"
   if [ -n "$blob" ] && [ -f "$STORE/$blob" ]; then
     cat "$STORE/$blob" >"$tmp" 2>/dev/null || {
       rm -f "$tmp"
       return 0
     }
-  elif [ "${E_CONTENT[$i]}" = 1 ]; then
+  elif [ "${E_CONTENT[i]}" = 1 ]; then
     _content_bytes "$rel" >"$tmp" 2>/dev/null || {
       rm -f "$tmp"
       return 0
@@ -606,9 +609,9 @@ PROOF_DETAIL=""
 _prove() {
   local i=0 rel abs got
   while [ "$i" -lt "$E_N" ]; do
-    rel="${E_REL[$i]}"
+    rel="${E_REL[i]}"
     abs="$TARGET/$rel"
-    if [ "${E_EXISTED[$i]}" -eq 1 ]; then
+    if [ "${E_EXISTED[i]}" -eq 1 ]; then
       if [ -d "$abs" ] && [ ! -L "$abs" ]; then
         PROOF_DETAIL="a directory blocks the baseline path: $rel"
         return 1
@@ -621,7 +624,7 @@ _prove() {
         PROOF_DETAIL="no sha256 tool on this host, so the restore cannot be proven"
         return 1
       }
-      if [ "$got" != "${E_DIGEST[$i]}" ]; then
+      if [ "$got" != "${E_DIGEST[i]}" ]; then
         PROOF_DETAIL="restored bytes do not match baseline digest: $rel"
         return 1
       fi
@@ -638,10 +641,10 @@ _prove() {
 _tools_ready() {
   local i=0 existed=0 content=0
   while [ "$i" -lt "$E_N" ]; do
-    if [ "${E_EXISTED[$i]}" -eq 1 ]; then
+    if [ "${E_EXISTED[i]}" -eq 1 ]; then
       existed=1
-      if [ -z "${E_BLOB[$i]}" ] || [ ! -f "$STORE/${E_BLOB[$i]}" ]; then
-        if [ "${E_CONTENT[$i]}" = 1 ]; then
+      if [ -z "${E_BLOB[i]}" ] || [ ! -f "$STORE/${E_BLOB[i]}" ]; then
+        if [ "${E_CONTENT[i]}" = 1 ]; then
           content=1
         fi
       fi
@@ -662,9 +665,9 @@ do_rollback() {
   local i=0 rel abs
   _tools_ready
   while [ "$i" -lt "$E_N" ]; do
-    rel="${E_REL[$i]}"
+    rel="${E_REL[i]}"
     abs="$TARGET/$rel"
-    if [ "${E_EXISTED[$i]}" -eq 1 ]; then
+    if [ "${E_EXISTED[i]}" -eq 1 ]; then
       _restore "$i" "$rel" "$abs"
     else
       _remove "$abs"
@@ -699,8 +702,8 @@ _read_recipe() {
   [ "$PLAIN" = "$CAP" ] || return 1
   [ "$F_ALLOWED_TYPE" = array ] || return 1
   while [ "$i" -lt "$F_ALLOWED_N" ]; do
-    _plain "${F_P[$i]}" || return 1
-    R_ALLOWED[$i]="${PLAIN#./}"
+    _plain "${F_P[i]}" || return 1
+    R_ALLOWED[i]="${PLAIN#./}"
     i=$((i + 1))
   done
   R_ALLOWED_N="$F_ALLOWED_N"
@@ -710,7 +713,7 @@ _read_recipe() {
 _under_allowed() { # <rel>
   local rel="$1" i=0 a
   while [ "$i" -lt "$R_ALLOWED_N" ]; do
-    a="${R_ALLOWED[$i]%/}"
+    a="${R_ALLOWED[i]%/}"
     if [ "$rel" = "$a" ]; then
       return 0
     fi
@@ -779,9 +782,9 @@ _commit_tooling() {
   PATHS_N=0
   [ "$(git -C "$TARGET" rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 0
   while [ "$i" -lt "$TOUCHED_N" ]; do
-    rel="${TOUCHED[$i]}"
+    rel="${TOUCHED[i]}"
     if _under_allowed "$rel"; then
-      PATHS[$PATHS_N]="$rel"
+      PATHS[PATHS_N]="$rel"
       PATHS_N=$((PATHS_N + 1))
     fi
     i=$((i + 1))
@@ -789,7 +792,7 @@ _commit_tooling() {
   [ "$PATHS_N" -gt 0 ] || return 0
   i=0
   while [ "$i" -lt "$PATHS_N" ]; do
-    git -C "$TARGET" add -- "${PATHS[$i]}" >/dev/null 2>&1 || true
+    git -C "$TARGET" add -- "${PATHS[i]}" >/dev/null 2>&1 || true
     i=$((i + 1))
   done
   if git -C "$TARGET" commit -m "chore(tooling): $CAP" -- "${PATHS[@]}" >/dev/null 2>&1; then
@@ -831,20 +834,20 @@ do_finish() {
 _diagnose_provable() {
   local i=0 rel abs got
   while [ "$i" -lt "$E_N" ]; do
-    rel="${E_REL[$i]}"
+    rel="${E_REL[i]}"
     abs="$TARGET/$rel"
-    if [ "${E_EXISTED[$i]}" -eq 1 ]; then
+    if [ "${E_EXISTED[i]}" -eq 1 ]; then
       if [ -d "$abs" ] && [ ! -L "$abs" ]; then
         return 1
       fi
-      if [ -n "${E_BLOB[$i]}" ] && [ -f "$STORE/${E_BLOB[$i]}" ]; then
-        got="$(ns_policy_sha256_text <"$STORE/${E_BLOB[$i]}")" || return 1
-      elif [ "${E_CONTENT[$i]}" = 1 ]; then
+      if [ -n "${E_BLOB[i]}" ] && [ -f "$STORE/${E_BLOB[i]}" ]; then
+        got="$(ns_policy_sha256_text <"$STORE/${E_BLOB[i]}")" || return 1
+      elif [ "${E_CONTENT[i]}" = 1 ]; then
         got="$(_content_bytes "$rel" | ns_policy_sha256_text)" || return 1
       else
         return 1
       fi
-      [ "$got" = "${E_DIGEST[$i]}" ] || return 1
+      [ "$got" = "${E_DIGEST[i]}" ] || return 1
     elif [ -d "$abs" ] && [ ! -L "$abs" ]; then
       return 1
     fi

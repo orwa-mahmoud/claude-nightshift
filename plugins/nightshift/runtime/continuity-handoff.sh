@@ -30,7 +30,6 @@ ns_handoff_resolve_ns() { # <host-or-workspace>
 }
 
 CMD=""
-INPUT=""
 PROJECT=""
 
 while [ $# -gt 0 ]; do
@@ -41,7 +40,6 @@ while [ $# -gt 0 ]; do
       ;;
     --input)
       [ $# -ge 2 ] || usage
-      INPUT="$2"
       shift 2
       ;;
     --project)

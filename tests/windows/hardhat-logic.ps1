@@ -17,6 +17,27 @@ function Expect-True {
     }
 }
 
+function Set-ProcessArguments {
+    # Windows PowerShell 5.1 runs on .NET Framework, whose ProcessStartInfo has
+    # no ArgumentList. Quote into Arguments there, the way CommandLineToArgvW
+    # reads it back.
+    param(
+        [Parameter(Mandatory = $true)]$StartInfo,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+    if ($null -ne $StartInfo.PSObject.Properties['ArgumentList']) {
+        foreach ($argument in $Arguments) { $null = $StartInfo.ArgumentList.Add($argument) }
+        return
+    }
+    $quoted = New-Object Collections.Generic.List[string]
+    foreach ($argument in $Arguments) {
+        $escaped = $argument -replace '(\\*)"', '$1$1\"'
+        $escaped = $escaped -replace '(\\+)$', '$1$1'
+        $quoted.Add('"' + $escaped + '"')
+    }
+    $StartInfo.Arguments = ($quoted -join ' ')
+}
+
 $env:NIGHTSHIFT_HARDHAT_LIB = '1'
 . $hardhat -HostName codex
 
@@ -400,9 +421,9 @@ try {
     $sleepPsi.FileName = $hostExe
     $sleepPsi.UseShellExecute = $false
     $sleepPsi.CreateNoWindow = $true
-    foreach ($sleepArg in @('-NoProfile', '-NonInteractive', '-Command', 'Start-Sleep -Seconds 120')) {
-        $null = $sleepPsi.ArgumentList.Add($sleepArg)
-    }
+    Set-ProcessArguments -StartInfo $sleepPsi -Arguments @(
+        '-NoProfile', '-NonInteractive', '-Command', 'Start-Sleep -Seconds 120'
+    )
     $sleepProcess = [Diagnostics.Process]::Start($sleepPsi)
     Start-Sleep -Milliseconds 500
     $liveStart = Get-NSProcessStart $sleepProcess.Id

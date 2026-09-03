@@ -15,8 +15,8 @@
 #   artifact  1, 4, 5 and 6, in the vocabulary of a site rather than a repository
 #
 # Without --out the Markdown goes to stdout; with it the file is written by rename and its path
-# is printed. NIGHTSHIFT_EVIDENCE_NOW fixes the rendered-at stamp and NIGHTSHIFT_COMPARE_HELPER
-# the comparison helper's path — session levers for the suite, never policy.
+# is printed. NIGHTSHIFT_COMPARE_HELPER overrides the comparison helper's path —
+# a session lever for the suite, never policy.
 # Exit: 0 ok · 1 usage · 2 contract failure
 set -u
 
@@ -51,11 +51,6 @@ fix
 verificationLocator
 host
 digest"
-
-# The two details keys the baseline row names outright. Every other key a domain writes is
-# printed as an opaque pair, so a new field needs no change here.
-BASELINE_KEYS="environmentDigest
-rawDigest"
 
 usage() {
   awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0" >&2
@@ -117,8 +112,6 @@ PUNCH="$NS/punch-list.md"
 LOT="$NS/parking-lot.md"
 MAP="$NS/opportunity-map.md"
 STOP="$NS/STOP"
-ENDED="$NS/.ended"
-ARMED="$NS/.shift-armed"
 
 JSON_TOOL=""
 if command -v jq >/dev/null 2>&1; then
@@ -138,66 +131,10 @@ trap 'rm -rf "$TMPD"' EXIT
 
 # ---------------------------------------------------------------- small helpers
 
-# _has_line LIST ENTRY — exact membership in a newline-terminated list.
-_has_line() {
-  case "$NL$1" in
-    *"$NL$2$NL"*) return 0 ;;
-  esac
-  return 1
-}
-
-# _utcnow -> NOW, the stamp the receipt says it was rendered at.
-_utcnow() {
-  if [ -n "${NIGHTSHIFT_EVIDENCE_NOW:-}" ]; then
-    NOW="$NIGHTSHIFT_EVIDENCE_NOW"
-    return 0
-  fi
-  NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-}
-
-# _epoch_utc EPOCH -> STAMP, that instant in UTC, or empty when neither date dialect answers.
-_epoch_utc() {
-  STAMP="$(date -u -r "$1" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)" && return 0
-  STAMP="$(date -u -d "@$1" '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)" && return 0
-  STAMP=""
-  return 1
-}
-
-# _file_utc FILE -> STAMP, the file's mtime in UTC, or empty when it has none to read.
-_file_utc() {
-  local m
-  STAMP=""
-  [ -f "$1" ] && [ ! -L "$1" ] || return 1
-  m="$(ns_mtime "$1")" || return 1
-  case "$m" in
-    '' | *[!0-9]*) return 1 ;;
-  esac
-  _epoch_utc "$m"
-}
-
 # _scrub TEXT -> SCRUBBED: control characters become spaces, the ends are trimmed. Ledger cells
 # arrive scrubbed already; owner-authored Markdown comes through here.
 _scrub() {
   SCRUBBED="$(printf '%s' "$1" | sed 's/[[:cntrl:]]/ /g; s/^[[:space:]]*//; s/[[:space:]]*$//')"
-}
-
-# _cell TEXT -> CELL: one table cell. A pipe is escaped so a value can never split the row, and
-# an absent value reads as absent rather than as a blank.
-_cell() {
-  if [ -z "$1" ]; then
-    CELL="$DASH"
-    return 0
-  fi
-  CELL="${1//|/\\|}"
-}
-
-# _text TEXT -> TEXT_OUT: one fact on a line of its own.
-_text() {
-  if [ -z "$1" ]; then
-    TEXT_OUT='not recorded'
-    return 0
-  fi
-  TEXT_OUT="$1"
 }
 
 # _order KEYFILE -> ORDER: the positions in KEYFILE, byte-ordered by its sort key. Every table
@@ -245,12 +182,6 @@ _md_cell() {
   else
     MD_CELL="${1//|/\\|}"
   fi
-}
-
-# _add_field LABEL VALUE — one `- Label: value` line; absent values are omitted.
-_add_field() {
-  [ -n "$2" ] || return 0
-  add "- $1: $2"
 }
 
 # _log_end -> LOG_END: the last shift-log stamp, as written.
@@ -324,22 +255,6 @@ _policy_profile() {
     POLICY_PROFILE="${POLICY_PROFILE%\"}"
     [ -n "$POLICY_PROFILE" ] || POLICY_PROFILE=fast
   fi
-}
-
-# _last_finding_pos ID -> FINDING_POS: the last ledger row for a quality finding id.
-_last_finding_pos() {
-  local want="$1" i=0 pos=-1
-  FINDING_POS=-1
-  while [ "$i" -lt "$NREC" ]; do
-    case "${R_DOMAIN[$i]}" in
-      baseline | checkpoint) ;;
-      *)
-        [ "${R_ID[$i]}" = "$want" ] && pos="$i"
-        ;;
-    esac
-    i=$((i + 1))
-  done
-  FINDING_POS="$pos"
 }
 
 # ---------------------------------------------------------------- JSON bridge
@@ -517,8 +432,6 @@ R_STATUS=()
 R_LADDER=()
 R_LOCATOR=()
 R_RAWDIGEST=()
-R_LASTCHECKED=()
-R_ACTION=()
 R_FIX=()
 R_VERIF=()
 R_HOST=()
@@ -547,8 +460,7 @@ _load_ledger() {
     R_LADDER[NREC]="$c6"
     R_LOCATOR[NREC]="$c7"
     R_RAWDIGEST[NREC]="$c8"
-    R_LASTCHECKED[NREC]="$c9"
-    R_ACTION[NREC]="$c10"
+    : "$c9" "$c10"
     R_FIX[NREC]="$c11"
     R_VERIF[NREC]="$c12"
     R_HOST[NREC]="$c13"
@@ -578,32 +490,11 @@ _detail() {
   done
 }
 
-# _details_line INDEX SKIP -> DLINE: the record's remaining details as `key: value` pairs, keys
-# in byte order. Nothing a domain wrote is dropped just because this file has never heard of it.
-_details_line() {
-  local i=0 out=""
-  DLINE=""
-  while [ "$i" -lt "$NDET" ]; do
-    if [ "${D_IDX[$i]}" = "$1" ] && ! _has_line "$2" "${D_KEY[$i]}"; then
-      [ -z "$out" ] || out="$out · "
-      out="$out${D_KEY[$i]}: ${D_VAL[$i]}"
-    fi
-    i=$((i + 1))
-  done
-  DLINE="$out"
-}
-
 # ---------------------------------------------------------------- the policy that ran
 
 POLICY_FILE=""
-POLICY_REL=""
 P_SHIFTID=""
 P_CREATEDAT=""
-P_SOURCE=""
-P_LEVEL=""
-P_TOOLING=""
-P_MODE=""
-P_DEBT=""
 NALLOW=0
 A_CATEGORY=()
 A_SCOPE=()
@@ -615,7 +506,6 @@ _find_policy() {
   local cand
   if [ -f "$NS/shift-policy.json" ] && [ ! -L "$NS/shift-policy.json" ]; then
     POLICY_FILE="$NS/shift-policy.json"
-    POLICY_REL='shift-policy.json'
     return 0
   fi
   [ -d "$NS/archive" ] && [ ! -L "$NS/archive" ] || return 0
@@ -623,7 +513,6 @@ _find_policy() {
     LC_ALL=C sort | tail -n 1)"
   [ -n "$cand" ] || return 0
   POLICY_FILE="$cand"
-  POLICY_REL="${cand#"$NS/"}"
 }
 
 _load_policy() {
@@ -635,11 +524,7 @@ _load_policy() {
       h)
         P_SHIFTID="$h1"
         P_CREATEDAT="$h2"
-        P_SOURCE="$h3"
-        P_LEVEL="$h4"
-        P_TOOLING="$h5"
-        P_MODE="$h6"
-        P_DEBT="$h7"
+        : "$h3" "$h4" "$h5" "$h6" "$h7"
         ;;
       a)
         A_CATEGORY[NALLOW]="$h1"
@@ -651,12 +536,11 @@ _load_policy() {
   done <"$TMPD/policy"
 }
 
-# _resolved NAME -> RVALUE, RSOURCE: one row of the resolved view. Every helper that needs a
+# _resolved NAME -> RVALUE: one row of the resolved view. Every helper that needs a
 # policy answer reads the same resolver, so the receipt cannot report a different one.
 _resolved() {
   local line rest meta
   RVALUE=""
-  RSOURCE=""
   while IFS= read -r line; do
     case "$line" in
       "$1="*) ;;
@@ -667,7 +551,6 @@ _resolved() {
       *" ("*)
         meta="${rest##*" ("}"
         RVALUE="${rest%" ($meta"}"
-        RSOURCE="${meta%%,*}"
         ;;
       *) RVALUE="$rest" ;;
     esac
@@ -700,7 +583,7 @@ P_DEFAULT=()
 P_ROLLBACK=()
 
 _parked() {
-  local lno title def rb kind
+  local title def rb kind
   P_COUNT=0
   [ -f "$LOT" ] && [ ! -L "$LOT" ] || return 0
   sed 's/[[:cntrl:]]/ /g' "$LOT" | awk -v tab="$(printf '\t')" '
@@ -764,39 +647,14 @@ _parked() {
   done <"$TMPD/parked-parse"
 }
 
-# _field_of TEXT LABEL -> FIELDVAL: the value the entry states under LABEL, up to the next
-# labelled field. An entry that states neither reads as neither.
-_field_of() {
-  local rest
-  FIELDVAL=""
-  case "$1" in
-    *"$2"*) ;;
-    *) return 0 ;;
-  esac
-  rest="${1#*"$2"}"
-  case "$rest" in
-    *'Rollback:'*)
-      [ "$2" = 'Rollback:' ] || rest="${rest%%Rollback:*}"
-      ;;
-  esac
-  case "$rest" in
-    *'Default:'*)
-      [ "$2" = 'Default:' ] || rest="${rest%%Default:*}"
-      ;;
-  esac
-  _scrub "$rest"
-  FIELDVAL="$SCRUBBED"
-}
-
-# _building -> BUILD_TITLE, BUILD_PHASE, BUILD_NEXT, BUILD_LINE: the one opportunity the map
+# _building -> BUILD_TITLE, BUILD_PHASE, BUILD_NEXT: the one opportunity the map
 # marks `Status: building`. The template's own illustration sits in an HTML comment and is not
 # a live entry, so comment blocks are skipped.
 _building() {
-  local kind lno value
+  local kind value
   BUILD_TITLE=""
   BUILD_PHASE=""
   BUILD_NEXT=""
-  BUILD_LINE=""
   [ -f "$MAP" ] && [ ! -L "$MAP" ] || return 0
   sed 's/[[:cntrl:]]/ /g' "$MAP" | awk -v tab="$(printf '\t')" '
     /<!--/ { comment = 1 }
@@ -828,12 +686,11 @@ _building() {
       next
     }
   ' >"$TMPD/building"
-  while IFS="$(printf '\t')" read -r kind lno value; do
+  while IFS="$(printf '\t')" read -r kind _ value; do
     case "$kind" in
       T)
         [ -z "$BUILD_TITLE" ] || continue
         BUILD_TITLE="$value"
-        BUILD_LINE="$lno"
         ;;
       P) [ -n "$BUILD_PHASE" ] || BUILD_PHASE="$value" ;;
       N) [ -n "$BUILD_NEXT" ] || BUILD_NEXT="$value" ;;
@@ -844,7 +701,6 @@ _building() {
 # ---------------------------------------------------------------- section 1 facts
 
 ENDING=""
-STOP_REASON=""
 
 _ending() {
   local reason="" open=0
@@ -853,7 +709,7 @@ _ending() {
     _scrub "$reason"
     reason="$SCRUBBED"
     case "$reason" in
-      *" $DASH "*) reason="${reason%% $DASH *}" ;;
+      *" $DASH "*) reason="${reason%% "$DASH" *}" ;;
     esac
     case "$reason" in
       deadline) ENDING=deadline ;;
@@ -869,7 +725,7 @@ _ending() {
     fi
   fi
   if [ "${open:-0}" -eq 0 ]; then
-    ENDING=done
+    ENDING="done"
   else
     ENDING=unknown
   fi
@@ -910,11 +766,6 @@ _key_by_domain() { # <destination> <domain>
     fi
     i=$((i + 1))
   done
-}
-
-_has_baselines() {
-  _key_by_domain "$TMPD/k-baseline" baseline
-  [ -s "$TMPD/k-baseline" ]
 }
 
 _lines_shift() {
@@ -1109,7 +960,7 @@ EOF
 }
 
 _lines_changed() {
-  local only="$1" i=0 row line cls env cells summary nfix pos fix loc dig body
+  local only="$1" i=0 row line cls cells nfix pos fix loc dig
   SEC=""
   _key_by_domain "$TMPD/k-baseline" baseline
   if [ ! -s "$TMPD/k-baseline" ]; then

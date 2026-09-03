@@ -278,6 +278,7 @@ sys.stdout.write(json.dumps(out, sort_keys=True, indent=2, ensure_ascii=False) +
 
 # The audit document. The counts and the verdict are derived from the rows, so the summary can
 # never disagree with the list it summarises.
+# shellcheck disable=SC2016 # jq program; $rows must not expand in bash
 AUDIT_JQ='
 (split("\n") | map(select(length > 0)) | map(split("\t")) | map({
   ecosystem: .[0],
@@ -355,7 +356,6 @@ F_UPSTREAM=null
 F_MAINT=null
 F_CHECK=null
 F_RESOLVES=null
-F_SHIFTS=null
 F_SPECIALIST=false
 F_ADM=null
 F_ADM_CONTRACT=null
@@ -373,7 +373,6 @@ _parse_facts() {
   F_MAINT=null
   F_CHECK=null
   F_RESOLVES=null
-  F_SHIFTS=null
   F_SPECIALIST=false
   F_ADM=null
   F_ADM_CONTRACT=null
@@ -389,7 +388,7 @@ _parse_facts() {
       m) F_MAINT="$value" ;;
       c) F_CHECK="$value" ;;
       r) F_RESOLVES="$value" ;;
-      y) F_SHIFTS="$value" ;;
+      y) ;;
       ys) F_SPECIALIST="$value" ;;
       a) F_ADM="$value" ;;
       ac) F_ADM_CONTRACT="$value" ;;
@@ -410,20 +409,11 @@ _plain() {
   esac
   s="${s#\"}"
   s="${s%\"}"
+  # shellcheck disable=SC1003 # matching a literal backslash, not escaping a quote
   case "$s" in
     *'\'* | *'"'*) return 1 ;;
   esac
   PLAIN="$s"
-}
-
-# _show <json-text> -> SHOWN, the value as a report line names it.
-SHOWN=""
-_show() {
-  if _plain "$1"; then
-    SHOWN="$PLAIN"
-  else
-    SHOWN="$1"
-  fi
 }
 
 # ---------------------------------------------------------------- the resolves query

@@ -42,6 +42,27 @@ function Expect-True {
     }
 }
 
+function Set-ProcessArguments {
+    # Windows PowerShell 5.1 runs on .NET Framework, whose ProcessStartInfo has
+    # no ArgumentList. Quote into Arguments there, the way CommandLineToArgvW
+    # reads it back.
+    param(
+        [Parameter(Mandatory = $true)]$StartInfo,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+    if ($null -ne $StartInfo.PSObject.Properties['ArgumentList']) {
+        foreach ($argument in $Arguments) { $null = $StartInfo.ArgumentList.Add($argument) }
+        return
+    }
+    $quoted = New-Object Collections.Generic.List[string]
+    foreach ($argument in $Arguments) {
+        $escaped = $argument -replace '(\\*)"', '$1$1\"'
+        $escaped = $escaped -replace '(\\+)$', '$1$1'
+        $quoted.Add('"' + $escaped + '"')
+    }
+    $StartInfo.Arguments = ($quoted -join ' ')
+}
+
 function Invoke-ProcessBytes {
     # Captures a child process's stdout/stderr as raw bytes via .NET Process,
     # never through PowerShell's native-command pipeline (which splits output
@@ -58,9 +79,7 @@ function Invoke-ProcessBytes {
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.CreateNoWindow = $true
-    foreach ($a in $Arguments) {
-        $null = $psi.ArgumentList.Add($a)
-    }
+    Set-ProcessArguments -StartInfo $psi -Arguments $Arguments
     if ($PSBoundParameters.ContainsKey('EnvOverrides')) {
         foreach ($k in $EnvOverrides.Keys) {
             foreach ($existing in @($psi.EnvironmentVariables.Keys)) {

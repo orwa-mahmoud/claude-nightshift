@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # Shared clock-out decisions. Host wrappers own payload parsing and response emission.
 
-ns_gate_open_boxes() { ns_open_boxes "$PUNCH"; }
-ns_gate_ticked_boxes() { ns_ticked_boxes "$PUNCH"; }
-
 # ns_gate_boxes — set OPEN, TICKED, TOTAL from the punch list. Return 1 when
 # the file exists but cannot be read; then the counts are not a verdict and
 # the caller must not release as "0 open".
+# shellcheck disable=SC2034 # host wrappers read TOTAL after ns_gate_boxes
 ns_gate_boxes() {
   OPEN=0
   TICKED=0

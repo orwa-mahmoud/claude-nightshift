@@ -67,8 +67,7 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 
 # Only the Items list is the shift — a checkbox above the heading is prose and holds nobody.
-open_boxes() { ns_gate_open_boxes; }
-ticked_boxes() { ns_gate_ticked_boxes; }
+# ns_gate_boxes reads those counts.
 
 # Stall progress is a tick plus either work-target HEAD (repository mode) or the artifact
 # receipts fingerprint (artifact mode). ns_gate_progress_token chooses.
