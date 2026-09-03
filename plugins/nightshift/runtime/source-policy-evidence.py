@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""source-policy-evidence.py — source policies, query manifests, and untrusted redaction."""
+"""source-policy-evidence.py — source policies, query manifests, and connector bounds."""
 from __future__ import annotations
 
 import argparse
 import json
-import re
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -12,18 +11,6 @@ from urllib.parse import urlparse
 
 
 FILE_PREFIX = "file:"
-
-INJECTION_PATTERNS = [
-    re.compile(r"(?i)ignore (all )?(previous|prior) instructions"),
-    re.compile(r"(?i)system:\s*you are"),
-    re.compile(r"(?i)disregard (the )?(above|prior)"),
-    re.compile(r"(?i)run (this )?command:"),
-    re.compile(r"(?i)execute the following"),
-]
-SECRET_PATTERNS = [
-    re.compile(r"(?i)(password|api[_-]?key|secret|token)\s*=\s*\S+"),
-    re.compile(r"https?://[^\s/:]+:[^\s@]+@"),
-]
 
 
 def utc_now() -> str:
@@ -188,29 +175,6 @@ def query_manifest(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def redact_untrusted(raw: Dict[str, Any]) -> Dict[str, Any]:
-    content = raw.get("content") or ""
-    redactions: List[str] = []
-    safe = content
-    for pat in INJECTION_PATTERNS:
-        if pat.search(safe):
-            redactions.append("instruction-injection-neutralized")
-            safe = pat.sub("[REDACTED-UNTRUSTED-INSTRUCTION]", safe)
-    for pat in SECRET_PATTERNS:
-        if pat.search(safe):
-            redactions.append("secret-pattern-redacted")
-            safe = pat.sub("[REDACTED-SECRET]", safe)
-    return {
-        "schemaVersion": 1,
-        "kind": "redacted-untrusted",
-        "locator": raw.get("locator"),
-        "redactions": redactions,
-        "content": safe,
-        "treatAsUntrusted": True,
-        "remoteInstructionsAlterShift": False,
-    }
-
-
 def artifact_receipt_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
     outputs = raw.get("outputs") or []
     receipts: List[Dict[str, Any]] = []
@@ -264,7 +228,6 @@ def main(argv: List[str]) -> int:
     for name in (
         "policy-resolve",
         "query-manifest",
-        "redact-untrusted",
         "artifact-receipt-plan",
         "connector-boundary",
     ):
@@ -276,8 +239,6 @@ def main(argv: List[str]) -> int:
         doc = policy_resolve(data)
     elif args.cmd == "query-manifest":
         doc = query_manifest(data)
-    elif args.cmd == "redact-untrusted":
-        doc = redact_untrusted(data)
     elif args.cmd == "artifact-receipt-plan":
         doc = artifact_receipt_plan(data)
     elif args.cmd == "connector-boundary":

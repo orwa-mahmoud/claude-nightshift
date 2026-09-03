@@ -417,7 +417,7 @@ try {
         Expect-Equal $expectedEnvironment $baselineRecord.details.environmentDigest `
             'the environment digest is sha256 over sorted tool/version lines'
         Expect-Equal (Get-Sha256Hex 'lint output line') $baselineRecord.details.rawDigest `
-            'the raw digest is sha256 over the redacted raw output'
+            'the raw digest is sha256 over the stored raw output'
         Expect-Equal $baselineRecord.rawDigest $baselineRecord.details.rawDigest `
             'the details raw digest is the digest the ledger stored'
         Expect-Equal 4 (@($baselineRecord.details.seen).Count) 'every seen id is recorded'

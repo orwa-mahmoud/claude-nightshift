@@ -6,7 +6,7 @@
   Mirrors runtime/evidence-baseline.sh. Writes a domain "baseline" record
   through the ledger: source class, exact command, tool versions, scope, the
   environment digest over sorted tool/version lines, and the digest of the raw
-  output the ledger stores redacted. Written before the first fix; nothing is
+  output the ledger stores. Written before the first fix; nothing is
   copied out of the work target.
   Exit: 0 written - 1 usage / no .nightshift - 2 contract failure
 #>

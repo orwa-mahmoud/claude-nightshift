@@ -3778,10 +3778,6 @@ $script:NSEvidenceLadderRank['measured'] = 3
 $script:NSEvidenceLadderRank['verified-after-change'] = 4
 $script:NSEvidenceLadderRank['human-accepted'] = 5
 
-$script:NSEvidenceSecret = New-Object Text.RegularExpressions.Regex(
-    '(api[_-]?key|secret|token|password|authorization:\s*bearer)\s*[:=]\s*\S+|-----BEGIN [A-Z ]*PRIVATE KEY-----',
-    ([Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [Text.RegularExpressions.RegexOptions]::CultureInvariant))
-
 $script:NSEvidenceTsvColumns = @(
     'id', 'domain', 'sourceClass', 'source', 'scope', 'severity',
     'confidence', 'impact', 'status', 'ladder', 'locator', 'host'
@@ -3952,16 +3948,6 @@ function Get-NSTextSha256 {
     return $builder.ToString()
 }
 
-function Protect-NSEvidenceText {
-    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
-    return [regex]::Replace($Text, $script:NSEvidenceSecret.ToString(), '[redacted]', $script:NSEvidenceSecret.Options)
-}
-
-function Test-NSEvidenceSecret {
-    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
-    return $script:NSEvidenceSecret.IsMatch($Text)
-}
-
 function Get-NSEvidencePaths {
     param([Parameter(Mandatory = $true)][string]$Project)
     $ns = Join-NSPath (Get-NSAbsolutePath $Project) '.nightshift'
@@ -4047,7 +4033,6 @@ function Test-NSEvidenceRecord {
     if (([string]$locator).Contains('://') -and -not (Test-NSPyTruthy (Get-NSMapValue $Record 'untrusted'))) {
         $errors.Add('remote locator requires untrusted=true')
     }
-    if (Test-NSEvidenceSecret (ConvertTo-NSCanonicalJson $Record -Compact)) { $errors.Add('record contains a secret pattern') }
     if ($null -ne $Previous) {
         $oldRank = Get-NSEvidenceLadderRank (Get-NSMapValue $Previous 'ladder')
         $newRank = Get-NSEvidenceLadderRank (Get-NSMapValue $Record 'ladder')
@@ -4186,11 +4171,10 @@ function Invoke-NSEvidenceAppend {
     }
     if (Test-NSPyTruthy $RawText) {
         $record['rawPath'] = 'evidence/raw/' + [string]$record['id'] + '.txt'
-        $redacted = Protect-NSEvidenceText $RawText
-        $onDisk = $redacted
-        if (-not $redacted.EndsWith("`n")) { $onDisk = $redacted + "`n" }
+        $onDisk = $RawText
+        if (-not $RawText.EndsWith("`n")) { $onDisk = $RawText + "`n" }
         Write-NSEvidenceFile -Path (Join-NSPath $paths['ns'] $record['rawPath']) -Text $onDisk
-        $record['rawDigest'] = Get-NSTextSha256 $redacted
+        $record['rawDigest'] = Get-NSTextSha256 $RawText
     }
     $records.Add($record)
     Write-NSEvidenceRecords -Path $paths['jsonl'] -Records $records
@@ -7190,8 +7174,8 @@ function New-NSLifecycleRecord {
 }
 
 # One baseline record per originating source, written before the first fix. The
-# raw output goes through the ledger's --raw path, so its digest here is the
-# digest of the redacted text the ledger stores, never of a secret.
+# raw output goes through the ledger's --raw path; the digest here matches that
+# stored text.
 function Write-NSEvidenceBaseline {
     param(
         [Parameter(Mandatory = $true)][string]$Workspace,
@@ -7210,7 +7194,7 @@ function Write-NSEvidenceBaseline {
     $rawDigest = ''
     $ladder = $script:NSEvidenceBaselineLadderObserved
     if (-not [string]::IsNullOrEmpty($Raw)) {
-        $rawDigest = Get-NSTextSha256 (Protect-NSEvidenceText $Raw)
+        $rawDigest = Get-NSTextSha256 $Raw
         $ladder = $script:NSEvidenceBaselineLadderMeasured
     }
     $details = New-NSOrdinalMap

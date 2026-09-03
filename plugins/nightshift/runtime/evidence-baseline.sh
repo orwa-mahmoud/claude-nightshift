@@ -14,7 +14,7 @@
 # Exit: 0 ok · 1 usage · 2 contract failure
 #
 # The record travels through evidence.sh append, so the ledger keeps every decision about
-# defaults, validation, redaction, and raw storage. jq (preferred) or python3 covers exactly one
+# defaults, validation, and raw storage. jq (preferred) or python3 covers exactly one
 # job: reading the ledger's JSON lines and writing this record back as one canonical JSON value.
 # Every other decision — the id, the version set, the digests, the ladder rung — happens here.
 set -u

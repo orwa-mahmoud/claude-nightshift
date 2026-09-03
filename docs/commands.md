@@ -10,7 +10,7 @@
 /nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
-                       # optional follow-up: export a redacted local support bundle (never uploaded)
+                       # optional follow-up: export a local support bundle (never uploaded)
 /nightshift:stop       # pause now; open boxes stay open; deadline is preserved
 /nightshift:reset      # drop runtime markers and the deadline; keep punch list and history
 /nightshift:purge      # delete this project's .nightshift/; does not uninstall the plugin
@@ -105,7 +105,8 @@ In artifact mode it also reports `artifact receipts N`, `latest artifact receipt
 filename of the most recently written receipt when any exist, and warns `artifact mode has ticked items but no receipts` when boxes
 were ticked without `write-receipt`. It warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts.
 
-A redacted local support bundle from a terminal (never uploaded):
+A local support bundle from a terminal (never uploaded). Known sensitive fields
+are omitted:
 
 ```bash
 plugins/nightshift/runtime/export-support.sh --project .
