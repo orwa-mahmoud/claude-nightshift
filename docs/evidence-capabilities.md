@@ -1,9 +1,10 @@
 # Evidence-aware capabilities
 
 Nightshift ships a catalog of shift contracts — each with discovery rules, a definition of done,
-verification, and supported stacks. Phase 04–07 added **evidence helpers**: small Python runtimes
-with POSIX shell wrappers that normalize findings, refuse owner-only actions, and record what was
-measured versus unavailable.
+verification, and supported stacks. Catalog evidence helpers on POSIX currently wrap Python
+(`runtime/*-evidence.sh` execs `python3`). Missing Python fails that helper; it is not an optional
+skip. POSIX hooks still need **jq or python3** to arm. Native Windows hooks use PowerShell's
+built-in JSON parser and do not call those POSIX wrappers.
 
 ## Runtime helpers
 
@@ -59,11 +60,11 @@ The punch list, parking lot, snag log, and receipts — not either conversation 
 Multi-night **campaigns** are independent bounded shifts; the next night begins only after the prior
 archives or the owner accepts its handoff.
 
-## Contract evaluation toolkit
+## Contract schema and size budgets
 
-The repository root `evals/` directory hosts the **contract schema and evaluation toolkit**
-(priority cases, frozen identifiers, instruction-size budgets). Run `tests/evals.bats` locally;
-human review remains required for catalog contributions.
+`evals/` holds the contract schema, a versioned case book, frozen identifiers, and instruction-size
+budgets. `evals/validate.sh` and `tests/evals.bats` check schema and size. They do not run a
+host-agent matrix. Human review remains required for catalog contributions.
 
 ## Limits
 

@@ -3,6 +3,12 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [Unreleased]
+
+### Documentation
+
+* drop false runtime, planner, and redaction claims — POSIX hooks still need jq or python3 to arm; catalog Python helpers fail rather than skip; native Windows has no planner; default support export is an allowlisted subset
+
 ## [0.19.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.18.1...v0.19.0) (2026-09-01)
 
 
@@ -273,7 +279,7 @@ version users receive. Dates are release dates; the tags carry the exact trees.
 
 * **archive:** add explicit history retention ([1e4cc4f](https://github.com/orwa-mahmoud/nightshift/commit/1e4cc4fa2c6647a1cc56935e49cef2fbb7b6f92b))
 * **catalog:** add GitHub issue hunts ([c2257d7](https://github.com/orwa-mahmoud/nightshift/commit/c2257d72a94c330673cc8ab3472e1f5e3c35784a))
-* **doctor:** export redacted support bundles ([f63deb8](https://github.com/orwa-mahmoud/nightshift/commit/f63deb84eb144a8fc5ea4378ef236f65bc4a3539))
+* **doctor:** export local support bundles ([f63deb8](https://github.com/orwa-mahmoud/nightshift/commit/f63deb84eb144a8fc5ea4378ef236f65bc4a3539))
 * **github:** stage selected issues for shifts ([c182ef2](https://github.com/orwa-mahmoud/nightshift/commit/c182ef2cb8d9b2f07d12d6193e3266876c5d29b0))
 * **rules:** add opt-in local profiles ([d2ddbe7](https://github.com/orwa-mahmoud/nightshift/commit/d2ddbe7ba9edd6cb57fec4e52c9777b9f1a222aa))
 * **schedule:** generate systemd user timers ([7c6a010](https://github.com/orwa-mahmoud/nightshift/commit/7c6a010f74d2d522bad1e93006e4c24519c45def))

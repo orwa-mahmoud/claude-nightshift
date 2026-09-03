@@ -90,8 +90,8 @@ authoritative.
 Start preflight records the choice on the policy snapshot.
 
 POSIX hooks parse JSON with **jq or python3**; an armed shift fails closed when neither is available.
-Native Windows uses PowerShell's built-in JSON parser. Optional Python helpers power evidence
-features only; their absence records an honest skip and the shift continues.
+Native Windows uses PowerShell's built-in JSON parser. Catalog helpers that exec `python3` fail
+that helper when Python is missing — they do not skip and continue.
 
 ## Mechanical gates and owner rules
 
