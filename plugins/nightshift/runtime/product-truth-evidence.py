@@ -51,6 +51,19 @@ def a11y_report(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _locale_key_issues(locale: str, table: Dict[str, Any], keys: set[str]) -> List[Dict[str, Any]]:
+    issues: List[Dict[str, Any]] = []
+    for key in keys:
+        if key not in table:
+            issues.append(
+                {"locale": locale, "key": key, "issue": "missing-key", "action": "park-translation"}
+            )
+    for key, val in table.items():
+        if "{" in val and val.count("{") != val.count("}"):
+            issues.append({"locale": locale, "key": key, "issue": "interpolation", "action": "repair-structure"})
+    return issues
+
+
 def l10n_validate(catalog: Dict[str, Any]) -> Dict[str, Any]:
     source = catalog.get("canonicalLocale") or "en"
     keys = set((catalog.get("locales") or {}).get(source, {}).keys())
@@ -58,14 +71,7 @@ def l10n_validate(catalog: Dict[str, Any]) -> Dict[str, Any]:
     for locale, table in (catalog.get("locales") or {}).items():
         if locale == source:
             continue
-        for key in keys:
-            if key not in table:
-                issues.append(
-                    {"locale": locale, "key": key, "issue": "missing-key", "action": "park-translation"}
-                )
-        for key, val in table.items():
-            if "{" in val and val.count("{") != val.count("}"):
-                issues.append({"locale": locale, "key": key, "issue": "interpolation", "action": "repair-structure"})
+        issues.extend(_locale_key_issues(locale, table, keys))
     return {
         "schemaVersion": 1,
         "kind": "l10n-parity",

@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 SCHEMA_VERSION = 1
 
@@ -19,6 +19,80 @@ OWNER_ONLY_ACTIONS = frozenset(
 FINDING_DISPOSITIONS = frozenset({"fixed", "rejected", "parked", "unsupported", "out-of-scope"})
 
 
+def _acceptance_anchor_blockers(
+    branch: str,
+    issue_url: str,
+    work_mode: str,
+    routes: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    blockers: List[Dict[str, Any]] = []
+    if work_mode != "repository":
+        routes.append({"route": "artifact-review", "reason": "repository-mode-required"})
+        blockers.append(
+            {"category": "work-mode", "summary": "repository mode only", "action": "route-elsewhere"}
+        )
+    if not branch:
+        blockers.append({"category": "anchor", "summary": "missing named branch", "action": "park"})
+    if not issue_url:
+        blockers.append({"category": "issue", "summary": "missing issue anchor", "action": "park"})
+    elif not ISSUE_URL.match(issue_url):
+        blockers.append({"category": "issue", "summary": "issue URL not parseable", "action": "park"})
+    return blockers
+
+
+def _map_acceptance_criterion(
+    c: Dict[str, Any],
+    routes: List[Dict[str, Any]],
+    blockers: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    text = c.get("text") or ""
+    status = (c.get("status") or "unmet").lower()
+    evidence = c.get("evidence") or []
+    entry: Dict[str, Any] = {
+        "id": c.get("id"),
+        "text": text,
+        "status": status,
+        "evidence": evidence,
+        "met": status == "met",
+    }
+    if status == "ambiguous":
+        entry["route"] = "park-with-default"
+        routes.append(
+            {"route": "ambiguous-criterion", "criterion": c.get("id"), "reason": text[:80]}
+        )
+    elif status in ("unmet", "partial"):
+        blockers.append(
+            {
+                "category": "acceptance",
+                "summary": text[:120],
+                "action": "fix-or-park",
+                "criterion": c.get("id"),
+            }
+        )
+    return entry
+
+
+def _acceptance_ci_blockers(ci_status: Dict[str, Any]) -> List[Dict[str, Any]]:
+    blockers: List[Dict[str, Any]] = []
+    ci_state = ci_status.get("state")
+    if ci_state == "failure":
+        blockers.append({"category": "ci", "summary": "containing checks failed", "action": "fix-or-park"})
+    elif ci_state == "unknown":
+        blockers.append(
+            {"category": "ci", "summary": "CI state not measured", "action": "record-unavailable"}
+        )
+    return blockers
+
+
+def _acceptance_verdict(blockers: List[Dict[str, Any]]) -> str:
+    fixable = [b for b in blockers if b.get("action") in ("fix-or-park", "fix-or-disposition")]
+    if not blockers:
+        return "ready-for-human-review"
+    if fixable:
+        return "not-ready"
+    return "blocked"
+
+
 def acceptance_map(raw: Dict[str, Any]) -> Dict[str, Any]:
     branch = (raw.get("branch") or "").strip()
     base = (raw.get("baseBranch") or "main").strip()
@@ -29,49 +103,10 @@ def acceptance_map(raw: Dict[str, Any]) -> Dict[str, Any]:
     comments = raw.get("reviewComments") or []
     ci_status = raw.get("ciStatus") or {}
 
-    blockers: List[Dict[str, Any]] = []
     routes: List[Dict[str, Any]] = []
+    blockers = _acceptance_anchor_blockers(branch, issue_url, work_mode, routes)
 
-    if work_mode != "repository":
-        routes.append({"route": "artifact-review", "reason": "repository-mode-required"})
-        blockers.append(
-            {"category": "work-mode", "summary": "repository mode only", "action": "route-elsewhere"}
-        )
-
-    if not branch:
-        blockers.append({"category": "anchor", "summary": "missing named branch", "action": "park"})
-    if not issue_url:
-        blockers.append({"category": "issue", "summary": "missing issue anchor", "action": "park"})
-    elif not ISSUE_URL.match(issue_url):
-        blockers.append({"category": "issue", "summary": "issue URL not parseable", "action": "park"})
-
-    mapped: List[Dict[str, Any]] = []
-    for c in criteria:
-        text = c.get("text") or ""
-        status = (c.get("status") or "unmet").lower()
-        evidence = c.get("evidence") or []
-        entry: Dict[str, Any] = {
-            "id": c.get("id"),
-            "text": text,
-            "status": status,
-            "evidence": evidence,
-            "met": status == "met",
-        }
-        if status == "ambiguous":
-            entry["route"] = "park-with-default"
-            routes.append(
-                {"route": "ambiguous-criterion", "criterion": c.get("id"), "reason": text[:80]}
-            )
-        elif status in ("unmet", "partial"):
-            blockers.append(
-                {
-                    "category": "acceptance",
-                    "summary": text[:120],
-                    "action": "fix-or-park",
-                    "criterion": c.get("id"),
-                }
-            )
-        mapped.append(entry)
+    mapped = [_map_acceptance_criterion(c, routes, blockers) for c in criteria]
 
     for comment in comments:
         if comment.get("unresolved"):
@@ -84,21 +119,7 @@ def acceptance_map(raw: Dict[str, Any]) -> Dict[str, Any]:
                 }
             )
 
-    ci_state = ci_status.get("state")
-    if ci_state == "failure":
-        blockers.append({"category": "ci", "summary": "containing checks failed", "action": "fix-or-park"})
-    elif ci_state == "unknown":
-        blockers.append(
-            {"category": "ci", "summary": "CI state not measured", "action": "record-unavailable"}
-        )
-
-    fixable = [b for b in blockers if b.get("action") in ("fix-or-park", "fix-or-disposition")]
-    if not blockers:
-        verdict = "ready-for-human-review"
-    elif fixable:
-        verdict = "not-ready"
-    else:
-        verdict = "blocked"
+    blockers.extend(_acceptance_ci_blockers(ci_status))
 
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -112,7 +133,7 @@ def acceptance_map(raw: Dict[str, Any]) -> Dict[str, Any]:
         "reviewCommentCount": len(comments),
         "routes": routes,
         "blockers": blockers,
-        "verdict": verdict,
+        "verdict": _acceptance_verdict(blockers),
         "agentApprovalAllowed": False,
         "humanDecisionSurface": True,
     }
@@ -126,6 +147,23 @@ def _path_in_scope(path: str, scope_paths: List[str]) -> bool:
     return False
 
 
+def _classify_changed_paths(
+    changed: List[str],
+    unrelated: List[str],
+    effective_scope: List[str],
+) -> Tuple[List[str], List[str]]:
+    in_scope: List[str] = []
+    out_of_scope: List[str] = []
+    for path in changed:
+        if path in unrelated:
+            out_of_scope.append(path)
+        elif effective_scope and not _path_in_scope(path, effective_scope):
+            out_of_scope.append(path)
+        else:
+            in_scope.append(path)
+    return in_scope, out_of_scope
+
+
 def diff_scope(raw: Dict[str, Any]) -> Dict[str, Any]:
     branch = (raw.get("branch") or "").strip()
     base = (raw.get("baseBranch") or "main").strip()
@@ -136,16 +174,7 @@ def diff_scope(raw: Dict[str, Any]) -> Dict[str, Any]:
     dirty = bool(raw.get("dirtyWorktree"))
 
     effective_scope = scope_paths or issue_paths
-    in_scope: List[str] = []
-    out_of_scope: List[str] = []
-
-    for path in changed:
-        if path in unrelated:
-            out_of_scope.append(path)
-        elif effective_scope and not _path_in_scope(path, effective_scope):
-            out_of_scope.append(path)
-        else:
-            in_scope.append(path)
+    in_scope, out_of_scope = _classify_changed_paths(changed, unrelated, effective_scope)
 
     blockers: List[Dict[str, Any]] = []
     if dirty:
@@ -184,17 +213,7 @@ def diff_scope(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def review_map(raw: Dict[str, Any]) -> Dict[str, Any]:
-    changed_areas = list(raw.get("changedAreas") or [])
-    acceptance_evidence = list(raw.get("acceptanceEvidence") or [])
-    remaining_risks = list(raw.get("remainingRisks") or [])
-    unsupported = list(raw.get("unsupportedSurfaces") or [])
-    commits = list(raw.get("commits") or [])
-    rollback = raw.get("rollback") or ""
-    reviewer_decisions = list(raw.get("reviewerDecisions") or [])
-    findings = raw.get("findings") or []
-    containing_green = raw.get("containingChecksGreen")
-
+def _collect_finding_dispositions(findings: List[Any]) -> Tuple[List[Dict[str, Any]], int]:
     dispositions: List[Dict[str, Any]] = []
     open_findings = 0
     for f in findings:
@@ -209,6 +228,29 @@ def review_map(raw: Dict[str, Any]) -> Dict[str, Any]:
         )
         if disp == "open":
             open_findings += 1
+    return dispositions, open_findings
+
+
+def _checks_label(containing_green: Optional[bool]) -> str:
+    if containing_green:
+        return "green"
+    if containing_green is False:
+        return "failed"
+    return "unknown"
+
+
+def review_map(raw: Dict[str, Any]) -> Dict[str, Any]:
+    changed_areas = list(raw.get("changedAreas") or [])
+    acceptance_evidence = list(raw.get("acceptanceEvidence") or [])
+    remaining_risks = list(raw.get("remainingRisks") or [])
+    unsupported = list(raw.get("unsupportedSurfaces") or [])
+    commits = list(raw.get("commits") or [])
+    rollback = raw.get("rollback") or ""
+    reviewer_decisions = list(raw.get("reviewerDecisions") or [])
+    findings = raw.get("findings") or []
+    containing_green = raw.get("containingChecksGreen")
+
+    dispositions, open_findings = _collect_finding_dispositions(findings)
 
     if containing_green is False:
         open_findings += 1
@@ -217,7 +259,7 @@ def review_map(raw: Dict[str, Any]) -> Dict[str, Any]:
         d.get("disposition") in FINDING_DISPOSITIONS for d in dispositions
     )
 
-    checks_label = "green" if containing_green else ("failed" if containing_green is False else "unknown")
+    checks_label = _checks_label(containing_green)
     shift_log_line = "branch %s · %d commits · %d areas · %d risks · checks %s" % (
         raw.get("branch") or "?",
         len(commits),

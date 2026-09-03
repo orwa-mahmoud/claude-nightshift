@@ -2,6 +2,7 @@
 """Read-only capability detector. Never writes, installs, or mutates the work target."""
 from __future__ import print_function
 
+import argparse
 import json
 import os
 import re
@@ -11,6 +12,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PLUGIN = os.path.dirname(HERE)
+PACKAGE_JSON = "package.json"
 SCHEMA = os.path.join(
     PLUGIN, "skills", "nightshift", "references", "schemas", "v1"
 )
@@ -19,6 +21,14 @@ SCHEMA = os.path.join(
 def load(name):
     with open(os.path.join(SCHEMA, name)) as fh:
         return json.load(fh)
+
+
+def nt_executable(candidate):
+    for ext in (".exe", ".cmd", ".bat"):
+        alt = candidate + ext
+        if os.path.isfile(alt):
+            return alt
+    return None
 
 
 def which(cmd, env_path):
@@ -31,10 +41,9 @@ def which(cmd, env_path):
         if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
             return candidate
         if os.name == "nt":
-            for ext in (".exe", ".cmd", ".bat"):
-                alt = candidate + ext
-                if os.path.isfile(alt):
-                    return alt
+            found = nt_executable(candidate)
+            if found:
+                return found
     return None
 
 
@@ -93,7 +102,7 @@ def list_packages(target):
         if not stat.S_ISDIR(st.st_mode):
             continue
         signals = (
-            "package.json",
+            PACKAGE_JSON,
             "pyproject.toml",
             "requirements.txt",
             "go.mod",
@@ -127,7 +136,7 @@ def scan_files(root, names):
 
 def detect_stack(pkg):
     stacks = []
-    if os.path.isfile(os.path.join(pkg, "package.json")):
+    if os.path.isfile(os.path.join(pkg, PACKAGE_JSON)):
         stacks.append("javascript-typescript")
     if os.path.isfile(os.path.join(pkg, "pyproject.toml")) or os.path.isfile(
         os.path.join(pkg, "requirements.txt")
@@ -158,7 +167,7 @@ def probe_command(cmd, env_path, locator):
 
 
 def script_names(pkg):
-    data = read_json(os.path.join(pkg, "package.json")) or {}
+    data = read_json(os.path.join(pkg, PACKAGE_JSON)) or {}
     scripts = data.get("scripts") or {}
     if not isinstance(scripts, dict):
         return []
@@ -210,9 +219,9 @@ def artifact_caps(target):
         for name in sorted(filenames):
             path = os.path.join(dirpath, name)
             lower = name.lower()
-            if lower.endswith(".md") or lower.endswith(".markdown"):
+            if lower.endswith((".md", ".markdown")):
                 md.append(path)
-            elif lower.endswith(".html") or lower.endswith(".htm"):
+            elif lower.endswith((".html", ".htm")):
                 html.append(path)
         if len(md) + len(html) > 40:
             break
@@ -235,6 +244,148 @@ def artifact_caps(target):
     return caps
 
 
+def collect_declared_scripts(packages, target):
+    scripts = []
+    for pkg in packages:
+        for name in script_names(pkg):
+            scripts.append("%s:%s" % (os.path.relpath(pkg, target), name))
+        for name in makefile_targets(pkg):
+            scripts.append("make:%s" % name)
+    return scripts
+
+
+def script_runner_caps(target, scripts):
+    if scripts:
+        entry = result(
+            "available-and-verified", "declared scripts: %s" % ", ".join(scripts[:12]), target, "declared"
+        )
+        return entry, entry
+    entry = result("unavailable", "no package.json scripts or Makefile targets", target, "observed")
+    return entry, entry
+
+
+def ci_cap(target):
+    ci_hits = []
+    for rel in (".github/workflows", ".gitlab-ci.yml", "azure-pipelines.yml"):
+        path = os.path.join(target, rel)
+        if os.path.exists(path):
+            ci_hits.append(path)
+    if ci_hits:
+        return result("available-and-verified", "CI config present", ci_hits[0], "observed")
+    return result("unavailable", "no CI config", target, "observed")
+
+
+COMMAND_MAP = {
+    "lint": [("eslint", "javascript-typescript"), ("ruff", "python"), ("golangci-lint", "go")],
+    "typecheck": [("tsc", "javascript-typescript"), ("mypy", "python")],
+    "test": [
+        ("node", "javascript-typescript"),
+        ("pytest", "python"),
+        ("go", "go"),
+        ("cargo", "rust"),
+        ("bats", "shell-plugin"),
+    ],
+    "coverage": [("c8", "javascript-typescript"), ("pytest", "python"), ("go", "go")],
+    "dead-code": [("knip", "javascript-typescript"), ("vulture", "python")],
+    "build": [("tsc", "javascript-typescript"), ("go", "go"), ("cargo", "rust")],
+    "security": [("npm", "javascript-typescript"), ("pip-audit", "python"), ("govulncheck", "go")],
+    "documentation-link": [("markdown-link-check", None)],
+    "accessibility": [("axe", None), ("pa11y", None)],
+    "api-schema": [],
+    "localization": [],
+    "benchmark": [],
+    "mutation-fuzz": [],
+    "seo-performance": [],
+    "browser": [("chrome", None), ("chromium", None)],
+    "connector": [("gh", None)],
+    "structured-results": [],
+}
+
+SCRIPT_HINTS = {
+    "test": "test",
+    "lint": "lint",
+    "typecheck": "typecheck",
+    "coverage": "coverage",
+    "build": "build",
+}
+
+
+def should_probe_stack(stack, stacks, cap):
+    if not stack or stack in stacks or cap == "connector":
+        return True
+    if stack not in ("javascript-typescript", "python", "go", "rust", "shell-plugin"):
+        return False
+    return stack in stacks
+
+
+def probe_path_commands(probes, stacks, cap, env_path, target):
+    found = []
+    for cmd, stack in probes:
+        if not should_probe_stack(stack, stacks, cap):
+            continue
+        found.append(probe_command(cmd, env_path, target))
+    return found
+
+
+def declared_script_probe(cap, packages):
+    key = SCRIPT_HINTS.get(cap)
+    if not key:
+        return None
+    if not any(key in script_names(pkg) for pkg in packages):
+        return None
+    return result(
+        "available-and-verified",
+        "package.json scripts.%s is declared; not proof of a binary" % key,
+                        os.path.join(packages[0], PACKAGE_JSON),
+        "declared",
+    )
+
+
+def makefile_test_probe(packages, target):
+    if not any("test" in makefile_targets(pkg) for pkg in packages):
+        return None
+    return result("available-and-verified", "Makefile test target declared", target, "declared")
+
+
+def structured_results_probe(target):
+    hits = []
+    for name in ("junit.xml", "coverage.lcov", "lcov.info"):
+        hits.extend(scan_files(target, {name}))
+    if not hits:
+        return None
+    return result("available-and-verified", "structured result file present", hits[0], "observed")
+
+
+def api_schema_probe(target):
+    for name in ("openapi.yaml", "openapi.yml", "openapi.json", "schema.graphql"):
+        path = os.path.join(target, name)
+        if os.path.isfile(path):
+            return result("available-and-verified", "schema file present", path, "observed")
+    return None
+
+
+def localization_probe(target):
+    for rel in ("locales", "i18n", "translations"):
+        path = os.path.join(target, rel)
+        if os.path.isdir(path):
+            return result("available-and-verified", "locale directory present", path, "observed")
+    return None
+
+
+def probe_capability(cap, probes, stacks, env_path, target, packages):
+    found = probe_path_commands(probes, stacks, cap, env_path, target)
+    for extra in (
+        declared_script_probe(cap, packages),
+        makefile_test_probe(packages, target) if cap == "test" else None,
+        structured_results_probe(target) if cap == "structured-results" else None,
+        api_schema_probe(target) if cap == "api-schema" else None,
+        localization_probe(target) if cap == "localization" else None,
+    ):
+        if extra:
+            found.append(extra)
+    return merge_status(found)
+
+
 def repo_caps(target, ns, env_path):
     caps = artifact_caps(target)
     packages = list_packages(target)
@@ -246,115 +397,35 @@ def repo_caps(target, ns, env_path):
     }
     caps["owner-gates"] = owner_gates(ns)
 
-    scripts = []
-    for pkg in packages:
-        for name in script_names(pkg):
-            scripts.append("%s:%s" % (os.path.relpath(pkg, target), name))
-        for name in makefile_targets(pkg):
-            scripts.append("make:%s" % name)
-    if scripts:
-        caps["scripts"] = result(
-            "available-and-verified", "declared scripts: %s" % ", ".join(scripts[:12]), target, "declared"
-        )
-        caps["task-runner"] = caps["scripts"]
-    else:
-        caps["scripts"] = result("unavailable", "no package.json scripts or Makefile targets", target, "observed")
-        caps["task-runner"] = caps["scripts"]
-
-    ci_hits = []
-    for rel in (".github/workflows", ".gitlab-ci.yml", "azure-pipelines.yml"):
-        path = os.path.join(target, rel)
-        if os.path.exists(path):
-            ci_hits.append(path)
-    caps["ci"] = (
-        result("available-and-verified", "CI config present", ci_hits[0], "observed")
-        if ci_hits
-        else result("unavailable", "no CI config", target, "observed")
-    )
-
-    command_map = {
-        "lint": [("eslint", "javascript-typescript"), ("ruff", "python"), ("golangci-lint", "go")],
-        "typecheck": [("tsc", "javascript-typescript"), ("mypy", "python")],
-        "test": [
-            ("node", "javascript-typescript"),
-            ("pytest", "python"),
-            ("go", "go"),
-            ("cargo", "rust"),
-            ("bats", "shell-plugin"),
-        ],
-        "coverage": [("c8", "javascript-typescript"), ("pytest", "python"), ("go", "go")],
-        "dead-code": [("knip", "javascript-typescript"), ("vulture", "python")],
-        "build": [("tsc", "javascript-typescript"), ("go", "go"), ("cargo", "rust")],
-        "security": [("npm", "javascript-typescript"), ("pip-audit", "python"), ("govulncheck", "go")],
-        "documentation-link": [("markdown-link-check", None)],
-        "accessibility": [("axe", None), ("pa11y", None)],
-        "api-schema": [],
-        "localization": [],
-        "benchmark": [],
-        "mutation-fuzz": [],
-        "seo-performance": [],
-        "browser": [("chrome", None), ("chromium", None)],
-        "connector": [("gh", None)],
-        "structured-results": [],
-    }
-
-    # package.json script names can verify a capability without PATH proof of a binary
-    # but a script name is still not a binary. Treat npm scripts as declared, then
-    # prefer a PATH binary for verified.
-    script_hints = {
-        "test": "test",
-        "lint": "lint",
-        "typecheck": "typecheck",
-        "coverage": "coverage",
-        "build": "build",
-    }
+    scripts = collect_declared_scripts(packages, target)
+    caps["scripts"], caps["task-runner"] = script_runner_caps(target, scripts)
+    caps["ci"] = ci_cap(target)
 
     stacks = topology["stacks"]
-    for cap, probes in command_map.items():
-        found = []
-        for cmd, stack in probes:
-            if stack and stack not in stacks and cap != "connector":
-                # still allow generic tools
-                if stack not in ("javascript-typescript", "python", "go", "rust", "shell-plugin"):
-                    continue
-                if stack not in stacks:
-                    continue
-            found.append(probe_command(cmd, env_path, target))
-        # declared scripts
-        if cap in script_hints:
-            key = script_hints[cap]
-            if any(key in script_names(pkg) for pkg in packages):
-                found.append(
-                    result(
-                        "available-and-verified",
-                        "package.json scripts.%s is declared; not proof of a binary" % key,
-                        os.path.join(packages[0], "package.json"),
-                        "declared",
-                    )
-                )
-        if cap == "test" and any("test" in makefile_targets(pkg) for pkg in packages):
-            found.append(
-                result("available-and-verified", "Makefile test target declared", target, "declared")
-            )
-        if cap == "structured-results":
-            hits = []
-            for name in ("junit.xml", "coverage.lcov", "lcov.info"):
-                hits.extend(scan_files(target, {name}))
-            if hits:
-                found.append(result("available-and-verified", "structured result file present", hits[0], "observed"))
-        if cap == "api-schema":
-            for name in ("openapi.yaml", "openapi.yml", "openapi.json", "schema.graphql"):
-                path = os.path.join(target, name)
-                if os.path.isfile(path):
-                    found.append(result("available-and-verified", "schema file present", path, "observed"))
-        if cap == "localization":
-            for rel in ("locales", "i18n", "translations"):
-                path = os.path.join(target, rel)
-                if os.path.isdir(path):
-                    found.append(result("available-and-verified", "locale directory present", path, "observed"))
-        caps[cap] = merge_status(found)
+    for cap, probes in COMMAND_MAP.items():
+        caps[cap] = probe_capability(cap, probes, stacks, env_path, target, packages)
 
     return caps, topology
+
+
+def _missing_required_caps(req, caps):
+    missing = []
+    for cap in req.get("requires") or []:
+        item = caps.get(cap) or result("unavailable", "not detected", "", "declared")
+        if item["status"] in ("unavailable", "provisionable"):
+            missing.append(cap)
+    return missing
+
+
+def _requires_any_satisfied(req, caps):
+    requires_any = req.get("requiresAny") or []
+    if not requires_any:
+        return True, []
+    for cap in requires_any:
+        item = caps.get(cap) or result("unavailable", "not detected", "", "declared")
+        if item["status"] in ("available-and-verified", "available-but-failing", "fallback-only"):
+            return True, []
+    return False, list(requires_any)
 
 
 def evaluate_contract(req, caps, work_mode):
@@ -365,22 +436,10 @@ def evaluate_contract(req, caps, work_mode):
             "missing": [],
             "fallback": req.get("fallback"),
         }
-    missing = []
-    for cap in req.get("requires") or []:
-        item = caps.get(cap) or result("unavailable", "not detected", "", "declared")
-        if item["status"] in ("unavailable", "provisionable"):
-            missing.append(cap)
-    any_ok = True
-    requires_any = req.get("requiresAny") or []
-    if requires_any:
-        any_ok = False
-        for cap in requires_any:
-            item = caps.get(cap) or result("unavailable", "not detected", "", "declared")
-            if item["status"] in ("available-and-verified", "available-but-failing", "fallback-only"):
-                any_ok = True
-                break
-        if not any_ok:
-            missing.extend(requires_any)
+    missing = _missing_required_caps(req, caps)
+    any_ok, any_missing = _requires_any_satisfied(req, caps)
+    if not any_ok:
+        missing.extend(any_missing)
     if missing:
         fallback = req.get("fallback")
         if fallback:
@@ -475,35 +534,22 @@ def usage():
     return 1
 
 
+def parse_detect_args(argv):
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("-p", "--project")
+    parser.add_argument("--host", default="claude")
+    parser.add_argument("--normalize", action="store_true")
+    parser.add_argument("-h", "--help", action="store_true")
+    args, _unknown = parser.parse_known_args(argv[1:])
+    if args.help or not args.project:
+        return None, args.host, args.normalize, usage()
+    return args.project, args.host, args.normalize, 0
+
+
 def main(argv):
-    project = None
-    host = "claude"
-    do_norm = False
-    args = argv[1:]
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a in ("--project", "-p"):
-            if i + 1 >= len(args):
-                return usage()
-            project = args[i + 1]
-            i += 2
-            continue
-        if a == "--host":
-            if i + 1 >= len(args):
-                return usage()
-            host = args[i + 1]
-            i += 2
-            continue
-        if a == "--normalize":
-            do_norm = True
-            i += 1
-            continue
-        if a in ("-h", "--help"):
-            return usage()
-        return usage()
-    if not project:
-        return usage()
+    project, host, do_norm, err = parse_detect_args(argv)
+    if err:
+        return err
     project = os.path.abspath(project)
     if not os.path.isdir(project):
         print("detect-capabilities: not a directory: %s" % project, file=sys.stderr)

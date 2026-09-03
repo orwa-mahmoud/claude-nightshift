@@ -8,12 +8,72 @@ import re
 import sys
 from typing import Any, Dict, List
 
-CI_PREFIX = re.compile(
-    r"^\[workflow:(?P<workflow>[^\]]+)\]\s+job:(?P<job>\S+)\s+step:(?P<step>\S+)\s+"
-    r"(?P<level>warning|deprecated|warn):\s*(?P<message>.+)$",
-    re.I,
-)
-CI_SIMPLE = re.compile(r"^(?P<level>warning|deprecated|warn):\s*(?P<message>.+)$", re.I)
+CI_PREFIX_MARKER = "[workflow:"
+CI_LEVELS = ("warning:", "deprecated:", "warn:")
+
+
+def _parse_ci_simple(line: str):
+    lower = line.lower()
+    for prefix in CI_LEVELS:
+        if lower.startswith(prefix):
+            return (prefix.rstrip(":"), line[len(prefix) :].strip())
+    return None
+
+
+def _parse_ci_prefixed(line: str):
+    if not line.startswith(CI_PREFIX_MARKER):
+        return None
+    try:
+        workflow = line.split("]", 1)[0].split(":", 1)[1]
+        rest = line.split("]", 1)[1].strip()
+        job = rest.split("job:", 1)[1].split()[0]
+        step = rest.split("step:", 1)[1].split()[0]
+        tail = rest.split("step:", 1)[1].split(None, 1)[1]
+        level, message = _parse_ci_simple(tail) or (None, tail)
+        return {
+            "workflow": workflow,
+            "job": job,
+            "step": step,
+            "level": level or "warning",
+            "message": message,
+        }
+    except (IndexError, ValueError):
+        return None
+
+
+def parse_ci_warnings(raw: str) -> Dict[str, Any]:
+    warnings: List[Dict[str, Any]] = []
+    seen = set()
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        d = _parse_ci_prefixed(line)
+        if not d:
+            simple = _parse_ci_simple(line)
+            if not simple:
+                continue
+            d = {"level": simple[0], "message": simple[1]}
+        msg = d.get("message") or line
+        key = msg.lower()
+        recurrent = key in seen
+        seen.add(key)
+        repo_owned = any(x in msg for x in ("src/", "packages/", "repository-owned"))
+        warnings.append(
+            {
+                "workflow": d.get("workflow"),
+                "job": d.get("job"),
+                "step": d.get("step"),
+                "level": (d.get("level") or "warning").lower(),
+                "message": msg,
+                "causeClass": "repository-owned" if repo_owned else "external",
+                "recurrent": recurrent,
+                "remotePending": d.get("workflow") is not None,
+            }
+        )
+    return {"schemaVersion": 1, "kind": "ci-warning", "warnings": warnings}
+
+
 TODO_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b", re.I)
 
 
@@ -37,37 +97,6 @@ def flaky_matrix(manifest: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
     return {"schemaVersion": 1, "kind": "flaky-matrix", "rows": rows}
-
-
-def parse_ci_warnings(raw: str) -> Dict[str, Any]:
-    warnings: List[Dict[str, Any]] = []
-    seen = set()
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        m = CI_PREFIX.match(line) or CI_SIMPLE.match(line)
-        if not m:
-            continue
-        d = m.groupdict()
-        msg = d.get("message") or line
-        key = msg.lower()
-        recurrent = key in seen
-        seen.add(key)
-        repo_owned = any(x in msg for x in ("src/", "packages/", "repository-owned"))
-        warnings.append(
-            {
-                "workflow": d.get("workflow"),
-                "job": d.get("job"),
-                "step": d.get("step"),
-                "level": (d.get("level") or "warning").lower(),
-                "message": msg,
-                "causeClass": "repository-owned" if repo_owned else "external",
-                "recurrent": recurrent,
-                "remotePending": d.get("workflow") is not None,
-            }
-        )
-    return {"schemaVersion": 1, "kind": "ci-warning", "warnings": warnings}
 
 
 def dead_code_guard(finding: Dict[str, Any]) -> Dict[str, Any]:
@@ -153,6 +182,50 @@ def dep_batch(report: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def run_flaky_matrix(args: argparse.Namespace) -> Dict[str, Any]:
+    with open(args.input, encoding="utf-8") as fh:
+        return flaky_matrix(json.load(fh))
+
+
+def run_ci_warnings(args: argparse.Namespace) -> Dict[str, Any]:
+    with open(args.input, encoding="utf-8") as fh:
+        return parse_ci_warnings(fh.read())
+
+
+def run_dead_code_guard(args: argparse.Namespace) -> Dict[str, Any]:
+    with open(args.input, encoding="utf-8") as fh:
+        return dead_code_guard(json.load(fh))
+
+
+def run_todo_classify(args: argparse.Namespace) -> Dict[str, Any]:
+    ctx = {}
+    if args.context:
+        with open(args.context, encoding="utf-8") as fh:
+            ctx = json.load(fh)
+    with open(args.input, encoding="utf-8") as fh:
+        return classify_todo(fh.read(), ctx)
+
+
+def run_vuln_enrich(args: argparse.Namespace) -> Dict[str, Any]:
+    with open(args.input, encoding="utf-8") as fh:
+        return enrich_vuln(json.load(fh))
+
+
+def run_dep_batch(args: argparse.Namespace) -> Dict[str, Any]:
+    with open(args.input, encoding="utf-8") as fh:
+        return dep_batch(json.load(fh))
+
+
+CMD_HANDLERS = {
+    "flaky-matrix": run_flaky_matrix,
+    "ci-warnings": run_ci_warnings,
+    "dead-code-guard": run_dead_code_guard,
+    "todo-classify": run_todo_classify,
+    "vuln-enrich": run_vuln_enrich,
+    "dep-batch": run_dep_batch,
+}
+
+
 def main(argv: List[str]) -> int:
     p = argparse.ArgumentParser(prog="engineering-evidence.py")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -167,32 +240,10 @@ def main(argv: List[str]) -> int:
     sub.add_parser("dep-batch").add_argument("--input", required=True)
 
     args = p.parse_args(argv)
-
-    if args.cmd == "flaky-matrix":
-        with open(args.input, encoding="utf-8") as fh:
-            doc = flaky_matrix(json.load(fh))
-    elif args.cmd == "ci-warnings":
-        with open(args.input, encoding="utf-8") as fh:
-            doc = parse_ci_warnings(fh.read())
-    elif args.cmd == "dead-code-guard":
-        with open(args.input, encoding="utf-8") as fh:
-            doc = dead_code_guard(json.load(fh))
-    elif args.cmd == "todo-classify":
-        ctx = {}
-        if args.context:
-            with open(args.context, encoding="utf-8") as fh:
-                ctx = json.load(fh)
-        with open(args.input, encoding="utf-8") as fh:
-            doc = classify_todo(fh.read(), ctx)
-    elif args.cmd == "vuln-enrich":
-        with open(args.input, encoding="utf-8") as fh:
-            doc = enrich_vuln(json.load(fh))
-    elif args.cmd == "dep-batch":
-        with open(args.input, encoding="utf-8") as fh:
-            doc = dep_batch(json.load(fh))
-    else:
+    handler = CMD_HANDLERS.get(args.cmd)
+    if not handler:
         return 1
-
+    doc = handler(args)
     sys.stdout.write(json.dumps(doc, indent=2, sort_keys=True) + "\n")
     return 0
 

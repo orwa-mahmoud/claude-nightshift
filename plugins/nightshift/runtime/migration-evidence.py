@@ -5,12 +5,72 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 SCHEMA_VERSION = 1
 
 CHANGE_KINDS = frozenset({"additive", "breaking", "deprecated", "compatible"})
 ENV_CLASSES = frozenset({"disposable", "staging", "production", "owner-approved", "local-dev"})
+
+
+def _inventory_blockers(
+    name: str,
+    guidance: str,
+    consumers: List[Any],
+    persisted: List[Any],
+    backfill: bool,
+    overlap: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    blockers: List[Dict[str, Any]] = []
+    if not name:
+        blockers.append({"category": "anchor", "summary": "missing named migration", "action": "park"})
+    if not guidance:
+        blockers.append(
+            {
+                "category": "authority",
+                "summary": "missing authoritative migration guidance",
+                "action": "park",
+            }
+        )
+    if not consumers:
+        blockers.append({"category": "consumers", "summary": "no consumers inventoried", "action": "record"})
+    if not persisted and backfill:
+        blockers.append(
+            {"category": "persisted-state", "summary": "backfill without persisted state map", "action": "park"}
+        )
+    if overlap.get("dualWrite") and not overlap.get("readFallback"):
+        blockers.append(
+            {
+                "category": "overlap",
+                "summary": "dual-write without read fallback",
+                "action": "park",
+            }
+        )
+    return blockers
+
+
+def _inventory_action(complete: bool, blockers: List[Dict[str, Any]]) -> str:
+    if complete and not blockers:
+        return "proceed"
+    if blockers:
+        return "park"
+    return "record"
+
+
+def _compatibility_action(compatibility_maintained: bool, breaking: List[Any]) -> str:
+    if compatibility_maintained:
+        return "proceed"
+    if breaking:
+        return "park"
+    return "repair"
+
+
+def _data_safety_action(proceed: bool, refused: List[Any]) -> str:
+    if proceed:
+        return "proceed"
+    if refused:
+        return "refuse"
+    return "park"
 
 
 def migration_inventory(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -28,17 +88,7 @@ def migration_inventory(raw: Dict[str, Any]) -> Dict[str, Any]:
     staged = list(raw.get("stagedChanges") or [])
     representative = raw.get("representativeData") or {}
 
-    blockers: List[Dict[str, Any]] = []
-    if not name:
-        blockers.append({"category": "anchor", "summary": "missing named migration", "action": "park"})
-    if not guidance:
-        blockers.append(
-            {
-                "category": "authority",
-                "summary": "missing authoritative migration guidance",
-                "action": "park",
-            }
-        )
+    blockers = _inventory_blockers(name, guidance, consumers, persisted, backfill, overlap)
 
     inventory = {
         "consumers": consumers,
@@ -55,20 +105,6 @@ def migration_inventory(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     complete = bool(name and guidance and ordering and rollback)
-    if not consumers:
-        blockers.append({"category": "consumers", "summary": "no consumers inventoried", "action": "record"})
-    if not persisted and backfill:
-        blockers.append(
-            {"category": "persisted-state", "summary": "backfill without persisted state map", "action": "park"}
-        )
-    if overlap.get("dualWrite") and not overlap.get("readFallback"):
-        blockers.append(
-            {
-                "category": "overlap",
-                "summary": "dual-write without read fallback",
-                "action": "park",
-            }
-        )
 
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -78,9 +114,62 @@ def migration_inventory(raw: Dict[str, Any]) -> Dict[str, Any]:
         "inventory": inventory,
         "inventoryComplete": complete and not any(b.get("action") == "park" for b in blockers),
         "blockers": blockers,
-        "action": "proceed" if complete and not blockers else "park" if blockers else "record",
+        "action": _inventory_action(complete, blockers),
         "legalAuthorityGuessed": False,
     }
+
+
+def _classify_change(change: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    kind = (change.get("kind") or "additive").lower()
+    entry = {
+        "surface": change.get("surface") or "",
+        "description": change.get("description") or "",
+        "kind": kind,
+        "consumersAffected": change.get("consumersAffected") or [],
+    }
+    if kind == "breaking":
+        entry["action"] = "park-for-owner"
+        entry["reviewFirstRequired"] = True
+        return "breaking", entry
+    if kind == "deprecated":
+        entry["action"] = "document-and-stage"
+        return "deprecated", entry
+    entry["action"] = "proceed-with-tests"
+    return "additive", entry
+
+
+def _classify_changes(changes: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    additive: List[Dict[str, Any]] = []
+    breaking: List[Dict[str, Any]] = []
+    deprecated: List[Dict[str, Any]] = []
+    for change in changes:
+        bucket, entry = _classify_change(change)
+        if bucket == "breaking":
+            breaking.append(entry)
+        elif bucket == "deprecated":
+            deprecated.append(entry)
+        else:
+            additive.append(entry)
+    return additive, breaking, deprecated
+
+
+def _compatibility_routes(
+    failed_tests: List[Dict[str, Any]],
+    breaking: List[Dict[str, Any]],
+    review_first: bool,
+) -> List[Dict[str, Any]]:
+    routes: List[Dict[str, Any]] = []
+    for test in failed_tests:
+        routes.append(
+            {
+                "route": "compatibility-test-failed",
+                "name": test.get("name") or "",
+                "action": "fix-or-rollback",
+            }
+        )
+    if breaking and review_first:
+        routes.append({"route": "review-first", "reason": "breaking-change-present"})
+    return routes
 
 
 def compatibility_assess(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -90,46 +179,14 @@ def compatibility_assess(raw: Dict[str, Any]) -> Dict[str, Any]:
     overlap = raw.get("oldNewOverlap") or {}
     review_first = bool(raw.get("reviewFirstDefault", True))
 
-    additive: List[Dict[str, Any]] = []
-    breaking: List[Dict[str, Any]] = []
-    deprecated: List[Dict[str, Any]] = []
-    routes: List[Dict[str, Any]] = []
-
-    for change in changes:
-        kind = (change.get("kind") or "additive").lower()
-        entry = {
-            "surface": change.get("surface") or "",
-            "description": change.get("description") or "",
-            "kind": kind,
-            "consumersAffected": change.get("consumersAffected") or [],
-        }
-        if kind == "breaking":
-            entry["action"] = "park-for-owner"
-            entry["reviewFirstRequired"] = True
-            breaking.append(entry)
-        elif kind == "deprecated":
-            entry["action"] = "document-and-stage"
-            deprecated.append(entry)
-        else:
-            entry["action"] = "proceed-with-tests"
-            additive.append(entry)
+    additive, breaking, deprecated = _classify_changes(changes)
 
     failed_tests = [t for t in tests if (t.get("status") or "").lower() != "passed"]
     overlap_ok = True
     if overlap.get("dualWrite"):
         overlap_ok = bool(overlap.get("readFallback")) and bool(overlap.get("duration"))
 
-    for test in failed_tests:
-        routes.append(
-            {
-                "route": "compatibility-test-failed",
-                "name": test.get("name") or "",
-                "action": "fix-or-rollback",
-            }
-        )
-
-    if breaking and review_first:
-        routes.append({"route": "review-first", "reason": "breaking-change-present"})
+    routes = _compatibility_routes(failed_tests, breaking, review_first)
 
     compatibility_maintained = not breaking and not failed_tests and overlap_ok
 
@@ -147,18 +204,73 @@ def compatibility_assess(raw: Dict[str, Any]) -> Dict[str, Any]:
         "compatibilityMaintained": compatibility_maintained,
         "reviewFirstRequired": bool(breaking) and review_first,
         "routes": routes,
-        "action": "proceed" if compatibility_maintained else "park" if breaking else "repair",
+        "action": _compatibility_action(compatibility_maintained, breaking),
     }
+
+
+def _compare_config_key(
+    key: str,
+    environments: List[Dict[str, Any]],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    gaps: List[Dict[str, Any]] = []
+    hidden: List[Dict[str, Any]] = []
+    shapes: Dict[str, Any] = {}
+    present_in: List[str] = []
+
+    for env in environments:
+        name = env.get("name") or "unknown"
+        var = (env.get("variables") or {}).get(key) or {}
+        if var.get("secret"):
+            hidden.append(
+                {
+                    "key": key,
+                    "environment": name,
+                    "present": bool(var.get("present")),
+                    "shape": var.get("shape"),
+                    "valuesCompared": False,
+                }
+            )
+        if var.get("present"):
+            present_in.append(name)
+            shapes[name] = var.get("shape")
+        else:
+            gaps.append(
+                {
+                    "key": key,
+                    "environment": name,
+                    "kind": "missing",
+                    "action": "document-or-align",
+                }
+            )
+
+    unique_shapes = set(shapes.values())
+    match = len(unique_shapes) <= 1 and len(present_in) == len(environments)
+    compared = {
+        "key": key,
+        "presentIn": present_in,
+        "shapeMatch": match,
+        "shapes": shapes,
+        "secret": any(
+            ((env.get("variables") or {}).get(key) or {}).get("secret")
+            for env in environments
+        ),
+    }
+    if present_in and not match:
+        gaps.append(
+            {
+                "key": key,
+                "kind": "shape-mismatch",
+                "shapes": shapes,
+                "action": "align-shape-not-value",
+            }
+        )
+    return compared, gaps, hidden
 
 
 def config_parity(raw: Dict[str, Any]) -> Dict[str, Any]:
     environments = list(raw.get("environments") or [])
     compare_keys = list(raw.get("compareKeys") or [])
     secret_values_requested = bool(raw.get("retrieveSecretValues"))
-
-    gaps: List[Dict[str, Any]] = []
-    hidden: List[Dict[str, Any]] = []
-    compared: List[Dict[str, Any]] = []
 
     if secret_values_requested:
         return {
@@ -176,57 +288,15 @@ def config_parity(raw: Dict[str, Any]) -> Dict[str, Any]:
         {k for env in environments for k in (env.get("variables") or {}).keys()}
     )
 
+    gaps: List[Dict[str, Any]] = []
+    hidden: List[Dict[str, Any]] = []
+    compared: List[Dict[str, Any]] = []
+
     for key in keys:
-        shapes: Dict[str, Any] = {}
-        present_in: List[str] = []
-        for env in environments:
-            name = env.get("name") or "unknown"
-            var = (env.get("variables") or {}).get(key) or {}
-            if var.get("secret"):
-                hidden.append(
-                    {
-                        "key": key,
-                        "environment": name,
-                        "present": bool(var.get("present")),
-                        "shape": var.get("shape"),
-                        "valuesCompared": False,
-                    }
-                )
-            if var.get("present"):
-                present_in.append(name)
-                shapes[name] = var.get("shape")
-            else:
-                gaps.append(
-                    {
-                        "key": key,
-                        "environment": name,
-                        "kind": "missing",
-                        "action": "document-or-align",
-                    }
-                )
-        unique_shapes = set(shapes.values())
-        match = len(unique_shapes) <= 1 and len(present_in) == len(environments)
-        compared.append(
-            {
-                "key": key,
-                "presentIn": present_in,
-                "shapeMatch": match,
-                "shapes": shapes,
-                "secret": any(
-                    ((env.get("variables") or {}).get(key) or {}).get("secret")
-                    for env in environments
-                ),
-            }
-        )
-        if present_in and not match:
-            gaps.append(
-                {
-                    "key": key,
-                    "kind": "shape-mismatch",
-                    "shapes": shapes,
-                    "action": "align-shape-not-value",
-                }
-            )
+        key_compared, key_gaps, key_hidden = _compare_config_key(key, environments)
+        compared.append(key_compared)
+        gaps.extend(key_gaps)
+        hidden.extend(key_hidden)
 
     parity_ok = not gaps
 
@@ -247,18 +317,12 @@ def config_parity(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
-    environment = (raw.get("environment") or "disposable").lower()
-    destructive = bool(raw.get("destructive"))
-    operations = list(raw.get("dataOperations") or [])
-    owner_approved = bool(raw.get("ownerApprovedProduction"))
-    legal_required = bool(raw.get("legalAuthorityRequired"))
-    legal_provided = (raw.get("legalAuthority") or "").strip()
-    unsupported = list(raw.get("unsupportedSemantics") or [])
-
-    blockers: List[Dict[str, Any]] = []
+def _data_safety_refusals(
+    environment: str,
+    destructive: bool,
+    owner_approved: bool,
+) -> List[Dict[str, Any]]:
     refused: List[Dict[str, Any]] = []
-
     if environment == "production":
         if not owner_approved:
             refused.append(
@@ -276,12 +340,6 @@ def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
                     "action": "refuse",
                 }
             )
-
-    if environment not in ENV_CLASSES:
-        blockers.append(
-            {"category": "environment", "summary": "unknown environment class", "action": "park"}
-        )
-
     if destructive and environment not in ("disposable", "owner-approved"):
         refused.append(
             {
@@ -290,7 +348,20 @@ def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
                 "action": "refuse",
             }
         )
+    return refused
 
+
+def _data_safety_blockers(
+    environment: str,
+    legal_required: bool,
+    legal_provided: str,
+    unsupported: List[Any],
+) -> List[Dict[str, Any]]:
+    blockers: List[Dict[str, Any]] = []
+    if environment not in ENV_CLASSES:
+        blockers.append(
+            {"category": "environment", "summary": "unknown environment class", "action": "park"}
+        )
     if legal_required and not legal_provided:
         blockers.append(
             {
@@ -299,7 +370,6 @@ def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
                 "action": "park",
             }
         )
-
     for sem in unsupported:
         blockers.append(
             {
@@ -308,8 +378,16 @@ def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
                 "action": "park",
             }
         )
+    return blockers
 
-    safe_ops = []
+
+def _process_data_operations(
+    operations: List[Any],
+    environment: str,
+    owner_approved: bool,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    safe_ops: List[Dict[str, Any]] = []
+    refused: List[Dict[str, Any]] = []
     for op in operations:
         entry = dict(op)
         if op.get("requiresProduction") and not owner_approved:
@@ -318,6 +396,22 @@ def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
         else:
             entry["action"] = "proceed" if environment in ("disposable", "staging", "local-dev", "owner-approved") else "park"
             safe_ops.append(entry)
+    return safe_ops, refused
+
+
+def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
+    environment = (raw.get("environment") or "disposable").lower()
+    destructive = bool(raw.get("destructive"))
+    operations = list(raw.get("dataOperations") or [])
+    owner_approved = bool(raw.get("ownerApprovedProduction"))
+    legal_required = bool(raw.get("legalAuthorityRequired"))
+    legal_provided = (raw.get("legalAuthority") or "").strip()
+    unsupported = list(raw.get("unsupportedSemantics") or [])
+
+    refused = _data_safety_refusals(environment, destructive, owner_approved)
+    blockers = _data_safety_blockers(environment, legal_required, legal_provided, unsupported)
+    safe_ops, op_refused = _process_data_operations(operations, environment, owner_approved)
+    refused.extend(op_refused)
 
     proceed = not refused and not blockers
 
@@ -334,7 +428,7 @@ def data_safety(raw: Dict[str, Any]) -> Dict[str, Any]:
         "blockers": blockers,
         "legalAuthorityGuessed": False,
         "legalAuthoritySupplied": bool(legal_provided),
-        "action": "proceed" if proceed else "refuse" if refused else "park",
+        "action": _data_safety_action(proceed, refused),
     }
 
 
@@ -345,6 +439,60 @@ def production_refusal(raw: Dict[str, Any]) -> Dict[str, Any]:
         "destructiveRefused"
     )
     return doc
+
+
+def _failed_recovery_actions(
+    failed_step: Any,
+    rollback: List[Any],
+    idempotent: bool,
+) -> List[Dict[str, Any]]:
+    actions: List[Dict[str, Any]] = [
+        {
+            "step": "halt-writes",
+            "reason": f"failed at {failed_step}",
+            "action": "execute-immediately",
+        }
+    ]
+    if rollback:
+        actions.append(
+            {
+                "step": "rollback",
+                "steps": rollback,
+                "action": "execute-in-order",
+            }
+        )
+    if idempotent:
+        actions.append(
+            {
+                "step": "idempotent-retry",
+                "from": failed_step,
+                "action": "retry-after-rollback",
+            }
+        )
+    else:
+        actions.append(
+            {
+                "step": "manual-intervention",
+                "reason": "migration is not idempotent",
+                "action": "park-for-owner",
+            }
+        )
+    return actions
+
+
+def _recovery_lock_warnings(locks: List[Dict[str, Any]], state: str) -> List[Dict[str, Any]]:
+    warnings: List[Dict[str, Any]] = []
+    if state != "failed":
+        return warnings
+    for lock in locks:
+        if lock.get("active"):
+            warnings.append(
+                {
+                    "lock": lock.get("name") or "unknown",
+                    "action": "release-before-retry",
+                }
+            )
+    return warnings
 
 
 def recovery_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -358,37 +506,7 @@ def recovery_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
 
     actions: List[Dict[str, Any]] = []
     if state == "failed" and failed_step:
-        actions.append(
-            {
-                "step": "halt-writes",
-                "reason": f"failed at {failed_step}",
-                "action": "execute-immediately",
-            }
-        )
-        if rollback:
-            actions.append(
-                {
-                    "step": "rollback",
-                    "steps": rollback,
-                    "action": "execute-in-order",
-                }
-            )
-        if idempotent:
-            actions.append(
-                {
-                    "step": "idempotent-retry",
-                    "from": failed_step,
-                    "action": "retry-after-rollback",
-                }
-            )
-        else:
-            actions.append(
-                {
-                    "step": "manual-intervention",
-                    "reason": "migration is not idempotent",
-                    "action": "park-for-owner",
-                }
-            )
+        actions = _failed_recovery_actions(failed_step, rollback, idempotent)
     elif state == "in-progress":
         actions.append(
             {
@@ -398,15 +516,7 @@ def recovery_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
-    lock_warnings = []
-    for lock in locks:
-        if lock.get("active") and state == "failed":
-            lock_warnings.append(
-                {
-                    "lock": lock.get("name") or "unknown",
-                    "action": "release-before-retry",
-                }
-            )
+    lock_warnings = _recovery_lock_warnings(locks, state)
 
     recoverable = bool(rollback) or (idempotent and state == "failed")
 
@@ -426,15 +536,14 @@ def recovery_plan(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def verdict(raw: Dict[str, Any]) -> Dict[str, Any]:
-    inventory = raw.get("inventory") or {}
-    compatibility = raw.get("compatibility") or {}
-    config = raw.get("configParity") or {}
-    data = raw.get("dataSafety") or {}
-    recovery = raw.get("recovery") or {}
-    review_first = bool(raw.get("reviewFirstDefault", True))
-    run_direct = bool(raw.get("runDirectBounded"))
-
+def _migration_verdict_blockers(
+    inventory: Dict[str, Any],
+    compatibility: Dict[str, Any],
+    config: Dict[str, Any],
+    data: Dict[str, Any],
+    recovery: Dict[str, Any],
+    review_first: bool,
+) -> List[str]:
     blockers: List[str] = []
     if inventory.get("action") == "park":
         blockers.append("incomplete-inventory")
@@ -452,15 +561,32 @@ def verdict(raw: Dict[str, Any]) -> Dict[str, Any]:
         blockers.append("unsupported-data-semantics")
     if recovery.get("migrationState") == "failed" and not recovery.get("midMigrationRecoveryAvailable"):
         blockers.append("no-recovery-path")
+    return blockers
 
+
+def _migration_verdict_status(blockers: List[str], run_direct: bool) -> str:
     if not blockers:
-        status = "ready-bounded" if run_direct else "ready-review-first"
-    elif any(b in blockers for b in ("production-refused", "data-safety-refused", "no-recovery-path")):
-        status = "refused"
-    elif "review-first-required" in blockers and run_direct:
-        status = "blocked"
-    else:
-        status = "parked"
+        return "ready-bounded" if run_direct else "ready-review-first"
+    if any(b in blockers for b in ("production-refused", "data-safety-refused", "no-recovery-path")):
+        return "refused"
+    if "review-first-required" in blockers and run_direct:
+        return "blocked"
+    return "parked"
+
+
+def verdict(raw: Dict[str, Any]) -> Dict[str, Any]:
+    inventory = raw.get("inventory") or {}
+    compatibility = raw.get("compatibility") or {}
+    config = raw.get("configParity") or {}
+    data = raw.get("dataSafety") or {}
+    recovery = raw.get("recovery") or {}
+    review_first = bool(raw.get("reviewFirstDefault", True))
+    run_direct = bool(raw.get("runDirectBounded"))
+
+    blockers = _migration_verdict_blockers(
+        inventory, compatibility, config, data, recovery, review_first
+    )
+    status = _migration_verdict_status(blockers, run_direct)
 
     return {
         "schemaVersion": SCHEMA_VERSION,

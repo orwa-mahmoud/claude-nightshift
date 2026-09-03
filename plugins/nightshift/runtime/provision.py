@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import base64
+import argparse
 import hashlib
 import json
 import os
@@ -251,7 +252,7 @@ def work_target(project):
     return os.path.abspath(project)
 
 
-def policy_get(project, mode):
+def policy_get(project):
     """Tooling policy and elevation from the one resolved view (rules, defaults, tonight)."""
     out = subprocess.check_output(
         ["bash", POLICY_SH, "--project", project, "resolve", "--json"],
@@ -574,6 +575,32 @@ def elevation_denials(recipe, settings, workspace):
     return [DENIED_PREFIX + c for c in denied]
 
 
+def ecosystem_refusal_reason(recipe, target):
+    ecosystems = recipe.get("ecosystems") or []
+    if isinstance(ecosystems, str):
+        ecosystems = [ecosystems]
+    if not (isinstance(ecosystems, list) and ecosystems):
+        return None
+    names = [e for e in ecosystems if isinstance(e, str)]
+    wild = any(e in ("*", "any") for e in names)
+    stacks = detected_stacks(target)
+    if names and not wild and stacks and not set(names) & set(stacks):
+        return "incompatible-ecosystem"
+    return None
+
+
+def stable_refusal_order(reasons):
+    # unique, stable order from the frozen enum; anything outside it keeps its own order
+    seen = []
+    for code in refusal_order():
+        if code in reasons and code not in seen:
+            seen.append(code)
+    for code in reasons:
+        if code not in seen:
+            seen.append(code)
+    return seen
+
+
 def collect_refusals(project, recipe, mode, pol, target):
     reasons = []
     if mode == "artifact":
@@ -589,30 +616,24 @@ def collect_refusals(project, recipe, mode, pol, target):
         elevation_denials(recipe, pol.get("settings"), workspace_root(project))
     )
 
-    ecosystems = recipe.get("ecosystems") or []
-    if isinstance(ecosystems, str):
-        ecosystems = [ecosystems]
-    if isinstance(ecosystems, list) and ecosystems:
-        names = [e for e in ecosystems if isinstance(e, str)]
-        wild = any(e in ("*", "any") for e in names)
-        stacks = detected_stacks(target)
-        if names and not wild and stacks and not set(names) & set(stacks):
-            reasons.append("incompatible-ecosystem")
+    eco = ecosystem_refusal_reason(recipe, target)
+    if eco:
+        reasons.append(eco)
 
     allowed = list(recipe.get("allowedFiles") or [])
     dirty = git_porcelain(target, allowed)
     if dirty:
         reasons.append("owner-dirty-conflict")
 
-    # unique, stable order from the frozen enum; anything outside it keeps its own order
-    seen = []
-    for code in refusal_order():
-        if code in reasons and code not in seen:
-            seen.append(code)
-    for code in reasons:
-        if code not in seen:
-            seen.append(code)
-    return seen
+    return stable_refusal_order(reasons)
+
+
+def plan_reason(reasons):
+    if "artifact-mode" in reasons:
+        return "artifact-mode"
+    if reasons:
+        return reasons[0]
+    return None
 
 
 def plan_doc(project, recipe, reasons):
@@ -620,11 +641,7 @@ def plan_doc(project, recipe, reasons):
         "ok": not reasons,
         "refused": bool(reasons),
         "refusalReasons": reasons,
-        "reason": (
-            "artifact-mode"
-            if "artifact-mode" in reasons
-            else (reasons[0] if reasons else None)
-        ),
+        "reason": plan_reason(reasons),
         "capabilityId": recipe.get("capabilityId"),
         "recipeVersion": recipe.get("recipeVersion"),
         "allowedFiles": recipe.get("allowedFiles"),
@@ -646,7 +663,7 @@ def plan_doc(project, recipe, reasons):
 def cmd_plan(project, recipe_path, capability):
     mode = work_mode(project)
     try:
-        pol = policy_get(project, mode)
+        pol = policy_get(project)
     except (OSError, ValueError, subprocess.CalledProcessError):
         return refuse("policy-not-auto-add", "policy lookup failed")
     try:
@@ -847,26 +864,34 @@ def restore_bytes(ns, meta):
     return b""
 
 
+def remove_empty_parents(abs_path, target):
+    parent = os.path.dirname(abs_path)
+    root = os.path.abspath(target)
+    while parent.startswith(root + os.sep) and parent != root:
+        try:
+            os.rmdir(parent)
+        except OSError:
+            break
+        parent = os.path.dirname(parent)
+
+
+def restore_baseline_entry(ns, target, rel, meta):
+    abs_path = resolve_in_target(target, rel)
+    if meta.get("existed"):
+        parent = os.path.dirname(abs_path)
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent)
+        with open(abs_path, "wb") as fh:
+            fh.write(restore_bytes(ns, meta))
+    else:
+        if os.path.isfile(abs_path) or os.path.islink(abs_path):
+            os.remove(abs_path)
+        remove_empty_parents(abs_path, target)
+
+
 def rollback_baseline(ns, target, baseline):
     for rel, meta in (baseline or {}).items():
-        abs_path = resolve_in_target(target, rel)
-        if meta.get("existed"):
-            parent = os.path.dirname(abs_path)
-            if parent and not os.path.isdir(parent):
-                os.makedirs(parent)
-            with open(abs_path, "wb") as fh:
-                fh.write(restore_bytes(ns, meta))
-        else:
-            if os.path.isfile(abs_path) or os.path.islink(abs_path):
-                os.remove(abs_path)
-            parent = os.path.dirname(abs_path)
-            root = os.path.abspath(target)
-            while parent.startswith(root + os.sep) and parent != root:
-                try:
-                    os.rmdir(parent)
-                except OSError:
-                    break
-                parent = os.path.dirname(parent)
+        restore_baseline_entry(ns, target, rel, meta)
     clear_baseline_store(ns)
 
 
@@ -930,6 +955,38 @@ def merge_json_file(path, patch):
     atomic_write(path, current)
 
 
+def package_step_patch(step):
+    rel = step.get("file") or step.get("path") or step.get("manifest")
+    patch = None
+    for key in ("merge", "devDependencies", "dependencies", "fields"):
+        if key in step and key != "command":
+            if key in ("devDependencies", "dependencies"):
+                patch = {key: step[key]}
+            elif key == "fields":
+                patch = step[key]
+            else:
+                patch = step[key]
+            break
+    return rel, patch
+
+
+def _apply_one_package_step(ctx, target, _recipe, budget, step, allowed):
+    if not isinstance(step, (str, dict)):
+        raise ValueError("packageManagerAdditions entry must be a string or object")
+    cmd = command_text(step)
+    if cmd:
+        rc, out = run_recipe_command(ctx, step, cmd, target, budget)
+        if rc != 0:
+            raise RuntimeError("package add failed: %s" % out.strip())
+    if isinstance(step, str):
+        return
+    rel, patch = package_step_patch(step)
+    if rel and patch is not None:
+        if not under_allowed(rel, allowed):
+            raise ValueError("package add path outside allowedFiles: %s" % rel)
+        merge_json_file(resolve_in_target(target, rel), patch)
+
+
 def apply_package_adds(ctx, target, recipe, budget):
     adds = recipe.get("packageManagerAdditions") or []
     if isinstance(adds, dict):
@@ -938,30 +995,7 @@ def apply_package_adds(ctx, target, recipe, budget):
         raise ValueError("packageManagerAdditions must be an array")
     allowed = recipe["allowedFiles"]
     for step in adds:
-        if not isinstance(step, (str, dict)):
-            raise ValueError("packageManagerAdditions entry must be a string or object")
-        cmd = command_text(step)
-        if cmd:
-            rc, out = run_recipe_command(ctx, step, cmd, target, budget)
-            if rc != 0:
-                raise RuntimeError("package add failed: %s" % out.strip())
-        if isinstance(step, str):
-            continue
-        rel = step.get("file") or step.get("path") or step.get("manifest")
-        patch = None
-        for key in ("merge", "devDependencies", "dependencies", "fields"):
-            if key in step and key != "command":
-                if key in ("devDependencies", "dependencies"):
-                    patch = {key: step[key]}
-                elif key == "fields":
-                    patch = step[key]
-                else:
-                    patch = step[key]
-                break
-        if rel and patch is not None:
-            if not under_allowed(rel, allowed):
-                raise ValueError("package add path outside allowedFiles: %s" % rel)
-            merge_json_file(resolve_in_target(target, rel), patch)
+        _apply_one_package_step(ctx, target, recipe, budget, step, allowed)
 
 
 def changed_allowed(target, baseline):
@@ -1092,73 +1126,53 @@ def finish_late_stages(project, recipe, tx, ns, target):
     return setup
 
 
-def cmd_apply(project, recipe_path, capability, budget):
-    ns = ns_dir(project)
-    if not os.path.isdir(ns):
-        print("provision: no .nightshift/", file=sys.stderr)
-        return 1
-    leftover = load_tx(ns)
-    if leftover:
-        same = leftover.get("capabilityId") == (
-            capability or leftover.get("capabilityId")
-        ) or leftover.get("recipePath") == os.path.abspath(recipe_path)
-        if leftover.get("failed") and same:
-            cmd_rollback(project)
-            return emit(
-                {
-                    "ok": False,
-                    "refused": False,
-                    "failed": True,
-                    "detail": "do not retry the same failure",
-                    "capabilityId": leftover.get("capabilityId"),
-                },
-                1,
-            )
-        if leftover.get("stage") in ("record", "commit-tooling") and same and not leftover.get(
-            "failed"
-        ):
-            return cmd_recover(project, budget)
-        cmd_recover(project, budget)
+def leftover_tx_matches(leftover, capability, recipe_path):
+    return leftover.get("capabilityId") == (
+        capability or leftover.get("capabilityId")
+    ) or leftover.get("recipePath") == os.path.abspath(recipe_path)
 
-    mode = work_mode(project)
-    try:
-        pol = policy_get(project, mode)
-    except (OSError, ValueError, subprocess.CalledProcessError):
-        return refuse("policy-not-auto-add")
-    try:
-        recipe = load_recipe(recipe_path)
-    except (OSError, ValueError) as exc:
-        return refuse("incompatible-ecosystem", str(exc))
-    if capability and recipe.get("capabilityId") != capability:
-        return refuse("incompatible-ecosystem", "capability mismatch")
-    target = work_target(project)
-    try:
-        reasons = collect_refusals(project, recipe, mode, pol, target)
-    except RuntimeError as exc:
-        return refuse("policy-not-auto-add", str(exc))
-    if reasons:
-        return emit(plan_doc(project, recipe, reasons), 2)
 
-    existing = existing_setup_commit(target, recipe["capabilityId"])
-    if existing:
-        try:
-            record_inventory(project, recipe, existing)
-        except (OSError, ValueError, subprocess.CalledProcessError):
-            pass
+def handle_apply_leftover(project, recipe_path, capability, budget, leftover):
+    same = leftover_tx_matches(leftover, capability, recipe_path)
+    if leftover.get("failed") and same:
+        cmd_rollback(project)
         return emit(
             {
-                "ok": True,
-                "capabilityId": recipe["capabilityId"],
-                "setupCommit": existing,
-                "skipped": "already-present",
-                "touched": [],
+                "ok": False,
+                "refused": False,
+                "failed": True,
+                "detail": "do not retry the same failure",
+                "capabilityId": leftover.get("capabilityId"),
             },
-            0,
+            1,
         )
-    allowed = [norm_rel(a) for a in recipe["allowedFiles"]]
-    baseline = capture_baseline(ns, target, allowed)
-    porcelain = git_porcelain(target, allowed)
-    tx = {
+    if leftover.get("stage") in ("record", "commit-tooling") and same and not leftover.get(
+        "failed"
+    ):
+        return cmd_recover(project, budget)
+    cmd_recover(project, budget)
+    return None
+
+
+def emit_already_present(project, recipe, _target, existing):
+    try:
+        record_inventory(project, recipe, existing)
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        pass
+    return emit(
+        {
+            "ok": True,
+            "capabilityId": recipe["capabilityId"],
+            "setupCommit": existing,
+            "skipped": "already-present",
+            "touched": [],
+        },
+        0,
+    )
+
+
+def new_apply_tx(recipe, recipe_path, target, allowed, baseline, porcelain):
+    return {
         "schemaVersion": 1,
         "stage": "capture-baseline",
         "capabilityId": recipe["capabilityId"],
@@ -1174,10 +1188,9 @@ def cmd_apply(project, recipe_path, capability, budget):
         "setupCommit": "",
         "updatedAt": utcnow(),
     }
-    write_tx(ns, tx)
 
-    # The workspace, not the project: the guard reads its policy there and the ledger keeps its
-    # findings there, so a linked workspace lands both in the same place as the rest of the state.
+
+def apply_recipe_stages(project, ns, target, recipe, recipe_path, pol, budget, tx, baseline):
     ctx = {
         "workspace": workspace_root(project),
         "settings": pol.get("settings"),
@@ -1186,7 +1199,6 @@ def cmd_apply(project, recipe_path, capability, budget):
         "workTarget": target,
         "receipts": [],
     }
-
     try:
         tx["stage"] = "apply"
         tx["updatedAt"] = utcnow()
@@ -1237,6 +1249,50 @@ def cmd_apply(project, recipe_path, capability, budget):
         return fail_and_rollback(ns, target, tx, exc)
 
 
+def cmd_apply(project, recipe_path, capability, budget):
+    ns = ns_dir(project)
+    if not os.path.isdir(ns):
+        print("provision: no .nightshift/", file=sys.stderr)
+        return 1
+    leftover = load_tx(ns)
+    if leftover:
+        early = handle_apply_leftover(project, recipe_path, capability, budget, leftover)
+        if early is not None:
+            return early
+
+    mode = work_mode(project)
+    try:
+        pol = policy_get(project)
+    except (OSError, ValueError, subprocess.CalledProcessError):
+        return refuse("policy-not-auto-add")
+    try:
+        recipe = load_recipe(recipe_path)
+    except (OSError, ValueError) as exc:
+        return refuse("incompatible-ecosystem", str(exc))
+    if capability and recipe.get("capabilityId") != capability:
+        return refuse("incompatible-ecosystem", "capability mismatch")
+    target = work_target(project)
+    try:
+        reasons = collect_refusals(project, recipe, mode, pol, target)
+    except RuntimeError as exc:
+        return refuse("policy-not-auto-add", str(exc))
+    if reasons:
+        return emit(plan_doc(project, recipe, reasons), 2)
+
+    existing = existing_setup_commit(target, recipe["capabilityId"])
+    if existing:
+        return emit_already_present(project, recipe, target, existing)
+    allowed = [norm_rel(a) for a in recipe["allowedFiles"]]
+    baseline = capture_baseline(ns, target, allowed)
+    porcelain = git_porcelain(target, allowed)
+    tx = new_apply_tx(recipe, recipe_path, target, allowed, baseline, porcelain)
+    write_tx(ns, tx)
+
+    # The workspace, not the project: the guard reads its policy there and the ledger keeps its
+    # findings there, so a linked workspace lands both in the same place as the rest of the state.
+    return apply_recipe_stages(project, ns, target, recipe, recipe_path, pol, budget, tx, baseline)
+
+
 def cmd_rollback(project):
     ns = ns_dir(project)
     tx = load_tx(ns)
@@ -1256,7 +1312,7 @@ def cmd_rollback(project):
     )
 
 
-def cmd_recover(project, budget):
+def cmd_recover(project, _budget):
     ns = ns_dir(project)
     tx = load_tx(ns)
     if tx is None:
@@ -1308,60 +1364,20 @@ def need_arg(args, i):
     return i + 1 < len(args) and not args[i + 1].startswith("-")
 
 
-def main(argv):
-    project = None
-    recipe = None
-    capability = None
-    budget = default_budget()
-    positional = []
-    args = argv[1:]
-    i = 0
-    while i < len(args):
-        a = args[i]
-        if a in ("-h", "--help"):
-            return usage()
-        if a == "--project":
-            if not need_arg(args, i):
-                return usage()
-            project = args[i + 1]
-            i += 2
-            continue
-        if a == "--recipe":
-            if not need_arg(args, i):
-                return usage()
-            recipe = args[i + 1]
-            i += 2
-            continue
-        if a == "--capability":
-            if not need_arg(args, i):
-                return usage()
-            capability = args[i + 1]
-            i += 2
-            continue
-        if a == "--budget-seconds":
-            if not need_arg(args, i):
-                return usage()
-            try:
-                budget = int(args[i + 1])
-            except ValueError:
-                return usage()
-            i += 2
-            continue
-        if a.startswith("-"):
-            return usage()
-        positional.append(a)
-        i += 1
-    if not project or not positional:
-        return usage()
-    project = os.path.abspath(project)
-    if not os.path.isdir(project):
-        print("provision: not a directory: %s" % project, file=sys.stderr)
-        return 1
-    try:
-        workspace_root(project)
-    except ValueError as exc:
-        print("provision: %s" % exc, file=sys.stderr)
-        return 1
+def parse_provision_args(argv):
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--project")
+    parser.add_argument("--recipe")
+    parser.add_argument("--capability")
+    parser.add_argument("--budget-seconds", type=int, default=default_budget())
+    parser.add_argument("command", nargs="*")
+    args, _unknown = parser.parse_known_args(argv[1:])
+    if not args.project or not args.command:
+        return None, None, None, default_budget(), [], usage()
+    return args.project, args.recipe, args.capability, args.budget_seconds, args.command, 0
+
+
+def dispatch_provision(project, recipe, capability, budget, positional):
     cmd = positional[0]
     if cmd == "plan":
         if not recipe:
@@ -1376,6 +1392,22 @@ def main(argv):
     if cmd == "rollback":
         return cmd_rollback(project)
     return usage()
+
+
+def main(argv):
+    project, recipe, capability, budget, positional, err = parse_provision_args(argv)
+    if err:
+        return err
+    project = os.path.abspath(project)
+    if not os.path.isdir(project):
+        print("provision: not a directory: %s" % project, file=sys.stderr)
+        return 1
+    try:
+        workspace_root(project)
+    except ValueError as exc:
+        print("provision: %s" % exc, file=sys.stderr)
+        return 1
+    return dispatch_provision(project, recipe, capability, budget, positional)
 
 
 if __name__ == "__main__":

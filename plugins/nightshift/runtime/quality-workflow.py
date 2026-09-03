@@ -49,6 +49,50 @@ def eslint_severity(level: int) -> str:
     return "low"
 
 
+def eslint_message_finding(
+    msg: Dict[str, Any],
+    path: str,
+    source_class: str,
+    source: str,
+    scope: str,
+    work_target: str,
+    host: str,
+    now: str,
+    n: int,
+) -> Dict[str, Any]:
+    line = msg.get("line") or 0
+    col = msg.get("column") or 0
+    rule = msg.get("ruleId") or "eslint"
+    message = msg.get("message") or ""
+    locator = "%s:%s:%s" % (path, line, col)
+    digest = sha256("%s|%s|%s" % (locator, rule, message))
+    root = root_cause_key(locator, message)
+    return {
+        "schemaVersion": 1,
+        "id": next_id("f-eslint", n),
+        "domain": "quality",
+        "sourceClass": source_class,
+        "source": source,
+        "sourceTool": rule,
+        "scope": scope,
+        "severity": eslint_severity(int(msg.get("severity") or 1)),
+        "confidence": "high",
+        "impact": "developer",
+        "status": "open",
+        "ladder": "observed",
+        "locator": locator,
+        "digest": digest,
+        "rootCauseKey": root,
+        "firstSeen": now,
+        "lastChecked": now,
+        "action": message,
+        "host": host,
+        "workTarget": work_target,
+        "message": message,
+        "package": scope.rstrip("/").split("/")[-1] if scope else None,
+    }
+
+
 def parse_eslint_json(
     raw: str,
     source_class: str,
@@ -74,44 +118,27 @@ def parse_eslint_json(
         for msg in file_entry.get("messages") or []:
             if not isinstance(msg, dict):
                 continue
-            line = msg.get("line") or 0
-            col = msg.get("column") or 0
-            rule = msg.get("ruleId") or "eslint"
-            message = msg.get("message") or ""
-            locator = "%s:%s:%s" % (path, line, col)
-            digest = sha256("%s|%s|%s" % (locator, rule, message))
-            root = root_cause_key(locator, message)
             n += 1
             out.append(
-                {
-                    "schemaVersion": 1,
-                    "id": next_id("f-eslint", n),
-                    "domain": "quality",
-                    "sourceClass": source_class,
-                    "source": source,
-                    "sourceTool": rule,
-                    "scope": scope,
-                    "severity": eslint_severity(int(msg.get("severity") or 1)),
-                    "confidence": "high",
-                    "impact": "developer",
-                    "status": "open",
-                    "ladder": "observed",
-                    "locator": locator,
-                    "digest": digest,
-                    "rootCauseKey": root,
-                    "firstSeen": now,
-                    "lastChecked": now,
-                    "action": message,
-                    "host": host,
-                    "workTarget": work_target,
-                    "message": message,
-                    "package": scope.rstrip("/").split("/")[-1] if scope else None,
-                }
+                eslint_message_finding(msg, path, source_class, source, scope, work_target, host, now, n)
             )
     return out, n
 
 
-LINE_RE = re.compile(r"^(?P<file>[^:]+):(?P<line>\d+)(?::(?P<col>\d+))?:\s*(?P<msg>.+)$")
+def parse_tool_line(line: str):
+    parts = line.split(":")
+    if len(parts) < 3:
+        return None
+    try:
+        line_no = int(parts[1])
+    except ValueError:
+        return None
+    msg = ":".join(parts[2:]).strip()
+    if len(parts) > 3 and parts[2].strip().isdigit():
+        msg = ":".join(parts[3:]).strip()
+    if not msg:
+        return None
+    return parts[0], line_no, msg
 
 
 def parse_text_lines(
@@ -130,11 +157,11 @@ def parse_text_lines(
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        m = LINE_RE.match(line)
-        if not m:
+        parsed = parse_tool_line(line)
+        if not parsed:
             continue
-        locator = "%s:%s" % (m.group("file"), m.group("line"))
-        message = m.group("msg")
+        file_path, line_no, message = parsed
+        locator = "%s:%s" % (file_path, line_no)
         digest = sha256("%s|%s|%s" % (locator, source_class, message))
         root = root_cause_key(locator, message)
         n += 1
@@ -167,6 +194,48 @@ def parse_text_lines(
     return out, n
 
 
+def unavailable_source_meta(src: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "sourceClass": src.get("sourceClass") or "unknown",
+        "source": src.get("source") or src.get("sourceClass") or "unknown",
+        "scope": src.get("scope") or ".",
+        "format": "unavailable",
+        "command": src.get("command"),
+        "unavailable": True,
+    }
+
+
+def available_source_meta(src: Dict[str, Any], raw: str) -> Dict[str, Any]:
+    return {
+        "sourceClass": src.get("sourceClass") or "unknown",
+        "source": src.get("source") or src.get("sourceClass") or "unknown",
+        "scope": src.get("scope") or ".",
+        "format": src.get("format") or "unavailable",
+        "command": src.get("command"),
+        "rawDigest": sha256(raw) if raw else None,
+        "unavailable": False,
+    }
+
+
+def parse_source_findings(
+    src: Dict[str, Any],
+    work_target: str,
+    host: str,
+    now: str,
+    n: int,
+) -> Tuple[List[Dict[str, Any]], int]:
+    fmt = src.get("format") or "unavailable"
+    scope = src.get("scope") or "."
+    source_class = src.get("sourceClass") or "unknown"
+    source = src.get("source") or source_class
+    raw = src.get("raw") or ""
+    if fmt == "eslint-json":
+        return parse_eslint_json(raw, source_class, source, scope, work_target, host, now, n)
+    if fmt == "text-lines":
+        return parse_text_lines(raw, source_class, source, scope, work_target, host, now, n)
+    return [], n
+
+
 def normalize_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
     work_target = manifest.get("workTarget") or "/repo"
     host = manifest.get("host") or "claude"
@@ -175,41 +244,12 @@ def normalize_manifest(manifest: Dict[str, Any]) -> Dict[str, Any]:
     sources_meta: List[Dict[str, Any]] = []
     n = 0
     for src in manifest.get("sources") or []:
-        fmt = src.get("format") or "unavailable"
-        scope = src.get("scope") or "."
-        source_class = src.get("sourceClass") or "unknown"
-        source = src.get("source") or source_class
-        raw = src.get("raw") or ""
         if src.get("unavailable"):
-            sources_meta.append(
-                {
-                    "sourceClass": source_class,
-                    "source": source,
-                    "scope": scope,
-                    "format": "unavailable",
-                    "command": src.get("command"),
-                    "unavailable": True,
-                }
-            )
+            sources_meta.append(unavailable_source_meta(src))
             continue
-        raw_digest = sha256(raw) if raw else None
-        sources_meta.append(
-            {
-                "sourceClass": source_class,
-                "source": source,
-                "scope": scope,
-                "format": fmt,
-                "command": src.get("command"),
-                "rawDigest": raw_digest,
-                "unavailable": False,
-            }
-        )
-        if fmt == "eslint-json":
-            batch, n = parse_eslint_json(raw, source_class, source, scope, work_target, host, now, n)
-        elif fmt == "text-lines":
-            batch, n = parse_text_lines(raw, source_class, source, scope, work_target, host, now, n)
-        else:
-            batch = []
+        raw = src.get("raw") or ""
+        sources_meta.append(available_source_meta(src, raw))
+        batch, n = parse_source_findings(src, work_target, host, now, n)
         findings.extend(batch)
     return {
         "schemaVersion": 1,
@@ -313,7 +353,7 @@ def pipeline(manifest: Dict[str, Any], established: Optional[set] = None) -> Dic
     return scan
 
 
-def compose_discovery(scan: Dict[str, Any], hours: float = 4.0) -> Dict[str, Any]:
+def discovery_overlaps(scan: Dict[str, Any]) -> List[Dict[str, Any]]:
     overlaps = []
     for g in scan.get("dedupeSummary", {}).get("groups") or []:
         if len(g.get("sources") or []) > 1 or len(g.get("removed") or []) > 0:
@@ -324,41 +364,52 @@ def compose_discovery(scan: Dict[str, Any], hours: float = 4.0) -> Dict[str, Any
                     "candidates": [g["kept"]] + list(g.get("removed") or []),
                 }
             )
-    evidence_lines = []
+    return overlaps
+
+
+def discovery_evidence_lines(scan: Dict[str, Any]) -> List[str]:
+    lines = []
     for q in scan.get("queue") or []:
-        evidence_lines.append(
+        lines.append(
             "%s (%s): %s [%s]" % (q["locator"], ",".join(q["sources"]), q["message"], q["severity"])
         )
-    effort = max(30, min(240, len(scan.get("queue") or []) * 20))
+    return lines
+
+
+def discovery_candidate(scan: Dict[str, Any], evidence_lines: List[str], effort: int) -> Dict[str, Any]:
+    return {
+        "contractId": "clear-quality-debt",
+        "title": "Clear quality debt — fix what the project's own tooling reports.",
+        "ending": "finite",
+        "applicable": len(scan.get("queue") or []) > 0,
+        "evidence": evidence_lines[:20],
+        "impact": 5,
+        "evidenceStrength": 5 if evidence_lines else 0,
+        "confidence": 5 if evidence_lines else 0,
+        "effortMinutes": effort,
+        "reversibility": 5,
+        "dependencyValue": 2,
+        "recurrence": 1,
+        "priorResult": None,
+        "overlapGroup": None,
+        "prerequisites": [],
+        "sharedRoots": sorted({q.get("scope") or "" for q in scan.get("queue") or []}),
+        "blockers": [],
+        "capabilityStatus": "available-and-verified",
+        "fallback": None,
+    }
+
+
+def compose_discovery(scan: Dict[str, Any], hours: float = 4.0) -> Dict[str, Any]:
+    evidence_lines = discovery_evidence_lines(scan)
+    effort = max(30, min(int(hours * 60), len(scan.get("queue") or []) * 20))
     return {
         "schemaVersion": 1,
         "workMode": scan.get("workMode") or "repository",
         "workTarget": scan.get("workTarget") or "/repo",
         "toolingPolicy": "existing-tools",
-        "candidates": [
-            {
-                "contractId": "clear-quality-debt",
-                "title": "Clear quality debt — fix what the project's own tooling reports.",
-                "ending": "finite",
-                "applicable": len(scan.get("queue") or []) > 0,
-                "evidence": evidence_lines[:20],
-                "impact": 5,
-                "evidenceStrength": 5 if evidence_lines else 0,
-                "confidence": 5 if evidence_lines else 0,
-                "effortMinutes": effort,
-                "reversibility": 5,
-                "dependencyValue": 2,
-                "recurrence": 1,
-                "priorResult": None,
-                "overlapGroup": None,
-                "prerequisites": [],
-                "sharedRoots": sorted({q.get("scope") or "" for q in scan.get("queue") or []}),
-                "blockers": [],
-                "capabilityStatus": "available-and-verified",
-                "fallback": None,
-            }
-        ],
-        "overlaps": overlaps,
+        "candidates": [discovery_candidate(scan, evidence_lines, effort)],
+        "overlaps": discovery_overlaps(scan),
     }
 
 

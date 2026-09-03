@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 
@@ -68,9 +68,10 @@ def local_inventory(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def live_crawl(raw: Dict[str, Any]) -> Dict[str, Any]:
-    origins = raw.get("approvedOrigins") or []
-    pages = raw.get("pages") or []
+def _scan_crawl_pages(
+    pages: List[Any],
+    origins: List[str],
+) -> Tuple[List[str], List[str]]:
     escapes: List[str] = []
     malicious: List[str] = []
     for p in pages:
@@ -80,7 +81,10 @@ def live_crawl(raw: Dict[str, Any]) -> Dict[str, Any]:
         mp = p.get("maliciousPageInstructions") or {}
         if mp.get("detected"):
             malicious.append(url)
-    sitemap = raw.get("sitemapHealth") or {}
+    return escapes, malicious
+
+
+def _crawl_indexing_blockers(escapes: List[str], sitemap: Dict[str, Any]) -> List[Dict[str, Any]]:
     blockers: List[Dict[str, Any]] = []
     if escapes:
         blockers.append(
@@ -100,6 +104,11 @@ def live_crawl(raw: Dict[str, Any]) -> Dict[str, Any]:
                 "count": len(sitemap.get("missingFromSitemap") or []),
             }
         )
+    return blockers
+
+
+def _canonical_blockers(pages: List[Any]) -> List[Dict[str, Any]]:
+    blockers: List[Dict[str, Any]] = []
     for p in pages:
         if p.get("canonical") and p.get("finalUrl") and p["canonical"] != p["finalUrl"]:
             blockers.append(
@@ -109,14 +118,30 @@ def live_crawl(raw: Dict[str, Any]) -> Dict[str, Any]:
                     "action": "repair",
                 }
             )
-    for url in malicious:
-        blockers.append(
-            {
-                "category": "rendered-schema",
-                "summary": "malicious page instructions detected: %s" % url,
-                "action": "neutralize-never-execute",
-            }
-        )
+    return blockers
+
+
+def _malicious_blockers(malicious: List[str]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "category": "rendered-schema",
+            "summary": "malicious page instructions detected: %s" % url,
+            "action": "neutralize-never-execute",
+        }
+        for url in malicious
+    ]
+
+
+def live_crawl(raw: Dict[str, Any]) -> Dict[str, Any]:
+    origins = raw.get("approvedOrigins") or []
+    pages = raw.get("pages") or []
+    sitemap = raw.get("sitemapHealth") or {}
+
+    escapes, malicious = _scan_crawl_pages(pages, origins)
+    blockers = _crawl_indexing_blockers(escapes, sitemap)
+    blockers.extend(_canonical_blockers(pages))
+    blockers.extend(_malicious_blockers(malicious))
+
     return {
         "schemaVersion": 1,
         "kind": "live-crawl",

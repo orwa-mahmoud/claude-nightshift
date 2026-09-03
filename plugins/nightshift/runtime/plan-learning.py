@@ -41,34 +41,42 @@ def write_learning(path: str, doc: Dict[str, Any]) -> None:
     os.replace(path + ".tmp", path)
 
 
+def merge_contract_entry(doc: Dict[str, Any], contracts: Dict[str, Any], entry: Dict[str, Any]) -> None:
+    cid = entry.get("contractId")
+    if not cid:
+        return
+    slot = contracts.setdefault(cid, {})
+    mins = entry.get("actualDurationMinutes")
+    if isinstance(mins, int):
+        slot.setdefault("actualDurationMinutes", []).append(mins)
+        vals = slot["actualDurationMinutes"]
+        slot["averageEffortMinutes"] = int(round(sum(vals) / len(vals)))
+    runtime = entry.get("toolRuntimeSeconds")
+    if isinstance(runtime, int):
+        slot.setdefault("toolRuntimesSeconds", []).append(runtime)
+    outcome = entry.get("outcome")
+    if outcome == "success":
+        slot["successfulOutcomes"] = int(slot.get("successfulOutcomes", 0)) + 1
+    elif outcome == "failed":
+        slot["failedOutcomes"] = int(slot.get("failedOutcomes", 0)) + 1
+        fails = int(slot.get("failedOutcomes", 0))
+        if fails >= 3 and cid not in doc.setdefault("suppressedContracts", []):
+            doc["suppressedContracts"].append(cid)
+
+
+def merge_rejected_findings(doc: Dict[str, Any], receipt: Dict[str, Any]) -> None:
+    for fid in receipt.get("rejectedFindings") or []:
+        if isinstance(fid, str) and fid not in doc.setdefault("rejectedFindings", []):
+            doc["rejectedFindings"].append(fid)
+
+
 def merge_receipt(doc: Dict[str, Any], receipt: Dict[str, Any]) -> Dict[str, Any]:
     contracts = doc.setdefault("contracts", {})
     for entry in receipt.get("contracts") or []:
         if not isinstance(entry, dict):
             continue
-        cid = entry.get("contractId")
-        if not cid:
-            continue
-        slot = contracts.setdefault(cid, {})
-        mins = entry.get("actualDurationMinutes")
-        if isinstance(mins, int):
-            slot.setdefault("actualDurationMinutes", []).append(mins)
-            vals = slot["actualDurationMinutes"]
-            slot["averageEffortMinutes"] = int(round(sum(vals) / len(vals)))
-        runtime = entry.get("toolRuntimeSeconds")
-        if isinstance(runtime, int):
-            slot.setdefault("toolRuntimesSeconds", []).append(runtime)
-        outcome = entry.get("outcome")
-        if outcome == "success":
-            slot["successfulOutcomes"] = int(slot.get("successfulOutcomes", 0)) + 1
-        elif outcome == "failed":
-            slot["failedOutcomes"] = int(slot.get("failedOutcomes", 0)) + 1
-            fails = int(slot.get("failedOutcomes", 0))
-            if fails >= 3 and cid not in doc.setdefault("suppressedContracts", []):
-                doc["suppressedContracts"].append(cid)
-    for fid in receipt.get("rejectedFindings") or []:
-        if isinstance(fid, str) and fid not in doc.setdefault("rejectedFindings", []):
-            doc["rejectedFindings"].append(fid)
+        merge_contract_entry(doc, contracts, entry)
+    merge_rejected_findings(doc, receipt)
     return doc
 
 

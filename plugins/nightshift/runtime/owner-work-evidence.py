@@ -64,6 +64,103 @@ def topo_sort_issues(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [by_url[u] for u in order if u in by_url]
 
 
+def _evaluate_issue_entry(
+    raw: Dict[str, Any],
+    authorized: Optional[str],
+    titles_seen: Dict[str, str],
+    conflicts: List[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    url = raw.get("sourceUrl") or ""
+    repo = raw.get("repo") or issue_repo(url)
+    flags = list(raw.get("flags") or [])
+    entry = {
+        "sourceUrl": url,
+        "number": raw.get("number"),
+        "title": raw.get("title"),
+        "repo": repo,
+        "effortMinutes": int(raw.get("effortMinutes") or 0),
+        "sharedRoots": list(raw.get("sharedRoots") or []),
+        "dependencies": list(raw.get("dependencies") or []),
+        "flags": flags,
+    }
+
+    if authorized and repo and repo != authorized:
+        return None, {**entry, "reason": "repo-mismatch", "detail": "outside authorized repo"}
+    if flags:
+        return None, {**entry, "reason": "flagged", "detail": ",".join(flags)}
+
+    dup_of = raw.get("duplicateOf")
+    norm = normalize_title(raw.get("title") or "")
+    if dup_of:
+        conflicts.append(
+            {"kind": "duplicate", "kept": dup_of, "removed": url, "reason": "explicit duplicateOf"}
+        )
+        return None, {**entry, "reason": "duplicate", "detail": "duplicate of %s" % dup_of}
+
+    if norm and norm in titles_seen:
+        kept = titles_seen[norm]
+        conflicts.append(
+            {"kind": "duplicate", "kept": kept, "removed": url, "reason": "same normalized title"}
+        )
+        return None, {**entry, "reason": "duplicate", "detail": "same title as %s" % kept}
+
+    if norm:
+        titles_seen[norm] = url
+    return entry, None
+
+
+def _group_issues_by_roots(ordered: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    groups: Dict[str, Dict[str, Any]] = {}
+    for issue in ordered:
+        roots = tuple(sorted(set(issue.get("sharedRoots") or [])))
+        gid = "root:" + "|".join(roots) if roots else "ungrouped"
+        grp = groups.setdefault(
+            gid,
+            {"groupId": gid, "sharedRoots": list(roots), "issues": [], "effortMinutes": 0},
+        )
+        grp["issues"].append(issue["sourceUrl"])
+        grp["effortMinutes"] += issue.get("effortMinutes") or 0
+    return groups
+
+
+def _pack_issues_by_time(
+    ordered: List[Dict[str, Any]],
+    work_budget: int,
+    rejected: List[Dict[str, Any]],
+) -> List[str]:
+    selected: List[str] = []
+    time_rejected: List[Dict[str, Any]] = []
+    remaining = work_budget
+
+    for issue in ordered:
+        effort = int(issue.get("effortMinutes") or 0)
+        tf = time_fit_score(effort, remaining)
+        if tf == 0 and effort > 0:
+            time_rejected.append(
+                {
+                    **issue,
+                    "reason": "time-fit",
+                    "detail": "needs %d min, %d remain" % (effort, remaining),
+                }
+            )
+            continue
+        selected.append(issue["sourceUrl"])
+        remaining -= max(effort, 0)
+        if remaining <= 0:
+            break
+
+    selected_set = set(selected)
+    time_rejected_urls = {x["sourceUrl"] for x in time_rejected}
+    for issue in ordered:
+        if issue["sourceUrl"] not in selected_set and issue["sourceUrl"] not in time_rejected_urls:
+            time_rejected.append(
+                {**issue, "reason": "time-fit", "detail": "lower rank after time packing"}
+            )
+
+    rejected.extend(time_rejected)
+    return selected
+
+
 def issue_graph(manifest: Dict[str, Any]) -> Dict[str, Any]:
     authorized = manifest.get("authorizedRepo")
     hours = float(manifest.get("hours") or 0)
@@ -77,84 +174,20 @@ def issue_graph(manifest: Dict[str, Any]) -> Dict[str, Any]:
     titles_seen: Dict[str, str] = {}
 
     for raw in manifest.get("issues") or []:
-        url = raw.get("sourceUrl") or ""
-        repo = raw.get("repo") or issue_repo(url)
-        flags = list(raw.get("flags") or [])
-        entry = {
-            "sourceUrl": url,
-            "number": raw.get("number"),
-            "title": raw.get("title"),
-            "repo": repo,
-            "effortMinutes": int(raw.get("effortMinutes") or 0),
-            "sharedRoots": list(raw.get("sharedRoots") or []),
-            "dependencies": list(raw.get("dependencies") or []),
-            "flags": flags,
-        }
-        if authorized and repo and repo != authorized:
-            rejected.append({**entry, "reason": "repo-mismatch", "detail": "outside authorized repo"})
-            continue
-        if flags:
-            rejected.append({**entry, "reason": "flagged", "detail": ",".join(flags)})
-            continue
-        dup_of = raw.get("duplicateOf")
-        norm = normalize_title(raw.get("title") or "")
-        if dup_of:
-            conflicts.append(
-                {"kind": "duplicate", "kept": dup_of, "removed": url, "reason": "explicit duplicateOf"}
-            )
-            rejected.append({**entry, "reason": "duplicate", "detail": "duplicate of %s" % dup_of})
-            continue
-        if norm and norm in titles_seen:
-            kept = titles_seen[norm]
-            conflicts.append(
-                {"kind": "duplicate", "kept": kept, "removed": url, "reason": "same normalized title"}
-            )
-            rejected.append({**entry, "reason": "duplicate", "detail": "same title as %s" % kept})
-            continue
-        if norm:
-            titles_seen[norm] = url
-        eligible.append(entry)
+        entry, reject = _evaluate_issue_entry(raw, authorized, titles_seen, conflicts)
+        if reject:
+            rejected.append(reject)
+        elif entry:
+            eligible.append(entry)
 
     ordered = topo_sort_issues(eligible)
-    groups: Dict[str, Dict[str, Any]] = {}
-    for issue in ordered:
-        roots = tuple(sorted(set(issue.get("sharedRoots") or [])))
-        gid = "root:" + "|".join(roots) if roots else "ungrouped"
-        grp = groups.setdefault(
-            gid,
-            {"groupId": gid, "sharedRoots": list(roots), "issues": [], "effortMinutes": 0},
-        )
-        grp["issues"].append(issue["sourceUrl"])
-        grp["effortMinutes"] += issue.get("effortMinutes") or 0
+    groups = _group_issues_by_roots(ordered)
 
-    selected: List[str] = []
-    time_rejected: List[Dict[str, Any]] = []
-    remaining = work_budget
-    if work_budget > 0:
-        for issue in ordered:
-            effort = int(issue.get("effortMinutes") or 0)
-            tf = time_fit_score(effort, remaining)
-            if tf == 0 and effort > 0:
-                time_rejected.append(
-                    {
-                        **issue,
-                        "reason": "time-fit",
-                        "detail": "needs %d min, %d remain" % (effort, remaining),
-                    }
-                )
-                continue
-            selected.append(issue["sourceUrl"])
-            remaining -= max(effort, 0)
-            if remaining <= 0:
-                break
-        for issue in ordered:
-            if issue["sourceUrl"] not in selected and issue["sourceUrl"] not in {
-                x["sourceUrl"] for x in time_rejected
-            }:
-                time_rejected.append(
-                    {**issue, "reason": "time-fit", "detail": "lower rank after time packing"}
-                )
-        rejected.extend(time_rejected)
+    selected = (
+        _pack_issues_by_time(ordered, work_budget, rejected)
+        if work_budget > 0
+        else [i["sourceUrl"] for i in ordered]
+    )
 
     repo_fit = [
         {
@@ -173,7 +206,7 @@ def issue_graph(manifest: Dict[str, Any]) -> Dict[str, Any]:
         "workBudgetMinutes": work_budget if hours > 0 else None,
         "orderedIssues": [i["sourceUrl"] for i in ordered],
         "orderedGroups": list(groups.values()),
-        "selectedIssues": selected if work_budget > 0 else [i["sourceUrl"] for i in ordered],
+        "selectedIssues": selected,
         "conflicts": conflicts,
         "repoFit": repo_fit,
         "rejected": rejected,
@@ -182,24 +215,12 @@ def issue_graph(manifest: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def walkthrough_plan(brief: Dict[str, Any]) -> Dict[str, Any]:
-    objective = (brief.get("objective") or "").strip()
-    hours = float(brief.get("hours") or 0)
-    evidence = list(brief.get("evidence") or [])
-    underspecified = list(brief.get("underspecified") or [])
-    work_budget = 0
-    if hours > 0:
-        work_budget = max(0, int(hours * 60) - verification_reserve_minutes(hours))
-
+def _walkthrough_defaults(brief: Dict[str, Any], objective: str) -> Tuple[List[str], List[str], List[Dict[str, Any]]]:
     acceptance = brief.get("acceptanceCriteria") or [
         "Objective remains verbatim: %s" % objective,
         "Item gate green at every commit or artifact receipt",
         "Delivered scope verifiable from work-target tests and tooling",
     ]
-    dependencies = list(brief.get("dependencies") or [])
-    if evidence and not dependencies:
-        dependencies = ["Inspect work-target evidence: %s" % ", ".join(evidence[:3])]
-
     checkpoints = [
         {"phase": "plan", "action": "Record acceptance, non-goals, and time-fit plan before cutting"},
         {"phase": "implement", "action": "Complete one coherent unit end-to-end"},
@@ -212,7 +233,13 @@ def walkthrough_plan(brief: Dict[str, Any]) -> Dict[str, Any]:
             "Replace the owner objective with an easier adjacent goal",
             "Begin a unit that cannot be left reviewable within remaining time",
         ]
+    return acceptance, non_goals, checkpoints
 
+
+def _select_walkthrough_units(
+    brief: Dict[str, Any],
+    work_budget: int,
+) -> Tuple[List[Dict[str, Any]], int]:
     unit_effort = max(30, work_budget // 3) if work_budget else 45
     units = brief.get("units") or [
         {"title": "First coherent unit", "effortMinutes": unit_effort},
@@ -227,6 +254,24 @@ def walkthrough_plan(brief: Dict[str, Any]) -> Dict[str, Any]:
             continue
         selected_units.append({**unit, "timeFit": tf})
         remaining -= max(effort, 0)
+    return selected_units, remaining
+
+
+def walkthrough_plan(brief: Dict[str, Any]) -> Dict[str, Any]:
+    objective = (brief.get("objective") or "").strip()
+    hours = float(brief.get("hours") or 0)
+    evidence = list(brief.get("evidence") or [])
+    underspecified = list(brief.get("underspecified") or [])
+    work_budget = 0
+    if hours > 0:
+        work_budget = max(0, int(hours * 60) - verification_reserve_minutes(hours))
+
+    acceptance, non_goals, checkpoints = _walkthrough_defaults(brief, objective)
+    dependencies = list(brief.get("dependencies") or [])
+    if evidence and not dependencies:
+        dependencies = ["Inspect work-target evidence: %s" % ", ".join(evidence[:3])]
+
+    selected_units, remaining = _select_walkthrough_units(brief, work_budget)
 
     defaults = []
     for topic in underspecified:

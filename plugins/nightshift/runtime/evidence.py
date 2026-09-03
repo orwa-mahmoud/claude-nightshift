@@ -28,6 +28,8 @@ SECRET = re.compile(
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----"
 )
 
+EVIDENCE_PREFIX = "evidence: %s"
+
 
 def utcnow():
     fixed = os.environ.get("NIGHTSHIFT_EVIDENCE_NOW")
@@ -57,7 +59,7 @@ def ledger_paths(ns):
 
 
 def fail(msg, code=2):
-    print("evidence: %s" % msg, file=sys.stderr)
+    print(EVIDENCE_PREFIX % msg, file=sys.stderr)
     return code
 
 
@@ -69,13 +71,18 @@ def redact_text(text):
     return SECRET.sub("[redacted]", text)
 
 
-def validate_record(rec, schema, prev=None):
+def validate_required_fields(rec, schema):
     errors = []
     if not isinstance(rec, dict):
         return ["record is not an object"]
     for key in schema["required"]:
         if key not in rec:
             errors.append("missing %s" % key)
+    return errors
+
+
+def validate_enum_fields(rec, schema):
+    errors = []
     if rec.get("schemaVersion") != 1:
         errors.append("unsupported schemaVersion")
     if rec.get("severity") not in schema["severity"]:
@@ -88,18 +95,38 @@ def validate_record(rec, schema, prev=None):
         errors.append("invalid status")
     if rec.get("ladder") not in schema["ladder"]:
         errors.append("invalid ladder")
+    return errors
+
+
+def validate_locator_and_secrets(rec):
+    errors = []
     locator = rec.get("locator") or ""
     if "://" in locator and not rec.get("untrusted"):
         errors.append("remote locator requires untrusted=true")
     raw = json.dumps(rec, sort_keys=True, separators=(",", ":"))
     if SECRET.search(raw):
         errors.append("record contains a secret pattern")
-    if prev is not None:
-        old_l = prev.get("ladder")
-        new_l = rec.get("ladder")
-        if old_l in LADDER_RANK and new_l in LADDER_RANK:
-            if LADDER_RANK[new_l] > LADDER_RANK[old_l] and rec.get("promoteBy") == "prose":
-                errors.append("ladder must not be promoted by prose")
+    return errors
+
+
+def validate_ladder_promotion(rec, prev):
+    if prev is None:
+        return []
+    old_l = prev.get("ladder")
+    new_l = rec.get("ladder")
+    if old_l in LADDER_RANK and new_l in LADDER_RANK:
+        if LADDER_RANK[new_l] > LADDER_RANK[old_l] and rec.get("promoteBy") == "prose":
+            return ["ladder must not be promoted by prose"]
+    return []
+
+
+def validate_record(rec, schema, prev=None):
+    errors = validate_required_fields(rec, schema)
+    if errors:
+        return errors
+    errors.extend(validate_enum_fields(rec, schema))
+    errors.extend(validate_locator_and_secrets(rec))
+    errors.extend(validate_ladder_promotion(rec, prev))
     return errors
 
 
@@ -158,7 +185,7 @@ def cmd_validate(project):
         if err:
             rc = 2
             for e in err:
-                print("evidence: %s: %s" % (rec.get("id") or "?", e), file=sys.stderr)
+                print(EVIDENCE_PREFIX % ("%s: %s" % (rec.get("id") or "?", e)), file=sys.stderr)
         if rec.get("id"):
             by_id[rec["id"]] = rec
     return rc
@@ -190,7 +217,7 @@ def cmd_append(project, record_json, raw_text=None):
     errors = validate_record(rec, schema, prev)
     if errors:
         for e in errors:
-            print("evidence: %s" % e, file=sys.stderr)
+            print(EVIDENCE_PREFIX % e, file=sys.stderr)
         return 2
     if raw_text:
         rec["rawPath"] = os.path.join("evidence", "raw", rec["id"] + ".txt")
@@ -225,7 +252,7 @@ def cmd_disposition(project, finding_id, disposition, ladder=None):
         errors = validate_record(rec, schema, prev)
         if errors:
             for e in errors:
-                print("evidence: %s" % e, file=sys.stderr)
+                print(EVIDENCE_PREFIX % e, file=sys.stderr)
             return 2
     if not found:
         return fail("unknown id %s" % finding_id)
@@ -321,7 +348,7 @@ def usage():
     return 1
 
 
-def main(argv):
+def parse_project_and_rest(argv):
     project = None
     args = argv[1:]
     i = 0
@@ -330,33 +357,42 @@ def main(argv):
         a = args[i]
         if a == "--project":
             if i + 1 >= len(args):
-                return usage()
+                return None, []
             project = args[i + 1]
             i += 2
             continue
         rest = args[i:]
         break
-    if not project or not rest:
-        return usage()
+    return project, rest
+
+
+def parse_append_args(rest):
+    raw = None
+    record = None
+    j = 1
+    while j < len(rest):
+        if rest[j] == "--record" and j + 1 < len(rest):
+            record = rest[j + 1]
+            j += 2
+            continue
+        if rest[j] == "--raw" and j + 1 < len(rest):
+            raw = rest[j + 1]
+            j += 2
+            continue
+        return None, None
+    if not record:
+        return None, None
+    return record, raw
+
+
+def dispatch_command(project, rest):
     cmd = rest[0]
     if cmd == "init":
         return cmd_init(project)
     if cmd == "validate":
         return cmd_validate(project)
     if cmd == "append":
-        raw = None
-        record = None
-        j = 1
-        while j < len(rest):
-            if rest[j] == "--record" and j + 1 < len(rest):
-                record = rest[j + 1]
-                j += 2
-                continue
-            if rest[j] == "--raw" and j + 1 < len(rest):
-                raw = rest[j + 1]
-                j += 2
-                continue
-            return usage()
+        record, raw = parse_append_args(rest)
         if not record:
             return usage()
         return cmd_append(project, record, raw)
@@ -372,6 +408,13 @@ def main(argv):
     if cmd == "migrate":
         return cmd_migrate(project)
     return usage()
+
+
+def main(argv):
+    project, rest = parse_project_and_rest(argv)
+    if not project or not rest:
+        return usage()
+    return dispatch_command(project, rest)
 
 
 if __name__ == "__main__":

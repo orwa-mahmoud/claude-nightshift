@@ -7,6 +7,8 @@ import json
 import sys
 from typing import Any, Dict, List
 
+NONE_LINE = "_none_\n"
+
 
 def line(title: str, body: str) -> str:
     return "## %s\n\n%s\n" % (title, body)
@@ -14,19 +16,20 @@ def line(title: str, body: str) -> str:
 
 def bullet(items: List[str]) -> str:
     if not items:
-        return "_none_\n"
+        return NONE_LINE
     return "\n".join("- %s" % x for x in items) + "\n"
 
 
-def render(plan: Dict[str, Any]) -> str:
-    parts: List[str] = []
-    parts.append("# Shift preview (read-only simulation)\n")
-    parts.append(
+def render_intro(plan: Dict[str, Any]) -> str:
+    return (
+        "# Shift preview (read-only simulation)\n\n"
         "This preview writes nothing and starts no clock. "
         "Launch mode `%s` does not change the ordered plan.\n"
         % plan.get("launchMode", "")
     )
 
+
+def render_context(plan: Dict[str, Any]) -> str:
     ctx = [
         "workspace: `%s`" % (plan.get("workspace") or plan.get("workTarget") or "?"),
         "work target: `%s`" % plan.get("workTarget", "?"),
@@ -37,44 +40,44 @@ def render(plan: Dict[str, Any]) -> str:
         "hours: `%s`" % plan.get("hours", "?"),
         "authority: `%s`" % (plan.get("authority") or "owner-approved"),
     ]
-    parts.append(line("Resolved context", bullet(ctx)))
+    return line("Resolved context", bullet(ctx))
 
+
+def _policy_dict_lines(policy: Dict[str, Any], plan: Dict[str, Any]) -> List[str]:
+    pol_lines = []
+    for key in ("verificationLevel", "toolingPolicy", "completionMode", "deadlineEpoch"):
+        if key in policy:
+            pol_lines.append("%s: `%s`" % (key, policy[key]))
+    for a in policy.get("allowances") or []:
+        if isinstance(a, dict):
+            pol_lines.append(
+                "allowance: `%s` scope `%s` provenance `%s`"
+                % (a.get("category"), a.get("scope"), a.get("provenance"))
+            )
+    budgets = policy.get("budgets") or plan.get("resourceBudgets") or {}
+    if budgets:
+        pol_lines.append("resource budgets: `%s`" % json.dumps(budgets, sort_keys=True))
+    return pol_lines
+
+
+def render_policy(plan: Dict[str, Any]) -> str:
     policy = plan.get("shiftPolicy")
     if isinstance(policy, dict):
-        pol_lines = []
-        for key in (
-            "verificationLevel",
-            "toolingPolicy",
-            "completionMode",
-            "deadlineEpoch",
-        ):
-            if key in policy:
-                pol_lines.append("%s: `%s`" % (key, policy[key]))
-        allowances = policy.get("allowances") or []
-        for a in allowances:
-            if isinstance(a, dict):
-                pol_lines.append(
-                    "allowance: `%s` scope `%s` provenance `%s`"
-                    % (a.get("category"), a.get("scope"), a.get("provenance"))
-                )
-        budgets = policy.get("budgets") or plan.get("resourceBudgets") or {}
-        if budgets:
-            pol_lines.append("resource budgets: `%s`" % json.dumps(budgets, sort_keys=True))
-        parts.append(line("Shift policy", bullet(pol_lines)))
-    elif plan.get("resourceBudgets"):
-        parts.append(
-            line(
-                "Resource budgets",
-                bullet(
-                    [
-                        "%s=%s" % (k, v)
-                        for k, v in sorted(plan["resourceBudgets"].items())
-                    ]
-                ),
-            )
+        return line("Shift policy", bullet(_policy_dict_lines(policy, plan)))
+    if plan.get("resourceBudgets"):
+        return line(
+            "Resource budgets",
+            bullet(
+                [
+                    "%s=%s" % (k, v)
+                    for k, v in sorted(plan["resourceBudgets"].items())
+                ]
+            ),
         )
+    return ""
 
-    ordered = plan.get("orderedItems") or []
+
+def render_ordered_items(ordered: List[Dict[str, Any]]) -> str:
     item_lines: List[str] = []
     for i, it in enumerate(ordered, 1):
         sc = it.get("scoring") or {}
@@ -105,23 +108,26 @@ def render(plan: Dict[str, Any]) -> str:
             item_lines.append("   - cluster: `%s`" % it["clusterId"])
         if it.get("fallback"):
             item_lines.append("   - fallback: %s" % it["fallback"])
-    parts.append(line("Proposed ordered items", "\n".join(item_lines) if item_lines else "_none_\n"))
+    return line("Proposed ordered items", "\n".join(item_lines) if item_lines else NONE_LINE)
 
-    clusters = plan.get("clusters") or []
-    if clusters:
-        cl: List[str] = []
-        for c in clusters:
-            cl.append(
-                "`%s`: contracts %s roots %s"
-                % (
-                    c.get("clusterId"),
-                    ", ".join(c.get("contractIds") or []),
-                    ", ".join(c.get("sharedRoots") or []),
-                )
+
+def render_clusters(clusters: List[Dict[str, Any]]) -> str:
+    if not clusters:
+        return ""
+    cl: List[str] = []
+    for c in clusters:
+        cl.append(
+            "`%s`: contracts %s roots %s"
+            % (
+                c.get("clusterId"),
+                ", ".join(c.get("contractIds") or []),
+                ", ".join(c.get("sharedRoots") or []),
             )
-        parts.append(line("Independent clusters", bullet(cl)))
+        )
+    return line("Independent clusters", bullet(cl))
 
-    rejected = plan.get("rejected") or []
+
+def render_rejected(rejected: List[Dict[str, Any]]) -> str:
     rej_lines: List[str] = []
     for r in rejected:
         sc = r.get("scoring") or {}
@@ -136,23 +142,27 @@ def render(plan: Dict[str, Any]) -> str:
                 sc.get("timeFit"),
             )
         )
-    parts.append(line("Rejected alternatives", "\n".join(rej_lines) if rej_lines else "_none_\n"))
+    return line("Rejected alternatives", "\n".join(rej_lines) if rej_lines else NONE_LINE)
 
-    overlaps = plan.get("overlapsRemoved") or []
-    if overlaps:
-        ov: List[str] = []
-        for o in overlaps:
-            ov.append(
-                "group `%s` finding `%s`: kept `%s`, removed %s"
-                % (
-                    o.get("group"),
-                    o.get("finding"),
-                    o.get("kept"),
-                    ", ".join(o.get("removed") or []),
-                )
+
+def render_overlaps(overlaps: List[Dict[str, Any]]) -> str:
+    if not overlaps:
+        return ""
+    ov: List[str] = []
+    for o in overlaps:
+        ov.append(
+            "group `%s` finding `%s`: kept `%s`, removed %s"
+            % (
+                o.get("group"),
+                o.get("finding"),
+                o.get("kept"),
+                ", ".join(o.get("removed") or []),
             )
-        parts.append(line("Overlaps removed", bullet(ov)))
+        )
+    return line("Overlaps removed", bullet(ov))
 
+
+def render_timing(plan: Dict[str, Any]) -> str:
     timing = [
         "verification reserve: %s min" % plan.get("verificationReserveMinutes"),
         "work budget: %s min" % plan.get("workBudgetMinutes"),
@@ -161,8 +171,11 @@ def render(plan: Dict[str, Any]) -> str:
     ]
     if plan.get("learningApplied"):
         timing.append("learning: applied from project-local receipts")
-    parts.append(line("Time fit", bullet(timing)))
+    return line("Time fit", bullet(timing))
 
+
+def render_optional_sections(plan: Dict[str, Any]) -> List[str]:
+    parts: List[str] = []
     risks = plan.get("risks") or []
     if risks:
         parts.append(line("Risks", bullet(risks)))
@@ -176,7 +189,21 @@ def render(plan: Dict[str, Any]) -> str:
         parts.append(
             line("Provisioning plan", "```json\n%s\n```" % json.dumps(prov, indent=2, sort_keys=True))
         )
+    return parts
 
+
+def render(plan: Dict[str, Any]) -> str:
+    parts: List[str] = [
+        render_intro(plan),
+        render_context(plan),
+        render_policy(plan),
+        render_ordered_items(plan.get("orderedItems") or []),
+        render_clusters(plan.get("clusters") or []),
+        render_rejected(plan.get("rejected") or []),
+        render_overlaps(plan.get("overlapsRemoved") or []),
+        render_timing(plan),
+    ]
+    parts.extend(render_optional_sections(plan))
     parts.append(
         "\n---\nAccept, edit, or discard this preview. "
         "Review-first writes nothing until approval.\n"

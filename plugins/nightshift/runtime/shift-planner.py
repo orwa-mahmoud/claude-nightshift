@@ -146,6 +146,106 @@ def budget_exceeded(c: Dict[str, Any], budgets: Dict[str, int]) -> Optional[str]
     return None
 
 
+def rejection_entry(
+    c: Dict[str, Any], reason: str, detail: Optional[str], remaining: int, learning_adjusted: bool
+) -> Dict[str, Any]:
+    return {
+        "contractId": c["contractId"],
+        "title": c["title"],
+        "reason": reason,
+        "detail": detail,
+        "scoring": visible_scoring(c, remaining, learning_adjusted),
+    }
+
+
+def reject_overlap(
+    by_id: Dict[str, Dict[str, Any]],
+    did: str,
+    detail: str,
+    removed_ids: Set[str],
+    rejected: List[Dict[str, Any]],
+) -> None:
+    removed_ids.add(did)
+    rejected.append(rejection_entry(by_id[did], REJECT_OVERLAP, detail, 10**9, False))
+
+
+def record_overlap_resolution(
+    overlap_records: List[Dict[str, Any]],
+    group: str,
+    finding: str,
+    kept: str,
+    removed: List[str],
+) -> None:
+    overlap_records.append(
+        {
+            "group": group,
+            "finding": finding,
+            "kept": kept,
+            "removed": removed,
+        }
+    )
+
+
+def resolve_overlap_ranking(
+    ranked: List[Dict[str, Any]],
+    by_id: Dict[str, Dict[str, Any]],
+    removed_ids: Set[str],
+    rejected: List[Dict[str, Any]],
+    overlap_records: List[Dict[str, Any]],
+    detail_fmt: str,
+    detail_arg: str,
+    group: str,
+    finding: str,
+) -> None:
+    if not ranked:
+        return
+    kept = ranked[0]["contractId"]
+    dropped = [x["contractId"] for x in ranked[1:]]
+    detail = detail_fmt % (detail_arg, kept)
+    for did in dropped:
+        reject_overlap(by_id, did, detail, removed_ids, rejected)
+    record_overlap_resolution(overlap_records, group, finding, kept, dropped)
+
+
+def _resolve_static_overlap_groups(
+    candidates: List[Dict[str, Any]],
+    groups: Dict[str, List[str]],
+    by_id: Dict[str, Dict[str, Any]],
+    removed_ids: Set[str],
+    rejected: List[Dict[str, Any]],
+    overlap_records: List[Dict[str, Any]],
+) -> None:
+    for c in candidates:
+        g = c.get("overlapGroup")
+        if not g or c["contractId"] in removed_ids:
+            continue
+        peers = [i for i in groups.get(str(g), []) if i != c["contractId"] and i in by_id]
+        if not peers:
+            continue
+        pool = [c] + [by_id[i] for i in peers if i not in removed_ids]
+        if len(pool) < 2:
+            continue
+        ranked = sorted(pool, key=lambda x: scoring_tuple(x, 10**9))
+        kept = ranked[0]["contractId"]
+        for x in ranked[1:]:
+            if x["contractId"] in removed_ids:
+                continue
+            reject_overlap(
+                by_id,
+                x["contractId"],
+                "overlap group %s kept %s" % (g, kept),
+                removed_ids,
+                rejected,
+            )
+            record_overlap_resolution(
+                overlap_records,
+                str(g),
+                str(g),
+                kept,
+                [x["contractId"]],
+            )
+
+
 def remove_overlaps(
     candidates: List[Dict[str, Any]], overlaps: List[Dict[str, Any]]
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -171,63 +271,21 @@ def remove_overlaps(
             [by_id[i] for i in ids if i in by_id and i not in removed_ids],
             key=lambda x: scoring_tuple(x, 10**9),
         )
-        if not ranked:
-            continue
-        kept = ranked[0]["contractId"]
-        dropped = [x["contractId"] for x in ranked[1:]]
-        for did in dropped:
-            removed_ids.add(did)
-            rejected.append(
-                {
-                    "contractId": did,
-                    "title": by_id[did]["title"],
-                    "reason": REJECT_OVERLAP,
-                    "detail": "finding %s kept %s" % (ov.get("finding", group or ""), kept),
-                    "scoring": visible_scoring(by_id[did], 10**9, False),
-                }
-            )
-        overlap_records.append(
-            {
-                "group": str(group or ov.get("finding", "")),
-                "finding": str(ov.get("finding", group or "")),
-                "kept": kept,
-                "removed": dropped,
-            }
+        resolve_overlap_ranking(
+            ranked,
+            by_id,
+            removed_ids,
+            rejected,
+            overlap_records,
+            "finding %s kept %s",
+            ov.get("finding", group or ""),
+            str(group or ov.get("finding", "")),
+            str(ov.get("finding", group or "")),
         )
 
-    for c in candidates:
-        g = c.get("overlapGroup")
-        if not g or c["contractId"] in removed_ids:
-            continue
-        peers = [i for i in groups.get(str(g), []) if i != c["contractId"] and i in by_id]
-        if not peers:
-            continue
-        pool = [c] + [by_id[i] for i in peers if i not in removed_ids]
-        if len(pool) < 2:
-            continue
-        ranked = sorted(pool, key=lambda x: scoring_tuple(x, 10**9))
-        kept = ranked[0]["contractId"]
-        for x in ranked[1:]:
-            if x["contractId"] in removed_ids:
-                continue
-            removed_ids.add(x["contractId"])
-            rejected.append(
-                {
-                    "contractId": x["contractId"],
-                    "title": x["title"],
-                    "reason": REJECT_OVERLAP,
-                    "detail": "overlap group %s kept %s" % (g, kept),
-                    "scoring": visible_scoring(x, 10**9, False),
-                }
-            )
-            overlap_records.append(
-                {
-                    "group": str(g),
-                    "finding": str(g),
-                    "kept": kept,
-                    "removed": [x["contractId"]],
-                }
-            )
+    _resolve_static_overlap_groups(
+        candidates, groups, by_id, removed_ids, rejected, overlap_records
+    )
 
     kept_candidates = [c for c in candidates if c["contractId"] not in removed_ids]
     return kept_candidates, overlap_records, rejected
@@ -276,203 +334,141 @@ def cluster_items(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], Li
     return out, list(clusters.values())
 
 
+def pack_finite_candidate(
+    c: Dict[str, Any],
+    remaining: int,
+    selected: List[Dict[str, Any]],
+    rejected: List[Dict[str, Any]],
+) -> Tuple[int, bool]:
+    effort = int(c.get("effortMinutes", 0))
+    tf = time_fit_score(effort, remaining, "finite")
+    la = c.get("_learningAdjusted", False)
+    if tf == 0 and effort > 0:
+        rejected.append(
+            rejection_entry(
+                c,
+                REJECT_TIME,
+                "needs %d min, %d remain" % (effort, remaining),
+                remaining,
+                la,
+            )
+        )
+        return remaining, False
+    if effort > remaining and effort > 0:
+        nc = deepcopy(c)
+        nc["effortMinutes"] = remaining
+        nc["_partial"] = True
+        selected.append(nc)
+        return 0, True
+    selected.append(c)
+    remaining -= max(effort, 0)
+    return remaining, remaining <= 0
+
+
+def pack_open_ended_remainder(
+    open_ended: List[Dict[str, Any]],
+    remaining: int,
+    selected: List[Dict[str, Any]],
+    rejected: List[Dict[str, Any]],
+) -> None:
+    if remaining < OPEN_ENDED_MIN_MINUTES or not open_ended:
+        return
+    ranked = sorted(open_ended, key=lambda x: scoring_tuple(x, remaining))
+    selected.append(ranked[0])
+    for x in ranked[1:]:
+        rejected.append(
+            rejection_entry(
+                x,
+                REJECT_TIME,
+                "only one open-ended remainder allowed",
+                remaining,
+                x.get("_learningAdjusted", False),
+            )
+        )
+
+
+def reject_unpacked_finite(
+    finite: List[Dict[str, Any]],
+    selected: List[Dict[str, Any]],
+    rejected: List[Dict[str, Any]],
+) -> None:
+    selected_ids = {x["contractId"] for x in selected}
+    rejected_ids = {x["contractId"] for x in rejected}
+    for c in finite:
+        if c["contractId"] in selected_ids or c["contractId"] in rejected_ids:
+            continue
+        rejected.append(
+            rejection_entry(
+                c,
+                REJECT_TIME,
+                "lower rank after time packing",
+                0,
+                c.get("_learningAdjusted", False),
+            )
+        )
+
+
 def pack_time(
     finite: List[Dict[str, Any]], open_ended: List[Dict[str, Any]], budget: int
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int]:
     selected: List[Dict[str, Any]] = []
     rejected: List[Dict[str, Any]] = []
     remaining = budget
-    open_added = False
+    exhausted = False
 
     for c in finite:
-        effort = int(c.get("effortMinutes", 0))
-        tf = time_fit_score(effort, remaining, "finite")
-        if tf == 0 and effort > 0:
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_TIME,
-                    "detail": "needs %d min, %d remain" % (effort, remaining),
-                    "scoring": visible_scoring(c, remaining, c.get("_learningAdjusted", False)),
-                }
-            )
-            continue
-        slice_min = min(effort, remaining) if effort > 0 else 0
-        if effort > remaining and effort > 0:
-            nc = deepcopy(c)
-            nc["effortMinutes"] = remaining
-            nc["_partial"] = True
-            selected.append(nc)
-            remaining = 0
+        if exhausted:
             break
-        selected.append(c)
-        remaining -= max(effort, 0)
-        if remaining <= 0:
-            break
+        remaining, exhausted = pack_finite_candidate(c, remaining, selected, rejected)
 
-    if remaining >= OPEN_ENDED_MIN_MINUTES and open_ended and not open_added:
-        ranked = sorted(open_ended, key=lambda x: scoring_tuple(x, remaining))
-        pick = ranked[0]
-        selected.append(pick)
-        open_added = True
-        for x in ranked[1:]:
-            rejected.append(
-                {
-                    "contractId": x["contractId"],
-                    "title": x["title"],
-                    "reason": REJECT_TIME,
-                    "detail": "only one open-ended remainder allowed",
-                    "scoring": visible_scoring(x, remaining, x.get("_learningAdjusted", False)),
-                }
-            )
-
-    for c in finite:
-        if c["contractId"] in {x["contractId"] for x in selected}:
-            continue
-        if c["contractId"] in {x["contractId"] for x in rejected}:
-            continue
-        rejected.append(
-            {
-                "contractId": c["contractId"],
-                "title": c["title"],
-                "reason": REJECT_TIME,
-                "detail": "lower rank after time packing",
-                "scoring": visible_scoring(c, 0, c.get("_learningAdjusted", False)),
-            }
-        )
+    pack_open_ended_remainder(open_ended, remaining, selected, rejected)
+    reject_unpacked_finite(finite, selected, rejected)
     return selected, rejected, remaining
 
 
-def plan_shift(
-    discovery: Dict[str, Any],
-    hours: float,
+def candidate_rejection(
+    c: Dict[str, Any],
+    la: bool,
     selection: str,
-    launch: str,
-    guided_ids: Optional[List[str]] = None,
-    learning: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    learning = learning or {}
-    tooling = discovery.get("toolingPolicy", "existing-tools")
-    work_mode = discovery["workMode"]
-    budgets = dict(discovery.get("resourceBudgets") or {})
-    candidates = deepcopy(discovery.get("candidates") or [])
-    learning_applied = apply_learning(candidates, learning)
-
-    rejected: List[Dict[str, Any]] = []
-    eligible: List[Dict[str, Any]] = []
-
-    for c in candidates:
-        la = learning_applied and bool((learning.get("contracts") or {}).get(c["contractId"]))
-        c["_learningAdjusted"] = la
-        if selection == "guided":
-            if guided_ids is None or c["contractId"] not in guided_ids:
-                rejected.append(
-                    {
-                        "contractId": c["contractId"],
-                        "title": c["title"],
-                        "reason": REJECT_POLICY,
-                        "detail": "not selected in guided mode",
-                        "scoring": visible_scoring(c, 10**9, la),
-                    }
-                )
-                continue
-        if not c.get("applicable", False):
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_INAPPLICABLE,
-                    "detail": None,
-                    "scoring": visible_scoring(c, 10**9, la),
-                }
+    guided_ids: Optional[List[str]],
+    work_mode: str,
+    learning: Dict[str, Any],
+    tooling: str,
+    budgets: Dict[str, int],
+) -> Optional[Dict[str, Any]]:
+    if selection == "guided":
+        if guided_ids is None or c["contractId"] not in guided_ids:
+            return rejection_entry(
+                c, REJECT_POLICY, "not selected in guided mode", 10**9, la
             )
-            continue
-        if c.get("repositoryOnly") and work_mode == "artifact":
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_INAPPLICABLE,
-                    "detail": "repository-only in artifact mode",
-                    "scoring": visible_scoring(c, 10**9, la),
-                }
-            )
-            continue
-        if c.get("artifactOnly") and work_mode == "repository":
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_INAPPLICABLE,
-                    "detail": "artifact-only in repository mode",
-                    "scoring": visible_scoring(c, 10**9, la),
-                }
-            )
-            continue
-        if is_suppressed(c, learning):
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_LEARNING,
-                    "detail": "suppressed by prior outcomes",
-                    "scoring": visible_scoring(c, 10**9, la),
-                }
-            )
-            continue
-        ok, cap_reason = capability_allowed(c, tooling)
-        if not ok:
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_CAPABILITY,
-                    "detail": cap_reason,
-                    "scoring": visible_scoring(c, 10**9, la),
-                }
-            )
-            continue
-        over = budget_exceeded(c, budgets)
-        if over:
-            rejected.append(
-                {
-                    "contractId": c["contractId"],
-                    "title": c["title"],
-                    "reason": REJECT_BUDGET,
-                    "detail": "exceeds budget %s" % over,
-                    "scoring": visible_scoring(c, 10**9, la),
-                }
-            )
-            continue
-        eligible.append(c)
+    if not c.get("applicable", False):
+        return rejection_entry(c, REJECT_INAPPLICABLE, None, 10**9, la)
+    if c.get("repositoryOnly") and work_mode == "artifact":
+        return rejection_entry(
+            c, REJECT_INAPPLICABLE, "repository-only in artifact mode", 10**9, la
+        )
+    if c.get("artifactOnly") and work_mode == "repository":
+        return rejection_entry(
+            c, REJECT_INAPPLICABLE, "artifact-only in repository mode", 10**9, la
+        )
+    if is_suppressed(c, learning):
+        return rejection_entry(
+            c, REJECT_LEARNING, "suppressed by prior outcomes", 10**9, la
+        )
+    ok, cap_reason = capability_allowed(c, tooling)
+    if not ok:
+        return rejection_entry(c, REJECT_CAPABILITY, cap_reason, 10**9, la)
+    over = budget_exceeded(c, budgets)
+    if over:
+        return rejection_entry(
+            c, REJECT_BUDGET, "exceeds budget %s" % over, 10**9, la
+        )
+    return None
 
-    eligible, overlaps_removed, overlap_rejected = remove_overlaps(
-        eligible, discovery.get("overlaps") or []
-    )
-    rejected.extend(overlap_rejected)
 
-    reserve = verification_reserve_minutes(hours)
-    work_budget = max(0, int(hours * 60) - reserve)
-
-    finite = sorted(
-        [c for c in eligible if c["ending"] == "finite"],
-        key=lambda x: scoring_tuple(x, work_budget),
-    )
-    open_ended = sorted(
-        [c for c in eligible if c["ending"] == "open-ended"],
-        key=lambda x: scoring_tuple(x, work_budget),
-    )
-
-    if selection == "automatic":
-        packed, time_rejected, _rem = pack_time(finite, open_ended, work_budget)
-        rejected.extend(time_rejected)
-    else:
-        packed = topo_sort(finite + open_ended)
-
-    packed = topo_sort(packed)
-    packed, clusters = cluster_items(packed)
-
+def build_ordered_items(
+    packed: List[Dict[str, Any]], work_budget: int
+) -> Tuple[List[Dict[str, Any]], int, List[str], List[str]]:
     ordered: List[Dict[str, Any]] = []
     estimate_total = 0
     all_risks: List[str] = []
@@ -502,6 +498,66 @@ def plan_shift(
         ordered.append(item)
         all_risks.extend(item["risks"])
         unsupported.extend(c.get("unsupportedSurfaces") or [])
+
+    return ordered, estimate_total, all_risks, unsupported
+
+
+def plan_shift(
+    discovery: Dict[str, Any],
+    hours: float,
+    selection: str,
+    launch: str,
+    guided_ids: Optional[List[str]] = None,
+    learning: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    learning = learning or {}
+    tooling = discovery.get("toolingPolicy", "existing-tools")
+    work_mode = discovery["workMode"]
+    budgets = dict(discovery.get("resourceBudgets") or {})
+    candidates = deepcopy(discovery.get("candidates") or [])
+    learning_applied = apply_learning(candidates, learning)
+
+    rejected: List[Dict[str, Any]] = []
+    eligible: List[Dict[str, Any]] = []
+
+    for c in candidates:
+        la = learning_applied and bool((learning.get("contracts") or {}).get(c["contractId"]))
+        c["_learningAdjusted"] = la
+        rejection = candidate_rejection(
+            c, la, selection, guided_ids, work_mode, learning, tooling, budgets
+        )
+        if rejection is not None:
+            rejected.append(rejection)
+            continue
+        eligible.append(c)
+
+    eligible, overlaps_removed, overlap_rejected = remove_overlaps(
+        eligible, discovery.get("overlaps") or []
+    )
+    rejected.extend(overlap_rejected)
+
+    reserve = verification_reserve_minutes(hours)
+    work_budget = max(0, int(hours * 60) - reserve)
+
+    finite = sorted(
+        [c for c in eligible if c["ending"] == "finite"],
+        key=lambda x: scoring_tuple(x, work_budget),
+    )
+    open_ended = sorted(
+        [c for c in eligible if c["ending"] == "open-ended"],
+        key=lambda x: scoring_tuple(x, work_budget),
+    )
+
+    if selection == "automatic":
+        packed, time_rejected, _rem = pack_time(finite, open_ended, work_budget)
+        rejected.extend(time_rejected)
+    else:
+        packed = topo_sort(finite + open_ended)
+
+    packed = topo_sort(packed)
+    packed, clusters = cluster_items(packed)
+
+    ordered, estimate_total, all_risks, unsupported = build_ordered_items(packed, work_budget)
 
     stopping = (
         "finite entries complete in order; at most one open-ended remainder uses leftover time; "

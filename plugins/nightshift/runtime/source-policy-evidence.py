@@ -7,9 +7,11 @@ import json
 import re
 import sys
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlparse
 
+
+FILE_PREFIX = "file:"
 
 INJECTION_PATTERNS = [
     re.compile(r"(?i)ignore (all )?(previous|prior) instructions"),
@@ -20,7 +22,7 @@ INJECTION_PATTERNS = [
 ]
 SECRET_PATTERNS = [
     re.compile(r"(?i)(password|api[_-]?key|secret|token)\s*=\s*\S+"),
-    re.compile(r"https?://[^/\s]+:[^@\s]+@"),
+    re.compile(r"https?://[^\s/:]+:[^\s@]+@"),
 ]
 
 
@@ -29,7 +31,7 @@ def utc_now() -> str:
 
 
 def domain_of(locator: str) -> Optional[str]:
-    if locator.startswith("file:"):
+    if locator.startswith(FILE_PREFIX):
         return None
     try:
         return urlparse(locator).netloc.lower()
@@ -37,57 +39,94 @@ def domain_of(locator: str) -> Optional[str]:
         return None
 
 
+def _resolve_closed_list(
+    sources: List[str],
+    spec: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    allowed: List[Dict[str, Any]] = []
+    blocked: List[Dict[str, Any]] = []
+    approved: Set[str] = set(spec.get("approvedSources") or sources)
+    for loc in sources:
+        if loc in approved:
+            allowed.append({"locator": loc, "reason": "owner-listed"})
+        else:
+            blocked.append({"locator": loc, "reason": "not-on-closed-list"})
+    return allowed, blocked
+
+
+def _resolve_bounded_discovery(
+    sources: List[str],
+    spec: Dict[str, Any],
+    bounds: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    allowed: List[Dict[str, Any]] = []
+    blocked: List[Dict[str, Any]] = []
+    domains = {d.lower() for d in (bounds.get("allowedDomains") or [])}
+    classes = set(bounds.get("allowedClasses") or ["primary"])
+    max_sources = int(bounds.get("maxSources") or 20)
+    scoped_allowed: List[tuple[str, str]] = []
+
+    for loc in sources:
+        dom = domain_of(loc)
+        src_class = spec.get("sourceClassByLocator", {}).get(loc, "primary")
+        if loc.startswith(FILE_PREFIX):
+            scoped_allowed.append((loc, "local-file-in-bounds"))
+        elif dom and dom in domains and src_class in classes:
+            scoped_allowed.append((loc, "domain-and-class-allowed"))
+        else:
+            blocked.append({"locator": loc, "reason": "outside-bounded-scope"})
+
+    for i, (loc, reason) in enumerate(scoped_allowed):
+        if i < max_sources:
+            allowed.append({"locator": loc, "reason": reason})
+        else:
+            blocked.append({"locator": loc, "reason": "query-budget-exceeded"})
+
+    return allowed, blocked
+
+
+def _resolve_connected_corpus(
+    sources: List[str],
+    bounds: Dict[str, Any],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    allowed: List[Dict[str, Any]] = []
+    blocked: List[Dict[str, Any]] = []
+    corpus_root = bounds.get("corpusRoot") or ""
+    export_only = bool(bounds.get("exportOnly", True))
+
+    for loc in sources:
+        if corpus_root and loc.startswith(f"{FILE_PREFIX}{corpus_root}"):
+            allowed.append({"locator": loc, "reason": "corpus-export"})
+        elif loc.startswith(FILE_PREFIX) and not export_only:
+            allowed.append({"locator": loc, "reason": "connected-local"})
+        else:
+            blocked.append(
+                {
+                    "locator": loc,
+                    "reason": (
+                        "direct-connector-out-of-scope"
+                        if not loc.startswith(FILE_PREFIX)
+                        else "outside-corpus"
+                    ),
+                }
+            )
+
+    return allowed, blocked
+
+
 def policy_resolve(spec: Dict[str, Any]) -> Dict[str, Any]:
     policy = spec.get("policy") or "closed-list"
     sources: List[str] = list(spec.get("sources") or [])
     bounds = spec.get("bounds") or {}
-    allowed: List[Dict[str, Any]] = []
-    blocked: List[Dict[str, Any]] = []
 
     if policy == "closed-list":
-        approved: Set[str] = set(spec.get("approvedSources") or sources)
-        for loc in sources:
-            if loc in approved:
-                allowed.append({"locator": loc, "reason": "owner-listed"})
-            else:
-                blocked.append({"locator": loc, "reason": "not-on-closed-list"})
-
+        allowed, blocked = _resolve_closed_list(sources, spec)
     elif policy == "bounded-discovery":
-        domains = {d.lower() for d in (bounds.get("allowedDomains") or [])}
-        classes = set(bounds.get("allowedClasses") or ["primary"])
-        max_sources = int(bounds.get("maxSources") or 20)
-        scoped_allowed: List[tuple[str, str]] = []
-        for loc in sources:
-            dom = domain_of(loc)
-            src_class = spec.get("sourceClassByLocator", {}).get(loc, "primary")
-            if loc.startswith("file:"):
-                scoped_allowed.append((loc, "local-file-in-bounds"))
-            elif dom and dom in domains and src_class in classes:
-                scoped_allowed.append((loc, "domain-and-class-allowed"))
-            else:
-                blocked.append({"locator": loc, "reason": "outside-bounded-scope"})
-        for i, (loc, reason) in enumerate(scoped_allowed):
-            if i < max_sources:
-                allowed.append({"locator": loc, "reason": reason})
-            else:
-                blocked.append({"locator": loc, "reason": "query-budget-exceeded"})
-
+        allowed, blocked = _resolve_bounded_discovery(sources, spec, bounds)
     elif policy == "connected-corpus":
-        corpus_root = bounds.get("corpusRoot") or ""
-        export_only = bool(bounds.get("exportOnly", True))
-        for loc in sources:
-            if loc.startswith("file:") and corpus_root and loc.startswith(f"file:{corpus_root}"):
-                allowed.append({"locator": loc, "reason": "corpus-export"})
-            elif loc.startswith("file:") and not export_only:
-                allowed.append({"locator": loc, "reason": "connected-local"})
-            else:
-                blocked.append(
-                    {
-                        "locator": loc,
-                        "reason": "direct-connector-out-of-scope" if not loc.startswith("file:") else "outside-corpus",
-                    }
-                )
+        allowed, blocked = _resolve_connected_corpus(sources, bounds)
     else:
+        allowed = []
         blocked = [{"locator": loc, "reason": "unknown-policy"} for loc in sources]
 
     return {

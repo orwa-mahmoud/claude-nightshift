@@ -49,26 +49,35 @@ MAINTAINER_PRESET = [
     },
 ]
 
+SPECIALIST_REQUIREMENTS: Dict[str, List[str]] = {
+    "slo-alert-quality": ["sloDefinition", "alertHistory", "telemetryScope"],
+    "backup-restore": ["namedData", "recoveryObjective", "disposableEnvironment"],
+    "capacity-load": ["safeEnvironment", "loadBudget", "ownerAuthority"],
+    "license-compliance": ["licenseInventory", "declaredLegalPolicy"],
+    "support-feedback": ["feedbackExport", "piiPolicy", "sourceLimits"],
+    "product-analytics": ["ownerQuestion", "exportScope"],
+    "competitive-landscape": ["namedSources"],
+    "architecture-health": ["repositoryStructure"],
+    "data-quality": ["domainRules"],
+    "supply-chain": ["repositoryTools"],
+    "content-architecture": ["documentationTree"],
+    "maintainer-health": ["repositoryStructure"],
+}
+
+AUTHORITY_GATED = frozenset(
+    {"slo-alert-quality", "backup-restore", "capacity-load", "license-compliance", "support-feedback"}
+)
+EVIDENCE_PRESENT = "evidence present"
+
 
 def _unavailable(rows: List[Dict[str, Any]], surface: str, reason: str) -> None:
     rows.append({"surface": surface, "status": "unavailable", "reason": reason})
 
 
-def journey_map(raw: Dict[str, Any]) -> Dict[str, Any]:
-    persona = (raw.get("persona") or "").strip()
-    goal = (raw.get("goal") or "").strip()
-    starting = (raw.get("startingState") or "").strip()
-    steps = list(raw.get("steps") or [])
-    mode = (raw.get("evidenceMode") or "journey").strip()
-    browser = raw.get("browserEvidence") or {}
-    browser_available = bool(browser.get("available"))
-    surfaces = list(browser.get("surfaces") or [])
-    responsive = list(raw.get("responsiveTargets") or [])
-    keyboard = list(raw.get("keyboardObservations") or [])
-
+def _journey_required_blockers(
+    persona: str, goal: str, starting: str, steps: List[Any]
+) -> List[Dict[str, Any]]:
     blockers: List[Dict[str, Any]] = []
-    unavailable: List[Dict[str, Any]] = []
-
     if not persona:
         blockers.append({"category": "persona", "summary": "missing persona", "action": "park"})
     if not goal:
@@ -77,7 +86,17 @@ def journey_map(raw: Dict[str, Any]) -> Dict[str, Any]:
         blockers.append({"category": "starting-state", "summary": "missing starting state", "action": "park"})
     if not steps:
         blockers.append({"category": "steps", "summary": "missing journey steps", "action": "park"})
+    return blockers
 
+
+def _journey_mode_blockers(
+    mode: str,
+    steps: List[Any],
+    browser_available: bool,
+    keyboard: List[Any],
+    unavailable: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    blockers: List[Dict[str, Any]] = []
     if mode not in JOURNEY_MODES:
         blockers.append(
             {
@@ -119,20 +138,39 @@ def journey_map(raw: Dict[str, Any]) -> Dict[str, Any]:
                 }
             )
 
-    mapped_steps: List[Dict[str, Any]] = []
-    for idx, step in enumerate(steps):
-        mapped_steps.append(
-            {
-                "index": idx,
-                "action": step.get("action") or "",
-                "expectedState": step.get("expectedState") or "",
-                "errorState": step.get("errorState"),
-                "recoveryState": step.get("recoveryState"),
-                "expectsError": bool(step.get("expectsError")),
-                "responsiveNote": step.get("responsiveNote"),
-                "keyboardNote": step.get("keyboardNote"),
-            }
-        )
+    return blockers
+
+
+def _map_journey_step(idx: int, step: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "index": idx,
+        "action": step.get("action") or "",
+        "expectedState": step.get("expectedState") or "",
+        "errorState": step.get("errorState"),
+        "recoveryState": step.get("recoveryState"),
+        "expectsError": bool(step.get("expectsError")),
+        "responsiveNote": step.get("responsiveNote"),
+        "keyboardNote": step.get("keyboardNote"),
+    }
+
+
+def journey_map(raw: Dict[str, Any]) -> Dict[str, Any]:
+    persona = (raw.get("persona") or "").strip()
+    goal = (raw.get("goal") or "").strip()
+    starting = (raw.get("startingState") or "").strip()
+    steps = list(raw.get("steps") or [])
+    mode = (raw.get("evidenceMode") or "journey").strip()
+    browser = raw.get("browserEvidence") or {}
+    browser_available = bool(browser.get("available"))
+    surfaces = list(browser.get("surfaces") or [])
+    responsive = list(raw.get("responsiveTargets") or [])
+    keyboard = list(raw.get("keyboardObservations") or [])
+
+    unavailable: List[Dict[str, Any]] = []
+    blockers = _journey_required_blockers(persona, goal, starting, steps)
+    blockers.extend(_journey_mode_blockers(mode, steps, browser_available, keyboard, unavailable))
+
+    mapped_steps = [_map_journey_step(idx, step) for idx, step in enumerate(steps)]
 
     for target in responsive:
         if not browser_available:
@@ -158,6 +196,14 @@ def journey_map(raw: Dict[str, Any]) -> Dict[str, Any]:
         "platformClaimAllowed": browser_available,
         "humanReviewRequired": mode == "accessibility-journey" or bool(keyboard),
     }
+
+
+def _journey_gap_ending(gaps: List[Any], actionable: List[Any]) -> str:
+    if gaps and not actionable:
+        return "complete"
+    if actionable:
+        return "work-remaining"
+    return "no-gaps"
 
 
 def journey_gap(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -189,7 +235,7 @@ def journey_gap(raw: Dict[str, Any]) -> Dict[str, Any]:
         "gaps": gaps,
         "actionableCount": len(actionable),
         "wholeProductCertificationAllowed": False,
-        "ending": "complete" if gaps and not actionable else "work-remaining" if actionable else "no-gaps",
+        "ending": _journey_gap_ending(gaps, actionable),
     }
 
 
@@ -224,6 +270,50 @@ def _has_evidence(evidence: Dict[str, Any], *keys: str) -> bool:
     return all(bool(evidence.get(k)) for k in keys)
 
 
+def _gate_authority_controlled(
+    present: bool,
+    missing: List[str],
+    selection: str,
+    authority: bool,
+) -> tuple[bool, bool, str]:
+    if not present:
+        return False, False, "missing required evidence: %s" % ", ".join(missing)
+    automatic_allowed = present and authority
+    if selection == "automatic" and not automatic_allowed:
+        return False, False, "automatic selection requires explicit evidence and owner authority"
+    return True, automatic_allowed, EVIDENCE_PRESENT
+
+
+def _gate_named_kind(kind: str, present: bool, _missing: List[str]) -> Optional[tuple[bool, bool, str]]:
+    if kind == "product-analytics":
+        reason = EVIDENCE_PRESENT if present else "product analytics requires owner question and supplied export scope"
+        return present, False, reason
+    if kind == "competitive-landscape":
+        reason = EVIDENCE_PRESENT if present else "competitive landscape requires named research sources"
+        return present, False, reason
+    if kind == "license-compliance":
+        return present, False, "license work inventories evidence but never gives legal conclusions"
+    return None
+
+
+def _specialist_gate_selection(
+    kind: str,
+    present: bool,
+    missing: List[str],
+    selection: str,
+    authority: bool,
+) -> tuple[bool, bool, str]:
+    if kind in AUTHORITY_GATED:
+        return _gate_authority_controlled(present, missing, selection, authority)
+    named = _gate_named_kind(kind, present, missing)
+    if named is not None:
+        return named
+    selectable = present
+    automatic_allowed = present and selection != "automatic"
+    reason = EVIDENCE_PRESENT if present else "missing required evidence: %s" % ", ".join(missing)
+    return selectable, automatic_allowed, reason
+
+
 def specialist_gate(raw: Dict[str, Any]) -> Dict[str, Any]:
     kind = (raw.get("specialistKind") or "").strip()
     selection = (raw.get("selectionMode") or "guided").lower()
@@ -241,56 +331,13 @@ def specialist_gate(raw: Dict[str, Any]) -> Dict[str, Any]:
             "humanDecisionSurface": True,
         }
 
-    requirements: Dict[str, List[str]] = {
-        "slo-alert-quality": ["sloDefinition", "alertHistory", "telemetryScope"],
-        "backup-restore": ["namedData", "recoveryObjective", "disposableEnvironment"],
-        "capacity-load": ["safeEnvironment", "loadBudget", "ownerAuthority"],
-        "license-compliance": ["licenseInventory", "declaredLegalPolicy"],
-        "support-feedback": ["feedbackExport", "piiPolicy", "sourceLimits"],
-        "product-analytics": ["ownerQuestion", "exportScope"],
-        "competitive-landscape": ["namedSources"],
-        "architecture-health": ["repositoryStructure"],
-        "data-quality": ["domainRules"],
-        "supply-chain": ["repositoryTools"],
-        "content-architecture": ["documentationTree"],
-        "maintainer-health": ["repositoryStructure"],
-    }
-
-    required = requirements.get(kind, [])
+    required = SPECIALIST_REQUIREMENTS.get(kind, [])
     missing = [k for k in required if not evidence.get(k)]
     present = _has_evidence(evidence, *required) if required else True
 
-    automatic_allowed = False
-    selectable = present
-    reason = "evidence present"
-
-    if kind in ("slo-alert-quality", "backup-restore", "capacity-load", "license-compliance", "support-feedback"):
-        if not present:
-            selectable = False
-            reason = "missing required evidence: %s" % ", ".join(missing)
-        automatic_allowed = present and authority
-        if selection == "automatic" and not automatic_allowed:
-            selectable = False
-            reason = "automatic selection requires explicit evidence and owner authority"
-    elif kind == "product-analytics":
-        selectable = present
-        automatic_allowed = False
-        if not present:
-            reason = "product analytics requires owner question and supplied export scope"
-    elif kind == "competitive-landscape":
-        selectable = present
-        automatic_allowed = False
-        if not present:
-            reason = "competitive landscape requires named research sources"
-    elif kind == "license-compliance":
-        selectable = present
-        automatic_allowed = False
-        reason = "license work inventories evidence but never gives legal conclusions"
-    else:
-        selectable = present
-        automatic_allowed = present and selection != "automatic"
-        if not present:
-            reason = "missing required evidence: %s" % ", ".join(missing)
+    selectable, automatic_allowed, reason = _specialist_gate_selection(
+        kind, present, missing, selection, authority
+    )
 
     return {
         "schemaVersion": SCHEMA_VERSION,

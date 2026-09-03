@@ -6,7 +6,7 @@ import argparse
 import json
 import statistics
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 SCHEMA_VERSION = 1
@@ -35,29 +35,19 @@ def _distribution(samples: List[float]) -> Dict[str, Any]:
     }
 
 
-def perf_compare(raw: Dict[str, Any]) -> Dict[str, Any]:
-    baseline_ref = raw.get("baselineRef")
-    baseline_present = bool(raw.get("baselinePresent"))
-    source = raw.get("source")
-    env = raw.get("environment") or {}
-    baseline = raw.get("baseline") or {}
-    candidate = raw.get("candidate") or {}
-    correctness = raw.get("correctness") or {}
-
-    b_samples = list(baseline.get("samples") or [])
-    c_samples = list(candidate.get("samples") or [])
-    same_source = (
-        baseline.get("sourceId") is not None
-        and baseline.get("sourceId") == candidate.get("sourceId")
-    )
-
-    faster_claim_allowed = False
-    regression_claim_allowed = False
-    verdict = "unmeasured"
-    action = "park"
+def _perf_compare_reasons(
+    raw: Dict[str, Any],
+    baseline: Dict[str, Any],
+    candidate: Dict[str, Any],
+    b_samples: List[Any],
+    c_samples: List[Any],
+    same_source: bool,
+    source: Any,
+    env: Dict[str, Any],
+    correctness: Dict[str, Any],
+) -> List[str]:
     reasons: List[str] = []
-
-    if not baseline_ref or not baseline_present:
+    if not raw.get("baselineRef") or not raw.get("baselinePresent"):
         reasons.append("missing-baseline")
     if source not in PERF_SOURCES:
         reasons.append("unsupported-measurement-source")
@@ -71,6 +61,18 @@ def perf_compare(raw: Dict[str, Any]) -> Dict[str, Any]:
         reasons.append("source-mismatch")
     if correctness.get("baseline") == "pass" and correctness.get("candidate") != "pass":
         reasons.append("correctness-regression")
+    return reasons
+
+
+def _perf_compare_outcome(
+    b_samples: List[Any],
+    c_samples: List[Any],
+    reasons: List[str],
+) -> Tuple[str, bool, bool, str]:
+    verdict = "unmeasured"
+    action = "park"
+    faster_claim_allowed = False
+    regression_claim_allowed = False
 
     if not reasons and b_samples and c_samples:
         b_dist = _distribution(b_samples)
@@ -91,6 +93,32 @@ def perf_compare(raw: Dict[str, Any]) -> Dict[str, Any]:
     elif "missing-baseline" in reasons:
         verdict = "unmeasured"
         action = "park"
+
+    return verdict, faster_claim_allowed, regression_claim_allowed, action
+
+
+def perf_compare(raw: Dict[str, Any]) -> Dict[str, Any]:
+    baseline_ref = raw.get("baselineRef")
+    baseline_present = bool(raw.get("baselinePresent"))
+    source = raw.get("source")
+    env = raw.get("environment") or {}
+    baseline = raw.get("baseline") or {}
+    candidate = raw.get("candidate") or {}
+    correctness = raw.get("correctness") or {}
+
+    b_samples = list(baseline.get("samples") or [])
+    c_samples = list(candidate.get("samples") or [])
+    same_source = (
+        baseline.get("sourceId") is not None
+        and baseline.get("sourceId") == candidate.get("sourceId")
+    )
+
+    reasons = _perf_compare_reasons(
+        raw, baseline, candidate, b_samples, c_samples, same_source, source, env, correctness
+    )
+    verdict, faster_claim_allowed, regression_claim_allowed, action = _perf_compare_outcome(
+        b_samples, c_samples, reasons
+    )
 
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -113,6 +141,38 @@ def perf_compare(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _route_incident_action(act: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+    target = act.get("target") or "owner"
+    entry = {
+        "id": act.get("id"),
+        "summary": act.get("summary"),
+        "verified": bool(act.get("verified")),
+        "action": act.get("action") or "park",
+    }
+    if target == "repository" and act.get("verified"):
+        return "repository", entry
+    if target == "repository":
+        return "owner", {**entry, "reason": "needs-verification"}
+    if target == "system":
+        return "system", {**entry, "status": "open"}
+    return "owner", entry
+
+
+def _partition_incident_actions(actions: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    repository: List[Dict[str, Any]] = []
+    owner: List[Dict[str, Any]] = []
+    system: List[Dict[str, Any]] = []
+    for act in actions:
+        bucket, entry = _route_incident_action(act)
+        if bucket == "repository":
+            repository.append(entry)
+        elif bucket == "system":
+            system.append(entry)
+        else:
+            owner.append(entry)
+    return repository, owner, system
+
+
 def incident_actions(raw: Dict[str, Any]) -> Dict[str, Any]:
     supplied = set(raw.get("suppliedEvidence") or [])
     invented = not supplied or bool(raw.get("inventedNarrative"))
@@ -123,26 +183,7 @@ def incident_actions(raw: Dict[str, Any]) -> Dict[str, Any]:
     factors = raw.get("factors") or {}
     actions = list(raw.get("proposedActions") or [])
 
-    repository: List[Dict[str, Any]] = []
-    owner: List[Dict[str, Any]] = []
-    system: List[Dict[str, Any]] = []
-
-    for act in actions:
-        target = act.get("target") or "owner"
-        entry = {
-            "id": act.get("id"),
-            "summary": act.get("summary"),
-            "verified": bool(act.get("verified")),
-            "action": act.get("action") or "park",
-        }
-        if target == "repository" and act.get("verified"):
-            repository.append(entry)
-        elif target == "repository" and not act.get("verified"):
-            owner.append({**entry, "reason": "needs-verification"})
-        elif target == "system":
-            system.append({**entry, "status": "open"})
-        else:
-            owner.append(entry)
+    repository, owner, system = _partition_incident_actions(actions)
 
     return {
         "schemaVersion": SCHEMA_VERSION,
@@ -166,6 +207,29 @@ def incident_actions(raw: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _classify_runbook_step(
+    step: Dict[str, Any],
+    environment: Dict[str, Any],
+    safe_env: bool,
+) -> Tuple[str, Dict[str, Any]]:
+    name = step.get("name") or step.get("id")
+    env_req = step.get("environment") or environment.get("name")
+    destructive = bool(step.get("destructive")) or any(
+        m in (step.get("command") or "").lower() for m in DESTRUCTIVE_STEP_MARKERS
+    )
+    entry = {"name": name, "environment": env_req, "evidence": step.get("evidence") or []}
+
+    if env_req == "production" and not step.get("ownerApproved"):
+        return "production_only", {**entry, "action": "park"}
+    if destructive and not step.get("ownerApproved"):
+        return "refused", {**entry, "reason": "destructive-emergency-step", "action": "refuse"}
+    if not safe_env and env_req not in ("local", "disposable", "staging-approved"):
+        return "refused", {**entry, "reason": "unsafe-environment", "action": "refuse"}
+    if step.get("evidence"):
+        return "verified", {**entry, "action": "verify"}
+    return "refused", {**entry, "reason": "missing-step-evidence", "action": "park"}
+
+
 def runbook_verify(raw: Dict[str, Any]) -> Dict[str, Any]:
     procedure = (raw.get("procedureName") or "").strip()
     environment = raw.get("environment") or {}
@@ -177,22 +241,13 @@ def runbook_verify(raw: Dict[str, Any]) -> Dict[str, Any]:
     production_only: List[Dict[str, Any]] = []
 
     for step in steps:
-        name = step.get("name") or step.get("id")
-        env_req = step.get("environment") or environment.get("name")
-        destructive = bool(step.get("destructive")) or any(
-            m in (step.get("command") or "").lower() for m in DESTRUCTIVE_STEP_MARKERS
-        )
-        entry = {"name": name, "environment": env_req, "evidence": step.get("evidence") or []}
-        if env_req == "production" and not step.get("ownerApproved"):
-            production_only.append({**entry, "action": "park"})
-        elif destructive and not step.get("ownerApproved"):
-            refused.append({**entry, "reason": "destructive-emergency-step", "action": "refuse"})
-        elif not safe_env and env_req not in ("local", "disposable", "staging-approved"):
-            refused.append({**entry, "reason": "unsafe-environment", "action": "refuse"})
-        elif step.get("evidence"):
-            verified.append({**entry, "action": "verify"})
+        bucket, entry = _classify_runbook_step(step, environment, safe_env)
+        if bucket == "verified":
+            verified.append(entry)
+        elif bucket == "production_only":
+            production_only.append(entry)
         else:
-            refused.append({**entry, "reason": "missing-step-evidence", "action": "park"})
+            refused.append(entry)
 
     return {
         "schemaVersion": SCHEMA_VERSION,

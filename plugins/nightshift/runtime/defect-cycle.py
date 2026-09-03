@@ -86,7 +86,7 @@ def next_lens(doc: Dict[str, Any]) -> Dict[str, Any]:
     return doc
 
 
-def record_finding(doc: Dict[str, Any], finding: Dict[str, Any]) -> Dict[str, Any]:
+def validate_finding_input(finding: Dict[str, Any]) -> None:
     fid = finding.get("id")
     if not fid:
         print("defect-cycle: finding id required", file=sys.stderr)
@@ -97,6 +97,22 @@ def record_finding(doc: Dict[str, Any], finding: Dict[str, Any]) -> Dict[str, An
     if finding.get("evidenceKind") == "observed" and not finding.get("strongPath"):
         print("defect-cycle: observed findings require strongPath evidence", file=sys.stderr)
         raise SystemExit(1)
+
+
+def append_duplicate_finding(
+    doc: Dict[str, Any], finding: Dict[str, Any], existing_id: str
+) -> Dict[str, Any]:
+    finding["status"] = "duplicate"
+    finding["duplicateOf"] = existing_id
+    finding.setdefault("lens", doc.get("currentLens"))
+    finding["cycle"] = doc.get("cycle")
+    doc.setdefault("findings", []).append(finding)
+    return doc
+
+
+def record_finding(doc: Dict[str, Any], finding: Dict[str, Any]) -> Dict[str, Any]:
+    validate_finding_input(finding)
+    fid = finding.get("id")
     for existing in doc.get("findings") or []:
         if existing.get("id") == fid:
             print("defect-cycle: duplicate finding id", file=sys.stderr)
@@ -106,14 +122,9 @@ def record_finding(doc: Dict[str, Any], finding: Dict[str, Any]) -> Dict[str, An
             and existing.get("summary") == finding.get("summary")
             and existing.get("status") not in ("rejected", "duplicate")
         ):
-            finding["status"] = "duplicate"
-            finding["duplicateOf"] = existing.get("id")
-            finding.setdefault("lens", doc.get("currentLens"))
-            finding["cycle"] = doc.get("cycle")
-            doc.setdefault("findings", []).append(finding)
-            return doc
+            return append_duplicate_finding(doc, finding, existing.get("id"))
     surface = surface_key(finding)
-    if surface in doc.get("exploredSurfaces") or []:
+    if surface in (doc.get("exploredSurfaces") or []):
         print("defect-cycle: surface already explored this shift", file=sys.stderr)
         raise SystemExit(1)
     finding.setdefault("lens", doc.get("currentLens"))

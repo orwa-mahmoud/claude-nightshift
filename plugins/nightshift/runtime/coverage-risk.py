@@ -39,6 +39,9 @@ FLOW_CATEGORY = {
     "transform": "transformation",
 }
 
+CLUSTER_ID_FMT = "cluster-%03d"
+NPM_TEST_SUITE = "npm test -- %s"
+
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -71,10 +74,137 @@ def cluster_from_flow(flow: Dict[str, Any], pkg: str, cov_pct: Optional[float], 
         "evidence": evidence,
         "redStatePossible": bool(flow.get("redStatePossible", True)),
         "redStateNote": flow.get("redStateNote"),
-        "containingSuites": flow.get("containingSuites") or ["npm test -- %s" % pkg],
+        "containingSuites": flow.get("containingSuites") or [NPM_TEST_SUITE % pkg],
         "coveragePct": cov_pct,
         "misleadingCoverage": False,
     }
+
+
+def flow_evidence(flow, path, changed, bug_paths, pct):
+    evidence = []
+    if flow.get("critical"):
+        evidence.append("critical flow")
+    if path in changed:
+        evidence.append("recent change")
+    if path in bug_paths:
+        evidence.append("local bug history")
+    if pct is not None:
+        evidence.append("line coverage %.0f%%" % pct)
+    if flow.get("publicExport"):
+        evidence.append("public export %s" % flow["publicExport"])
+    return evidence
+
+
+def clusters_from_flows(manifest, coverage_by_path, changed, bug_paths):
+    clusters = []
+    n = 0
+    for flow in manifest.get("flows") or []:
+        path = flow.get("path") or "."
+        cov = coverage_by_path.get(path) or {}
+        pct = None
+        if cov.get("lines") and isinstance(cov["lines"], dict):
+            pct = cov["lines"].get("pct")
+        evidence = flow_evidence(flow, path, changed, bug_paths, pct)
+        n += 1
+        c = cluster_from_flow(flow, path.rsplit("/", 1)[0] or ".", pct, evidence)
+        c["id"] = CLUSTER_ID_FMT % n
+        clusters.append(c)
+    return clusters, n
+
+
+def export_cluster(n, pkg_path, export):
+    return {
+                    "id": CLUSTER_ID_FMT % n,
+        "riskCategory": "public-api",
+        "behaviorProtected": "exported %s contract stays stable under change" % export,
+        "regressionCaught": "breaking change to public export %s" % export,
+        "testLevel": "unit",
+        "locator": "%s:%s" % (pkg_path, export),
+        "evidence": ["public export", "uncovered surface"],
+        "priority": 0,
+        "redStatePossible": True,
+        "redStateNote": None,
+                    "containingSuites": [NPM_TEST_SUITE % pkg_path],
+        "coveragePct": None,
+        "misleadingCoverage": False,
+    }
+
+
+def clusters_from_exports(manifest, n):
+    clusters = []
+    for pkg in manifest.get("packages") or []:
+        pkg_path = pkg.get("path") or pkg.get("name") or "."
+        for export in pkg.get("publicExports") or []:
+            if any(export in (f.get("publicExport") or "") for f in manifest.get("flows") or []):
+                continue
+            n += 1
+            clusters.append(export_cluster(n, pkg_path, export))
+    return clusters, n
+
+
+def misleading_coverage_cluster(n, path, pct):
+    return {
+                    "id": CLUSTER_ID_FMT % n,
+        "riskCategory": "low-coverage",
+        "behaviorProtected": "",
+        "regressionCaught": "",
+        "testLevel": "unit",
+        "locator": path,
+        "evidence": ["high line coverage without mapped critical behavior"],
+        "priority": 99,
+        "redStatePossible": False,
+        "redStateNote": "high coverage alone does not satisfy the contract",
+        "containingSuites": [],
+        "coveragePct": pct,
+        "misleadingCoverage": True,
+    }
+
+
+def low_coverage_cluster(n, path, pct, branch_pct, changed):
+    cat = "changed-code" if path in changed else "low-coverage"
+    evidence = ["low branch/path coverage"]
+    if branch_pct is not None:
+        evidence.append("branch coverage %.0f%%" % branch_pct)
+    if path in changed:
+        evidence.append("recent change")
+    return {
+                    "id": CLUSTER_ID_FMT % n,
+        "riskCategory": cat,
+        "behaviorProtected": "untested branches on %s cannot hide regressions" % path,
+        "regressionCaught": "silent failure in rarely executed path at %s" % path,
+        "testLevel": "unit",
+        "locator": path,
+        "evidence": evidence,
+        "priority": 0,
+        "redStatePossible": True,
+        "redStateNote": None,
+                    "containingSuites": [NPM_TEST_SUITE % path.rsplit("/", 1)[0]],
+        "coveragePct": pct,
+        "misleadingCoverage": False,
+    }
+
+
+def _append_coverage_cluster(path, cov, changed, bug_paths, clusters, n):
+    pct = cov.get("lines", {}).get("pct") if isinstance(cov.get("lines"), dict) else None
+    branches = cov.get("branches", {})
+    branch_pct = branches.get("pct") if isinstance(branches, dict) else None
+    if pct is not None and pct >= 85 and path not in changed and path not in bug_paths:
+        if not any(c.get("locator") == path for c in clusters):
+            n += 1
+            clusters.append(misleading_coverage_cluster(n, path, pct))
+        return clusters, n
+    if pct is not None and pct < 60:
+        if any(c.get("locator") == path and c.get("riskCategory") != "low-coverage" for c in clusters):
+            return clusters, n
+        n += 1
+        clusters.append(low_coverage_cluster(n, path, pct, branch_pct, changed))
+    return clusters, n
+
+
+def clusters_from_coverage(coverage_by_path, changed, bug_paths, clusters, n):
+    for path, cov in coverage_by_path.items():
+        clusters, n = _append_coverage_cluster(path, cov, changed, bug_paths, clusters, n)
+    return clusters, n
 
 
 def map_risks(manifest: Dict[str, Any]) -> Dict[str, Any]:
@@ -85,109 +215,13 @@ def map_risks(manifest: Dict[str, Any]) -> Dict[str, Any]:
     }
     changed = set(manifest.get("recentChanges") or [])
     bug_paths = {b.get("path") for b in manifest.get("bugHistory") or [] if b.get("path")}
-    clusters: List[Dict[str, Any]] = []
-    unsupported: List[str] = []
-    n = 0
 
-    for flow in manifest.get("flows") or []:
-        path = flow.get("path") or "."
-        cov = coverage_by_path.get(path) or {}
-        pct = None
-        if cov.get("lines") and isinstance(cov["lines"], dict):
-            pct = cov["lines"].get("pct")
-        evidence = []
-        if flow.get("critical"):
-            evidence.append("critical flow")
-        if path in changed:
-            evidence.append("recent change")
-        if path in bug_paths:
-            evidence.append("local bug history")
-        if pct is not None:
-            evidence.append("line coverage %.0f%%" % pct)
-        if flow.get("publicExport"):
-            evidence.append("public export %s" % flow["publicExport"])
-        n += 1
-        c = cluster_from_flow(flow, path.rsplit("/", 1)[0] or ".", pct, evidence)
-        c["id"] = "cluster-%03d" % n
-        clusters.append(c)
+    clusters, n = clusters_from_flows(manifest, coverage_by_path, changed, bug_paths)
+    export_clusters, n = clusters_from_exports(manifest, n)
+    clusters.extend(export_clusters)
+    clusters, n = clusters_from_coverage(coverage_by_path, changed, bug_paths, clusters, n)
 
-    for pkg in manifest.get("packages") or []:
-        pkg_path = pkg.get("path") or pkg.get("name") or "."
-        for export in pkg.get("publicExports") or []:
-            if any(export in (f.get("publicExport") or "") for f in manifest.get("flows") or []):
-                continue
-            n += 1
-            clusters.append(
-                {
-                    "id": "cluster-%03d" % n,
-                    "riskCategory": "public-api",
-                    "behaviorProtected": "exported %s contract stays stable under change" % export,
-                    "regressionCaught": "breaking change to public export %s" % export,
-                    "testLevel": "unit",
-                    "locator": "%s:%s" % (pkg_path, export),
-                    "evidence": ["public export", "uncovered surface"],
-                    "priority": 0,
-                    "redStatePossible": True,
-                    "redStateNote": None,
-                    "containingSuites": ["npm test -- %s" % pkg_path],
-                    "coveragePct": None,
-                    "misleadingCoverage": False,
-                }
-            )
-
-    for path, cov in coverage_by_path.items():
-        pct = cov.get("lines", {}).get("pct") if isinstance(cov.get("lines"), dict) else None
-        branches = cov.get("branches", {})
-        branch_pct = branches.get("pct") if isinstance(branches, dict) else None
-        if pct is not None and pct >= 85 and path not in changed and path not in bug_paths:
-            if not any(c.get("locator") == path for c in clusters):
-                n += 1
-                clusters.append(
-                    {
-                        "id": "cluster-%03d" % n,
-                        "riskCategory": "low-coverage",
-                        "behaviorProtected": "",
-                        "regressionCaught": "",
-                        "testLevel": "unit",
-                        "locator": path,
-                        "evidence": ["high line coverage without mapped critical behavior"],
-                        "priority": 99,
-                        "redStatePossible": False,
-                        "redStateNote": "high coverage alone does not satisfy the contract",
-                        "containingSuites": [],
-                        "coveragePct": pct,
-                        "misleadingCoverage": True,
-                    }
-                )
-                continue
-        if pct is not None and pct < 60:
-            if any(c.get("locator") == path and c.get("riskCategory") != "low-coverage" for c in clusters):
-                continue
-            n += 1
-            cat = "changed-code" if path in changed else "low-coverage"
-            evidence = ["low branch/path coverage"]
-            if branch_pct is not None:
-                evidence.append("branch coverage %.0f%%" % branch_pct)
-            if path in changed:
-                evidence.append("recent change")
-            clusters.append(
-                {
-                    "id": "cluster-%03d" % n,
-                    "riskCategory": cat,
-                    "behaviorProtected": "untested branches on %s cannot hide regressions" % path,
-                    "regressionCaught": "silent failure in rarely executed path at %s" % path,
-                    "testLevel": "unit",
-                    "locator": path,
-                    "evidence": evidence,
-                    "priority": 0,
-                    "redStatePossible": True,
-                    "redStateNote": None,
-                    "containingSuites": ["npm test -- %s" % path.rsplit("/", 1)[0]],
-                    "coveragePct": pct,
-                    "misleadingCoverage": False,
-                }
-            )
-
+    unsupported = []
     if manifest.get("mutationDetected") and not mutation_allowed:
         unsupported.append("mutation/property/fuzz checks detected but not allowed by shift policy")
 
