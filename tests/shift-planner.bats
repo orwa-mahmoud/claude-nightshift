@@ -118,11 +118,16 @@ JSON
     (.orderedItems[] | select(.contractId=="documentation-drift") | .scoring.effortMinutes) == 45' >/dev/null
 }
 
-@test "Hunt and Quality skills call the planner and preview helpers" {
+@test "Hunt Automatic does not require the planner or preview helpers" {
   hunt="$ROOT/plugins/nightshift/skills/hunt/SKILL.md"
+  ! grep -qF 'runtime/shift-planner.sh' "$hunt"
+  ! grep -qF 'runtime/shift-preview.sh' "$hunt"
+  ! grep -qF 'runtime/plan-learning.sh' "$hunt"
+  grep -qF 'Do not call `shift-planner.sh`' "$hunt"
+}
+
+@test "Quality Automatic still documents planner helpers" {
   quality="$ROOT/plugins/nightshift/skills/quality/SKILL.md"
-  grep -qF 'runtime/shift-planner.sh' "$hunt"
-  grep -qF 'runtime/shift-preview.sh' "$hunt"
   grep -qF 'runtime/shift-planner.sh' "$quality"
   grep -qF 'runtime/shift-preview.sh' "$quality"
 }

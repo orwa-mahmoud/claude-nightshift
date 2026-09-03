@@ -34,27 +34,40 @@ Read `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/execution-modes.md` b
 work. It is the shared contract for who selects work, when the clock starts, direct-mode authority,
 and how multiple entries become one shift.
 
+## 0. Read the sentence first
+
+The owner's sentence is binding intent. There is no keyword list.
+
+A time budget, an actionable objective, and clear direct-execution intent — regardless of
+wording — are sufficient to run Automatic directly. Examples of a complete prompt (not a
+router): *"use the next 20 hours adding features and enhancing existing ones"*; *"8 hours clear lint and test debt"*; *"make checkout less ugly, run it"*.
+
+- If those three are present → Automatic + Run directly. Do not offer catalog cards. Do not
+  ask who selects, when to start, or "same as last time." Write the shift policy from
+  existing-tools, no new elevation, and remembered verification when present, unless the
+  sentence already granted a policy or allowance.
+- If only a critical field is missing → Ask only a field that is still missing, then continue.
+- If the owner asked to pick from the menu, or named Guided → section 1.
+
+Do not call `shift-planner.sh`, `shift-planner.ps1`, `shift-preview.sh`, `shift-preview.ps1`,
+or `plan-learning.sh`. If those helpers are missing, plan here. The same Automatic path
+works without Python and without `jq`.
+
 ## 1. Ask who selects
 
 Entries live one per file in `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/shifts/`.
 **List that directory and read every file in it**. `shift-catalog.md` beside it explains the two
 endings; it does not list the entries.
 
-Offer two first-class modes:
+Offer two first-class modes when the prompt did not already choose:
 
 - **Guided** — show one offer line per entry, with its ending marked. The owner may choose more
  than one.
-- **Automatic** — ask for hours. Do not inspect yet. After the tooling policy is answered, inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), determine which entries apply, deduplicate
- their findings, and rank them using `execution-modes.md`. Build the ordered plan with the native planner helper
- (`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-planner.sh" --project "$NIGHTSHIFT_WORKSPACE" --input … --hours … --selection automatic --launch …`;
- native Windows: `shift-planner.ps1`). Read project-local learning when present with
- `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/plan-learning.sh" --project "$NIGHTSHIFT_WORKSPACE" read` and pass
- `--learning "$NS/plan-learning.json"` into the planner. The helper is read-only and deterministic:
- review-first and run-direct twins share the same ordering; launch mode never changes rank or time fit.
+- **Automatic** — inspect the work target per `execution-modes.md` (in artifact mode that includes `$NS/receipts/`, not a git log), and compose the catalog entries that support the stated objective. Quality, coverage, and dependency work do not hijack a feature or design objective.
  Refuse to compose, cut, or arm when `$NS/receipts` exists but is not a usable directory. If `$NS/work-mode` is missing and Setup would propose artifact, refuse to compose, cut, or arm and send the owner to Setup; do not `git init` a notes folder. Refuse to compose, cut, or arm when work-mode is malformed. Refuse to compose, cut, or arm when the work target cannot be resolved. Show evidence only in review-first
  mode; run-direct does not pause.
 **More than one may be chosen** — a night can clear the lint backlog and then hunt coverage until
-the whistle. Respect every entry's compatibility restrictions when composing a combination; never
+the whistle when that is what the owner asked. Respect every entry's compatibility restrictions when composing a combination; never
 combine entries that claim the same single-writer state.
 
 Read the directory rather than reciting from memory: entries are added over time, and a job that
@@ -76,7 +89,7 @@ Never select tooling quality-debt entries when work mode is artifact.
 
 ## 2. Ask when execution starts
 
-Ask **review first, or run directly?** This choice is independent from Guided or Automatic.
+When the prompt did not already carry clear direct-execution intent, ask **review first, or run directly?** This choice is independent from Guided or Automatic.
 
 - In **review first**, all discovery remains read-only and the clock starts only after approval.
 - In **run directly**, start the clock immediately after the tooling policy is settled and do not
@@ -85,9 +98,10 @@ Ask **review first, or run directly?** This choice is independent from Guided or
 
 ## 3. Ask the tooling policy and confirm tonight's shift policy
 
-Ask **before scanning**, and before any compose, cut, or arm. Independent from Guided or Automatic
-and from review-first or run-direct. This is composition's one question for tonight's policy —
-Start never asks it.
+On a complete Automatic prompt, skip this question and write the safe defaults in
+`execution-modes.md`. Otherwise ask **before scanning**, and before any compose, cut, or arm.
+Independent from Guided or Automatic and from review-first or run-direct. This is composition's
+one question for tonight's policy — Start never asks it.
 
 Read `$NS/work-mode` and the remembered project default with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" defaults-get`
@@ -112,7 +126,8 @@ defaults-set`); an answer for this shift only is never written back to `$NS/shif
 (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\preflight-needs.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
 against the entries this compose would select, and fold every gap into the same question — *"Items
 4 and 7 need `containers`: allow tonight, allow always, or leave them parked?"* Resolve each answer
-the same way as elevation above, before writing the policy.
+the same way as elevation above, before writing the policy. On a complete Automatic prompt that
+did not grant elevation, park gaps and continue under existing-tools.
 
 Write the resolved shift policy before any compose, cut, or arm with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" set --from-json -`
@@ -151,7 +166,7 @@ Per the entry's declared ending:
 
 - **Open-ended** — hours are REQUIRED. These have no natural end but the clock; a walkthrough may
  not start without a deadline. The entry's declared open-ended title is the source of truth.
-- **Finite** — ask the ending as an explicit either/or: *until every finding
+- **Finite** — when hours were not already given, ask the ending as an explicit either/or: *until every finding
  is clear, or capped at N hours?* Both are valid answers; the work ends when the list is empty
  either way, and hours are only a safeguard against a backlog bigger than the night.
 
@@ -163,8 +178,7 @@ work runs first, and the open-ended job soaks up whatever time is left.
 
 > Anything specific about scope or approach?
 
-Ask this in Guided mode. In Automatic mode infer the safest valuable scope from evidence and the
-time budget. Free text is skippable. It is where the useful shift is made: *"only `packages/api/`"*, *"use
+Ask this in Guided mode. In Automatic mode the owner's sentence is the scope. Free text is skippable. It is where the useful shift is made: *"only `packages/api/`"*, *"use
 `getTestInstance()` from the test package"*, *"one module — this becomes a single reviewable PR"*.
 If a selected entry declares Owner instructions required, free text is not skippable: ask for it
 and refuse to compose, cut, or arm that entry until the owner supplies a non-empty answer. Entries
@@ -181,13 +195,10 @@ adds constraints rather than replacing them.
 
 ## 6. Review or cut
 
-In **review first**, render the explainable preview with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-preview.sh"` (native Windows: `shift-preview.ps1`) from the
-planner JSON, then print the items exactly as they will be written, with evidence, order, hours,
-and ending, then ask for one approval. The preview is a no-write/no-clock simulation: resolved
-workspace and work target, shift policy, scoring inputs, dependencies, overlaps removed, rejected
-alternatives, verification reserve, and stopping rule. This is the last look before anything is armed. Write
-nothing before approval.
+In **review first**, print the items exactly as they will be written, with evidence, order, hours,
+and ending, then ask for one approval. The preview is model prose: a no-write/no-clock simulation
+of resolved workspace and work target, shift policy, why each entry serves the stated objective,
+overlaps removed, rejected alternatives, and the stopping rule. This is the last look before anything is armed. Write nothing before approval.
 
 In **run directly**, do not ask again: write the order and immediately cut it into the active shift.
 Record significant discovery and selection decisions in
