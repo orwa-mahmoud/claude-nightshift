@@ -43,6 +43,7 @@ The native path uses the same on-disk contract and marker names as macOS and Lin
   apply-profile, and export-support use bundled PowerShell helpers beside the POSIX scripts.
   Native Windows does not call `.sh` for those, and does not require `jq`, Python, Node, or a
   package manager. If `gh` is already on PATH, import-issues uses it; Nightshift never installs it.
+  Hunt and Quality compose in the skill on every host. Native Windows has no planner or preview.
 
 Claude Code has no Windows-only command field in a plugin hook manifest. Nightshift therefore
 dot-sources a small shell/PowerShell launcher from the shared manifest. POSIX hosts continue into
