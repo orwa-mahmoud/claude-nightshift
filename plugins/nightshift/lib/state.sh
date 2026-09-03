@@ -11,61 +11,35 @@ rule() {
   if [ -n "$3" ]; then printf '%s' "$3"; return; fi
   local f="$1/.nightshift/rules.json"
   [ -f "$f" ] || return 0
-  if command -v jq >/dev/null 2>&1; then
-    jq -r --arg k "$2" '.[$k] // empty | if type == "object" or type == "array" then tojson else tostring end' "$f" 2>/dev/null
-  else
-    sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | sed -n 1p
-  fi
+  ns_rules_get "$f" "$2"
 }
 
-# toolDeny requires exact JSON key matching. Normalize it with jq or Python; never approximate
-# owner policy with grep. The sentinel makes malformed input and parserless hosts fail closed.
+# toolDeny requires exact key matching. The shipped reader accepts the template's
+# object-of-strings shape and nothing else. Malformed input fails closed.
 ns_tool_map_ok() { # stdin = a JSON object of string values
-  if command -v jq >/dev/null 2>&1; then
-    jq -ce 'if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' 2>/dev/null
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys
-d=json.load(sys.stdin)
-assert isinstance(d,dict) and all(isinstance(v,str) for v in d.values())
-print(json.dumps(d,separators=(",",":")))' 2>/dev/null
-  else
-    return 2
-  fi
+  local raw
+  raw="$(cat)"
+  ns_rules_map_parse "$raw" || return 1
+  printf '%s' "$raw"
 }
 
 ns_tool_rules() { # $1 = project dir, $2 = session override
-  local f="$1/.nightshift/rules.json" raw out rc
+  local f="$1/.nightshift/rules.json" raw
   if [ -n "$2" ]; then
     raw="$2"
-  else
-    [ -f "$f" ] || return 0
-    if command -v jq >/dev/null 2>&1; then
-      raw="$(jq -ce '.toolDeny // {}' "$f" 2>/dev/null)" || {
-        printf '%s' '__nightshift_invalid_tool_rules__'
-        return
-      }
-    elif command -v python3 >/dev/null 2>&1; then
-      raw="$(python3 -c 'import json,sys
-print(json.dumps(json.load(open(sys.argv[1])).get("toolDeny",{}),separators=(",",":")))' "$f" 2>/dev/null)" || {
-        printf '%s' '__nightshift_invalid_tool_rules__'
-        return
-      }
-    else
-      printf '%s' '__nightshift_tool_rules_parser_missing__'
+    ns_rules_map_parse "$raw" || {
+      printf '%s' '__nightshift_invalid_tool_rules__'
       return
-    fi
-  fi
-  out="$(printf '%s' "$raw" | ns_tool_map_ok)"
-  rc=$?
-  if [ "$rc" -eq 2 ]; then
-    printf '%s' '__nightshift_tool_rules_parser_missing__'
+    }
+    printf '%s' "$raw"
     return
   fi
-  if [ "$rc" -ne 0 ]; then
+  [ -f "$f" ] || return 0
+  ns_rules_load "$f" || {
     printf '%s' '__nightshift_invalid_tool_rules__'
     return
-  fi
-  printf '%s' "$out"
+  }
+  ns_rules_tool_deny_json "$f"
 }
 
 # The punch list's `## Items` heading is the boundary between the owner's contract and the work.
@@ -315,10 +289,10 @@ ns_retention_days() {
       return 0
       ;;
   esac
-  if [ -f "$f" ] && command -v jq >/dev/null 2>&1; then
-    raw="$(jq -r --arg k "$key" '.retention[$k] // 0' "$f" 2>/dev/null)" || raw=0
-  elif [ -f "$f" ]; then
-    raw="$(sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$f" | sed -n 1p)"
+  if [ -f "$f" ]; then
+    ns_rules_load "$f" && raw="$(_ns_rules_row retention "$key" "")" && {
+      raw="${raw#*"$_NS_RULES_TAB"}"
+    } || raw=0
   fi
   case "$raw" in
     '' | *[!0-9]*) printf '0' ;;

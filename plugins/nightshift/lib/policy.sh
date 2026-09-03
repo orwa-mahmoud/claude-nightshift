@@ -8,10 +8,11 @@
 # policy answer — hardhat, Start, Doctor, Status, the support bundle, both host adapters — reads
 # ns_policy_resolve, so no two of them can render a different result.
 #
-# jq (preferred) or python3 does exactly one job here: turning a file into a flat, tab-separated
-# fact stream. Every decision — validation, precedence, defaults, allowance matching — happens in
-# bash. Raw payloads are control-scrubbed before they enter the stream, so a fact line always
-# carries exactly one fact, and a scalar's compact JSON is self-describing in its first byte. The
+# rules.json is read by the shipped subset reader — no jq or python3. jq (preferred) or python3
+# still turns shift-policy.json and shift-defaults.json into a flat, tab-separated fact stream.
+# Every decision — validation, precedence, defaults, allowance matching — happens in bash. Raw
+# payloads are control-scrubbed before they enter the stream, so a fact line always carries
+# exactly one fact, and a scalar's compact JSON is self-describing in its first byte. The
 # resolved view reports the files: a session NIGHTSHIFT_* override is one guard's test lever, not
 # policy, and never appears as a source.
 
@@ -248,48 +249,6 @@ ns_policy_sha256_text() {
 }
 
 
-NS_POLICY_RULES_PY='
-import json, re, sys
-
-K = ["forbiddenCommands", "neverCommitPatterns", "expectedEmail", "protectedDirs",
-     "stallMax", "watchMinutes"]
-C = ["sudo", "containers", "global-packages", "daemons", "external-services"]
-
-
-def enc(v):
-    return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
-
-
-def scrub(s):
-    return re.sub(r"[\x00-\x1f\x7f]", " ", s)
-
-
-try:
-    R = json.load(open(sys.argv[1]))
-except (OSError, ValueError):
-    sys.exit(1)
-if not isinstance(R, dict):
-    R = {}
-E = R.get("elevation")
-if not isinstance(E, dict):
-    E = {}
-out = []
-for k in K:
-    out.append("r\t%s\t%s\t%s" % (k, "1" if k in R else "0", enc(R.get(k))))
-for c in C:
-    x = E.get(c)
-    if not isinstance(x, dict):
-        x = {}
-    pol = x.get("policy")
-    out.append("e\t%s\t%s\t%s" % (c, "1" if c in E else "0",
-                                  scrub(pol) if isinstance(pol, str) else ""))
-    pat = x.get("pattern")
-    if isinstance(pat, str) and pat:
-        out.append("p\t%s\t%s" % (c, scrub(pat)))
-sys.stdout.write("".join(line + "\n" for line in out))
-'
-
-
 NS_POLICY_SHIFT_PY='
 import json, re, sys
 
@@ -482,12 +441,8 @@ _ns_policy_load_rules() {
     NS_POLICY_RULES_STATE=absent
     return 0
   fi
-  facts="$(_ns_policy_facts rules "$NS_POLICY_RULES_PY" "$f")"
+  facts="$(ns_rules_facts "$f")"
   rc=$?
-  if [ "$rc" -eq 2 ]; then
-    NS_POLICY_RULES_STATE=noparser
-    return 0
-  fi
   if [ "$rc" -ne 0 ]; then
     NS_POLICY_RULES_STATE=malformed
     return 0
@@ -1177,12 +1132,18 @@ _ns_policy_setting() {
 # rules and expiry permanent even when its value is an empty string or a zero, and a category
 # present under rules.elevation reports rules whichever way its policy points. built-in and `-`
 # mean the file says nothing at all.
-# Status 2 when no JSON parser is installed.
+# Status 2 when the resolved JSON cannot be canonicalized and no fallback table applies.
 ns_policy_resolve() {
   local ws="$1" out name first=1
-  ns_policy_json_tool >/dev/null || return 2
   _ns_policy_load_rules "$ws"
-  _ns_policy_load_shift "$ws"
+  if ns_policy_json_tool >/dev/null 2>&1; then
+    _ns_policy_load_shift "$ws"
+  else
+    NS_POLICY_SHIFT_STATE=absent
+    NS_POLICY_SHIFT_ALLOW=""
+    NS_POLICY_SHIFT_PLAN=""
+    NS_POLICY_SHIFT_PLANIDX=""
+  fi
   if [ "$NS_POLICY_SHIFT_STATE" != ok ]; then
     NS_POLICY_SHIFT_ALLOW=""
     NS_POLICY_SHIFT_PLAN=""
@@ -1199,34 +1160,41 @@ ns_policy_resolve() {
 $(ns_policy_settings)
 EOF
   out="$out}}"
-  printf '%s\n' "$out" | ns_policy_canon_text || return 2
+  if ns_policy_json_tool >/dev/null 2>&1; then
+    printf '%s\n' "$out" | ns_policy_canon_text || return 2
+  else
+    printf '%s\n' "$out"
+  fi
 }
-
-NS_POLICY_TABLE_PY='
-import json, sys
-
-d = json.load(sys.stdin)["settings"]
-for k in sorted(d):
-    v = d[k]["value"]
-    text = v if isinstance(v, str) else json.dumps(v)
-    sys.stdout.write("%s=%s (%s, %s)\n" % (k, text, d[k]["source"], d[k]["expiry"]))
-'
 
 # ns_policy_resolve_table <workspace>
 # The same resolved view as one line per setting, sorted by name:
 #   <name>=<value> (<source>, <expiry>)
 # Doctor, Status and the helper all print these lines, so the table can never drift from the JSON.
 ns_policy_resolve_table() {
-  local tool json
-  tool="$(ns_policy_json_tool)" || return 2
-  json="$(ns_policy_resolve "$1")" || return 2
-  if [ "$tool" = jq ]; then
-    printf '%s\n' "$json" | jq -r '.settings
-      | keys[] as $k
-      | "\($k)=\(if (.[$k].value | type) == "string" then .[$k].value else (.[$k].value | tojson) end) (\(.[$k].source), \(.[$k].expiry))"' || return 2
+  local ws="$1" name text
+  _ns_policy_load_rules "$ws"
+  if ns_policy_json_tool >/dev/null 2>&1; then
+    _ns_policy_load_shift "$ws"
   else
-    printf '%s\n' "$json" | python3 -c "$NS_POLICY_TABLE_PY" || return 2
+    NS_POLICY_SHIFT_STATE=absent
+    NS_POLICY_SHIFT_ALLOW=""
+    NS_POLICY_SHIFT_PLAN=""
+    NS_POLICY_SHIFT_PLANIDX=""
   fi
+  if [ "$NS_POLICY_SHIFT_STATE" != ok ]; then
+    NS_POLICY_SHIFT_ALLOW=""
+    NS_POLICY_SHIFT_PLAN=""
+    NS_POLICY_SHIFT_PLANIDX=""
+  fi
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    _ns_policy_setting "$name" || continue
+    text="$(ns_json_text "$NS_POLICY_V")"
+    printf '%s=%s (%s, %s)\n' "$name" "$text" "$NS_POLICY_S" "$NS_POLICY_E"
+  done <<EOF
+$(ns_policy_settings)
+EOF
 }
 
 # _ns_policy_plan_lookup <list> <i> <n> — the value recorded for command n of allowance i.
@@ -1307,9 +1275,15 @@ _ns_policy_plan_binds() {
 ns_policy_allowed() {
   local ws="$1" category="$2" norm rest line
   ns_policy_default_pattern "$category" >/dev/null || return 1
-  ns_policy_json_tool >/dev/null || return 1
   _ns_policy_load_rules "$ws"
-  _ns_policy_load_shift "$ws"
+  if ns_policy_json_tool >/dev/null 2>&1; then
+    _ns_policy_load_shift "$ws"
+  else
+    NS_POLICY_SHIFT_STATE=absent
+    NS_POLICY_SHIFT_ALLOW=""
+    NS_POLICY_SHIFT_PLAN=""
+    NS_POLICY_SHIFT_PLANIDX=""
+  fi
   if [ "$NS_POLICY_SHIFT_STATE" != ok ]; then
     NS_POLICY_SHIFT_ALLOW=""
     NS_POLICY_SHIFT_PLAN=""

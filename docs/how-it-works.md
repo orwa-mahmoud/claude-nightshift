@@ -89,9 +89,10 @@ authoritative.
 `repository-tooling` (use the project's declared toolchain). Start never asks — composition or
 Start preflight records the choice on the policy snapshot.
 
-POSIX hooks parse JSON with **jq or python3**; an armed shift fails closed when neither is available.
-Native Windows uses PowerShell's built-in JSON parser. Optional Python helpers power evidence
-features only; their absence records an honest skip and the shift continues.
+POSIX hooks read `rules.json` without `jq` or `python3`. An unreadable or unsupported rules file
+fails closed and does not arm. `shift-policy.json` still uses jq or python3 when those tools are
+present. Native Windows uses PowerShell's built-in JSON parser. Optional Python helpers power
+evidence features only; their absence records an honest skip and the shift continues.
 
 ## Mechanical gates and owner rules
 

@@ -326,18 +326,21 @@ fi
 
 # 4. Block, and re-inject the contract so the next turn resumes the shift. The reinjection
 # text lives in the rules file (clockOutMessage) — the one copy, shipped in the template setup
-# copies; jq builds the JSON so the owner's text cannot break the decision. The block itself
-# never depends on config: an unreadable message (or no jq to embed it safely) still blocks,
-# fail closed, with the repair named.
-if [ -n "$GATE_MESSAGE" ] && command -v jq >/dev/null 2>&1; then
-  jq -nc --arg r "$GATE_MESSAGE" '{decision:"block",reason:$r}'
+# copies. jq embeds it when present; otherwise the same string is JSON-escaped in the shell.
+# The block itself never depends on config: an unreadable message still blocks, fail closed,
+# with the repair named.
+_ns_clock_out_block() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -nc --arg r "$1" '{decision:"block",reason:$r}'
+    return
+  fi
+  escaped="$(printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  printf '{"decision":"block","reason":"%s"}\n' "$escaped"
+}
+if [ -n "$GATE_MESSAGE" ]; then
+  _ns_clock_out_block "$GATE_MESSAGE"
   exit 0
 fi
-FALLBACK="$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here, or jq is absent; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
-if command -v jq >/dev/null 2>&1; then
-  jq -nc --arg r "$FALLBACK" '{decision:"block",reason:$r}'
-  exit 0
-fi
-escaped="$(printf '%s' "$FALLBACK" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
-printf '{"decision":"block","reason":"%s"}\n' "$escaped"
+FALLBACK="$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
+_ns_clock_out_block "$FALLBACK"
 exit 0

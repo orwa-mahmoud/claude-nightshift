@@ -77,14 +77,13 @@ else
 fi
 emit ""
 emit "preflight gaps"
+PREFLIGHT=""
 if ns_policy_json_tool >/dev/null 2>&1; then
   PREFLIGHT="$("$_here/preflight-needs.sh" --project "$WORKSPACE" 2>/dev/null)" || PREFLIGHT=""
-  if [ -n "$PREFLIGHT" ]; then
-    printf '%s\n' "$PREFLIGHT"
-  else
-    emit "none"
-  fi
+fi
+if [ -n "$PREFLIGHT" ]; then
+  printf '%s\n' "$PREFLIGHT"
 else
-  emit "unavailable (jq or python3 required)"
+  emit "none"
 fi
 exit 0
