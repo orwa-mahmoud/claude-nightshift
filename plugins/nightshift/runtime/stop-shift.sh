@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# stop-shift.sh — pause the shift immediately. Hooks become inert without a later Stop event.
+# stop-shift.sh — issue a stop-work order. Hardhat stays until clock-out writes ENDED.
 #
 #   stop-shift.sh --project DIR [--reason TEXT]
 #

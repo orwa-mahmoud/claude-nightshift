@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # Shared hardhat decisions. Host wrappers own payload parsing and deny response emission.
 
+# Armed site rules apply until clock-out writes ENDED. STOP is a stop-work order, not
+# the ending — open boxes stay as the record and do not stand the hardhat down. Reset
+# is the manual escape.
 ns_hardhat_active() {
-  [ -f "$NS/.shift-armed" ] && [ -f "$PUNCH" ] && { [ ! -f "$ENDED" ] || [ -L "$ENDED" ]; } \
-    && [ "$(ns_open_boxes "$PUNCH")" -gt 0 ]
+  if [ -f "$ENDED" ] && [ ! -L "$ENDED" ]; then
+    return 1
+  fi
+  [ -f "$NS/.shift-armed" ] || return 1
+  [ -f "$PUNCH" ] || return 1
+  if [ -f "$NS/STOP" ] && [ ! -L "$NS/STOP" ]; then
+    return 0
+  fi
+  [ "$(ns_open_boxes "$PUNCH")" -gt 0 ]
 }
 
 ns_hardhat_is_command_tool() {

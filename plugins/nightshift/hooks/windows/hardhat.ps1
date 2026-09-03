@@ -835,9 +835,7 @@ $punch = Join-Path $ns 'punch-list.md'
 $armed = Join-Path $ns '.shift-armed'
 $ended = Join-Path $ns '.ended'
 $endedReal = (Test-Path -LiteralPath $ended -PathType Leaf) -and -not (Test-NSReparsePoint $ended)
-$counts = Get-NSBoxCounts $punch
-$active = (Test-Path -LiteralPath $armed -PathType Leaf) -and (Test-Path -LiteralPath $punch -PathType Leaf) `
-    -and -not $endedReal -and $counts.Open -gt 0
+$active = Test-NSHardhatActive $ns
 
 $nonce = [string]$env:NIGHTSHIFT_LEASE_NONCE
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION

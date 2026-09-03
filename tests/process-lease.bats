@@ -662,6 +662,20 @@ STUB
   is_deny "$output"
 }
 
+@test "fence-check reads the on-disk lease and refuses when it is missing" {
+  p="$(new_project fence-missing)"
+  punch_open "$p"
+  run bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/continuity-handoff.sh" \
+    fence-check --project "$p"
+  [ "$status" -eq 2 ]
+  printf '%s' "$output" | jq -e '.takeoverAllowed == false' >/dev/null
+  take_lease "$p" shift-session claude >/dev/null
+  run bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/continuity-handoff.sh" \
+    fence-check --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '.takeoverAllowed == true and .priorOwnerFenced == true' >/dev/null
+}
+
 @test "normal completion and STOP release the process lease on both hosts" {
   p="$(new_project claude-done)"
   punch_open "$p"

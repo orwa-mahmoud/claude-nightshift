@@ -38,10 +38,9 @@ try {
     $joined = $lines -join "`n"
     Expect-True ($joined -match 'deadline preserved') "stop preserves deadline: $joined"
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'STOP') -PathType Leaf) 'STOP written'
-    Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns '.shift-armed'))) 'armed marker removed'
-    if (Test-NSWindows) {
-        Expect-True (-not (Test-Path -LiteralPath (Join-Path $ns '.shift-lease'))) 'lease released'
-    }
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns '.shift-armed') -PathType Leaf) 'armed marker kept'
+    Expect-True (Test-NSHardhatActive $ns) 'hardhat stays after STOP'
+    Expect-True (Test-Path -LiteralPath (Join-Path $ns '.shift-lease') -PathType Leaf) 'lease kept until ENDED'
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'deadline') -PathType Leaf) 'deadline file kept'
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'parking-lot.md') -PathType Leaf) 'parking lot kept'
     Expect-True (Test-Path -LiteralPath (Join-Path $ns 'shift-policy.json') -PathType Leaf) 'stop keeps the shift policy'

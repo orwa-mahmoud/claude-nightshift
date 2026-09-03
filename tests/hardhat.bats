@@ -247,6 +247,19 @@ elevation_message() { # <project> <category>
   is_allow
 }
 
+@test "STOP keeps hardhat active until ENDED even with no open boxes" {
+  p="$(new_project)"
+  punch_done "$p"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_allow
+  : >"$p/.nightshift/STOP"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  : >"$p/.nightshift/.ended"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_allow
+}
+
 @test "the no-push recipe holds when jq is absent and Python parses tool rules" {
   p="$(new_project)"
   punch_open "$p"

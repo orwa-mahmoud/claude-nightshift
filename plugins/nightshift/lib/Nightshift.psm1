@@ -1959,7 +1959,6 @@ function Stop-NSShift {
     Remove-NSPath (Join-Path $ns 'STOP')
     [IO.File]::WriteAllText((Join-Path $ns 'STOP'), "$Reason · $ts`n")
     $watch = Stop-NSWatchman $ns
-    Clear-NSRuntimeMarkers $ns
     $null = Write-NSReason $ns 'owner-stop'
     Write-NSControlLog $ns 'stopped by owner'
     $open = 0
@@ -1985,6 +1984,7 @@ function Reset-NSShift {
     }
     Stop-NSShift -Project $Project -Reason 'reset by owner'
     $ctx = Resolve-NSControlWorkspace $Project
+    Clear-NSRuntimeMarkers $ctx.NightshiftDir
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'STOP')
     Remove-NSPath (Join-Path $ctx.NightshiftDir 'deadline')
     Remove-NSPath (Join-Path $ctx.NightshiftDir '.watch-reason')
@@ -2427,6 +2427,125 @@ function Test-NSLeasePidLive {
         return $false
     }
     return (Test-NSRecordedProcess $lease.ProcessId $lease.Start) -eq 'Alive'
+}
+
+function Test-NSHardhatActive {
+    param([Parameter(Mandatory = $true)][string]$NightshiftDir)
+    $ended = Join-Path $NightshiftDir '.ended'
+    if ((Test-Path -LiteralPath $ended -PathType Leaf) -and -not (Test-NSReparsePoint $ended)) {
+        return $false
+    }
+    $armed = Join-Path $NightshiftDir '.shift-armed'
+    if (-not (Test-Path -LiteralPath $armed -PathType Leaf)) {
+        return $false
+    }
+    $punch = Join-Path $NightshiftDir 'punch-list.md'
+    if (-not (Test-Path -LiteralPath $punch -PathType Leaf)) {
+        return $false
+    }
+    $stop = Join-Path $NightshiftDir 'STOP'
+    if ((Test-Path -LiteralPath $stop -PathType Leaf) -and -not (Test-NSReparsePoint $stop)) {
+        return $true
+    }
+    return (Get-NSBoxCounts $punch).Open -gt 0
+}
+
+function New-NSHandoffFenceResult {
+    param(
+        [string]$Action = 'refuse',
+        [bool]$Duplicate = $false,
+        [bool]$Fenced = $false,
+        [bool]$Active = $false,
+        [bool]$Takeover = $false,
+        [int]$ExitCode = 2
+    )
+    return [pscustomobject]@{
+        schemaVersion = 1
+        kind = 'handoff-fence'
+        priorOwnerFenced = $Fenced
+        priorWorkerActive = $Active
+        duplicateWorkerRejected = $Duplicate
+        takeoverAllowed = $Takeover
+        action = $Action
+        twoActiveWorkersAllowed = $false
+        ExitCode = $ExitCode
+    }
+}
+
+function Test-NSHandoffFence {
+    param(
+        [string]$Project = '',
+        [string]$NightshiftDir = ''
+    )
+    $ns = $NightshiftDir
+    if ([string]::IsNullOrWhiteSpace($ns) -and -not [string]::IsNullOrWhiteSpace($Project)) {
+        try {
+            $ctx = Resolve-NSControlWorkspace $Project
+            $ns = $ctx.NightshiftDir
+        }
+        catch {
+            return (New-NSHandoffFenceResult -ExitCode 2)
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($ns) -or -not (Test-Path -LiteralPath $ns -PathType Container) `
+        -or (Test-NSReparsePoint $ns)) {
+        return (New-NSHandoffFenceResult -ExitCode 2)
+    }
+
+    $lease = Read-NSLease $ns
+    if ($null -eq $lease) {
+        return (New-NSHandoffFenceResult -ExitCode 2)
+    }
+
+    $priorFenced = $false
+    $priorActive = $false
+    $duplicate = $false
+    $sessionPath = Join-Path $ns '.shift-session'
+    $session = $null
+    if ((Test-NSPathEntry $sessionPath)) {
+        if (Test-NSReparsePoint $sessionPath) {
+            return (New-NSHandoffFenceResult -ExitCode 2)
+        }
+        $session = Read-NSSession $ns
+        if ($null -eq $session) {
+            return (New-NSHandoffFenceResult -ExitCode 2)
+        }
+    }
+
+    if ([string]::IsNullOrEmpty([string]$lease.ProcessId)) {
+        $priorFenced = $true
+    }
+    else {
+        $leaseState = Test-NSRecordedProcess $lease.ProcessId $lease.Start
+        switch ($leaseState) {
+            'Alive' { $priorActive = $true }
+            'Dead' { $priorFenced = $true }
+            default { return (New-NSHandoffFenceResult -ExitCode 2) }
+        }
+    }
+
+    if ($null -ne $session -and -not [string]::IsNullOrEmpty([string]$session.ProcessId)) {
+        $sessionState = Test-NSRecordedProcess $session.ProcessId $session.Start
+        switch ($sessionState) {
+            'Alive' {
+                if (-not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
+                    -and [string]$session.ProcessId -ne [string]$lease.ProcessId) {
+                    $duplicate = $true
+                }
+                $priorActive = $true
+                $priorFenced = $false
+            }
+            'Dead' { }
+            default { return (New-NSHandoffFenceResult -ExitCode 2) }
+        }
+    }
+
+    if ((-not $priorActive) -and (-not $duplicate) -and $priorFenced) {
+        return (New-NSHandoffFenceResult -Action proceed -Duplicate $duplicate -Fenced $priorFenced `
+            -Active $priorActive -Takeover $true -ExitCode 0)
+    }
+    return (New-NSHandoffFenceResult -Action refuse -Duplicate $duplicate -Fenced $priorFenced `
+        -Active $priorActive -Takeover $false -ExitCode 1)
 }
 
 

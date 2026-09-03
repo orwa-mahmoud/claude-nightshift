@@ -135,6 +135,24 @@ SH
   is_release
 }
 
+@test "stop-shift keeps hardhat until the gate writes ENDED" {
+  p="$(new_project)"
+  punch_open "$p"
+  run "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/stop-shift.sh" --project "$p"
+  [ "$status" -eq 0 ]
+  [ -f "$p/.nightshift/STOP" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
+  [ ! -f "$p/.nightshift/.ended" ]
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_allow
+}
+
 @test "panic STOP releases a leftover recovery nonce" {
   p="$(new_project)"
   punch_open "$p"

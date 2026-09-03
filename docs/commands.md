@@ -81,9 +81,9 @@ plugins\nightshift\runtime\windows\purge-workspace.ps1 -Project C:\absolute\task
   -ConfirmPath C:\absolute\workspace\.nightshift
 ```
 
-Stop pauses and disarms immediately: hooks become inert, the watchman is killed only when
-verified, the lease is released, and the deadline is preserved. Reset does that teardown and also
-removes the deadline and leftover STOP. Purge does Reset, then deletes only that project's
+Stop writes `STOP` and stands a verified watchman down. Hardhat stays until clock-out writes
+`ENDED`; Reset is the manual escape. The deadline is preserved. Reset also removes runtime
+markers, the deadline, and leftover STOP. Purge does Reset, then deletes only that project's
 `.nightshift/` after an exact `--confirm-path` match. None of them uninstall the plugin.
 
 A panic `touch .nightshift/STOP` (POSIX) or `New-Item -ItemType File -Force .nightshift\STOP`
