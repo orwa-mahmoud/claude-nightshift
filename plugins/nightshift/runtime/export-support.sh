@@ -84,9 +84,9 @@ RULES_STATE="missing"
 RULES_KEYS=""
 if [ ! -f "$RULES" ]; then
   RULES_STATE="missing"
-elif command -v jq >/dev/null 2>&1 && jq -e 'type == "object"' "$RULES" >/dev/null 2>&1; then
+elif ns_rules_load "$RULES"; then
   RULES_STATE="valid"
-  RULES_KEYS="$(jq -r 'keys[]' "$RULES" 2>/dev/null | tr '\n' ' ')"
+  RULES_KEYS="$(ns_rules_keys "$RULES" | tr '\n' ' ')"
 else
   RULES_STATE="unreadable"
 fi
@@ -120,12 +120,46 @@ case "$POLICY_READ_RC" in
   *) POLICY_STATE="unreadable" ;;
 esac
 
+# Same redaction as the jq/python halves, from the already-resolved table — not a parser.
+_ns_export_policy_table() {
+  local line name rest val meta
+  ns_policy_resolve_table "$1" | while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    name="${line%%=*}"
+    rest="${line#*=}"
+    case "$rest" in
+      *' ('*)
+        meta="${rest##* (}"
+        val="${rest% ("$meta"}"
+        ;;
+      *)
+        printf '%s\n' "$line"
+        continue
+        ;;
+    esac
+    case "$name" in
+      forbiddenCommands | protectedDirs | neverCommitPatterns | expectedEmail)
+        printf '%s=<redacted %s chars> (%s\n' "$name" "${#val}" "$meta"
+        ;;
+      *)
+        if [ "${#val}" -gt 80 ]; then
+          printf '%s=<redacted %s chars> (%s\n' "$name" "${#val}" "$meta"
+        else
+          printf '%s\n' "$line"
+        fi
+        ;;
+    esac
+  done
+}
+
 POLICY_LINES=""
 if POLICY_JSON="$(ns_policy_resolve "$WORKSPACE" 2>/dev/null)"; then
   if command -v jq >/dev/null 2>&1; then
     POLICY_LINES="$(printf '%s' "$POLICY_JSON" | jq -r -f "$NS_EXPORT_POLICY_JQ" 2>/dev/null)" || POLICY_LINES=""
-  else
+  elif command -v python3 >/dev/null 2>&1; then
     POLICY_LINES="$(printf '%s' "$POLICY_JSON" | python3 -c "$NS_EXPORT_POLICY_PY" 2>/dev/null)" || POLICY_LINES=""
+  else
+    POLICY_LINES="$(_ns_export_policy_table "$WORKSPACE" 2>/dev/null)" || POLICY_LINES=""
   fi
 fi
 

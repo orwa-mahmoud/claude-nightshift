@@ -265,8 +265,12 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" set --from-json -`
  (native Windows: `-Command set -FromJson -`): source `start-defaults`, existing-tools, no
  allowances, and the verification level and hours `$NS/shift-defaults.json` carries (built-in
- fast/null/existing-tools when that file is itself missing or malformed). Malformed — refuse to
- arm, naming the exact field; a shift never arms on a policy nobody can resolve.
+ fast/null/existing-tools when that file is itself missing or malformed). If that helper exits
+ because no JSON parser is installed, arm using `$NS/rules.json` alone — the subset reader
+ already ran. Do not write `shift-policy.json`. Do not install Python or `jq`. Composition
+ may fail closed the same way; hardhat then applies the shipped denies from `rules.json`.
+ Malformed — refuse to arm, naming the exact field; a shift never arms on a policy nobody
+ can resolve. A missing parser is not a malformed policy.
 - **Permission preflight — park the gaps, never ask.** Run
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/preflight-needs.sh" --project "$NIGHTSHIFT_WORKSPACE"`
  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\preflight-needs.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
@@ -275,7 +279,8 @@ so it looks at staged drafts and pending Hunt orders and asks which to promote.
  (native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\park-needs.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`)
  to add its entry to `$NS/parking-lot.md` naming the missing category, then append one
  `$NS/shift-log.md` line listing every gapped item. Work everything else — the gap is discovered
- and logged, never asked about.
+ and logged, never asked about. If either helper exits because no JSON parser is installed,
+ park gaps in the skill and continue; those helpers are not on the armed path.
 
 ## 2. Deadline — read, never asked
 
