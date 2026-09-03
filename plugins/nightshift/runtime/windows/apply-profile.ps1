@@ -300,10 +300,12 @@ else {
 $toolDeny = Get-NSJsonPropertyValue $proposed 'toolDeny'
 $ask = Get-NSJsonPropertyValue $toolDeny 'AskUserQuestion'
 $request = Get-NSJsonPropertyValue $toolDeny 'request_user_input'
+$cursorAsk = Get-NSJsonPropertyValue $toolDeny 'AskQuestion'
 if ($null -eq $toolDeny -or $toolDeny -is [Array] -or $toolDeny -is [string] -or $toolDeny -is [ValueType] `
     -or $null -eq $toolDeny.PSObject.Properties['AskUserQuestion'] `
     -or $null -eq $toolDeny.PSObject.Properties['request_user_input'] `
-    -or $ask -isnot [string] -or $request -isnot [string]) {
+    -or $null -eq $toolDeny.PSObject.Properties['AskQuestion'] `
+    -or $ask -isnot [string] -or $request -isnot [string] -or $cursorAsk -isnot [string]) {
     [Console]::Error.WriteLine('apply-profile: proposed rules lack an explicit native question policy - re-run setup first')
     exit 2
 }

@@ -169,10 +169,10 @@ Watchman refuses to arm when `watchMinutes` is missing or not a whole number, or
 guard stands down if `stallMax` / `stallWarnEvery` cannot be read. Editors can validate the file
 against the [rules schema](knobs.md#editor-schema) without changing behaviour.
 
-`toolDeny` must contain both native question keys: `AskUserQuestion` for Claude Code and
-`request_user_input` for Codex. Missing one does not activate a hidden default; that question call
-is denied with a configuration repair. A non-empty value denies with that message and an empty
-value explicitly allows the tool.
+`toolDeny` must contain three native question keys: `AskUserQuestion` for Claude Code,
+`request_user_input` for Codex, and `AskQuestion` for Cursor. Missing one does not activate a
+hidden default; that question call is denied with a configuration repair. A non-empty value denies
+with that message and an empty value explicitly allows the tool.
 
 Exact tool-name matching requires `jq` or `python3` on POSIX. Start refuses to arm there without
 either parser; if one disappears during a shift, the hardhat fails closed and names the missing

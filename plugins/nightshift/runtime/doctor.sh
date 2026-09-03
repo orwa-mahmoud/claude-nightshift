@@ -380,7 +380,7 @@ elif json_is_object "$RULES"; then
     warn "freshRevivalPrompt is empty — watchman will refuse to arm"
     act confirm "restore freshRevivalPrompt from the shipped template"
   fi
-  for tool in AskUserQuestion request_user_input; do
+  for tool in AskUserQuestion request_user_input AskQuestion; do
     tool_state="$(json_tool_rule_state "$RULES" "$tool")"
     case "$tool_state" in
       allow) fact "toolDeny.$tool explicitly allows the question tool" ;;

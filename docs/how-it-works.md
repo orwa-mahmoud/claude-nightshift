@@ -119,11 +119,12 @@ owner. An owner watching live can answer immediately; otherwise the decision rem
 morning review.
 
 That mechanical policy is explicit in `rules.json`: `toolDeny.AskUserQuestion` controls Claude
-Code and `toolDeny.request_user_input` controls Codex. A non-empty value denies that exact tool
-with the owner's message; an empty value allows it. The [tool-rules reference](knobs.md#tool-rules)
-explains the remaining contract text an owner changes for an interactive, ask-and-wait shift.
-Existing workspaces should re-run Setup after upgrade and accept the offered
-`request_user_input` entry; Nightshift never inserts it without confirmation.
+Code, `toolDeny.request_user_input` controls Codex, and `toolDeny.AskQuestion` controls Cursor.
+A non-empty value denies that exact tool with the owner's message; an empty value allows it. The
+[tool-rules reference](knobs.md#tool-rules) explains the remaining contract text an owner changes
+for an interactive, ask-and-wait shift. Existing workspaces should re-run Setup after upgrade and
+accept the offered `request_user_input` or `AskQuestion` entry; Nightshift never inserts either
+without confirmation.
 
 Run directly authorizes reasonable, reversible implementation defaults without a second approval
 pause. Significant decisions, rejected paths, and rollback instructions stay in `parking-lot.md`

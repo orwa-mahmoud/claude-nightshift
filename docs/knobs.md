@@ -45,33 +45,34 @@ denies that tool and becomes the model-facing reason; an empty value explicitly 
 unlisted optional tool is allowed. “Allows” here lifts this map entry; command, commit, protected
 directory, and rules-file guards still apply independently.
 
-The generated file always carries both native question names:
+The generated file always carries three native question names:
 
 ```json
 {
   "toolDeny": {
     "AskUserQuestion": "Park the question with a sensible default and continue.",
-    "request_user_input": "Park the question with a sensible default and continue."
+    "request_user_input": "Park the question with a sensible default and continue.",
+    "AskQuestion": "Park the question with a sensible default and continue."
   }
 }
 ```
 
-`AskUserQuestion` controls Claude Code; `request_user_input` controls Codex. They are separate on
-purpose, so each may have different wording. Keep both keys present: delete one and that host's
-question tool reports an invalid configuration instead of applying an invisible default. Set its
-value to `""` to allow the question tool.
+`AskUserQuestion` controls Claude Code; `request_user_input` controls Codex; `AskQuestion`
+controls Cursor. They are separate on purpose, so each may have different wording. Keep all three
+keys present: delete one and that host's question tool reports an invalid configuration instead of
+applying an invisible default. Set its value to `""` to allow the question tool.
 
 Cursor's shell tool reports as `Shell` (not `Bash`). Add a `toolDeny.Shell` entry when you want the
 same command-map denial on Cursor; the shared command-pattern guards (`forbiddenCommands` and
-friends) already treat `Shell` like `Bash`. Do not invent a Cursor ask-tool key until that host's
-native question tool name is captured.
+friends) already treat `Shell` like `Bash`.
 
 The installed host loads its own hook manifest, so the runtime knows which native name arrived.
-Setup does not generate or persist a host-specific rules file; keeping both entries makes one
-workspace portable between Claude Code and Codex.
+Setup does not generate or persist a host-specific rules file; keeping all three entries makes one
+workspace portable between Claude Code, Codex, and Cursor.
 
-Workspaces created before `request_user_input` was added have only the Claude key. After upgrading,
-re-run setup and accept the offered Codex key; Setup adds nothing without confirmation.
+Workspaces created before `request_user_input` or `AskQuestion` was added are missing that host's
+key. After upgrading, re-run setup and accept the offered key; Setup adds nothing without
+confirmation.
 
 Allowing the tool removes the mechanical denial. The scaffolded punch-list contract,
 `clockOutMessage`, and `freshRevivalPrompt` still say “park, don't ask”; owners who want an
@@ -84,6 +85,7 @@ Any other observable tool can use the same map:
   "toolDeny": {
     "AskUserQuestion": "",
     "request_user_input": "Park the question and continue.",
+    "AskQuestion": "Park the question and continue.",
     "Bash": "Shell commands are disabled for this shift.",
     "mcp__github__delete_file": "Repository deletion is disabled for this shift."
   }

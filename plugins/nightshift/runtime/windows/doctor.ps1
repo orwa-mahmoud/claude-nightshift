@@ -406,7 +406,7 @@ else {
         if ($null -ne $rules.PSObject.Properties['toolDeny']) {
             $toolDeny = $rules.toolDeny
         }
-        foreach ($tool in @('AskUserQuestion', 'request_user_input')) {
+        foreach ($tool in @('AskUserQuestion', 'request_user_input', 'AskQuestion')) {
             $toolState = 'invalid'
             if ($null -eq $toolDeny -or $toolDeny -is [Array] -or $toolDeny -is [string] -or $toolDeny -is [ValueType]) {
                 $toolState = 'invalid'

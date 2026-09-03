@@ -252,8 +252,10 @@ if ! printf '%s' "$proposed" | jq -e '
   (.toolDeny | type) == "object"
   and (.toolDeny | has("AskUserQuestion"))
   and (.toolDeny | has("request_user_input"))
+  and (.toolDeny | has("AskQuestion"))
   and (.toolDeny.AskUserQuestion | type) == "string"
   and (.toolDeny.request_user_input | type) == "string"
+  and (.toolDeny.AskQuestion | type) == "string"
 ' >/dev/null 2>&1; then
   printf 'apply-profile: proposed rules lack an explicit native question policy — re-run setup first\n' >&2
   exit 2

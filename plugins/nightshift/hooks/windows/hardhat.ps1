@@ -722,7 +722,7 @@ $processStart = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.S
 $bindingProbe = ($tool -in @('Bash', 'PowerShell')) -and (
     $command.Trim() -in @(': nightshift-binding-probe', "`$null = 'nightshift-binding-probe'")
 )
-$bindingTools = @('Bash', 'PowerShell', 'AskUserQuestion', 'request_user_input', 'apply_patch', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
+$bindingTools = @('Bash', 'PowerShell', 'AskQuestion', 'AskUserQuestion', 'request_user_input', 'apply_patch', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
 
 $session = Read-NSSession $ns
 if ($null -eq $session -and -not [string]::IsNullOrEmpty($sessionId) -and $tool -in $bindingTools) {
@@ -769,7 +769,7 @@ foreach ($target in $targets) {
 
 $controlPassive = $tool -in @(
     'Read', 'Grep', 'Glob', 'LS', 'WebFetch', 'WebSearch', 'Task', 'TodoWrite',
-    'AskUserQuestion', 'request_user_input', 'NotebookRead'
+    'AskQuestion', 'AskUserQuestion', 'request_user_input', 'NotebookRead'
 ) -or $tool -match '(?i)read'
 if (-not $controlPassive) {
     foreach ($target in $targets) {
@@ -779,7 +779,7 @@ if (-not $controlPassive) {
     }
 }
 
-if ($tool -in @('AskUserQuestion', 'request_user_input')) {
+if ($tool -in @('AskQuestion', 'AskUserQuestion', 'request_user_input')) {
     $property = if ($null -eq $toolRules) { $null } else { $toolRules.PSObject.Properties[$tool] }
     if ($null -eq $property) {
         Write-Deny "BLOCKED: toolDeny is missing the required '$tool' entry. Add that exact host tool name to .nightshift/rules.json with a denial message, or use an empty string to allow it; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex) to review the current template."

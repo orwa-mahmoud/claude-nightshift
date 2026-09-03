@@ -4,8 +4,8 @@
 #
 # Every rule is shift-scoped and read from the owner's .nightshift/rules.json. toolDeny
 # uses exact Cursor tool names: a non-empty message denies, an empty message allows, and
-# an unlisted optional tool is allowed. request_user_input and its AskUserQuestion
-# compatibility alias are explicit entries so neither gets a hidden fallback:
+# an unlisted optional tool is allowed. AskQuestion is Cursor's native question tool;
+# request_user_input and AskUserQuestion are explicit entries so none gets a hidden fallback:
 #   protectedDirs        space/pipe-separated dir names never to git add/commit/tag/remote
 #   expectedEmail        commits must be authored by this identity
 #   neverCommitPatterns  staged diff (git diff --cached) must not match this grep -E pattern
@@ -103,7 +103,7 @@ own_rc=$?
 [ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
 if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   case "$TOOL" in
-    Shell | Bash | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
+    Shell | Bash | AskQuestion | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
       ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" cursor || true
       ;;
   esac
@@ -152,6 +152,11 @@ if ns_hardhat_payload_targets_control "$TOOL" "$CURSOR_RAW" "$CMD"; then
   deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, work-mode, shift-policy.json, shift-defaults.json, or deadline, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
+if [ "$TOOL" = "AskQuestion" ] \
+  || { [ -z "$TOOL" ] && cursor_input_mentions_tool "AskQuestion"; }; then
+  if m="$(ns_hardhat_required_tool_deny_reason AskQuestion)"; then deny "$m"; fi
+  exit 0 # a permitted question is not a command; the command guards have no business with it
+fi
 if [ "$TOOL" = "request_user_input" ] \
   || { [ -z "$TOOL" ] && cursor_input_mentions_tool "request_user_input"; }; then
   if m="$(ns_hardhat_required_tool_deny_reason request_user_input)"; then deny "$m"; fi

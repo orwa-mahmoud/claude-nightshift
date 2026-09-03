@@ -254,10 +254,10 @@ On native Windows, validate with
 PowerShell's JSON parser is built in, so native setup has no `jq` or Python prerequisite.
 
 The rules file is portable across hosts, so never generate a host-specific copy. Its `toolDeny`
-map carries both native question names: `AskUserQuestion` for Claude Code and
-`request_user_input` for Codex. A non-empty value denies that exact tool with the owner's message;
-an empty value allows it. Both entries stay present so deleting a key can never activate an
-invisible default. JSON has no comments; the schema descriptions and
+map carries three native question names: `AskUserQuestion` for Claude Code,
+`request_user_input` for Codex, and `AskQuestion` for Cursor. A non-empty value denies that exact
+tool with the owner's message; an empty value allows it. All three entries stay present so deleting
+a key can never activate an invisible default. JSON has no comments; the schema descriptions and
 https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md#tool-rules
 are the inline help and examples.
 

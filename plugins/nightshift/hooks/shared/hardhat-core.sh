@@ -252,7 +252,7 @@ ns_hardhat_control_targeted() {
 
 ns_hardhat_payload_targets_control() {
   case "$1" in
-    Read | Grep | Glob | LS | WebFetch | WebSearch | Task | TodoWrite | AskUserQuestion | request_user_input | NotebookRead)
+    Read | Grep | Glob | LS | WebFetch | WebSearch | Task | TodoWrite | AskQuestion | AskUserQuestion | request_user_input | NotebookRead)
       return 1
       ;;
     *read* | *Read*)
@@ -275,7 +275,7 @@ ns_hardhat_payload_targets_lease() {
   # Start requires jq or python3. If that parser disappears mid-shift, unknown local tools fail
   # closed rather than letting a helper conversation address the lease through an opaque payload.
   case "$1" in
-    AskUserQuestion | request_user_input | WebFetch | WebSearch | Task | TodoWrite) return 1 ;;
+    AskQuestion | AskUserQuestion | request_user_input | WebFetch | WebSearch | Task | TodoWrite) return 1 ;;
     *) return 0 ;;
   esac
 }

@@ -96,6 +96,7 @@ with open(p,"w") as f: json.dump(d,f)
     and (.["$schema"] | length) > 0
     and (.toolDeny.AskUserQuestion | type) == "string"
     and (.toolDeny.request_user_input | type) == "string"
+    and (.toolDeny.AskQuestion | type) == "string"
     and (.watchMinutes | type) == "number"
     and (.clockOutMessage | length) > 0
   ' "$p/.nightshift/rules.json" >/dev/null

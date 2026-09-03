@@ -1,5 +1,5 @@
 {
-  "toolDeny": { "AskUserQuestion": "", "request_user_input": "" },
+  "toolDeny": { "AskUserQuestion": "", "request_user_input": "", "AskQuestion": "" },
   "elevation": {
     "sudo": { "policy": "deny", "pattern": "" }
   }
