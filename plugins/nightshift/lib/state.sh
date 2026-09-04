@@ -48,15 +48,26 @@ ns_tool_rules() { # $1 = project dir, $2 = session override
 # a shift the gate considers finished. One implementation is how they cannot disagree.
 ns_items_section() { sed -n '/^## Items[[:space:]]*$/,$p' "$1" 2>/dev/null; }
 
-# grep -c prints the count AND exits 1 on zero matches; keep the number, drop the status.
-# An unreadable punch list is not zero work — return failure so callers fail closed.
+# A count is a verdict about how much work is open, so it is either a number or a failure —
+# never a silent zero. An absent list is the one honest zero: there is no work because there is
+# no list. Everything else that can go wrong — the file exists but cannot be read, sed or grep is
+# missing from a stripped PATH, the ERE is rejected — returns non-zero and prints nothing, and
+# callers hold the site armed and the gate shut on that.
+#
+# grep -c prints the count AND exits 1 on zero matches, so status 1 is a real answer here and
+# only status 2 and up is an error. The pipeline is split so the reader's status is its own.
 ns_count_boxes() { # $1 = punch list, $2 = ERE for the box state
-  local n
-  if [ -e "$1" ] && [ ! -r "$1" ]; then
-    return 1
-  fi
-  n="$(ns_items_section "$1" | grep -cE "$2" 2>/dev/null || true)"
-  printf '%s' "${n:-0}"
+  local section n rc
+  [ -e "$1" ] || { printf '0'; return 0; }
+  [ -r "$1" ] || return 1
+  section="$(ns_items_section "$1")" || return 1
+  n="$(printf '%s\n' "$section" | grep -cE "$2" 2>/dev/null)"
+  rc=$?
+  [ "$rc" -le 1 ] || return 1
+  case "$n" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  printf '%s' "$n"
 }
 
 ns_open_boxes()   { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }

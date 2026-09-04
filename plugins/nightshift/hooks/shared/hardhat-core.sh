@@ -3,8 +3,10 @@
 
 # Armed site rules apply until clock-out writes ENDED. STOP is a stop-work order, not
 # the ending — open boxes stay as the record and do not stand the hardhat down. Reset
-# is the manual escape.
+# is the manual escape. A punch list that exists but will not count keeps the site armed:
+# only a readable list with every box ticked takes the hardhat off.
 ns_hardhat_active() {
+  local _open
   if [ -f "$ENDED" ] && [ ! -L "$ENDED" ]; then
     return 1
   fi
@@ -13,7 +15,8 @@ ns_hardhat_active() {
   if [ -f "$NS/STOP" ] && [ ! -L "$NS/STOP" ]; then
     return 0
   fi
-  [ "$(ns_open_boxes "$PUNCH")" -gt 0 ]
+  _open="$(ns_open_boxes "$PUNCH")" || return 0
+  [ "$_open" -gt 0 ]
 }
 
 ns_hardhat_is_command_tool() {

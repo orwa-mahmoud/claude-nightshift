@@ -2447,7 +2447,13 @@ function Test-NSHardhatActive {
     if ((Test-Path -LiteralPath $stop -PathType Leaf) -and -not (Test-NSReparsePoint $stop)) {
         return $true
     }
-    return (Get-NSBoxCounts $punch).Open -gt 0
+    # A punch list that exists but will not count keeps the site armed: only a readable
+    # list with every box ticked takes the hardhat off.
+    $counts = Get-NSBoxCounts $punch
+    if (-not $counts.Readable) {
+        return $true
+    }
+    return [int]$counts.Open -gt 0
 }
 
 function New-NSHandoffFenceResult {

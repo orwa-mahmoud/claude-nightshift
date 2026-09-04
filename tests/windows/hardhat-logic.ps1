@@ -66,6 +66,20 @@ try {
     Remove-Item -LiteralPath (Join-Path $script:ns 'STOP') -Force
     Remove-Item -LiteralPath (Join-Path $script:ns '.ended') -Force
 
+    # Only a readable list with every box ticked takes the hardhat off; a list that
+    # will not count is not zero open work.
+    $onWindows = [bool](Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -and $IsWindows
+    if (-not $onWindows) {
+        $lockedPunch = Join-Path $script:ns 'punch-list.md'
+        & chmod 000 $lockedPunch
+        try {
+            Expect-True (Test-NSHardhatActive $script:ns) 'an uncountable punch list keeps the hardhat on'
+        }
+        finally {
+            & chmod 644 $lockedPunch
+        }
+    }
+
     Expect-True (Test-NSControlTarget 'Remove-Item -Force .nightshift\.shift-armed') `
         'backslash control path is denied'
     Expect-True (Test-NSControlTarget 'cd .nightshift && unlink .shift-armed') `

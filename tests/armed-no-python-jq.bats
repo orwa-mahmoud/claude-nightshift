@@ -104,3 +104,14 @@ chmod git touch mkdir sleep kill ps stat cmp xargs ls readlink"
   [ ! -f "$p/.nightshift/.ended" ]
   [ -f "$p/.nightshift/.shift-armed" ]
 }
+
+# A punch list that exists but cannot be counted is not zero open work: the site stays armed.
+@test "an uncountable punch list keeps the hardhat on" {
+  p="$(new_project hardhat-uncountable)"
+  punch_open "$p"
+  chmod 000 "$p/.nightshift/punch-list.md"
+  run hardhat_bash "$p" '/usr/bin/sudo id'
+  chmod 644 "$p/.nightshift/punch-list.md"
+  [ "$status" -eq 0 ]
+  is_deny "$output"
+}
