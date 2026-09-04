@@ -1,4 +1,8 @@
 SKILLS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills"
+REFS="$SKILLS/nightshift/references"
+HOSTS="$REFS/start-hosts.md"
+PREFLIGHT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/start-preflight.sh"
+PREFLIGHT_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/start-preflight.ps1"
 SETUP="$SKILLS/setup/SKILL.md"
 START="$SKILLS/start/SKILL.md"
 STOP="$SKILLS/stop/SKILL.md"
@@ -154,40 +158,76 @@ PY
   grep -qF '### Bind this session' "$START"
   grep -qF '$NS/.shift-lease' "$START"
   grep -qF 'ns_lease_reset_stale' "$START"
-  grep -qF 'ns_lease_valid' "$START"
-  grep -qF 'Read-NSLease' "$START"
   grep -qF ': nightshift-binding-probe' "$START"
   grep -qF 'jq` or `python3' "$START"
-  grep -qF 'watchRetrySeconds' "$START"
-  grep -qF 'revivalPrompt' "$START"
-  grep -qF 'freshRevivalPrompt' "$START"
+  grep -qF 'runtime/start-preflight.sh' "$START"
+  grep -qF 'runtime\windows\start-preflight.ps1' "$START"
+}
+
+# The lease reader and the watchman recovery keys are the helper's job on both hosts. A skill that
+# re-derived them would drift from the script that actually refuses to arm.
+@test "the preflight helper reads the lease and the watchman recovery keys on both hosts" {
+  grep -qF 'ns_lease_valid' "$PREFLIGHT"
+  grep -qF 'Read-NSLease' "$PREFLIGHT_PS1"
+  for key in watchRetrySeconds revivalPrompt freshRevivalPrompt; do
+    grep -qF "$key" "$PREFLIGHT" || { echo "POSIX helper drops $key"; return 1; }
+    grep -qF "$key" "$PREFLIGHT_PS1" || { echo "Windows helper drops $key"; return 1; }
+  done
 }
 
 @test "start validates the captured Codex identity before its watchman or item work" {
   checkpoint="$(grep -n '^### Codex identity checkpoint' "$START" | cut -d: -f1)"
-  watchman="$(grep -n '^## 5\. Arm the night watchman' "$START" | cut -d: -f1)"
-  work="$(grep -n '^## 6\. Work' "$START" | cut -d: -f1)"
+  watchman="$(grep -n '^## [0-9]\+\. Arm the night watchman' "$START" | cut -d: -f1)"
+  work="$(grep -n '^## [0-9]\+\. Work' "$START" | cut -d: -f1)"
   [ -n "$checkpoint" ]
   [ "$checkpoint" -lt "$watchman" ]
   [ "$checkpoint" -lt "$work" ]
+  grep -qF -- '--phase bind' "$START"
   grep -qF 'ns_codex_identity_kind' "$START"
+  grep -qF 'Get-NSCodexIdentityKind' "$START"
   grep -qF ': nightshift-binding-probe' "$START"
-  grep -qF 'Remove only the markers created by' "$START"
+  grep -qF 'Remove only the markers this start created' "$START"
   grep -qF '.shift-armed' "$START"
   grep -qF '.shift-session' "$START"
   grep -qF 'before the watchman or item work' "$START"
   grep -qF 'with no other command between marker removal' "$START"
 }
 
-@test "start refuses an active watchman before clearing stale lease state" {
-  active="$(grep -n 'A live `$NS/.watchman` beside an armed list' "$START" | cut -d: -f1)"
-  stale="$(grep -n 'Stand down a stale watchman before clearing its state' "$START" | cut -d: -f1)"
-  clear="$(grep -n 'Clear every stale run-control marker first' "$START" | cut -d: -f1)"
+# The order is the whole point: prove nothing is live, stand the old watchman down, only then
+# remove markers. A watchman that survives into the clearing step can advance the lease it is
+# about to lose. The order now lives in the helper, so the helper is where it is pinned.
+@test "the preflight refuses an active watchman before clearing stale lease state" {
+  active="$(grep -n 'a live watchman is recovering this shift' "$PREFLIGHT" | cut -d: -f1)"
+  stale="$(grep -n 'ns_control_stop_watchman' "$PREFLIGHT" | cut -d: -f1)"
+  clear="$(grep -n 'ns_control_drop_runtime_markers' "$PREFLIGHT" | cut -d: -f1)"
   [ -n "$active" ]
   [ "$active" -lt "$stale" ]
   [ "$stale" -lt "$clear" ]
-  grep -qF 'Refuse the second Start' "$START"
+  grep -qF 'refuse watchman' "$START"
+  grep -qF 'never kill a live watchman as stale' "$START"
   grep -qF '$NS/.shift-lease' "$START"
+  grep -qF 'Stand down a stale watchman' "$HOSTS"
+  grep -qF 'Test-NSRecordedProcess' "$HOSTS"
+  grep -qF 'Stop-Process -Id' "$HOSTS"
+  grep -qF 'a reused pid is not this watchman' "$HOSTS"
+}
+
+# Start opens the host reference only when a verdict names that host, so the reference has to
+# carry the whole host answer — and stay host-neutral markdown, not a second skill.
+@test "start host detail lives in one shared reference" {
+  [ -f "$HOSTS" ]
+  grep -qF 'start-hosts.md' "$START"
+  grep -qF 'ConvertFrom-Json' "$HOSTS"
+  grep -qF 'PSObject.Properties.Name' "$HOSTS"
+  grep -qF 'kill -0' "$HOSTS"
+  grep -qF 'process-evidence-unavailable' "$HOSTS"
+  grep -qF 'claude --resume' "$HOSTS"
+  grep -qF 'codex resume' "$HOSTS"
+  grep -qF 'agent --resume' "$HOSTS"
+  grep -qF 'link-workspace.sh' "$HOSTS"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh' "$HOSTS"
+  grep -qF '$TASK_ROOT/.claude/settings.local.json' "$HOSTS"
+  grep -qF '$TASK_ROOT/.claude/settings.json' "$HOSTS"
 }
 
 @test "stop writes the stop-work order through the trusted helper" {
@@ -216,7 +256,7 @@ PY
 @test "start STOP lever uses the bound Nightshift directory on both platforms" {
   grep -qF 'touch "$NS/STOP"' "$START"
   grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$START"
-  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh' "$START"
+  grep -qF '$NIGHTSHIFT_PLUGIN_ROOT/lib/lib.sh' "$HOSTS"
 }
 
 @test "hunt and quality arm with the same bound pair as start" {
@@ -261,8 +301,9 @@ PY
 }
 
 @test "start and schedule inspect Claude settings at the task root" {
-  grep -qF '$TASK_ROOT/.claude/settings.local.json' "$START"
-  grep -qF '$TASK_ROOT/.claude/settings.json' "$START"
+  grep -qF '.claude/settings.local.json' "$PREFLIGHT"
+  grep -qF '.claude/settings.json' "$PREFLIGHT"
+  grep -qF '.claude/settings.local.json' "$PREFLIGHT_PS1"
   grep -qF '$TASK_ROOT/.claude/settings.local.json' "$SCHEDULE"
   grep -qF '$TASK_ROOT/.claude/settings.json' "$SCHEDULE"
 }
