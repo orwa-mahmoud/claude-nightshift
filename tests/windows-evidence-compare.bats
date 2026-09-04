@@ -10,17 +10,28 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'evidence-compare-logic.ps1' "$RUN"
 }
 
-@test "the Windows lifecycle helpers are native and thin" {
+@test "the Windows comparison helper is native and thin" {
   [ -f "$WIN/evidence-compare.ps1" ]
-  [ -f "$WIN/evidence-baseline.ps1" ]
-  [ -f "$WIN/evidence-checkpoint.ps1" ]
   grep -qF 'Invoke-NSEvidenceCompareCommand' "$WIN/evidence-compare.ps1"
-  grep -qF 'Invoke-NSEvidenceBaselineCommand' "$WIN/evidence-baseline.ps1"
-  grep -qF 'Invoke-NSEvidenceCheckpointCommand' "$WIN/evidence-checkpoint.ps1"
   if grep -RE 'brew |npm install|pip install|python3|jq is required' \
-    "$WIN/evidence-compare.ps1" "$WIN/evidence-baseline.ps1" "$WIN/evidence-checkpoint.ps1"; then
+    "$WIN/evidence-compare.ps1"; then
     return 1
   fi
+}
+
+@test "the ledger is the only writer of a baseline or checkpoint record" {
+  for helper in evidence-baseline.sh evidence-checkpoint.sh; do
+    [ ! -e "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/$helper" ]
+  done
+  for helper in evidence-baseline.ps1 evidence-checkpoint.ps1; do
+    [ ! -e "$WIN/$helper" ]
+  done
+  for fn in Write-NSEvidenceBaseline Write-NSEvidenceCheckpoint New-NSLifecycleRecord; do
+    if grep -qF "function $fn" "$MODULE"; then
+      echo "module still carries $fn"
+      return 1
+    fi
+  done
 }
 
 @test "the comparison carries every frozen class and JSON key" {
@@ -41,15 +52,12 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF '| ID | Class | Digest | Sources | Locator |' "$MODULE"
 }
 
-@test "the lifecycle records carry exactly the frozen details" {
-  for field in sourceClass command versions environmentDigest rawDigest scope seen; do
-    grep -qF "\$details['$field']" "$MODULE"
-  done
-  for field in worktreeDigest head baseline artifacts touched rollback plan; do
-    grep -qF "\$details['$field']" "$MODULE"
-  done
-  grep -qF "'baseline'" "$MODULE"
-  grep -qF "'checkpoint'" "$MODULE"
+@test "the comparison reads the baseline details it was frozen against" {
+  grep -qF "Get-NSMapValue \$details 'seen'" "$MODULE"
+  grep -qF "Get-NSRecordText \$details 'environmentDigest'" "$MODULE"
+  grep -qF "@('baseline', 'checkpoint')" "$MODULE"
+  grep -qF "the comparison reads the environment digest off the record" "$LOGIC"
+  grep -qF "the baseline record carries the baseline domain" "$LOGIC"
 }
 
 @test "the shift policy accepts completionMode and selectedDebt without resolving them" {
@@ -91,7 +99,6 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'Test-NSKeysSorted' "$LOGIC"
   grep -qF 'Test-NSHasBom' "$LOGIC"
   grep -qF 'rows are sorted by id in byte order' "$LOGIC"
-  grep -qF 'the environment digest is sha256 over sorted tool/version lines' "$LOGIC"
 }
 
 @test "Windows comparison logic checks bash byte parity and its skip path" {

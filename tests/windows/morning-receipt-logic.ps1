@@ -16,7 +16,6 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $plugin = Join-Path $repository 'plugins/nightshift'
 $ledger = Join-Path $plugin 'runtime/windows/evidence.ps1'
-$baselineHelper = Join-Path $plugin 'runtime/windows/evidence-baseline.ps1'
 $receiptHelper = Join-Path $plugin 'runtime/windows/morning-receipt.ps1'
 $archiveHelper = Join-Path $plugin 'runtime/windows/archive-receipts.ps1'
 $gate = Join-Path $plugin 'hooks/windows/clock-out-gate.ps1'
@@ -236,6 +235,55 @@ function New-FindingJson {
     return (ConvertTo-NSCanonicalJson $record -Compact)
 }
 
+function New-BaselineJson {
+    # A baseline record as the model writes one through the ledger.
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Environment,
+        [string]$SourceClass = 'lint',
+        [string]$Command = 'npm run lint',
+        [string]$Scope = 'repo',
+        [string[]]$Seen = @()
+    )
+    $entries = New-Object Collections.Generic.List[object]
+    foreach ($pair in $Seen) {
+        if ([string]::IsNullOrEmpty($pair)) { continue }
+        $at = $pair.IndexOf('=')
+        $entry = New-NSOrdinalMap
+        $entry['digest'] = if ($at -ge 0) { $pair.Substring($at + 1) } else { '' }
+        $entry['id'] = if ($at -ge 0) { $pair.Substring(0, $at) } else { $pair }
+        $entries.Add($entry)
+    }
+    $details = New-NSOrdinalMap
+    $details['command'] = $Command
+    $details['environmentDigest'] = $Environment
+    $details['rawDigest'] = 'raw-' + $Id
+    $details['scope'] = $Scope
+    $details['seen'] = @($entries.ToArray())
+    $details['sourceClass'] = $SourceClass
+    $record = New-NSOrdinalMap
+    $record['schemaVersion'] = 1
+    $record['id'] = $Id
+    $record['domain'] = 'baseline'
+    $record['sourceClass'] = $SourceClass
+    $record['source'] = $Command
+    $record['scope'] = $Scope
+    $record['severity'] = 'info'
+    $record['confidence'] = 'high'
+    $record['impact'] = 'none'
+    $record['status'] = 'open'
+    $record['ladder'] = 'measured'
+    $record['locator'] = $Scope
+    $record['digest'] = 'digest-' + $Id
+    $record['firstSeen'] = $fixedNow
+    $record['lastChecked'] = $fixedNow
+    $record['action'] = 'baseline recorded'
+    $record['host'] = 'claude'
+    $record['workTarget'] = 'test-target'
+    $record['details'] = $details
+    return (ConvertTo-NSCanonicalJson $record -Compact)
+}
+
 function Add-Finding {
     param(
         [Parameter(Mandatory = $true)][string]$Project,
@@ -262,10 +310,8 @@ try {
     $opportunity = "# Opportunity map`n`n## Opportunities`n`n### Import map rewrite`nStatus: building`nNext: split the vendor chunk`n"
     [IO.File]::WriteAllText((Join-Path $ns 'opportunity-map.md'), $opportunity, $utf8)
 
-    $baselineRun = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $project, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo', '-Versions', 'os=test-os',
-        '-Seen', "F-cleared=$digestCleared", "F-unchanged=$digestUnchanged", '-Raw', 'lint output line')
+    $baselineRun = Add-Finding -Project $project -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-cleared=$digestCleared", "F-unchanged=$digestUnchanged"))
     Expect-Equal 0 $baselineRun.ExitCode "the fixture baseline is written ($($baselineRun.StderrText))"
     $null = Add-Finding -Project $project -Json (New-FindingJson -Id 'F-cleared' -Digest $digestCleared `
             -Status 'fixed' -Ladder 'verified-after-change' -Fix 'fix(lint): quiet the rule' -VerificationLocator 'npm run lint')

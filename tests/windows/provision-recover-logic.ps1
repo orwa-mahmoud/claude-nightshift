@@ -5,9 +5,8 @@
 # blob store and from the recorded base64, created files removed and empty
 # parents pruned, the proof that leaves an unproven tree alone, the late stages
 # finishing natively with a real setup commit, the malformed transaction that
-# names its field, the forced rollback, the read-only diagnosis, the read-only
-# plan and its refusal codes, the honest apply refusal, preflight skip reasons,
-# and the Doctor diagnosis line.
+# names its field, the forced rollback, the read-only diagnosis, and the Doctor
+# diagnosis line.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
@@ -17,7 +16,6 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $plugin = Join-Path $repository 'plugins/nightshift'
 $helper = Join-Path $plugin 'runtime/windows/provision.ps1'
-$preflight = Join-Path $plugin 'runtime/windows/provision-preflight.ps1'
 $doctor = Join-Path $plugin 'runtime/windows/doctor.ps1'
 $rulesTemplate = Join-Path $plugin 'skills/nightshift/references/nightshift-rules-template.json'
 $hostExecutable = (Get-Process -Id $PID).Path
@@ -759,75 +757,6 @@ try {
         ($verb + ' writes nothing into the work target')
     }
 
-
-    # === 12. preflight skip reasons ===
-    $skipProject = New-TestProject (Join-Path $root 'skip reasons')
-    $skipWorkspace = $skipProject['workspace']
-    $existingTools = @(Get-NSProvisionSkipReasons -Workspace $skipWorkspace -NativeWindows -PermissionGrant -Attended)
-    Expect-Equal 0 $existingTools.Count 'existing-tools never probes for a provisioning runtime'
-    Write-TestJson (Join-Path $skipProject['ns'] 'shift-policy.json') (New-TestPolicy -ToolingPolicy 'auto-add')
-    $autoAdd = @(Get-NSProvisionSkipReasons -Workspace $skipWorkspace -NativeWindows -PermissionGrant -Attended)
-    Expect-Equal 1 $autoAdd.Count 'auto-add on this host reports one skip'
-    Expect-Equal 'provisioning-runtime-unavailable' $autoAdd[0] 'auto-add has no provisioning runtime on native Windows'
-    $posix = @(Get-NSProvisionSkipReasons -Workspace $skipWorkspace -PermissionGrant -Attended)
-    Expect-Equal 0 $posix.Count 'the runtime skip is the native-Windows answer only'
-    $unattended = @(Get-NSProvisionSkipReasons -Workspace $skipWorkspace -NativeWindows)
-    Expect-Equal 2 $unattended.Count 'an unattended shift with no grant reports both skips'
-    Expect-Equal 'permission-prompt-required' $unattended[0] 'the permission skip is reported first'
-    Expect-Equal 'provisioning-runtime-unavailable' $unattended[1] 'the runtime skip follows the permission skip'
-
-    $elevationProject = New-TestProject (Join-Path $root 'elevation token')
-    Write-TestJson (Join-Path $elevationProject['ns'] 'shift-policy.json') `
-    (New-TestPolicy -Allowances @((New-TestAllowance -Category 'sudo')))
-    $withoutToken = @(Get-NSProvisionSkipReasons -Workspace $elevationProject['workspace'] -NativeWindows `
-            -PermissionGrant -Attended)
-    Expect-Equal 1 $withoutToken.Count 'an allowed elevation without an elevated token is a skip'
-    Expect-Equal 'permission-prompt-required' $withoutToken[0] 'an elevation request needs an elevated token'
-    $withToken = @(Get-NSProvisionSkipReasons -Workspace $elevationProject['workspace'] -NativeWindows -Elevated `
-            -PermissionGrant -Attended)
-    Expect-Equal 0 $withToken.Count 'an elevated token clears the elevation skip'
-    $posixElevation = @(Get-NSProvisionSkipReasons -Workspace $elevationProject['workspace'] -PermissionGrant -Attended)
-    Expect-Equal 0 $posixElevation.Count 'the elevated-token rule is the native-Windows twin of the sudo check'
-    $elevatedToken = Test-NSProvisionElevatedToken
-    Expect-True ($elevatedToken -is [bool]) 'the elevated-token probe answers with a boolean'
-    if (-not (Test-NSWindows)) {
-        Expect-True (-not $elevatedToken) 'a POSIX host reports no elevated Windows token'
-    }
-
-    # Named a recipe, the elevation question narrows to what that recipe declares.
-    $quietRecipe = New-TestRecipe (Join-Path $root 'quiet-recipe.json')
-    $sudoRecipe = New-TestRecipe (Join-Path $root 'sudo-recipe.json') -ElevationCategories @('sudo')
-    $narrowed = @(Get-NSProvisionSkipReasons -Workspace $elevationProject['workspace'] -RecipePath $quietRecipe `
-            -NativeWindows -PermissionGrant -Attended)
-    Expect-Equal 0 $narrowed.Count 'a recipe that declares no elevation asks for no token'
-    $declaredSkip = @(Get-NSProvisionSkipReasons -Workspace $elevationProject['workspace'] -RecipePath $sudoRecipe `
-            -NativeWindows -PermissionGrant -Attended)
-    Expect-Equal 1 $declaredSkip.Count 'a recipe that declares an allowed category needs the token'
-    Expect-Equal 'permission-prompt-required' $declaredSkip[0] 'the narrowed question reports the same skip'
-    $unreadableRecipeSkip = @(Get-NSProvisionSkipReasons -Workspace $elevationProject['workspace'] `
-            -RecipePath (Join-Path $root 'absent-recipe.json') -NativeWindows -PermissionGrant -Attended)
-    Expect-Equal 1 $unreadableRecipeSkip.Count 'an unreadable recipe narrows nothing'
-
-    # The end-to-end report runs under existing-tools, so the printed skip is the
-    # same on either host and the shape claim is about bytes, not about the host.
-    $reportProject = New-TestProject (Join-Path $root 'preflight report')
-    $preflightRun = Invoke-Script -Path $preflight -Arguments @('-Project', $reportProject['workspace'], 'check') `
-        -Environment @{ NIGHTSHIFT_REVIVAL = '1'; CODEX_SANDBOX = ''; CODEX_SANDBOX_MODE = '' }
-    Expect-Equal 0 $preflightRun.ExitCode "preflight reports and exits 0 ($($preflightRun.StderrText))"
-    Expect-Equal '{"ok":false,"skipReasons":["permission-prompt-required"],"recoverNeeded":false}' `
-    (Get-JsonLine $preflightRun) 'preflight keeps the frozen report shape'
-    Expect-WireFormat $preflightRun 'the preflight report'
-    Write-TestJson $reportProject['transaction'] (New-TestTransaction -Stage 'apply' -Target $reportProject['target'])
-    $preflightRecover = Invoke-Script -Path $preflight -Arguments @('-Project', $reportProject['workspace'], 'check') `
-        -Environment @{ NIGHTSHIFT_REVIVAL = '1'; CODEX_SANDBOX = ''; CODEX_SANDBOX_MODE = '' }
-    Expect-True ((Get-JsonLine $preflightRecover).Contains('"recoverNeeded":true')) `
-        'an open transaction is reported as recovery due'
-    $preflightRecipe = Invoke-Script -Path $preflight `
-        -Arguments @('-Project', $reportProject['workspace'], 'check', '-Recipe', $quietRecipe) `
-        -Environment @{ NIGHTSHIFT_REVIVAL = '1'; CODEX_SANDBOX = ''; CODEX_SANDBOX_MODE = '' }
-    Expect-Equal 0 $preflightRecipe.ExitCode "preflight accepts a recipe ($($preflightRecipe.StderrText))"
-    Expect-True ((Get-JsonLine $preflightRecipe).Contains('"skipReasons":["permission-prompt-required"]')) `
-        'a named recipe does not change what preflight reports here'
 
     # === 13. the Doctor diagnosis ===
     $doctorProject = New-TestProject (Join-Path $root 'doctor')

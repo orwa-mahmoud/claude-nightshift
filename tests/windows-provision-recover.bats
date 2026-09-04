@@ -13,12 +13,10 @@ POSIX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/provision.sh"
 
 @test "the Windows provisioning helpers are native and thin" {
   [ -f "$WIN/provision.ps1" ]
-  [ -f "$WIN/provision-preflight.ps1" ]
   grep -qF 'Invoke-NSProvisionCommand' "$WIN/provision.ps1"
-  grep -qF 'Get-NSProvisionSkipReasons' "$WIN/provision-preflight.ps1"
   grep -qF 'Get-NSProvisionDiagnosisLine' "$WIN/doctor.ps1"
   if grep -RE 'brew |npm install|pip install|python3|jq is required' \
-    "$WIN/provision.ps1" "$WIN/provision-preflight.ps1" "$WIN/doctor.ps1"; then
+    "$WIN/provision.ps1" "$WIN/doctor.ps1"; then
     return 1
   fi
 }
@@ -28,7 +26,6 @@ POSIX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/provision.sh"
   grep -qF '[string[]]$Surface' "$WIN/provision.ps1"
   grep -qF '[switch]$Rollback' "$WIN/provision.ps1"
   grep -qF '[switch]$Diagnose' "$WIN/provision.ps1"
-  grep -qF '[string]$Recipe' "$WIN/provision-preflight.ps1"
   for verb in baseline diff rollback recover; do
     grep -qF "provision.sh --project DIR $verb" "$POSIX" \
       || { echo "POSIX helper does not document $verb"; return 1; }
@@ -97,19 +94,23 @@ POSIX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/provision.sh"
   grep -qF 'undecodable baseline bytes never overwrite the tree' "$LOGIC"
 }
 
-@test "Windows provisioning logic covers the refused verbs and the skips" {
+@test "Windows provisioning logic covers the refused verbs" {
   grep -qF 'is not a seatbelt verb' "$LOGIC"
   grep -qF 'prints the seatbelt usage' "$LOGIC"
   grep -qF 'opens no transaction' "$LOGIC"
   grep -qF 'writes nothing into the work target' "$LOGIC"
   grep -qF 'baseline without a surface is a usage error' "$LOGIC"
-  grep -qF 'auto-add has no provisioning runtime on native Windows' "$LOGIC"
-  grep -qF 'existing-tools never probes for a provisioning runtime' "$LOGIC"
-  grep -qF 'an elevation request needs an elevated token' "$LOGIC"
-  grep -qF 'an elevated token clears the elevation skip' "$LOGIC"
-  grep -qF 'the permission skip is reported first' "$LOGIC"
-  grep -qF 'a recipe that declares no elevation asks for no token' "$LOGIC"
-  grep -qF 'an unreadable recipe narrows nothing' "$LOGIC"
+}
+
+@test "the Windows seatbelt takes the four verbs and no plan or apply" {
+  grep -qF "@('baseline', 'diff', 'rollback', 'recover')" "$WIN/provision.ps1"
+  for word in "'plan'" "'apply'" 'Invoke-NSProvisionPlan' 'Invoke-NSProvisionApply' \
+    'Get-NSProvisionSkipReasons'; do
+    if grep -qF -- "$word" "$MODULE"; then
+      echo "module still carries $word"
+      return 1
+    fi
+  done
 }
 
 @test "Windows Doctor and diagnose print the one diagnosis line" {

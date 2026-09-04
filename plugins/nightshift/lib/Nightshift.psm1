@@ -573,25 +573,6 @@ function Get-NSStatusStallAttempts {
     return 0
 }
 
-function Test-NSLongUnitWarnDue {
-    param(
-        [Parameter(Mandatory = $true)][string]$Workspace,
-        [int]$Minutes = 0
-    )
-    if ($Minutes -le 0) { return $false }
-    $armed = Join-Path (Join-Path $Workspace '.nightshift') '.shift-armed'
-    if (-not (Test-NSPathEntry $armed) -or (Test-NSReparsePoint $armed)) { return $false }
-    if ((Get-NSGateCheckpointToken $Workspace) -cne 'none') { return $false }
-    try {
-        $start = ([IO.File]::GetLastWriteTimeUtc($armed) - [datetime]'1970-01-01Z').TotalSeconds
-        if ((Get-NSUnixTime) - $start -lt ($Minutes * 60)) { return $false }
-        return $true
-    }
-    catch {
-        return $false
-    }
-}
-
 function Invoke-NSEvidenceArchive {
     param(
         [Parameter(Mandatory = $true)][string]$Workspace,
@@ -3793,7 +3774,6 @@ function Get-NSPolicyPaths {
     $paths['ns'] = $ns
     $paths['policy'] = Join-NSPath $ns 'shift-policy.json'
     $paths['defaults'] = Join-NSPath $ns 'shift-defaults.json'
-    $paths['legacy'] = Join-NSPath $ns 'capability-policy.json'
     $paths['deadline'] = Join-NSPath $ns 'deadline'
     $paths['armed'] = Join-NSPath $ns '.shift-armed'
     $paths['archive'] = Join-NSPath $ns 'archive'
@@ -4377,7 +4357,6 @@ function Get-NSPolicyResolution {
     $resolution['policyError'] = $state['error']
     $resolution['deadlineFile'] = Get-NSPolicyDeadlineFile $Workspace
     $resolution['deadlinePolicy'] = $settings['deadlineEpoch']['value']
-    $resolution['legacyCapabilityPolicy'] = (Test-Path -LiteralPath $paths['legacy'] -PathType Leaf)
     return $resolution
 }
 
@@ -4798,43 +4777,6 @@ function Add-NSParkedNeeds {
     return , $added.ToArray()
 }
 
-# The legacy capability-policy.json carried one field the layered policy still
-# uses: its tooling policy becomes the remembered prefill and the file goes.
-function Invoke-NSMigrateCapabilityPolicy {
-    param([Parameter(Mandatory = $true)][string]$Workspace)
-    $paths = Get-NSPolicyPaths $Workspace
-    $result = New-NSOrdinalMap
-    $result['state'] = 'absent'
-    $result['toolingPolicy'] = ''
-    if (-not (Test-Path -LiteralPath $paths['legacy'] -PathType Leaf)) { return $result }
-    if (Test-NSPolicyArmed $Workspace) {
-        $result['state'] = 'armed'
-        return $result
-    }
-    $tooling = ''
-    try {
-        $document = ConvertFrom-NSJsonText ([IO.File]::ReadAllText($paths['legacy'], $script:NSUtf8NoBom))
-        $candidate = Get-NSMapValue $document 'policy'
-        if (Test-NSEvidenceEnum $candidate $script:NSPolicyToolingPolicies) { $tooling = [string]$candidate }
-    }
-    catch {
-        $tooling = ''
-    }
-    if ([string]::IsNullOrEmpty($tooling)) {
-        $result['state'] = 'discarded'
-    }
-    else {
-        if ((Set-NSShiftDefaults -Workspace $Workspace -ToolingPolicy $tooling) -ne 0) {
-            $result['state'] = 'failed'
-            return $result
-        }
-        $result['toolingPolicy'] = $tooling
-        $result['state'] = 'migrated'
-    }
-    Remove-NSFile $paths['legacy']
-    return $result
-}
-
 # ---------------------------------------------------------------------------
 # Command surfaces for the thin runtime scripts
 # ---------------------------------------------------------------------------
@@ -4985,7 +4927,6 @@ function Invoke-NSParkNeedsCommand {
 $script:NSProvisionStages = @('authorize', 'capture-baseline', 'apply', 'smoke', 'record', 'commit-tooling')
 # Every stage but record and commit-tooling undoes rather than finishes.
 $script:NSProvisionRollbackStages = @('authorize', 'capture-baseline', 'apply', 'smoke', 'rollback')
-$script:NSProvisionSafeClasses = @('local-dev-free', 'local-dev-with-config')
 $script:NSProvisionSetupPrefix = 'chore(tooling):'
 $script:NSProvisionBudgetDefault = 120
 $script:NSProvisionRequiredFields = @(
@@ -5444,47 +5385,6 @@ function Get-NSProvisionCommandText {
     return ''
 }
 
-# Every command the engine would run: the package-manager additions and the
-# smoke. Prose is not a command, and a command is never read from the tree.
-function Get-NSProvisionRecipeCommands {
-    param($Recipe)
-    $commands = New-Object Collections.Generic.List[string]
-    $additions = Get-NSMapValue $Recipe 'packageManagerAdditions'
-    if ($additions -is [Collections.IDictionary]) {
-        $additions = @($additions)
-    }
-    if (($null -ne $additions) -and -not ($additions -is [string])) {
-        foreach ($step in @($additions)) {
-            $text = Get-NSProvisionCommandText $step
-            if ($text.Length -gt 0) { $commands.Add($text) }
-        }
-    }
-    elseif ($additions -is [string]) {
-        $commands.Add($additions)
-    }
-    $smoke = Get-NSProvisionCommandText (Get-NSMapValue $Recipe 'smoke')
-    if ($smoke.Length -gt 0) { $commands.Add($smoke) }
-    return , $commands.ToArray()
-}
-
-function Get-NSProvisionElevationCategories {
-    param($Recipe)
-    $declared = New-Object Collections.Generic.List[string]
-    $value = Get-NSMapValue $Recipe 'elevationCategories'
-    if ($value -is [string]) {
-        if ($value.Length -gt 0) { $declared.Add($value) }
-        return , $declared.ToArray()
-    }
-    if (($null -eq $value) -or ($value -is [Collections.IDictionary]) -or -not ($value -is [Collections.IEnumerable])) {
-        return , $declared.ToArray()
-    }
-    foreach ($entry in @($value)) {
-        if (-not ($entry -is [string]) -or $entry.Length -eq 0) { continue }
-        if (-not ($declared -ccontains $entry)) { $declared.Add($entry) }
-    }
-    return , $declared.ToArray()
-}
-
 function Test-NSProvisionGitTarget {
     param([Parameter(Mandatory = $true)][string]$Target)
     $result = Invoke-NSGitCommand $Target @('rev-parse', '--is-inside-work-tree')
@@ -5506,41 +5406,6 @@ function Get-NSProvisionPorcelain {
         if (-not [string]::IsNullOrWhiteSpace([string]$line)) { $lines.Add([string]$line) }
     }
     return , $lines.ToArray()
-}
-
-# A capability already carrying its setup commit is provisioned. The subject is
-# the whole record; nothing re-reads the tool.
-function Get-NSProvisionSetupCommit {
-    param(
-        [Parameter(Mandatory = $true)][string]$Target,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$CapabilityId
-    )
-    if ([string]::IsNullOrEmpty($CapabilityId)) { return '' }
-    if (-not (Test-NSProvisionGitTarget $Target)) { return '' }
-    $subject = $script:NSProvisionSetupPrefix + ' ' + $CapabilityId
-    $result = Invoke-NSGitCommand $Target @('log', '--format=%H %s', '-n', '80')
-    if ($result.ExitCode -ne 0) { return '' }
-    foreach ($line in @($result.Lines)) {
-        $text = [string]$line
-        $cut = $text.IndexOf(' ', [StringComparison]::Ordinal)
-        if ($cut -lt 1) { continue }
-        if (($text.Substring($cut + 1)) -ceq $subject) { return $text.Substring(0, $cut) }
-    }
-    return ''
-}
-
-function Get-NSProvisionStacks {
-    param([Parameter(Mandatory = $true)][string]$Target)
-    $found = New-Object Collections.Generic.List[string]
-    foreach ($name in @($script:NSProvisionStackSignals.Keys)) {
-        foreach ($signal in @($script:NSProvisionStackSignals[$name])) {
-            if (Test-NSPathEntry (Join-NSPath $Target $signal)) {
-                $found.Add([string]$name)
-                break
-            }
-        }
-    }
-    return , $found.ToArray()
 }
 
 function Get-NSProvisionInventory {
@@ -5632,129 +5497,6 @@ function Invoke-NSProvisionCommitTooling {
     return $head
 }
 
-function Write-NSProvisionRefusal {
-    param(
-        [Parameter(Mandatory = $true)][string]$Code,
-        [AllowEmptyString()][string]$Detail = ''
-    )
-    $document = New-NSOrdinalMap
-    $document['ok'] = $false
-    $document['refused'] = $true
-    $document['reason'] = $Code
-    $document['refusalReasons'] = @($Code)
-    if (-not [string]::IsNullOrEmpty($Detail)) { $document['detail'] = $Detail }
-    Write-NSProvisionJson $document
-    return 2
-}
-
-# Authorization is the shift's, not the recipe's: a declared category must be
-# allowed for tonight, and every command the recipe would run is matched against
-# the five patterns so an undeclared category cannot slip through prose.
-function Get-NSProvisionRefusals {
-    param(
-        [Parameter(Mandatory = $true)][string]$Workspace,
-        [Parameter(Mandatory = $true)]$Recipe,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Mode,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$ToolingPolicy,
-        [Parameter(Mandatory = $true)][string]$Target,
-        [Parameter(Mandatory = $true)]$Resolution
-    )
-    $reasons = New-Object Collections.Generic.List[string]
-    if ($ToolingPolicy -cne 'auto-add') { $reasons.Add('policy-not-auto-add') }
-    if ($Mode -ceq 'artifact') { $reasons.Add('artifact-mode') }
-
-    $settings = $Resolution['settings']
-    foreach ($category in (Get-NSProvisionElevationCategories $Recipe)) {
-        $value = 'deny'
-        if ($settings.Contains('elevation.' + $category)) {
-            $value = [string]$settings['elevation.' + $category]['value']
-        }
-        if (($value -ceq 'allow') -or ($value -ceq 'exact-plan')) { continue }
-        $code = 'elevation-denied:' + $category
-        if (-not ($reasons -ccontains $code)) { $reasons.Add($code) }
-    }
-    foreach ($command in (Get-NSProvisionRecipeCommands $Recipe)) {
-        foreach ($category in $script:NSPolicyCategories) {
-            $pattern = Get-NSElevationPattern $Workspace $category
-            if ([string]::IsNullOrEmpty($pattern)) { continue }
-            if (-not (New-NSPolicyRegex $pattern).IsMatch($command)) { continue }
-            if ((Test-NSPolicyAllowed -Workspace $Workspace -Category $category -Command $command) -eq 0) { continue }
-            $code = 'elevation-denied:' + $category
-            if (-not ($reasons -ccontains $code)) { $reasons.Add($code) }
-        }
-    }
-
-    $ecosystems = New-Object Collections.Generic.List[string]
-    $declared = Get-NSMapValue $Recipe 'ecosystems'
-    if ($declared -is [string]) {
-        $ecosystems.Add($declared)
-    }
-    elseif (($null -ne $declared) -and -not ($declared -is [Collections.IDictionary])) {
-        foreach ($entry in @($declared)) {
-            if ($entry -is [string]) { $ecosystems.Add($entry) }
-        }
-    }
-    if ($ecosystems.Count -gt 0) {
-        $wild = $false
-        foreach ($name in $ecosystems) {
-            if (($name -ceq '*') -or ($name -ceq 'any')) { $wild = $true }
-        }
-        $stacks = [string[]](Get-NSProvisionStacks $Target)
-        if ((-not $wild) -and $stacks.Count -gt 0) {
-            $shared = $false
-            foreach ($name in $ecosystems) {
-                if ($stacks -ccontains $name) { $shared = $true }
-            }
-            if (-not $shared) { $reasons.Add('incompatible-ecosystem') }
-        }
-    }
-
-    if ((Get-NSProvisionPorcelain -Target $Target -Paths ([string[]](Get-NSProvisionAllowedFiles $Recipe))).Count -gt 0) {
-        $reasons.Add('owner-dirty-conflict')
-    }
-    if (-not (Test-NSEvidenceEnum (Get-NSMapValue $Recipe 'safetyClass') $script:NSProvisionSafeClasses)) {
-        $reasons.Add('safety-forbidden')
-    }
-    return , $reasons.ToArray()
-}
-
-function Get-NSProvisionPlanDocument {
-    param(
-        [Parameter(Mandatory = $true)]$Recipe,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Reasons,
-        [Parameter(Mandatory = $true)][string]$Target
-    )
-    $capability = [string](Get-NSMapValue $Recipe 'capabilityId')
-    $reason = $null
-    if ($Reasons -ccontains 'artifact-mode') {
-        $reason = 'artifact-mode'
-    }
-    elseif ($Reasons.Count -gt 0) {
-        $reason = [string]$Reasons[0]
-    }
-    $document = New-NSOrdinalMap
-    $document['ok'] = ($Reasons.Count -eq 0)
-    $document['refused'] = ($Reasons.Count -gt 0)
-    $document['refusalReasons'] = $Reasons
-    $document['reason'] = $reason
-    $document['capabilityId'] = Get-NSMapValue $Recipe 'capabilityId'
-    $document['recipeVersion'] = Get-NSMapValue $Recipe 'recipeVersion'
-    $document['allowedFiles'] = Get-NSPolicyField $Recipe 'allowedFiles'
-    $elevation = Get-NSPolicyField $Recipe 'elevationCategories'
-    if ($null -eq $elevation) { $elevation = @() }
-    $document['elevationCategories'] = $elevation
-    $document['safetyClass'] = Get-NSMapValue $Recipe 'safetyClass'
-    $document['enabledShifts'] = Get-NSPolicyField $Recipe 'enabledShifts'
-    $document['packageManagerAdditions'] = Get-NSPolicyField $Recipe 'packageManagerAdditions'
-    $document['minimalConfig'] = Get-NSMapValue $Recipe 'minimalConfig'
-    $document['smoke'] = Get-NSMapValue $Recipe 'smoke'
-    $document['rollback'] = Get-NSMapValue $Recipe 'rollback'
-    $document['workTarget'] = $Target
-    $document['stages'] = $script:NSProvisionStages
-    $document['alreadyProvisioned'] = ((Get-NSProvisionSetupCommit -Target $Target -CapabilityId $capability).Length -gt 0)
-    return $document
-}
-
 function Resolve-NSProvisionTarget {
     param([Parameter(Mandatory = $true)][string]$Project)
     $workspace = Get-NSAbsolutePath $Project
@@ -5772,59 +5514,6 @@ function Resolve-NSProvisionTarget {
         }
     }
     return $workspace
-}
-
-# plan reads: the recipe, the resolved shift policy, the work mode and the tree.
-# It writes nothing and prints the same refusal codes on every host.
-function Invoke-NSProvisionPlan {
-    param(
-        [Parameter(Mandatory = $true)][string]$Project,
-        [Parameter(Mandatory = $true)][string]$RecipePath,
-        [AllowEmptyString()][string]$Capability = ''
-    )
-    $workspace = Get-NSAbsolutePath $Project
-    $mode = 'repository'
-    try {
-        $mode = Get-NSWorkMode $workspace
-    }
-    catch {
-        $mode = 'repository'
-    }
-    $resolution = $null
-    try {
-        $resolution = Get-NSPolicyResolution $workspace
-    }
-    catch {
-        return (Write-NSProvisionRefusal 'policy-not-auto-add' 'policy lookup failed')
-    }
-    $policy = [string]$resolution['settings']['toolingPolicy']['value']
-    $recipe = $null
-    try {
-        $recipe = Read-NSProvisionRecipe $RecipePath
-    }
-    catch {
-        return (Write-NSProvisionRefusal 'incompatible-ecosystem' ([string]$_.Exception.Message))
-    }
-    if ((-not [string]::IsNullOrEmpty($Capability)) -and -not ([string](Get-NSMapValue $recipe 'capabilityId') -ceq $Capability)) {
-        return (Write-NSProvisionRefusal 'incompatible-ecosystem' 'capability mismatch')
-    }
-    $target = Resolve-NSProvisionTarget $workspace
-    $reasons = [string[]](Get-NSProvisionRefusals -Workspace $workspace -Recipe $recipe -Mode $mode `
-            -ToolingPolicy $policy -Target $target -Resolution $resolution)
-    Write-NSProvisionJson (Get-NSProvisionPlanDocument -Recipe $recipe -Reasons $reasons -Target $target)
-    if ($reasons.Count -gt 0) { return 2 }
-    return 0
-}
-
-# There is no provisioning runtime on this host. apply says so and changes
-# nothing; recovery, rollback and the read-only plan are all native.
-function Invoke-NSProvisionApply {
-    $document = New-NSOrdinalMap
-    $document['ok'] = $false
-    $document['refused'] = $true
-    $document['refusalReasons'] = @('provisioning-runtime-unavailable')
-    Write-NSProvisionJson $document
-    return 3
 }
 
 function Invoke-NSProvisionRollback {
@@ -6054,78 +5743,10 @@ function Invoke-NSProvisionDiagnose {
     return 0
 }
 
-# Preflight reports; it never installs and never lifts a category. On this host
-# auto-add has no runtime to run, and an elevation the shift permits without an
-# elevated token is a prompt waiting to freeze the night.
-function Get-NSProvisionSkipReasons {
-    param(
-        [Parameter(Mandatory = $true)][string]$Workspace,
-        [AllowEmptyString()][string]$RecipePath = '',
-        [switch]$NativeWindows,
-        [switch]$Elevated,
-        [switch]$PermissionGrant,
-        [switch]$Attended
-    )
-    $resolution = Get-NSPolicyResolution $Workspace
-    $settings = $resolution['settings']
-    $toolingPolicy = [string]$settings['toolingPolicy']['value']
-    $shiftPolicy = $resolution['policy']
-    # Named a recipe, the elevation question narrows to the categories that
-    # recipe declares; without one, any category tonight permits is a prompt
-    # waiting to happen. An unreadable recipe narrows nothing.
-    $categories = @($script:NSPolicyCategories)
-    if (-not [string]::IsNullOrEmpty($RecipePath)) {
-        try {
-            $categories = [string[]](Get-NSProvisionElevationCategories (Read-NSProvisionRecipe $RecipePath))
-        }
-        catch {
-            $categories = @($script:NSPolicyCategories)
-        }
-    }
-    $elevationRequested = $false
-    foreach ($category in @($categories)) {
-        if (-not ($category -is [string]) -or [string]::IsNullOrEmpty($category)) { continue }
-        if ($null -ne $shiftPolicy) {
-            if ($null -ne (Get-NSPolicyCategoryAllowance $shiftPolicy $category)) {
-                $elevationRequested = $true
-                continue
-            }
-            if ((Get-NSPolicyExactPlanAllowances $shiftPolicy $category).Count -gt 0) {
-                $elevationRequested = $true
-                continue
-            }
-        }
-        if (-not $settings.Contains('elevation.' + $category)) { continue }
-        if ([string]$settings['elevation.' + $category]['value'] -cne 'deny') { $elevationRequested = $true }
-    }
-    $reasons = New-Object Collections.Generic.List[string]
-    $prompt = ((-not $PermissionGrant.IsPresent) -and (-not $Attended.IsPresent))
-    if ($NativeWindows.IsPresent -and $elevationRequested -and (-not $Elevated.IsPresent)) { $prompt = $true }
-    if ($prompt) { $reasons.Add('permission-prompt-required') }
-    if ($NativeWindows.IsPresent -and ($toolingPolicy -ceq 'auto-add')) {
-        $reasons.Add('provisioning-runtime-unavailable')
-    }
-    return @($reasons.ToArray())
-}
-
-function Test-NSProvisionElevatedToken {
-    if (-not (Test-NSWindows)) { return $false }
-    try {
-        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-        return [bool]$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
-    catch {
-        return $false
-    }
-}
-
 function Invoke-NSProvisionCommand {
     param(
         [AllowEmptyString()][string]$Project = '',
         [AllowEmptyString()][string]$Command = '',
-        [AllowEmptyString()][string]$Recipe = '',
-        [AllowEmptyString()][string]$Capability = '',
         [AllowEmptyString()][string]$BudgetSeconds = '',
         [switch]$Rollback,
         [switch]$Diagnose
@@ -6142,14 +5763,6 @@ function Invoke-NSProvisionCommand {
         return 1
     }
     switch ($Command) {
-        'plan' {
-            if ([string]::IsNullOrEmpty($Recipe)) { return (Write-NSProvisionUsage) }
-            return (Invoke-NSProvisionPlan -Project $workspace -RecipePath $Recipe -Capability $Capability)
-        }
-        'apply' {
-            if ([string]::IsNullOrEmpty($Recipe)) { return (Write-NSProvisionUsage) }
-            return (Invoke-NSProvisionApply)
-        }
         'recover' {
             return (Invoke-NSProvisionRecover -Project $workspace -BudgetSeconds $budget `
                     -Rollback:$Rollback -Diagnose:$Diagnose)
@@ -6161,9 +5774,8 @@ function Invoke-NSProvisionCommand {
     return (Write-NSProvisionUsage)
 }
 
-# Baseline, checkpoint, comparison, morning receipt - the native side of
-# runtime/windows/evidence-baseline.ps1, evidence-checkpoint.ps1,
-# evidence-compare.ps1 and morning-receipt.ps1.
+# Comparison and morning receipt - the native side of
+# runtime/windows/evidence-compare.ps1 and morning-receipt.ps1.
 #
 # Nothing here reruns a tool or reads a work target for a finding. Every row a
 # comparison prints and every line the receipt renders comes from a record
@@ -6173,7 +5785,6 @@ function Invoke-NSProvisionCommand {
 # ---------------------------------------------------------------------------
 
 $script:NSEvidenceBaselineDomain = 'baseline'
-$script:NSEvidenceCheckpointDomain = 'checkpoint'
 $script:NSEvidenceLifecycleDomains = @('baseline', 'checkpoint')
 
 # The eight classes a comparison assigns, in report order.
@@ -6213,25 +5824,10 @@ $script:NSCompareSelectedDebtPrefix = 'Selected debt outstanding: '
 $script:NSMdPipeEscape = '\|'
 $script:NSMdSourceSeparator = ', '
 
-# Fixed fields on a lifecycle record: a baseline and a checkpoint are
-# measurements of a surface, never defects, so they carry the finding schema's
-# required set at its lowest weight and say what they are in action.
-$script:NSEvidenceBaselineSeverity = 'info'
-$script:NSEvidenceBaselineConfidence = 'high'
-$script:NSEvidenceBaselineImpact = 'none'
-$script:NSEvidenceBaselineStatus = 'open'
-$script:NSEvidenceBaselineLadderMeasured = 'measured'
-$script:NSEvidenceBaselineLadderObserved = 'observed'
-$script:NSEvidenceBaselineAction = 'baseline recorded'
-$script:NSEvidenceCheckpointAction = 'checkpoint recorded'
-$script:NSEvidenceCheckpointSourceClass = 'worktree'
-$script:NSEvidenceHostUnknown = 'unknown'
-
 $script:NSReceiptTitle = '# Morning receipt'
 $script:NSReceiptViewNames = @('owner', 'reviewer', 'release', 'artifact')
 $script:NSReceiptNone = 'none'
 $script:NSReceiptEndingUnknown = 'unknown'
-$script:NSReceiptFilePrefix = 'morning-'
 $script:NSReceiptFileFormat = 'morning-{0}-{1}.md'
 $script:NSReceiptDateFileFormat = 'morning-{0}.md'
 $script:NSReceiptFieldFormat = '- {0}: {1}'
@@ -6247,9 +5843,8 @@ $script:NSReceiptGatesFormat = '{0} (punch list)'
 $script:NSReceiptChosenSource = 'one-shift'
 $script:NSReceiptNextFormat = '{0} {1} next: {2}'
 
-# Section keys in receipt order, their headings, and the sections each view
-# renders. Same data, same conclusions - a view only decides how much of it.
-$script:NSReceiptSectionKeys = @('shift', 'baseline', 'changed', 'parked', 'unsupported', 'next')
+# Section headings in receipt order, and the sections each view renders. Same
+# data, same conclusions - a view only decides how much of it.
 
 $script:NSReceiptSectionTitle = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
 $script:NSReceiptSectionTitle['shift'] = '## Shift'
@@ -6305,15 +5900,6 @@ function Get-NSEvidenceDay {
     $now = Get-NSEvidenceNow
     if ($now -cmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}') { return $now.Substring(0, 10) }
     return ([DateTime]::UtcNow.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture))
-}
-
-function Test-NSEvidenceWorkspace {
-    param([Parameter(Mandatory = $true)][string]$Workspace)
-    $paths = Get-NSEvidencePaths $Workspace
-    $ns = $paths['ns']
-    if (Test-Path -LiteralPath $ns -PathType Container) { return $true }
-    Write-NSEvidenceError ('evidence: no .nightshift/ at ' + $Workspace)
-    return $false
 }
 
 function Get-NSEvidenceLedgerRecords {
@@ -6381,105 +5967,6 @@ function Get-NSCompareShortDigest {
     return $Digest.Substring(0, $script:NSCompareDigestLength)
 }
 
-# ---------------------------------------------------------------------------
-# Environment and version digests
-# ---------------------------------------------------------------------------
-
-# "tool=version" or "tool<TAB>version" in, one sorted {name,version} array out.
-# The digest below hashes the same pairs, so a record and its digest cannot drift.
-function Get-NSEvidenceVersionPairs {
-    param([AllowNull()][AllowEmptyCollection()][string[]]$Versions)
-    $tab = [string][char]9
-    $byName = New-NSOrdinalMap
-    if ($null -ne $Versions) {
-        foreach ($entry in $Versions) {
-            if ([string]::IsNullOrEmpty($entry)) { continue }
-            $name = $entry
-            $version = ''
-            $at = $entry.IndexOf($tab)
-            if ($at -lt 0) { $at = $entry.IndexOf('=') }
-            if ($at -ge 0) {
-                $name = $entry.Substring(0, $at)
-                $version = $entry.Substring($at + 1)
-            }
-            $name = $name.Trim()
-            if ($name.Length -eq 0) { continue }
-            $byName[$name] = $version.Trim()
-        }
-    }
-    $pairs = New-Object Collections.Generic.List[object]
-    foreach ($name in (Sort-NSOrdinal ([string[]]@($byName.Keys)))) {
-        $pair = New-NSOrdinalMap
-        $pair['name'] = [string]$name
-        $pair['version'] = [string]$byName[$name]
-        $pairs.Add($pair)
-    }
-    return , $pairs.ToArray()
-}
-
-# sha256 over sorted "tool<TAB>version" lines, each terminated by one LF. The OS
-# is one more pair, so a host change moves the digest the way a tool change does.
-function Get-NSEnvironmentDigest {
-    param($Pairs)
-    $builder = New-Object Text.StringBuilder
-    foreach ($pair in @($Pairs)) {
-        $null = $builder.Append((Get-NSRecordText $pair 'name'))
-        $null = $builder.Append([char]9)
-        $null = $builder.Append((Get-NSRecordText $pair 'version'))
-        $null = $builder.Append("`n")
-    }
-    return (Get-NSTextSha256 $builder.ToString())
-}
-
-# git status --porcelain, one LF-terminated line each. A target that is not a
-# repository has no worktree digest rather than a digest of nothing.
-function Get-NSWorktreeDigest {
-    param([Parameter(Mandatory = $true)][string]$Target)
-    $result = Invoke-NSGitCommand $Target @('status', '--porcelain')
-    if ($result.ExitCode -ne 0) { return '' }
-    $builder = New-Object Text.StringBuilder
-    foreach ($line in @($result.Lines)) {
-        $null = $builder.Append([string]$line)
-        $null = $builder.Append("`n")
-    }
-    return (Get-NSTextSha256 $builder.ToString())
-}
-
-# ---------------------------------------------------------------------------
-# Baseline and checkpoint writers
-# ---------------------------------------------------------------------------
-
-# "id" or "id=digest" in, a sorted array of {digest,id} out. A bare id records an
-# empty digest: present at baseline, digest unknown, so it can never be read as
-# a change.
-function Get-NSEvidenceSeenList {
-    param([AllowNull()][AllowEmptyCollection()][string[]]$Seen)
-    $byId = New-NSOrdinalMap
-    if ($null -ne $Seen) {
-        foreach ($entry in $Seen) {
-            if ([string]::IsNullOrEmpty($entry)) { continue }
-            $id = $entry
-            $digest = ''
-            $at = $entry.IndexOf('=')
-            if ($at -ge 0) {
-                $id = $entry.Substring(0, $at)
-                $digest = $entry.Substring($at + 1)
-            }
-            $id = $id.Trim()
-            if ($id.Length -eq 0) { continue }
-            $byId[$id] = $digest.Trim()
-        }
-    }
-    $entries = New-Object Collections.Generic.List[object]
-    foreach ($id in (Sort-NSOrdinal ([string[]]@($byId.Keys)))) {
-        $item = New-NSOrdinalMap
-        $item['digest'] = [string]$byId[$id]
-        $item['id'] = [string]$id
-        $entries.Add($item)
-    }
-    return , $entries.ToArray()
-}
-
 # Reads either shape back: the {digest,id} array this module writes, or a plain
 # array of ids from a hand-written record.
 function Get-NSBaselineSeenMap {
@@ -6507,14 +5994,6 @@ function Get-NSBaselineSeenMap {
     return $map
 }
 
-function Get-NSEvidenceHostLabel {
-    param([AllowEmptyString()][string]$HostLabel = '')
-    if (-not [string]::IsNullOrEmpty($HostLabel)) { return $HostLabel }
-    if (-not [string]::IsNullOrEmpty($env:CLAUDE_PROJECT_DIR)) { return 'claude' }
-    if (-not [string]::IsNullOrEmpty($env:CODEX_PROJECT_DIR)) { return 'codex' }
-    return $script:NSEvidenceHostUnknown
-}
-
 function Get-NSEvidenceWorkTarget {
     param([Parameter(Mandatory = $true)][string]$Workspace)
     try {
@@ -6523,151 +6002,6 @@ function Get-NSEvidenceWorkTarget {
     catch {
         return (Get-NSAbsolutePath $Workspace)
     }
-}
-
-# The shared required set for a lifecycle record. The ledger's own validator
-# still decides whether the result is acceptable; this only fills what a
-# measurement record has no opinion about.
-function New-NSLifecycleRecord {
-    param(
-        [Parameter(Mandatory = $true)][string]$Id,
-        [Parameter(Mandatory = $true)][string]$Domain,
-        [Parameter(Mandatory = $true)][string]$SourceClass,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Source,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Scope,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Locator,
-        [Parameter(Mandatory = $true)][string]$Ladder,
-        [Parameter(Mandatory = $true)][string]$Action,
-        [Parameter(Mandatory = $true)][string]$HostLabel,
-        [Parameter(Mandatory = $true)][string]$WorkTarget,
-        [Parameter(Mandatory = $true)]$Details
-    )
-    $record = New-NSOrdinalMap
-    $record['schemaVersion'] = 1
-    $record['id'] = $Id
-    $record['domain'] = $Domain
-    $record['sourceClass'] = $SourceClass
-    $record['source'] = $Source
-    $record['scope'] = $Scope
-    $record['severity'] = $script:NSEvidenceBaselineSeverity
-    $record['confidence'] = $script:NSEvidenceBaselineConfidence
-    $record['impact'] = $script:NSEvidenceBaselineImpact
-    $record['status'] = $script:NSEvidenceBaselineStatus
-    $record['ladder'] = $Ladder
-    $record['locator'] = $Locator
-    $record['action'] = $Action
-    $record['host'] = $HostLabel
-    $record['workTarget'] = $WorkTarget
-    $record['details'] = $Details
-    return $record
-}
-
-# One baseline record per originating source, written before the first fix. The
-# raw output goes through the ledger's --raw path; the digest here matches that
-# stored text.
-function Write-NSEvidenceBaseline {
-    param(
-        [Parameter(Mandatory = $true)][string]$Workspace,
-        [Parameter(Mandatory = $true)][string]$Id,
-        [Parameter(Mandatory = $true)][string]$SourceClass,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command,
-        [AllowNull()][AllowEmptyCollection()][string[]]$Versions = @(),
-        [AllowEmptyString()][string]$Scope = '',
-        [AllowNull()][AllowEmptyCollection()][string[]]$Seen = @(),
-        [AllowEmptyString()][string]$Raw = '',
-        [AllowEmptyString()][string]$Locator = '',
-        [AllowEmptyString()][string]$HostLabel = ''
-    )
-    if (-not (Test-NSEvidenceWorkspace $Workspace)) { return 1 }
-    $pairs = Get-NSEvidenceVersionPairs $Versions
-    $rawDigest = ''
-    $ladder = $script:NSEvidenceBaselineLadderObserved
-    if (-not [string]::IsNullOrEmpty($Raw)) {
-        $rawDigest = Get-NSTextSha256 $Raw
-        $ladder = $script:NSEvidenceBaselineLadderMeasured
-    }
-    $details = New-NSOrdinalMap
-    $details['command'] = $Command
-    $details['environmentDigest'] = Get-NSEnvironmentDigest $pairs
-    $details['rawDigest'] = $rawDigest
-    $details['scope'] = $Scope
-    $details['seen'] = Get-NSEvidenceSeenList $Seen
-    $details['sourceClass'] = $SourceClass
-    $details['versions'] = $pairs
-    $locatorValue = $Locator
-    if ([string]::IsNullOrEmpty($locatorValue)) { $locatorValue = $Scope }
-    $record = New-NSLifecycleRecord -Id $Id -Domain $script:NSEvidenceBaselineDomain `
-        -SourceClass $SourceClass -Source $Command -Scope $Scope -Locator $locatorValue `
-        -Ladder $ladder -Action $script:NSEvidenceBaselineAction `
-        -HostLabel (Get-NSEvidenceHostLabel $HostLabel) `
-        -WorkTarget (Get-NSEvidenceWorkTarget $Workspace) -Details $details
-    return (Invoke-NSEvidenceAppend -Project $Workspace `
-            -RecordJson (ConvertTo-NSCanonicalJson $record -Compact) -RawText $Raw)
-}
-
-# path plus content digest for every generated artifact the cluster may touch. A
-# path that does not exist yet records an empty digest, so the inventory says
-# what was promised as well as what is already there.
-function Get-NSCheckpointArtifacts {
-    param(
-        [Parameter(Mandatory = $true)][string]$Target,
-        [AllowNull()][AllowEmptyCollection()][string[]]$Paths
-    )
-    $entries = New-Object Collections.Generic.List[object]
-    foreach ($path in (Get-NSUniqueSorted $Paths)) {
-        $full = $path
-        if (-not [IO.Path]::IsPathRooted($full)) { $full = Join-NSPath $Target $path }
-        $digest = ''
-        if ((Test-Path -LiteralPath $full -PathType Leaf) -and -not (Test-NSReparsePoint $full)) {
-            try {
-                $digest = Get-NSFileSha256 $full
-            }
-            catch {
-                $digest = ''
-            }
-        }
-        $entry = New-NSOrdinalMap
-        $entry['digest'] = $digest
-        $entry['path'] = $path
-        $entries.Add($entry)
-    }
-    return , $entries.ToArray()
-}
-
-# Written before a risky cluster: where the tree stood, which baseline the
-# cluster relies on, what it may write, how to get back, and what will verify it.
-function Write-NSEvidenceCheckpoint {
-    param(
-        [Parameter(Mandatory = $true)][string]$Workspace,
-        [Parameter(Mandatory = $true)][string]$Id,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Baseline,
-        [AllowNull()][AllowEmptyCollection()][string[]]$Artifacts = @(),
-        [AllowNull()][AllowEmptyCollection()][string[]]$Touched = @(),
-        [AllowEmptyString()][string]$Rollback = '',
-        [AllowEmptyString()][string]$Plan = '',
-        [AllowEmptyString()][string]$Scope = '',
-        [AllowEmptyString()][string]$SourceClass = '',
-        [AllowEmptyString()][string]$HostLabel = ''
-    )
-    if (-not (Test-NSEvidenceWorkspace $Workspace)) { return 1 }
-    $target = Get-NSEvidenceWorkTarget $Workspace
-    $head = Get-NSWorkTargetHead $Workspace
-    $details = New-NSOrdinalMap
-    $details['artifacts'] = Get-NSCheckpointArtifacts -Target $target -Paths $Artifacts
-    $details['baseline'] = $Baseline
-    $details['head'] = $head
-    $details['plan'] = $Plan
-    $details['rollback'] = $Rollback
-    $details['touched'] = Get-NSUniqueSorted $Touched
-    $details['worktreeDigest'] = Get-NSWorktreeDigest $target
-    $sourceClass = $SourceClass
-    if ([string]::IsNullOrEmpty($sourceClass)) { $sourceClass = $script:NSEvidenceCheckpointSourceClass }
-    $record = New-NSLifecycleRecord -Id $Id -Domain $script:NSEvidenceCheckpointDomain `
-        -SourceClass $sourceClass -Source $Rollback -Scope $Scope -Locator $head `
-        -Ladder $script:NSEvidenceBaselineLadderObserved -Action $script:NSEvidenceCheckpointAction `
-        -HostLabel (Get-NSEvidenceHostLabel $HostLabel) -WorkTarget $target -Details $details
-    return (Invoke-NSEvidenceAppend -Project $Workspace `
-            -RecordJson (ConvertTo-NSCanonicalJson $record -Compact))
 }
 
 # ---------------------------------------------------------------------------
@@ -7684,243 +7018,6 @@ function Invoke-NSEvidenceCompareCommand {
     catch [ApplicationException] {
         Write-NSEvidenceError $_.Exception.Message
         return 2
-    }
-}
-
-# PowerShell -File binds at most one argv token to each [string[]] parameter; bash
-# and the Windows logic tests pass greedy tails ( -Versions a b, -Seen x y ). Parse
-# those tails here so the wrappers can use param() { } and hand off $args.
-function Read-NSCliGreedyValues {
-    param(
-        [Parameter(Mandatory = $true)][string[]]$RawArgs,
-        [Parameter(Mandatory = $true)][ref]$Index
-    )
-    $values = New-Object Collections.Generic.List[string]
-    $cursor = $Index.Value + 1
-    while ($cursor -lt $RawArgs.Count) {
-        $token = [string]$RawArgs[$cursor]
-        if ($token.StartsWith('-', [StringComparison]::Ordinal)) { break }
-        $values.Add($token)
-        $cursor++
-    }
-    $Index.Value = $cursor - 1
-    return , $values.ToArray()
-}
-
-function ConvertFrom-NSEvidenceBaselineCli {
-    param([AllowNull()][AllowEmptyCollection()][string[]]$RawArgs)
-    $result = @{
-        Project    = [Environment]::CurrentDirectory
-        Id         = ''
-        SourceClass = ''
-        Command    = ''
-        Versions   = @()
-        Scope      = ''
-        Seen       = @()
-        Raw        = ''
-        Locator    = ''
-        HostLabel  = ''
-    }
-    if ($null -eq $RawArgs) { return $result }
-    $i = 0
-    while ($i -lt $RawArgs.Count) {
-        $flag = [string]$RawArgs[$i]
-        switch ($flag) {
-            '-Project' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Project = [string]$RawArgs[$i]
-            }
-            '-Id' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Id = [string]$RawArgs[$i]
-            }
-            '-SourceClass' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.SourceClass = [string]$RawArgs[$i]
-            }
-            '-Command' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Command = [string]$RawArgs[$i]
-            }
-            '-Versions' {
-                $idxRef = [ref]$i
-                $result.Versions = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
-                $i = $idxRef.Value
-            }
-            '-Scope' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Scope = [string]$RawArgs[$i]
-            }
-            '-Seen' {
-                $idxRef = [ref]$i
-                $result.Seen = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
-                $i = $idxRef.Value
-            }
-            '-Raw' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Raw = [string]$RawArgs[$i]
-            }
-            '-Locator' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Locator = [string]$RawArgs[$i]
-            }
-            '-HostLabel' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.HostLabel = [string]$RawArgs[$i]
-            }
-            default { return $null }
-        }
-        $i++
-    }
-    return $result
-}
-
-function ConvertFrom-NSEvidenceCheckpointCli {
-    param([AllowNull()][AllowEmptyCollection()][string[]]$RawArgs)
-    $result = @{
-        Project     = [Environment]::CurrentDirectory
-        Id          = ''
-        Baseline    = ''
-        Artifacts   = @()
-        Touched     = @()
-        Rollback    = ''
-        Plan        = ''
-        Scope       = ''
-        SourceClass = ''
-        HostLabel   = ''
-    }
-    if ($null -eq $RawArgs) { return $result }
-    $i = 0
-    while ($i -lt $RawArgs.Count) {
-        $flag = [string]$RawArgs[$i]
-        switch ($flag) {
-            '-Project' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Project = [string]$RawArgs[$i]
-            }
-            '-Id' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Id = [string]$RawArgs[$i]
-            }
-            '-Baseline' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Baseline = [string]$RawArgs[$i]
-            }
-            '-Artifacts' {
-                $idxRef = [ref]$i
-                $result.Artifacts = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
-                $i = $idxRef.Value
-            }
-            '-Touched' {
-                $idxRef = [ref]$i
-                $result.Touched = Read-NSCliGreedyValues -RawArgs $RawArgs -Index $idxRef
-                $i = $idxRef.Value
-            }
-            '-Rollback' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Rollback = [string]$RawArgs[$i]
-            }
-            '-Plan' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Plan = [string]$RawArgs[$i]
-            }
-            '-Scope' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.Scope = [string]$RawArgs[$i]
-            }
-            '-SourceClass' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.SourceClass = [string]$RawArgs[$i]
-            }
-            '-HostLabel' {
-                $i++
-                if ($i -ge $RawArgs.Count) { return $null }
-                $result.HostLabel = [string]$RawArgs[$i]
-            }
-            default { return $null }
-        }
-        $i++
-    }
-    return $result
-}
-
-function Write-NSEvidenceBaselineUsage {
-    Write-NSEvidenceError 'usage: evidence-baseline.ps1 -Project DIR -Id ID -SourceClass CLASS -Command CMD [-Versions NAME=VERSION ...] [-Scope SCOPE] [-Seen ID[=DIGEST] ...] [-Raw TEXT] [-Locator LOCATOR] [-HostLabel HOST]'
-    return 1
-}
-
-function Invoke-NSEvidenceBaselineCommand {
-    param(
-        [AllowEmptyString()][string]$Project = '',
-        [AllowEmptyString()][string]$Id = '',
-        [AllowEmptyString()][string]$SourceClass = '',
-        [AllowEmptyString()][string]$Command = '',
-        [AllowNull()][AllowEmptyCollection()][string[]]$Versions = @(),
-        [AllowEmptyString()][string]$Scope = '',
-        [AllowNull()][AllowEmptyCollection()][string[]]$Seen = @(),
-        [AllowEmptyString()][string]$Raw = '',
-        [AllowEmptyString()][string]$Locator = '',
-        [AllowEmptyString()][string]$HostLabel = ''
-    )
-    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Id) `
-            -or [string]::IsNullOrEmpty($SourceClass) -or [string]::IsNullOrEmpty($Command)) {
-        return (Write-NSEvidenceBaselineUsage)
-    }
-    try {
-        return (Write-NSEvidenceBaseline -Workspace $Project -Id $Id -SourceClass $SourceClass `
-                -Command $Command -Versions $Versions -Scope $Scope -Seen $Seen -Raw $Raw `
-                -Locator $Locator -HostLabel $HostLabel)
-    }
-    catch [ApplicationException] {
-        Write-NSEvidenceError $_.Exception.Message
-        return 1
-    }
-}
-
-function Write-NSEvidenceCheckpointUsage {
-    Write-NSEvidenceError 'usage: evidence-checkpoint.ps1 -Project DIR -Id ID -Baseline ID [-Artifacts PATH ...] [-Touched PATH ...] [-Rollback REF] [-Plan TEXT] [-Scope SCOPE] [-SourceClass CLASS] [-HostLabel HOST]'
-    return 1
-}
-
-function Invoke-NSEvidenceCheckpointCommand {
-    param(
-        [AllowEmptyString()][string]$Project = '',
-        [AllowEmptyString()][string]$Id = '',
-        [AllowEmptyString()][string]$Baseline = '',
-        [AllowNull()][AllowEmptyCollection()][string[]]$Artifacts = @(),
-        [AllowNull()][AllowEmptyCollection()][string[]]$Touched = @(),
-        [AllowEmptyString()][string]$Rollback = '',
-        [AllowEmptyString()][string]$Plan = '',
-        [AllowEmptyString()][string]$Scope = '',
-        [AllowEmptyString()][string]$SourceClass = '',
-        [AllowEmptyString()][string]$HostLabel = ''
-    )
-    if ([string]::IsNullOrEmpty($Project) -or [string]::IsNullOrEmpty($Id)) {
-        return (Write-NSEvidenceCheckpointUsage)
-    }
-    try {
-        return (Write-NSEvidenceCheckpoint -Workspace $Project -Id $Id -Baseline $Baseline `
-                -Artifacts $Artifacts -Touched $Touched -Rollback $Rollback -Plan $Plan `
-                -Scope $Scope -SourceClass $SourceClass -HostLabel $HostLabel)
-    }
-    catch [ApplicationException] {
-        Write-NSEvidenceError $_.Exception.Message
-        return 1
     }
 }
 

@@ -95,12 +95,6 @@ case "$policy_rc" in
 esac
 [ ! -e "$NS/shift-policy.json" ] || die 'Start must not write shift-policy.json without a parser'
 
-pre_out=""
-pre_rc=0
-pre_out="$(bash "$PLUGIN_ROOT/runtime/provision-preflight.sh" --project "$PROJECT" check 2>&1)" || pre_rc=$?
-[ "$pre_rc" -eq 0 ] || die "provision-preflight check failed ($pre_rc): $pre_out"
-say 'provision-preflight check → 0'
-
 needs_out=""
 needs_rc=0
 needs_out="$(bash "$PLUGIN_ROOT/runtime/preflight-needs.sh" --project "$PROJECT" 2>&1)" || needs_rc=$?

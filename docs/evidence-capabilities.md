@@ -12,8 +12,6 @@ Nothing here scans a project or judges a finding on the model's behalf.
 | Helper | What it does |
 | --- | --- |
 | `runtime/evidence.sh` | Append-only findings ledger at `.nightshift/evidence/findings.jsonl` |
-| `runtime/evidence-baseline.sh` | Records one baseline: a source class, the exact command, and its environment digest |
-| `runtime/evidence-checkpoint.sh` | Records a checkpoint before a risky cluster: touched paths, rollback ref, verification plan |
 | `runtime/evidence-compare.sh` | Classifies each finding against its baseline — new, cleared, unchanged, regressed, unavailable |
 | `runtime/evidence-archive.sh` | Files the ledger with the shift; the clock-out gate calls it |
 | `runtime/morning-receipt.sh` | Renders the morning receipt from the ledger, the resolved policy, and the working files |
