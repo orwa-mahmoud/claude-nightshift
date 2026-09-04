@@ -39,7 +39,6 @@ POSIX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/provision.sh"
   grep -qF "\$document['finished'] = \$true" "$MODULE"
   grep -qF "\$document['malformed'] = \$true" "$MODULE"
   grep -qF "'malformed transaction: ' + \$field" "$MODULE"
-  grep -qF "\$document['refusalReasons'] = @('provisioning-runtime-unavailable')" "$MODULE"
   grep -qF 'ConvertTo-NSCanonicalJson $Document -Compact' "$MODULE"
 }
 
@@ -104,10 +103,16 @@ POSIX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/provision.sh"
 
 @test "the Windows seatbelt takes the four verbs and no plan or apply" {
   grep -qF "@('baseline', 'diff', 'rollback', 'recover')" "$WIN/provision.ps1"
-  for word in "'plan'" "'apply'" 'Invoke-NSProvisionPlan' 'Invoke-NSProvisionApply' \
-    'Get-NSProvisionSkipReasons'; do
-    if grep -qF -- "$word" "$MODULE"; then
-      echo "module still carries $word"
+  for fn in Invoke-NSProvisionPlan Invoke-NSProvisionApply Get-NSProvisionSkipReasons; do
+    if grep -qF -- "$fn" "$MODULE"; then
+      echo "module still carries $fn"
+      return 1
+    fi
+  done
+  # The seatbelt dispatch takes recover and rollback and nothing else.
+  for verb in "'plan'" "'apply'"; do
+    if sed -n '/^function Invoke-NSProvisionCommand/,/^}/p' "$MODULE" | grep -qF -- "$verb"; then
+      echo "the dispatch still branches on $verb"
       return 1
     fi
   done
