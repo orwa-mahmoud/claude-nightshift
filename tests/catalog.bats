@@ -79,6 +79,9 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
 " ] || { echo "preset names the entries out of order"; return 1; }
   grep -qi 'one time budget' "$CAT"
   grep -qi 'not a card' "$CAT"
+  # A preset under one budget has to say what the budget is for, or the owner is guessing.
+  grep -qi 'cap rather than a requirement' "$CAT"
+  grep -qi 'the owner names the number' "$CAT"
   [ ! -f "$SHIFTS/maintainer-night.md" ]
   HUNT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/hunt/SKILL.md"
   grep -qF 'carries the Maintainer night preset' "$HUNT"
