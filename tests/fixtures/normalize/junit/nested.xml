@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="com.example.AllTests" tests="5" failures="1" errors="0" skipped="1" time="4.100">
+  <testsuite name="com.example.AlphaTest" tests="3" failures="1" errors="0" skipped="0" time="2.000">
+    <testcase classname="com.example.AlphaTest" name="reads a header" time="0.400"/>
+    <testcase classname="com.example.AlphaTest" name="rejects a short header" time="0.500">
+      <failure message="expected 4 to equal 8" type="AssertionError">short header</failure>
+    </testcase>
+    <testcase classname="com.example.AlphaTest" name="keeps the tail" time="0.300"/>
+  </testsuite>
+  <testsuite name="com.example.BetaTest" tests="2" failures="0" errors="0" skipped="1" time="2.100">
+    <testcase classname="com.example.BetaTest" name="writes a record" time="0.700"/>
+    <testcase classname="com.example.BetaTest" name="skips the slow path" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+</testsuite>

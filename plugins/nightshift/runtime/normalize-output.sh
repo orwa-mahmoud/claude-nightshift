@@ -12,6 +12,14 @@
 # bytes, so two nights diff against each other and `evidence.sh append` can
 # carry the result as a finding of domain tool-output.
 #
+# Two digests travel with a summary. `digest` covers the result — the format, the
+# headline and the counts — so a rerun that reports the same numbers keeps one
+# digest and a ledger comparison reads it as unchanged. `source` covers the raw
+# file byte for byte, which is what anchors the summary to the output it read.
+#
+# A percentage needs a denominator: a metric whose total is zero reports
+# `unmeasured` in the headline, the table and the JSON, never 100%.
+#
 # Text is reduced to printable ASCII, runs of spaces collapse, and a detail
 # longer than 100 characters ends in an ellipsis. Rows sort by severity
 # descending, then file, line, code and detail ascending.
@@ -86,7 +94,7 @@ unavail() {
 
 [ -f "$INPUT" ] && [ -r "$INPUT" ] || unavail 'the input is not a readable file'
 
-DIGEST="$(ns_policy_sha256_text <"$INPUT")" ||
+SOURCE_DIGEST="$(ns_policy_sha256_text <"$INPUT")" ||
   unavail 'no sha256 tool on this host, so the summary cannot be anchored'
 
 TMPD=""
@@ -106,14 +114,17 @@ TMPD="$(mktemp -d "${TMPDIR:-/tmp}/nightshift-normalize.XXXXXX")" ||
 JQ_ESLINT='
 def cl: (if . == null then "-" else tostring end) | gsub("[[:cntrl:]]"; " ");
 def plu($n; $w): "\($n) \($w)" + (if $n == 1 then "" else "s" end);
-def sev: if . == 2 then "error" elif . == 1 then "warning" else "note" end;
+# eslint writes severity as a number, and a few formatters write the same number
+# as a string. Both mean the same level, so both read as that number.
+def sevnum: if type == "number" then . elif type == "string" then (try tonumber catch -1) else -1 end;
+def sev: sevnum | if . == 2 then "error" elif . == 1 then "warning" else "note" end;
 if type != "array" then "error\tthe report is not a JSON array"
 elif ([.[] | (type == "object" and has("messages") and ((.messages | type) == "array"))]
       | index(false)) != null then "error\tthe report is not eslint file results"
 else
   ([.[] | .messages[]]) as $m
-  | ([$m[] | select(.severity == 2)] | length) as $e
-  | ([$m[] | select(.severity == 1)] | length) as $w
+  | ([$m[] | select((.severity | sevnum) == 2)] | length) as $e
+  | ([$m[] | select((.severity | sevnum) == 1)] | length) as $w
   | ([.[] | select((.messages | length) > 0) | .filePath | cl] | unique | length) as $f
   | ( ["headline\teslint: " + plu($e; "error") + ", " + plu($w; "warning")
         + " in " + plu($f; "file")]
@@ -129,10 +140,15 @@ end
 JQ_COVERAGE='
 def cl: (if . == null then "-" else tostring end) | gsub("[[:cntrl:]]"; " ");
 def plu($n; $w): "\($n) \($w)" + (if $n == 1 then "" else "s" end);
-def bp($c; $t): if $t <= 0 then 10000 else (($c * 20000 + $t) / (2 * $t) | floor) end;
-def pct($c; $t): bp($c; $t) as $b | "\($b / 100 | floor).\((100 + ($b % 100)) | tostring | .[1:])";
+# A zero denominator is not full coverage; it is no measurement, and -1 is how
+# every reader of these three tells one from the other.
+def bp($c; $t): if $t <= 0 then -1 else (($c * 20000 + $t) / (2 * $t) | floor) end;
+def pl($c; $t): bp($c; $t) as $b
+  | if $b < 0 then "unmeasured"
+    else "\($b / 100 | floor).\((100 + ($b % 100)) | tostring | .[1:])%" end;
 def band($c; $t): bp($c; $t) as $b
-  | if $b < 5000 then "error" elif $b < 8000 then "warning" else "note" end;
+  | if $b < 0 then "info" elif $b < 5000 then "error" elif $b < 8000 then "warning"
+    else "note" end;
 def num($o; $k): (($o[$k] // 0) | if type == "number" then floor else 0 end);
 if type != "object" then "error\tthe report is not a JSON object"
 elif (has("total") | not) or ((.total | type) != "object")
@@ -141,11 +157,11 @@ else
   . as $r
   | (.total) as $t
   | ([$r | keys[] | select(. != "total")]) as $files
-  | ( ["headline\tcoverage: lines " + pct(num($t.lines; "covered"); num($t.lines; "total"))
-        + "%, statements " + pct(num($t.statements; "covered"); num($t.statements; "total"))
-        + "%, functions " + pct(num($t.functions; "covered"); num($t.functions; "total"))
-        + "%, branches " + pct(num($t.branches; "covered"); num($t.branches; "total"))
-        + "% across " + plu(($files | length); "file")]
+  | ( ["headline\tcoverage: lines " + pl(num($t.lines; "covered"); num($t.lines; "total"))
+        + ", statements " + pl(num($t.statements; "covered"); num($t.statements; "total"))
+        + ", functions " + pl(num($t.functions; "covered"); num($t.functions; "total"))
+        + ", branches " + pl(num($t.branches; "covered"); num($t.branches; "total"))
+        + " across " + plu(($files | length); "file")]
     + [ "count\tbranchesCovered\t\(num($t.branches; "covered"))",
         "count\tbranchesTotal\t\(num($t.branches; "total"))",
         "count\tfunctionsCovered\t\(num($t.functions; "covered"))",
@@ -159,7 +175,7 @@ else
         | ($r[$k].lines // {}) as $l
         | (num($l; "covered")) as $c | (num($l; "total")) as $n
         | "item\t" + band($c; $n) + "\t" + ($k | cl) + "\t0\tlines\t"
-          + "\($c)/\($n) lines covered (" + pct($c; $n) + "%)" ]
+          + "\($c)/\($n) lines covered (" + pl($c; $n) + ")" ]
     ) []
 end
 '
@@ -237,7 +253,7 @@ end
 # shellcheck disable=SC2016 # awk program; $0 is an awk field
 AWK_TSC='
 function nt(s) { gsub(/[\t\r\n]/, " ", s); return s }
-BEGIN { items = 0; noise = 0; errors = 0; warnings = 0 }
+BEGIN { items = 0; noise = 0; errors = 0; warnings = 0; summaries = 0 }
 {
   line = $0
   sub(/\r$/, "", line)
@@ -261,8 +277,10 @@ BEGIN { items = 0; noise = 0; errors = 0; warnings = 0 }
     next
   }
   if (line ~ /^(error|warning) TS[0-9]+: /) { emit(line, "-", 0); next }
-  if (line ~ /^Found [0-9]+ error/) next
-  if (line ~ /^[ \t]/) next
+  if (line ~ /^Found [0-9]+ error/) { summaries++; next }
+  # Every other non-blank line counts, indented continuations included: an input
+  # of nothing but continuation lines is a report this parser did not read, not a
+  # clean compile.
   noise++
 }
 function emit(rest, file, ln,   s1, sev, r2, s2, code, msg) {
@@ -278,7 +296,7 @@ function emit(rest, file, ln,   s1, sev, r2, s2, code, msg) {
   if (file != "-") seen[file] = 1
 }
 END {
-  if (items == 0 && noise > 0) {
+  if (items == 0 && summaries == 0 && noise > 0) {
     print "error\tthe input holds no TypeScript diagnostics"
     exit 0
   }
@@ -312,18 +330,24 @@ BEGIN { sf = ""; lf = 0; lh = 0; have = 0; files = 0; tlf = 0; tlh = 0; noise = 
   if (line ~ /^(TN|DA|FN|FNDA|FNF|FNH|BRDA|BRF|BRH|VER):/) next
   noise++
 }
-function bp(c, t) { return (t <= 0) ? 10000 : int((c * 20000 + t) / (2 * t)) }
-function pct(c, t,   b) { b = bp(c, t); return sprintf("%d.%02d", int(b / 100), b % 100) }
+# A record with no instrumented lines has nothing to be a percentage of, so -1
+# marks it unmeasured for every reader below.
+function bp(c, t) { return (t <= 0) ? -1 : int((c * 20000 + t) / (2 * t)) }
+function pl(c, t,   b) {
+  b = bp(c, t)
+  return (b < 0) ? "unmeasured" : sprintf("%d.%02d%%", int(b / 100), b % 100)
+}
 function band(c, t,   b) {
   b = bp(c, t)
+  if (b < 0) return "info"
   return (b < 5000) ? "error" : ((b < 8000) ? "warning" : "note")
 }
 function record() {
   files++
   tlf += lf
   tlh += lh
-  printf "item\t%s\t%s\t0\tlines\t%d/%d lines covered (%s%%)\n", \
-    band(lh, lf), nt(sf), lh, lf, pct(lh, lf)
+  printf "item\t%s\t%s\t0\tlines\t%d/%d lines covered (%s)\n", \
+    band(lh, lf), nt(sf), lh, lf, pl(lh, lf)
 }
 END {
   if (have) record()
@@ -331,8 +355,8 @@ END {
     print "error\tthe input holds no lcov SF records"
     exit 0
   }
-  printf "headline\tlcov: %s%% lines covered, %d/%d in %d %s\n", \
-    pct(tlh, tlf), tlh, tlf, files, (files == 1 ? "file" : "files")
+  printf "headline\tlcov: %s lines covered, %d/%d in %d %s\n", \
+    pl(tlh, tlf), tlh, tlf, files, (files == 1 ? "file" : "files")
   printf "count\tlinesCovered\t%d\n", tlh
   printf "count\tlinesTotal\t%d\n", tlf
   printf "files\t%d\n", files
@@ -343,15 +367,16 @@ END {
 AWK_JUNIT='
 function nt(s) { gsub(/[\t\r\n]/, " ", s); return s }
 BEGIN {
-  RS = "<"
+  doc = ""
   suites = 0; tests = 0; failures = 0; errs = 0; skipped = 0
+  depth = 0
   cls = "-"; nm = "-"
   SQ = sprintf("%c", 39)
 }
-function att(rec, key,   q, v, i) {
-  if (!match(rec, "[ \t\r\n]" key "=[\"" SQ "]")) return ""
-  q = substr(rec, RSTART + RLENGTH - 1, 1)
-  v = substr(rec, RSTART + RLENGTH)
+function att(tag, key,   q, v, i) {
+  if (!match(tag, "[ \t\r\n]" key "=[\"" SQ "]")) return ""
+  q = substr(tag, RSTART + RLENGTH - 1, 1)
+  v = substr(tag, RSTART + RLENGTH)
   i = index(v, q)
   if (i == 0) return ""
   return unent(substr(v, 1, i - 1))
@@ -364,35 +389,102 @@ function unent(s) {
   gsub(/&amp;/, "\\&", s)
   return s
 }
-{
-  rec = $0
-  if (rec == "") next
-  name = rec
-  sub(/[ \t\r\n>\/].*$/, "", name)
-  if (name == "testsuite") {
-    suites++
-    tests += att(rec, "tests") + 0
-    failures += att(rec, "failures") + 0
-    errs += att(rec, "errors") + 0
-    skipped += att(rec, "skipped") + 0
-    saw = 1
-    next
+# A CDATA section and a comment are payload, not markup. A failure message that
+# quotes a suite element would otherwise add phantom suites and phantom rows, so
+# both are cut out before anything is split on a bracket. The scan runs left to
+# right, which is what keeps a marker inside the other one literal.
+function decontent(s,   out, ci, mi, j) {
+  out = ""
+  while (1) {
+    ci = index(s, "<![CDATA[")
+    mi = index(s, "<!--")
+    if (ci == 0 && mi == 0) break
+    if (mi == 0 || (ci > 0 && ci < mi)) {
+      out = out substr(s, 1, ci - 1)
+      s = substr(s, ci + 9)
+      j = index(s, "]]>")
+      if (j == 0) return out
+      s = substr(s, j + 3)
+    } else {
+      out = out substr(s, 1, mi - 1)
+      s = substr(s, mi + 4)
+      j = index(s, "-->")
+      if (j == 0) return out
+      s = substr(s, j + 3)
+    }
   }
-  if (name == "testcase") {
-    cls = att(rec, "classname")
-    nm = att(rec, "name")
-    if (cls == "") cls = "-"
-    if (nm == "") nm = "-"
-    next
-  }
-  if (name == "failure" || name == "error") {
-    t = att(rec, "type")
-    printf "item\terror\t%s\t0\t%s\t%s%s\n", \
-      nt(cls), name, nt(nm), (t == "" ? "" : " (" nt(t) ")")
-    next
-  }
+  return out s
 }
+# The element text of one record, ending at the first bracket outside a quoted
+# attribute value, so an attribute may carry one and the text content never
+# reaches the attribute reader.
+function tagtext(rec,   i, c, q) {
+  q = ""
+  for (i = 1; i <= length(rec); i++) {
+    c = substr(rec, i, 1)
+    if (q != "") {
+      if (c == q) q = ""
+      continue
+    }
+    if (c == "\"" || c == SQ) { q = c; continue }
+    if (c == ">") return substr(rec, 1, i - 1)
+  }
+  return rec
+}
+# One suite leaves the stack. Only a leaf carries counts: a Surefire or Gradle
+# report states the same tests twice, once on the outer suite and once on each
+# suite inside it, and adding both reports every test twice.
+function pop(   d) {
+  if (depth <= 0) return
+  d = depth
+  depth--
+  if (!leaf[d]) return
+  suites++
+  tests += s_tests[d]
+  failures += s_failures[d]
+  errs += s_errors[d]
+  skipped += s_skipped[d]
+}
+{ doc = doc $0 "\n" }
 END {
+  n = split(decontent(doc), rec, "<")
+  for (r = 1; r <= n; r++) {
+    if (rec[r] == "") continue
+    tag = tagtext(rec[r])
+    open = tag
+    closing = 0
+    if (substr(open, 1, 1) == "/") { closing = 1; open = substr(open, 2) }
+    name = open
+    sub(/[ \t\r\n\/].*$/, "", name)
+    if (name == "testsuite") {
+      if (closing) { pop(); continue }
+      saw = 1
+      depth++
+      s_tests[depth] = att(tag, "tests") + 0
+      s_failures[depth] = att(tag, "failures") + 0
+      s_errors[depth] = att(tag, "errors") + 0
+      s_skipped[depth] = att(tag, "skipped") + 0
+      leaf[depth] = 1
+      if (depth > 1) leaf[depth - 1] = 0
+      if (substr(tag, length(tag), 1) == "/") pop()
+      continue
+    }
+    if (closing) continue
+    if (name == "testcase") {
+      cls = att(tag, "classname")
+      nm = att(tag, "name")
+      if (cls == "") cls = "-"
+      if (nm == "") nm = "-"
+      continue
+    }
+    if (name == "failure" || name == "error") {
+      t = att(tag, "type")
+      printf "item\terror\t%s\t0\t%s\t%s%s\n", \
+        nt(cls), name, nt(nm), (t == "" ? "" : " (" nt(t) ")")
+      continue
+    }
+  }
+  while (depth > 0) pop()
   if (!saw) {
     print "error\tthe input holds no JUnit testsuite element"
     exit 0
@@ -447,6 +539,27 @@ REASON="$(LC_ALL=C awk -F'\t' '$1 == "error" { print $2; exit }' <"$TMPD/stream"
 [ -z "$REASON" ] || unavail "$REASON"
 LC_ALL=C awk -F'\t' '$1 == "headline" { found = 1 } END { exit found ? 0 : 1 }' \
   <"$TMPD/stream" || unavail 'the input could not be summarized'
+
+# ---------------------------------------------------------------- the digests
+
+# The result digest covers what the run found — the format, the headline and every
+# count, in label order — and nothing about the bytes it read. Two runs that report
+# the same numbers therefore carry one digest, and a ledger comparison reads a
+# reformatted or rerun report as unchanged rather than as a regression.
+RESULT_PREIMAGE="$(LC_ALL=C awk -v FORMAT="$FORMAT" -F'\t' '
+$1 == "headline" { h = $2; next }
+$1 == "count" { nc++; cl[nc] = $2; cv[nc] = $3 + 0; next }
+END {
+  for (i = 2; i <= nc; i++) {
+    kl = cl[i]; kv = cv[i]; j = i - 1
+    while (j >= 1 && cl[j] > kl) { cl[j + 1] = cl[j]; cv[j + 1] = cv[j]; j-- }
+    cl[j + 1] = kl; cv[j + 1] = kv
+  }
+  printf "normalize-output\t1\t%s\t%s\n", FORMAT, h
+  for (i = 1; i <= nc; i++) printf "%s\t%d\n", cl[i], cv[i]
+}' <"$TMPD/stream")"
+DIGEST="$(printf '%s\n' "$RESULT_PREIMAGE" | ns_policy_sha256_text)" ||
+  unavail 'no sha256 tool on this host, so the summary cannot be anchored'
 
 # ---------------------------------------------------------------- rendering
 
@@ -503,7 +616,8 @@ function jesc(s,   i, c, o) {
   return o
 }
 BEGIN { FS = "\t"; total = 0; n = 0; nc = 0; files = 0; headline = "-"
-        INPUT = ENVIRON["NS_NORMALIZE_INPUT"] }
+        INPUT = ENVIRON["NS_NORMALIZE_INPUT"]
+        BASENAME = ENVIRON["NS_NORMALIZE_BASENAME"] }
 FNR == NR {
   if ($1 == "headline") headline = $2
   else if ($1 == "files") files = $2 + 0
@@ -528,13 +642,14 @@ END {
     for (i = 1; i <= nc; i++) printf "%s\"%s\":%d", (i > 1 ? "," : ""), jesc(cl[i]), cv[i]
     printf "},\"digest\":\"%s\",\"files\":%d,\"format\":\"%s\",\"headline\":\"%s\"", \
       jesc(DIGEST), files, jesc(FORMAT), jesc(headline)
-    printf ",\"input\":\"%s\",\"items\":[", jesc(INPUT)
+    printf ",\"input\":\"%s\",\"items\":[", jesc(BASENAME)
     for (i = 1; i <= n; i++) {
       printf "%s{\"code\":\"%s\",\"file\":\"%s\",\"line\":%s,\"message\":\"%s\",\"severity\":\"%s\"}", \
         (i > 1 ? "," : ""), jesc(cd[i]), jesc(fl[i]), \
         (ln[i] == 0 ? "null" : sprintf("%d", ln[i])), jesc(ms[i]), jesc(sv[i])
     }
-    printf "],\"shown\":%d,\"total\":%d,\"version\":1}\n", n, total
+    printf "],\"shown\":%d,\"source\":\"%s\",\"total\":%d,\"version\":1}\n", \
+      n, jesc(SOURCE), total
     exit
   }
   print headline
@@ -550,11 +665,14 @@ END {
     print ""
   }
   printf "showing %d of %d items\n", n, total
-  printf "source: %s sha256:%s\n", INPUT, DIGEST
+  printf "result: sha256:%s\n", DIGEST
+  printf "source: %s sha256:%s\n", INPUT, SOURCE
 }
 '
 
-SAFE_INPUT="$(printf '%s' "$INPUT" | LC_ALL=C tr '\n\r' '  ' | LC_ALL=C awk '
+# _safe_text TEXT — the printable-ASCII, single-spaced form of one line of text.
+_safe_text() {
+  printf '%s' "$1" | LC_ALL=C tr '\n\r' '  ' | LC_ALL=C awk '
 {
   s = $0
   gsub(/[^ -~]/, " ", s)
@@ -562,10 +680,20 @@ SAFE_INPUT="$(printf '%s' "$INPUT" | LC_ALL=C tr '\n\r' '  ' | LC_ALL=C awk '
   sub(/^ +/, "", s)
   sub(/ +$/, "", s)
   print s
-}')"
+}'
+}
 
-NS_NORMALIZE_INPUT="$SAFE_INPUT" \
+# The JSON body names the file, not the path that reached it: a summary written
+# from a temporary checkout has to compare against one written from a clone.
+INPUT_BASENAME="${INPUT##*/}"
+INPUT_BASENAME="${INPUT_BASENAME##*\\}"
+
+SAFE_INPUT="$(_safe_text "$INPUT")"
+SAFE_BASENAME="$(_safe_text "$INPUT_BASENAME")"
+
+NS_NORMALIZE_INPUT="$SAFE_INPUT" NS_NORMALIZE_BASENAME="$SAFE_BASENAME" \
   LC_ALL=C awk -v TOP="$TOP" -v MODE="$MODE" -v FORMAT="$FORMAT" -v DIGEST="$DIGEST" \
+  -v SOURCE="$SOURCE_DIGEST" \
   "$AWK_RENDER" "$TMPD/meta" "$TMPD/sorted"
 
 exit 0
