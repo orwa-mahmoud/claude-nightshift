@@ -105,15 +105,20 @@ sp() {
   grep -qF 'Arm the gate' "$s"
 }
 
-@test "start lists missing knobs with ConvertFrom-Json on Windows" {
-  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
-  grep -qF 'New knobs check' "$s"
+@test "the preflight names knobs a plugin update brought" {
+  p="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/start-preflight.sh"
+  grep -qF 'knobs this file lacks' "$p"
+  grep -qF 'Start never adds them' "$p"
+}
+
+@test "host detail names the native Windows JSON reader" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/start-hosts.md"
   grep -qF 'PSObject.Properties.Name' "$s"
   grep -qF 'ConvertFrom-Json' "$s"
 }
 
-@test "start stand-down matches Windows watchman start before kill" {
-  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
+@test "stand-down matches Windows watchman start before kill" {
+  s="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/start-hosts.md"
   grep -qF 'Stand down a stale watchman' "$s"
   grep -qF 'Test-NSRecordedProcess' "$s"
   grep -qF 'Stop-Process -Id' "$s"

@@ -123,7 +123,9 @@ with open(p,"w") as f: json.dump(d,f)
   : >"$p/.nightshift/.shift-armed"
   run bash "$APPLY" --project "$p" --profile no-push --mode fill --apply
   [ "$status" -eq 2 ]
-  ! jq -e '.forbiddenCommands == "git .*push"' "$p/.nightshift/rules.json" >/dev/null
+  if jq -e '.forbiddenCommands == "git .*push"' "$p/.nightshift/rules.json" >/dev/null; then
+    return 1
+  fi
 }
 
 @test "v2 preview writes nothing and previews shift-defaults and the Gates block" {
@@ -250,7 +252,9 @@ JSON
   [ "$status" -eq 0 ]
   gates2="$(gates_block "$p/.nightshift/punch-list.md")"
   printf '%s' "$gates2" | grep -qF '`eslint .`'
-  ! printf '%s' "$gates2" | grep -qF '**Site inspection**'
+  if printf '%s' "$gates2" | grep -qF '**Site inspection**'; then
+    return 1
+  fi
 }
 
 @test "malformed v2 shiftDefaults or gates are refused before any write" {
@@ -284,7 +288,9 @@ JSON
 }
 
 @test "profiles never fetch the network and setup documents confirmation" {
-  ! grep -E 'curl|wget|http' "$APPLY" "$PROFILES"/*.json
+  if grep -E 'curl|wget|http' "$APPLY" "$PROFILES"/*.json; then
+    return 1
+  fi
   grep -qF 'apply-profile.sh' "$SETUP"
   grep -qF 'one-time local copy' "$SETUP"
   grep -qF 'Refuse `--apply` / `-Apply` while armed' "$SETUP"
@@ -295,7 +301,9 @@ JSON
 @test "Windows apply-profile usage errors name native flags" {
   ps1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/apply-profile.ps1"
   grep -qF -- '-Mode must be replace or fill' "$ps1"
-  ! grep -qF '--mode must be' "$ps1"
+  if grep -qF '--mode must be' "$ps1"; then
+    return 1
+  fi
 }
 
 LOGIC="$BATS_TEST_DIRNAME/windows/apply-profile-logic.ps1"

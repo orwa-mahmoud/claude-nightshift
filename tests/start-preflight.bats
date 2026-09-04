@@ -276,8 +276,17 @@ setup_site() { # <name> [punch-body]
 @test "the two helpers ship together and speak one ASCII vocabulary" {
   [ -f "$PREFLIGHT" ]
   [ -f "$PS1_TWIN" ]
-  ! LC_ALL=C grep -qE '^[[:space:]]*(ok|warn|repair|refuse) "[^"]*[\x80-\xff]' "$PREFLIGHT"
-  ! LC_ALL=C grep -q '[\x80-\xff]' "$PS1_TWIN"
+  # A literal class, not a \x escape: BSD grep does not expand those inside brackets, so the
+  # escaped form matches x, 8, 0 and f and proves nothing.
+  nonascii="$(printf '[^\t\040-\176]')"
+  if LC_ALL=C grep -qE "^[[:space:]]*(ok|warn|repair|refuse) \"[^\"]*$nonascii" "$PREFLIGHT"; then
+    echo "a verdict line in the POSIX helper is not ASCII"
+    return 1
+  fi
+  if LC_ALL=C grep -q "$nonascii" "$PS1_TWIN"; then
+    echo "the Windows twin is not ASCII"
+    return 1
+  fi
   for phrase in 'workspace no usable .nightshift/ at' \
     'link .nightshift-link does not name one existing Nightshift workspace' \
     'control a paused shift with an expired deadline does not get a silent new budget' \

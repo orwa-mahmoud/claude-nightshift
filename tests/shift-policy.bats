@@ -228,7 +228,7 @@ write_policy() { # <project> [extra JSON]
     run env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
       bash "$SP" --project "$p" "$verb"
     [ "$status" -eq 2 ] || { echo "$verb exited $status"; return 1; }
-    printf '%s\n' "$output" | grep -qF 'jq or python3 is required to read JSON' \
+    printf '%s\n' "$output" | grep -qF 'JSON parser unavailable' \
       || { echo "$verb said: $output"; return 1; }
   done
 }
@@ -365,7 +365,9 @@ write_policy() { # <project> [extra JSON]
   # Running it again has nothing left to say about the policy.
   run bash "$ROOT/plugins/nightshift/runtime/migrate-state.sh" --project "$p"
   [ "$status" -eq 0 ]
-  ! printf '%s\n' "$output" | grep -qF capability-policy
+  if printf '%s\n' "$output" | grep -qF capability-policy; then
+    return 1
+  fi
 }
 
 @test "migrate-state leaves an unreadable legacy file alone, and refuses while armed" {

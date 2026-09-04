@@ -242,8 +242,12 @@ PY
   grep -qF 'touch "$NS/STOP"' "$STOP"
   grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$STOP"
   grep -qF 'failed clock-out left a recovery nonce' "$STOP"
-  ! grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$STOP"
-  ! grep -qF 'touch .nightshift/STOP' "$STOP"
+  if grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$STOP"; then
+    return 1
+  fi
+  if grep -qF 'touch .nightshift/STOP' "$STOP"; then
+    return 1
+  fi
 }
 
 @test "no skill uses a cwd-relative Windows STOP path" {
@@ -317,7 +321,9 @@ PY
 
 @test "schedule names the Windows generator from the plugin root" {
   grep -qF '$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\schedule.ps1' "$SCHEDULE"
-  ! grep -qF '`runtime\windows\schedule.ps1`' "$SCHEDULE"
+  if grep -qF '`runtime\windows\schedule.ps1`' "$SCHEDULE"; then
+    return 1
+  fi
   grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -List' "$SCHEDULE"
   grep -qF -- '-Project "$NIGHTSHIFT_WORKSPACE" -Remove' "$SCHEDULE"
   grep -qF -- '`--list` / `-List`' "$SCHEDULE"
@@ -359,8 +365,12 @@ PY
 }
 
 @test "doctor actions name helpers beside the inspector, not from cwd" {
-  ! grep -qF 'using runtime/' "$DOCTOR_SH"
-  ! grep -qF 'with runtime/' "$DOCTOR_SH"
+  if grep -qF 'using runtime/' "$DOCTOR_SH"; then
+    return 1
+  fi
+  if grep -qF 'with runtime/' "$DOCTOR_SH"; then
+    return 1
+  fi
   grep -qF '$_here/link-workspace.sh' "$DOCTOR_SH"
   grep -qF '$_here/migrate-state.sh' "$DOCTOR_SH"
   grep -qF '$_here/export-support.sh' "$DOCTOR_SH"
@@ -371,8 +381,12 @@ PY
   tpl="$SKILLS/nightshift/references/punch-list-template.md"
   grep -qF 'touch "$NS/STOP"' "$tpl"
   grep -qF 'New-Item -ItemType File -Force "$NS\STOP"' "$tpl"
-  ! grep -qF 'touch .nightshift/STOP' "$tpl"
-  ! grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$tpl"
+  if grep -qF 'touch .nightshift/STOP' "$tpl"; then
+    return 1
+  fi
+  if grep -qF 'New-Item -ItemType File -Force .nightshift\STOP' "$tpl"; then
+    return 1
+  fi
 }
 
 @test "native Windows skills pair runtime helpers instead of calling .sh" {
@@ -467,5 +481,7 @@ PY
   rules="$SKILLS/nightshift/references/nightshift-rules-template.json"
   grep -qF '.nightshift/punch-list.md' "$rules"
   grep -qF '.nightshift/STOP' "$rules"
-  ! grep -qF '$NIGHTSHIFT_WORKSPACE' "$rules"
+  if grep -qF '$NIGHTSHIFT_WORKSPACE' "$rules"; then
+    return 1
+  fi
 }

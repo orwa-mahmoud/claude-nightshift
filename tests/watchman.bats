@@ -70,7 +70,9 @@ recorded_read() {
   [ "$status" -eq 0 ]
   [ ! -L "$P/.nightshift/.watchman" ]
   [ "$(sed -n 1p "$P/.nightshift/watchman-plant")" = "$$" ]
-  ! printf '%s' "$output" | grep -q 'already watching'
+  if printf '%s' "$output" | grep -q 'already watching'; then
+    return 1
+  fi
 }
 
 @test "a stop-work order stands it down" {
@@ -102,13 +104,17 @@ recorded_read() {
   run watch --agent "bash $BIN/tick.sh" --max-wakes 3
   [ "$status" -eq 0 ]
   [ "$(reason)" != "clean-session-end" ]
-  ! grep -q 'the owner closed it' "$P/.nightshift/shift-log.md"
+  if grep -q 'the owner closed it' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 @test "a quiet site with open boxes is resumed, then clocked out" {
   run watch --agent "bash $BIN/tick.sh" --max-wakes 5
   [ "$status" -eq 0 ]
-  ! grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
+  if grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"; then
+    return 1
+  fi
   [ "$(calls)" -eq 2 ] # one resume that ticked the box, one clock-out spawn
   grep -q 'resume attempt 1' "$P/.nightshift/shift-log.md"
   grep -q 'never clocked out — spawning the clock-out' "$P/.nightshift/shift-log.md"
@@ -238,7 +244,9 @@ STUB
 @test "Windows session-end marker matches POSIX wording" {
   grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
   grep -qF ' · clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
-  ! grep -qF ' - clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
+  if grep -qF ' - clean session end' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"; then
+    return 1
+  fi
   grep -qF '[ -L "$NS/.session-end" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
   grep -qF 'Test-NSReparsePoint $sessionEnd' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/session-end.ps1"
   grep -qF '[ ! -L "$NS/.shift-session" ]' "$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/session-end.sh"
@@ -314,7 +322,9 @@ STUB
   run env PATH="$BIN:$PATH" NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" \
     "$WATCHMAN" --project "$P" --interval 20 --max-wakes 4
   [ "$status" -eq 0 ]
-  ! grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
+  if grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"; then
+    return 1
+  fi
   [ "$(grep -c continue "$P/.nightshift/agent-calls")" -eq 3 ] # 2 wake retries + the clock-out
   [ "$(grep -c fresh "$P/.nightshift/agent-calls")" -eq 1 ]    # the fallback that revived it
   grep -q 'fresh-session fallback' "$P/.nightshift/shift-log.md"
@@ -343,7 +353,9 @@ STUB
   run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 5
   [ "$status" -eq 0 ]
-  ! grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
+  if grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"; then
+    return 1
+  fi
   [ "$(calls)" -eq 2 ]
 }
 
@@ -372,7 +384,9 @@ STUB
   run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 5
   [ "$status" -eq 0 ]
-  ! grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"
+  if grep -qE '^- \[ \]' "$P/.nightshift/punch-list.md"; then
+    return 1
+  fi
 }
 
 # The default revival is the shift's exact conversation, by id — with the layered fallback.
@@ -681,7 +695,9 @@ STUB
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail-noisy.sh" --max-wakes 1
   [ "$status" -eq 7 ]
   [ "$(calls)" -eq 3 ] # all three attempts ran; none was fooled by the previous one's writes
-  ! grep -q 'during retries' "$P/.nightshift/shift-log.md"
+  if grep -q 'during retries' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 # ---- v0.5.2: the revival chain — recorded conversation, --continue, fresh session ----
@@ -750,8 +766,12 @@ STUB
     NIGHTSHIFT_WATCH_TRANSCRIPTS=/tmp/nowhere \
     "$WATCHMAN" --project "$P" --interval 20 --max-wakes 4
   [ "$status" -eq 0 ]
-  ! grep -q continue "$P/.nightshift/agent-calls"
-  ! grep -q fresh "$P/.nightshift/agent-calls"
+  if grep -q continue "$P/.nightshift/agent-calls"; then
+    return 1
+  fi
+  if grep -q fresh "$P/.nightshift/agent-calls"; then
+    return 1
+  fi
   [ "$(grep -c resume "$P/.nightshift/agent-calls")" -eq 2 ] # the revival and the clock-out
 }
 
@@ -1022,7 +1042,9 @@ reason() { sed -n 1p "$P/.nightshift/.watch-reason" | tr -d '[:space:]'; }
   run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0 0" NIGHTSHIFT_WATCH_TRANSCRIPTS="$T" \
     "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/tick.sh" --max-wakes 3
   [ "$(reason)" = "esc-standby" ]
-  ! grep -q 'secret-prompt-xyz' "$P/.nightshift/.watch-reason"
+  if grep -q 'secret-prompt-xyz' "$P/.nightshift/.watch-reason"; then
+    return 1
+  fi
 }
 
 @test "a live silent process records silent-standby" {
@@ -1158,8 +1180,12 @@ STUB
   [ "$status" -eq 0 ]
   [ "$(sed -n 1p "$P/.nightshift/agent-calls")" = "resume" ]
   [ "$(wc -l <"$P/.nightshift/agent-calls" | tr -d ' ')" -eq 1 ]
-  ! grep -q fresh "$P/.nightshift/agent-calls"
-  ! grep -q 'fresh-session fallback' "$P/.nightshift/shift-log.md"
+  if grep -q fresh "$P/.nightshift/agent-calls"; then
+    return 1
+  fi
+  if grep -q 'fresh-session fallback' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
   grep -qF 'watchman: the armed marker is gone — standing down' "$P/.nightshift/shift-log.md"
   [ "$(reason)" = "owner-disarm" ]
 }
@@ -1199,7 +1225,9 @@ STUB
   [ "$(reason)" = "exhausted-retry" ]
   [ "$(grep -cF 'watchman: all 3 attempts failed (api down?) — backing off, knocking again in 40m' \
     "$P/.nightshift/shift-log.md")" -eq 2 ] # doubled on wake 1, reset by the pulse, doubled again
-  ! grep -qF 'knocking again in 80m' "$P/.nightshift/shift-log.md"
+  if grep -qF 'knocking again in 80m' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
   # The waits themselves: the interval, twice the interval, then the interval again.
   [ "$(grep -v '^0' "$BATS_TEST_TMPDIR/sleeps" | tr '\n' ' ')" = "1 2 1 " ]
 }
@@ -1221,7 +1249,9 @@ STUB
     "$WATCHMAN" --project "$P" --interval 40 --agent "bash $BIN/limited.sh" --max-wakes 2
   [ "$status" -eq 7 ]
   [ "$(grep -cF 'backing off, knocking again in 60m' "$P/.nightshift/shift-log.md")" -eq 2 ]
-  ! grep -qF 'knocking again in 80m' "$P/.nightshift/shift-log.md"
+  if grep -qF 'knocking again in 80m' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 # A failure with no limit behind it is not an outage: the knock keeps its interval, in the
@@ -1235,7 +1265,9 @@ STUB
   [ "$status" -eq 7 ]
   [ "$(grep -cF 'watchman: all 3 attempts failed (api down?) — knocking again in 20m' \
     "$P/.nightshift/shift-log.md")" -eq 2 ]
-  ! grep -q 'backing off' "$P/.nightshift/shift-log.md"
+  if grep -q 'backing off' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 # Every attempt takes the lease for its own child. When the whole ladder fails, the lease goes

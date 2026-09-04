@@ -32,5 +32,7 @@ DOC="$BATS_TEST_DIRNAME/../docs/morning-receipt.md"
 }
 
 @test "morning-receipt doc names no competing tool" {
-  ! grep -qiE 'copilot|windsurf|cline|devin|aider' "$DOC"
+  if grep -qiE 'copilot|windsurf|cline|devin|aider' "$DOC"; then
+    return 1
+  fi
 }

@@ -32,7 +32,9 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
 @test "the template asks for public links only when the run is public" {
   grep -qF 'only if the run is public' "$T"
   grep -qF 'This file is a template, not a recorded night' "$T"
-  ! grep -qiE '2026-0[0-9]-[0-9]{2} .*watchman' "$T"
+  if grep -qiE '2026-0[0-9]-[0-9]{2} .*watchman' "$T"; then
+    return 1
+  fi
 }
 
 @test "bad-night template links resolve" {

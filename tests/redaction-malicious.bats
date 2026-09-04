@@ -13,5 +13,5 @@ TEMPLATES="$PLUGIN/skills/nightshift/references/receipt-templates.md"
 @test "redact-untrusted is not a shipped command" {
   ! grep -R --include='*.sh' --include='*.ps1' --include='*.py' -qF 'redact-untrusted' "$PLUGIN/runtime" \
     || { echo 'redact-untrusted still invoked from runtime'; return 1; }
-  grep -qF 'that command is gone' "$TEMPLATES"
+  grep -qF 'are not Nightshift commands' "$TEMPLATES"
 }

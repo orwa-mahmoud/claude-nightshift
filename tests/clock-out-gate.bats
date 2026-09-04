@@ -73,7 +73,9 @@ SH
   printf '%s' "$output" | grep -qF "$p/.nightshift/punch-list.md"
   printf '%s' "$output" | grep -qF "$p/.nightshift/parking-lot.md"
   printf '%s' "$output" | grep -qF "$p/.nightshift/STOP"
-  ! printf '%s' "$output" | grep -qF '$NIGHTSHIFT_WORKSPACE'
+  if printf '%s' "$output" | grep -qF '$NIGHTSHIFT_WORKSPACE'; then
+    return 1
+  fi
 }
 
 @test "releases when every box is ticked" {
@@ -303,7 +305,9 @@ SH
   # The policy is filed first, so the receipt is named from a shiftId that was still readable.
   [ -f "$p/.nightshift/archive/$today/shift-policy-9f2c40ab77e51d63.json" ]
   if [ -f "$p/.nightshift/shift-log.md" ]; then
-    ! grep -qF 'morning receipt' "$p/.nightshift/shift-log.md"
+    if grep -qF 'morning receipt' "$p/.nightshift/shift-log.md"; then
+      return 1
+    fi
   fi
 }
 
@@ -418,7 +422,9 @@ SH
   write_policy_with_deadline "$p" "$future"
   run gate "$p"
   is_block "$output"
-  ! grep -q 'deadline mismatch' "$p/.nightshift/shift-log.md"
+  if grep -q 'deadline mismatch' "$p/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 @test "an unparseable deadline never ends the shift by accident" {
@@ -623,7 +629,9 @@ SH
   is_release
   [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
   git -C "$p/.nightshift" log -1 --format=%s | grep -q 'shift done: 2/2'
-  ! git -C "$p/.nightshift" ls-tree -r --name-only HEAD | grep -qxF '.shift-lease'
+  if git -C "$p/.nightshift" ls-tree -r --name-only HEAD | grep -qxF '.shift-lease'; then
+    return 1
+  fi
 }
 
 @test "a stop-work release snapshots the receipts repo when receiptsAutoCommit is true" {

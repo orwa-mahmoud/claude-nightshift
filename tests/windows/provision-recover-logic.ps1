@@ -744,104 +744,21 @@ try {
     Expect-Equal "engine bytes`n" (Get-TestFileText (Join-Path $malformedTarget $guardRel)) `
         'undecodable baseline bytes never overwrite the tree'
 
-    # === 10. apply is honest about the missing runtime ===
-    $applyProject = New-TestProject (Join-Path $root 'apply refusal')
-    $applyRecipe = New-TestRecipe (Join-Path $root 'apply-recipe.json')
-    Write-TestJson (Join-Path $applyProject['ns'] 'shift-policy.json') (New-TestPolicy -ToolingPolicy 'auto-add')
-    $applyRun = Invoke-Provision $applyProject['workspace'] @('apply', '-Recipe', $applyRecipe)
-    Expect-Equal 3 $applyRun.ExitCode "apply exits 3 on this host ($($applyRun.StderrText))"
-    Expect-Equal '{"ok":false,"refusalReasons":["provisioning-runtime-unavailable"],"refused":true}' `
-    (Get-JsonLine $applyRun) 'apply reports the honest refusal'
-    Expect-WireFormat $applyRun 'the apply refusal'
-    Expect-True (-not (Test-Path -LiteralPath $applyProject['transaction'])) 'a refused apply opens no transaction'
-    Expect-True (-not (Test-Path -LiteralPath (Join-Path $applyProject['target'] 'nightshift-fake.txt'))) `
-        'a refused apply writes nothing into the work target'
-
-    # === 11. plan is read-only and reports the frozen refusal codes ===
-    $planProject = New-TestProject (Join-Path $root 'plan')
+    # === 10. the seatbelt takes four verbs and nothing else ===
+    $planProject = New-TestProject (Join-Path $root 'refused verbs')
     $planTarget = $planProject['target']
-    $planRecipe = New-TestRecipe (Join-Path $root 'plan-recipe.json')
-    $existingRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $planRecipe)
-    Expect-Equal 2 $existingRun.ExitCode 'plan under existing-tools refuses'
-    $existingPlan = ConvertFrom-NSJsonText (Get-JsonLine $existingRun)
-    Expect-Equal 'policy-not-auto-add' $existingPlan['reason'] 'existing-tools is not an auto-add shift'
-    Expect-Equal 'policy-not-auto-add' (@($existingPlan['refusalReasons'])[0]) 'the refusal code is stable'
-    Expect-WireFormat $existingRun 'the plan JSON'
-
     Write-TestJson (Join-Path $planProject['ns'] 'shift-policy.json') (New-TestPolicy -ToolingPolicy 'auto-add')
-    $allowedRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $planRecipe)
-    Expect-Equal 0 $allowedRun.ExitCode "an auto-add plan exits 0 ($($allowedRun.StderrText))"
-    $allowedPlan = ConvertFrom-NSJsonText (Get-JsonLine $allowedRun)
-    Expect-Equal 'True' $allowedPlan['ok'] 'an authorized plan is ok'
-    Expect-Equal 0 @($allowedPlan['refusalReasons']).Count 'an authorized plan refuses nothing'
-    Expect-Equal $planTarget $allowedPlan['workTarget'] 'the plan names the resolved work target'
-    Expect-Equal 6 @($allowedPlan['stages']).Count 'the plan lists the six stages'
-    Expect-Equal 'authorize' (@($allowedPlan['stages'])[0]) 'the stages start at authorize'
-    Expect-Equal 'commit-tooling' (@($allowedPlan['stages'])[5]) 'the stages end at commit-tooling'
-    Expect-Equal 'False' $allowedPlan['alreadyProvisioned'] 'a capability with no setup commit is not provisioned'
-    Expect-True (-not (Test-Path -LiteralPath (Join-Path $planTarget 'nightshift-fake.txt'))) 'plan writes nothing'
-    Expect-True (-not (Test-Path -LiteralPath $planProject['transaction'])) 'plan opens no transaction'
+    foreach ($verb in @('plan', 'apply', 'install')) {
+        $refused = Invoke-Provision $planProject['workspace'] @($verb)
+        Expect-Equal 1 $refused.ExitCode ($verb + ' is not a seatbelt verb')
+        Expect-True $refused.StderrText.Contains('provision.ps1 -Project DIR -Command diff') `
+        ($verb + ' prints the seatbelt usage')
+        Expect-True (-not (Test-Path -LiteralPath $planProject['transaction'])) `
+        ($verb + ' opens no transaction')
+        Expect-True (-not (Test-Path -LiteralPath (Join-Path $planTarget 'nightshift-fake.txt'))) `
+        ($verb + ' writes nothing into the work target')
+    }
 
-    $mismatchRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $planRecipe, '-Capability', 'other')
-    Expect-Equal 2 $mismatchRun.ExitCode 'a capability mismatch refuses'
-    Expect-Equal '{"detail":"capability mismatch","ok":false,"reason":"incompatible-ecosystem","refusalReasons":["incompatible-ecosystem"],"refused":true}' `
-    (Get-JsonLine $mismatchRun) 'a capability mismatch is an incompatible recipe'
-
-    $forbiddenRecipe = New-TestRecipe (Join-Path $root 'forbidden-recipe.json') -SafetyClass 'forbidden'
-    $forbiddenRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $forbiddenRecipe)
-    Expect-Equal 2 $forbiddenRun.ExitCode 'a forbidden safety class refuses'
-    Expect-True ((Get-JsonLine $forbiddenRun).Contains('"safety-forbidden"')) 'the safety refusal code is stable'
-
-    $foreignRecipe = New-TestRecipe (Join-Path $root 'foreign-recipe.json') -Ecosystems @('rust')
-    $foreignRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $foreignRecipe)
-    Expect-Equal 2 $foreignRun.ExitCode 'a recipe for another ecosystem refuses'
-    Expect-True ((Get-JsonLine $foreignRun).Contains('"incompatible-ecosystem"')) 'the ecosystem refusal code is stable'
-
-    $declaredRecipe = New-TestRecipe (Join-Path $root 'declared-recipe.json') -ElevationCategories @('containers')
-    $declaredRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $declaredRecipe)
-    Expect-Equal 2 $declaredRun.ExitCode 'a declared category the shift denies refuses'
-    Expect-True ((Get-JsonLine $declaredRun).Contains('"elevation-denied:containers"')) `
-        'a denied category refuses under its own code'
-
-    $undeclaredRecipe = New-TestRecipe (Join-Path $root 'undeclared-recipe.json') -Smoke 'docker compose up -d'
-    $undeclaredRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $undeclaredRecipe)
-    Expect-Equal 2 $undeclaredRun.ExitCode 'an undeclared category caught by the command match refuses'
-    Expect-True ((Get-JsonLine $undeclaredRun).Contains('"elevation-denied:containers"')) `
-        'an undeclared category cannot slip through prose'
-
-    Write-TestJson (Join-Path $planProject['ns'] 'shift-policy.json') `
-    (New-TestPolicy -ToolingPolicy 'auto-add' -Allowances @((New-TestAllowance -Category 'containers')))
-    $liftedRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $declaredRecipe)
-    Expect-Equal 0 $liftedRun.ExitCode "a one-shift allowance authorizes the declared category ($($liftedRun.StderrText))"
-    $liftedCommandRun = Invoke-Provision $planProject['workspace'] @('plan', '-Recipe', $undeclaredRecipe)
-    Expect-Equal 0 $liftedCommandRun.ExitCode 'the same allowance authorizes the matching command'
-
-    $dirtyProject = New-TestProject (Join-Path $root 'owner dirty')
-    Write-TestJson (Join-Path $dirtyProject['ns'] 'shift-policy.json') (New-TestPolicy -ToolingPolicy 'auto-add')
-    Write-TestText (Join-Path $dirtyProject['target'] 'nightshift-fake.txt') "owner draft`n"
-    $null = Invoke-NSGitCommand $dirtyProject['target'] @('add', '--', 'nightshift-fake.txt')
-    $dirtyRun = Invoke-Provision $dirtyProject['workspace'] @('plan', '-Recipe', $planRecipe)
-    Expect-Equal 2 $dirtyRun.ExitCode 'owner work in an allowed file refuses'
-    Expect-True ((Get-JsonLine $dirtyRun).Contains('"owner-dirty-conflict"')) 'the dirty-tree refusal code is stable'
-
-    $artifactProject = New-TestProject (Join-Path $root 'artifact mode')
-    Write-TestJson (Join-Path $artifactProject['ns'] 'shift-policy.json') (New-TestPolicy -ToolingPolicy 'auto-add')
-    Write-NSWorkMode $artifactProject['workspace'] 'artifact'
-    Remove-NSFile (Join-Path $artifactProject['ns'] 'work-target')
-    $artifactRun = Invoke-Provision $artifactProject['workspace'] @('plan', '-Recipe', $planRecipe)
-    Expect-Equal 2 $artifactRun.ExitCode 'artifact mode refuses provisioning'
-    $artifactPlan = ConvertFrom-NSJsonText (Get-JsonLine $artifactRun)
-    Expect-Equal 'artifact-mode' $artifactPlan['reason'] 'artifact mode is the reported reason'
-
-    $provisionedProject = New-TestProject (Join-Path $root 'already provisioned')
-    Write-TestJson (Join-Path $provisionedProject['ns'] 'shift-policy.json') (New-TestPolicy -ToolingPolicy 'auto-add')
-    Write-TestText (Join-Path $provisionedProject['target'] 'nightshift-fake.txt') "ok`n"
-    $null = Invoke-NSGitCommand $provisionedProject['target'] @('add', '--', 'nightshift-fake.txt')
-    $null = Invoke-NSGitCommand $provisionedProject['target'] @('commit', '--quiet', '-m', 'chore(tooling): fixture-lint')
-    $provisionedRun = Invoke-Provision $provisionedProject['workspace'] @('plan', '-Recipe', $planRecipe)
-    Expect-Equal 0 $provisionedRun.ExitCode 'a provisioned capability still plans'
-    $provisionedPlan = ConvertFrom-NSJsonText (Get-JsonLine $provisionedRun)
-    Expect-Equal 'True' $provisionedPlan['alreadyProvisioned'] 'an existing setup commit is recognized'
 
     # === 12. preflight skip reasons ===
     $skipProject = New-TestProject (Join-Path $root 'skip reasons')
@@ -924,7 +841,8 @@ try {
         'Doctor says nothing about provisioning when no transaction is open'
     $diagnoseClean = Invoke-Provision $doctorProject['workspace'] @('recover', '-Diagnose')
     Expect-Equal 0 $diagnoseClean.ExitCode 'diagnose exits 0 with no transaction'
-    Expect-Equal '' $diagnoseClean.StdoutText 'diagnose prints nothing with no transaction'
+    Expect-Equal '{"detail":"no transaction","ok":true,"recovered":false}' (Get-JsonLine $diagnoseClean) `
+        'with no engine transaction the seatbelt recover answers'
 
     $doctorBaseline = New-NSOrdinalMap
     $doctorBaseline[$doctorRel] = New-TestBaselineExisted -Rel $doctorRel -Text "owner bytes`n" -NoContent
@@ -967,14 +885,14 @@ try {
     (Get-JsonLine $diagnoseMalformed) 'diagnose classes a malformed transaction'
 
     # === 14. usage ===
-    $usageRun = Invoke-Provision $planProject['workspace'] @('plan')
-    Expect-Equal 1 $usageRun.ExitCode 'plan without a recipe is a usage error'
-    Expect-True $usageRun.StderrText.Contains('usage: provision.ps1 -Project DIR plan|apply|recover|rollback') `
-        'the usage line names every verb'
-    $budgetRun = Invoke-Provision $planProject['workspace'] @('recover', '-BudgetSeconds', 'soon')
-    Expect-Equal 1 $budgetRun.ExitCode 'a budget that is not a whole number is a usage error'
-    $budgetOk = Invoke-Provision $empty['workspace'] @('recover', '-BudgetSeconds', '30')
-    Expect-Equal 0 $budgetOk.ExitCode 'a whole-number budget is accepted'
+    $usageRun = Invoke-Script -Path $helper -Arguments @('-Project', $planProject['workspace'])
+    Expect-Equal 1 $usageRun.ExitCode 'an empty command is a usage error'
+    foreach ($verb in @('baseline', 'diff', 'rollback', 'recover')) {
+        Expect-True $usageRun.StderrText.Contains($verb) ('the usage names ' + $verb)
+    }
+    Expect-True $usageRun.StderrText.Contains('-Surface') 'the usage names the surface flag'
+    $surfaceRun = Invoke-Provision $planProject['workspace'] @('baseline')
+    Expect-Equal 1 $surfaceRun.ExitCode 'baseline without a surface is a usage error'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

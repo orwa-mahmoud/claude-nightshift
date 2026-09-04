@@ -18,7 +18,9 @@ stop_cmd() { # <project>
   [ -x "$STOP" ]
   [ -x "$RESET" ]
   [ -x "$PURGE" ]
-  ! grep -R --include='*.sh' -F 'lib/control.sh' "$PLUGIN/hooks"
+  if grep -R --include='*.sh' -F 'lib/control.sh' "$PLUGIN/hooks"; then
+    return 1
+  fi
 }
 
 @test "start refuses a paused shift with an expired deadline" {
@@ -72,7 +74,9 @@ stop_cmd() { # <project>
   run "$STOP" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'watchman stopped'
-  ! kill -0 "$wpid" 2>/dev/null
+  if kill -0 "$wpid" 2>/dev/null; then
+    return 1
+  fi
   [ ! -f "$p/.nightshift/.watchman" ]
 
   p2="$(new_project unverified)"

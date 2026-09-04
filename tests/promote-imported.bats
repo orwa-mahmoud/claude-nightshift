@@ -43,10 +43,14 @@ prep() {
   [ "$status" -eq 0 ]
   grep -q 'Add a dry-run flag' "$p/.nightshift/punch-list.md"
   grep -q 'Source: https://github.com/acme/widgets/issues/12' "$p/.nightshift/punch-list.md"
-  ! grep -q 'Source: https://github.com/acme/widgets/issues/12' "$p/.nightshift/drafting-table.md"
+  if grep -q 'Source: https://github.com/acme/widgets/issues/12' "$p/.nightshift/drafting-table.md"; then
+    return 1
+  fi
   grep -q 'Vague idea' "$p/.nightshift/drafting-table.md"
   grep -q 'Keep this ordinary draft' "$p/.nightshift/drafting-table.md"
-  ! grep -q 'Keep this ordinary draft' "$p/.nightshift/punch-list.md"
+  if grep -q 'Keep this ordinary draft' "$p/.nightshift/punch-list.md"; then
+    return 1
+  fi
 }
 
 @test "promote refuses flagged, duplicate, and out-of-repo issues without writing" {
@@ -112,5 +116,7 @@ SH
   printf '%s' "$output" | grep -q 'Both live queues were restored'
   [ "$(cksum "$p/.nightshift/drafting-table.md")" = "$before_d" ]
   [ "$(cksum "$p/.nightshift/punch-list.md")" = "$before_p" ]
-  ! find "$p/.nightshift" -name '*.rollback.*' -o -name '*.next' | grep -q .
+  if find "$p/.nightshift" -name '*.rollback.*' -o -name '*.next' | grep -q .; then
+    return 1
+  fi
 }

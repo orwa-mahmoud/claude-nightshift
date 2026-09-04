@@ -16,7 +16,9 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   [ ! -e "$WIN/capability-policy.ps1" ]
   grep -qF 'Invoke-NSShiftPolicyCommand' "$WIN/shift-policy.ps1"
   grep -qF 'Invoke-NSParkNeedsCommand' "$WIN/park-needs.ps1"
-  ! grep -RE 'brew |npm install|pip install|python3|jq is required' "$WIN/shift-policy.ps1" "$WIN/park-needs.ps1"
+  if grep -RE 'brew |npm install|pip install|python3|jq is required' "$WIN/shift-policy.ps1" "$WIN/park-needs.ps1"; then
+    return 1
+  fi
 }
 
 @test "the resolver reports every frozen setting with source and expiry" {
@@ -73,10 +75,14 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'legacy capability-policy.json present; Setup removes it' "$WIN/doctor.ps1"
   grep -qF 'does not match shift-policy deadlineEpoch' "$WIN/doctor.ps1"
   grep -qF 'shift-policy.json is malformed' "$WIN/doctor.ps1"
-  ! grep -qF 'capability policy' "$WIN/doctor.ps1"
+  if grep -qF 'capability policy' "$WIN/doctor.ps1"; then
+    return 1
+  fi
   grep -qF '== resolved policy ==' "$WIN/export-support.ps1"
   grep -qF '<redacted ' "$WIN/export-support.ps1"
-  ! grep -qF 'capability-policy' "$WIN/export-support.ps1"
+  if grep -qF 'capability-policy' "$WIN/export-support.ps1"; then
+    return 1
+  fi
 }
 
 @test "Windows migrate-state retires a legacy capability-policy.json" {

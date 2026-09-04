@@ -12,7 +12,9 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 
 @test "coverage hunt writes a risk receipt without the wrapper" {
   grep -qF 'receipt-templates.md' "$COVERAGE"
-  ! grep -qF 'runtime/coverage-risk.sh' "$COVERAGE"
+  if grep -qF 'runtime/coverage-risk.sh' "$COVERAGE"; then
+    return 1
+  fi
   grep -qi 'behavior-protecting' "$COVERAGE"
   grep -qi 'misleading high coverage' "$COVERAGE"
   grep -qi 'mutation/property/fuzz' "$COVERAGE"

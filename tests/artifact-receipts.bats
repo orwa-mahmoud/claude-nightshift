@@ -108,7 +108,9 @@ new_artifact() {
   run bash "$WRITE" --project "$p" --item 'x' --verify 'ok' \
     --decision 'password=supersecret' --output "$p/out/topic.md"
   [ "$status" -eq 0 ]
-  ! grep -qF 'supersecret' "$output"
+  if grep -qF 'supersecret' "$output"; then
+    return 1
+  fi
   grep -qF 'decision: (redacted)' "$output"
 }
 
@@ -118,7 +120,9 @@ new_artifact() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode artifact'
   printf '%s' "$output" | grep -qF 'artifact receipts 0'
-  ! printf '%s' "$output" | grep -qF 'latest artifact receipt'
+  if printf '%s' "$output" | grep -qF 'latest artifact receipt'; then
+    return 1
+  fi
 
   a="$(new_artifact doctor)"
   printf 'ok\n' >"$a/out/topic.md"
@@ -131,14 +135,20 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'artifact receipts 1'
   printf '%s' "$output" | grep -qF "latest artifact receipt $name"
   line="$(printf '%s' "$output" | grep 'latest artifact receipt')"
-  ! printf '%s' "$line" | grep -q '/'
+  if printf '%s' "$line" | grep -q '/'; then
+    return 1
+  fi
 
   r="$(new_project receipt-doctor-repo)"
   run bash "$DOCTOR" --project "$r"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode repository'
-  ! printf '%s' "$output" | grep -qF 'artifact receipts'
-  ! printf '%s' "$output" | grep -qF 'latest artifact receipt'
+  if printf '%s' "$output" | grep -qF 'artifact receipts'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'latest artifact receipt'; then
+    return 1
+  fi
 }
 
 @test "Doctor names the newest artifact receipt filename" {
@@ -150,7 +160,9 @@ new_artifact() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'artifact receipts 2'
   printf '%s' "$output" | grep -qF 'latest artifact receipt 20261231T235959Z-new.md'
-  ! printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-old.md'
+  if printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-old.md'; then
+    return 1
+  fi
 }
 
 @test "latest receipt prefers uniqueness suffix over C-locale name order" {
@@ -165,7 +177,9 @@ new_artifact() {
   run bash "$DOCTOR" --project "$a"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-item-1.md'
-  ! printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-item.md'
+  if printf '%s' "$output" | grep -qF 'latest artifact receipt 20260101T000000Z-item.md'; then
+    return 1
+  fi
 }
 
 @test "latest receipt prefers mtime over a later-looking stamp" {
@@ -212,7 +226,9 @@ new_artifact() {
   mkdir -p "$a/outside"
   printf 'ok\n' >"$a/outside/20260101T000000Z-outside.md"
   ln -s "$a/outside" "$a/.nightshift/receipts"
-  ! bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a"
+  if bash -c '. "$1"; ns_latest_receipt "$2"' _ "$LIB" "$a"; then
+    return 1
+  fi
   [ "$(bash -c '. "$1"; ns_receipts_count "$2"' _ "$LIB" "$a")" = 0 ]
   [ "$(bash -c '. "$1"; ns_receipts_fingerprint "$2"' _ "$LIB" "$a")" = none ]
   run bash "$DOCTOR" --project "$a"
@@ -220,7 +236,9 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'artifact receipts 0'
   printf '%s' "$output" | grep -qF 'artifact receipts path is not a usable directory'
   printf '%s' "$output" | grep -qF 'so write-receipt can land'
-  ! printf '%s' "$output" | grep -qF 'complete ticked items with'
+  if printf '%s' "$output" | grep -qF 'complete ticked items with'; then
+    return 1
+  fi
 }
 
 @test "write-receipt refuses a symlink receipts directory" {
@@ -252,8 +270,12 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'artifact receipts 0'
   printf '%s' "$output" | grep -qF 'artifact receipts path is not a usable directory'
   printf '%s' "$output" | grep -qF 'so write-receipt can land'
-  ! printf '%s' "$output" | grep -qF 'complete ticked items with'
-  ! printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
+  if printf '%s' "$output" | grep -qF 'complete ticked items with'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'; then
+    return 1
+  fi
 }
 
 @test "Doctor does not offer write-receipt when ticks sit on an unusable receipts path" {
@@ -265,8 +287,12 @@ new_artifact() {
   printf '%s' "$output" | grep -qF 'punch list open=1 ticked=1'
   printf '%s' "$output" | grep -qF 'artifact receipts path is not a usable directory'
   printf '%s' "$output" | grep -qF 'so write-receipt can land'
-  ! printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
-  ! printf '%s' "$output" | grep -qF 'complete ticked items with'
+  if printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'complete ticked items with'; then
+    return 1
+  fi
 }
 
 @test "receipts helpers ignore files nested under receipts/" {
@@ -295,7 +321,9 @@ new_artifact() {
   run bash "$DOCTOR" --project "$a"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'artifact receipts 0'
-  ! printf '%s' "$output" | grep -qF 'latest artifact receipt'
+  if printf '%s' "$output" | grep -qF 'latest artifact receipt'; then
+    return 1
+  fi
 }
 
 @test "Doctor warns when artifact ticks have no receipts" {
@@ -310,13 +338,17 @@ new_artifact() {
   bash "$WRITE" --project "$a" --item 'x' --verify 'ok' --output "$a/out/topic.md" >/dev/null
   run bash "$DOCTOR" --project "$a"
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
+  if printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'; then
+    return 1
+  fi
 
   r="$(new_project ticks-repo)"
   punch_open "$r"
   run bash "$DOCTOR" --project "$r"
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'
+  if printf '%s' "$output" | grep -qF 'artifact mode has ticked items but no receipts'; then
+    return 1
+  fi
 }
 
 @test "an artifact receipt resets the stall counter" {

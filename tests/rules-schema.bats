@@ -119,12 +119,24 @@ validate() {
   match global-packages 'apt-get upgrade jq'
   match daemons 'systemctl start postgres'
   match external-services 'gh auth login'
-  ! match containers 'docker ps'
-  ! match containers 'docker logs web'
-  ! match containers 'npm test'
-  ! match global-packages 'brew list'
-  ! match sudo 'psql -h localhost -c "select 1"'
-  ! match daemons 'pytest tests/'
+  if match containers 'docker ps'; then
+    return 1
+  fi
+  if match containers 'docker logs web'; then
+    return 1
+  fi
+  if match containers 'npm test'; then
+    return 1
+  fi
+  if match global-packages 'brew list'; then
+    return 1
+  fi
+  if match sudo 'psql -h localhost -c "select 1"'; then
+    return 1
+  fi
+  if match daemons 'pytest tests/'; then
+    return 1
+  fi
 }
 
 @test "an unknown category, an unknown field, and a bad policy are rejected" {

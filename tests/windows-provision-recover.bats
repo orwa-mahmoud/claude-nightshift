@@ -4,6 +4,7 @@ LOGIC="$BATS_TEST_DIRNAME/windows/provision-recover-logic.ps1"
 RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 WIN="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows"
 MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
+POSIX="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/provision.sh"
 
 @test "Windows provisioning recovery suite is registered with run.ps1" {
   [ -f "$LOGIC" ]
@@ -16,19 +17,22 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'Invoke-NSProvisionCommand' "$WIN/provision.ps1"
   grep -qF 'Get-NSProvisionSkipReasons' "$WIN/provision-preflight.ps1"
   grep -qF 'Get-NSProvisionDiagnosisLine' "$WIN/doctor.ps1"
-  ! grep -RE 'brew |npm install|pip install|python3|jq is required' \
-    "$WIN/provision.ps1" "$WIN/provision-preflight.ps1" "$WIN/doctor.ps1"
+  if grep -RE 'brew |npm install|pip install|python3|jq is required' \
+    "$WIN/provision.ps1" "$WIN/provision-preflight.ps1" "$WIN/doctor.ps1"; then
+    return 1
+  fi
 }
 
 @test "the Windows provisioning verbs and flags match the POSIX helper" {
-  grep -q 'ValidateSet' "$WIN/provision.ps1"
-  grep -qF "'plan'" "$WIN/provision.ps1"
-  grep -qF "'apply'" "$WIN/provision.ps1"
-  grep -qF "'recover'" "$WIN/provision.ps1"
-  grep -qF "'rollback'" "$WIN/provision.ps1"
+  grep -qF "@('baseline', 'diff', 'rollback', 'recover')" "$WIN/provision.ps1"
+  grep -qF '[string[]]$Surface' "$WIN/provision.ps1"
   grep -qF '[switch]$Rollback' "$WIN/provision.ps1"
   grep -qF '[switch]$Diagnose' "$WIN/provision.ps1"
   grep -qF '[string]$Recipe' "$WIN/provision-preflight.ps1"
+  for verb in baseline diff rollback recover; do
+    grep -qF "provision.sh --project DIR $verb" "$POSIX" \
+      || { echo "POSIX helper does not document $verb"; return 1; }
+  done
 }
 
 @test "native recovery prints the frozen objects and exit codes" {
@@ -93,18 +97,12 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'undecodable baseline bytes never overwrite the tree' "$LOGIC"
 }
 
-@test "Windows provisioning logic covers the plan, the refusal and the skips" {
-  grep -qF 'existing-tools is not an auto-add shift' "$LOGIC"
-  grep -qF 'an authorized plan refuses nothing' "$LOGIC"
-  grep -qF 'a denied category refuses under its own code' "$LOGIC"
-  grep -qF 'an undeclared category cannot slip through prose' "$LOGIC"
-  grep -qF 'a one-shift allowance authorizes the declared category' "$LOGIC"
-  grep -qF 'the dirty-tree refusal code is stable' "$LOGIC"
-  grep -qF 'artifact mode is the reported reason' "$LOGIC"
-  grep -qF 'an existing setup commit is recognized' "$LOGIC"
-  grep -qF 'plan writes nothing' "$LOGIC"
-  grep -qF 'apply reports the honest refusal' "$LOGIC"
-  grep -qF 'a refused apply opens no transaction' "$LOGIC"
+@test "Windows provisioning logic covers the refused verbs and the skips" {
+  grep -qF 'is not a seatbelt verb' "$LOGIC"
+  grep -qF 'prints the seatbelt usage' "$LOGIC"
+  grep -qF 'opens no transaction' "$LOGIC"
+  grep -qF 'writes nothing into the work target' "$LOGIC"
+  grep -qF 'baseline without a surface is a usage error' "$LOGIC"
   grep -qF 'auto-add has no provisioning runtime on native Windows' "$LOGIC"
   grep -qF 'existing-tools never probes for a provisioning runtime' "$LOGIC"
   grep -qF 'an elevation request needs an elevated token' "$LOGIC"
@@ -126,7 +124,7 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'Doctor names a baseline that would not prove' "$LOGIC"
   grep -qF 'Doctor names the malformed field' "$LOGIC"
   grep -qF 'diagnose prints the class and the sentence on one tab-separated line' "$LOGIC"
-  grep -qF 'diagnose prints nothing with no transaction' "$LOGIC"
+  grep -qF 'with no engine transaction the seatbelt recover answers' "$LOGIC"
   grep -qF 'diagnose classes an unprovable baseline' "$LOGIC"
   grep -qF 'diagnose classes a malformed transaction' "$LOGIC"
   grep -qF 'diagnose changes nothing' "$LOGIC"
@@ -138,7 +136,6 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'Test-NSAsciiOnly' "$LOGIC"
   grep -qF 'Test-NSHasBom' "$LOGIC"
   grep -qF '{"detail":"no transaction","ok":true,"recovered":false}' "$LOGIC"
-  grep -qF '{"ok":false,"refusalReasons":["provisioning-runtime-unavailable"],"refused":true}' "$LOGIC"
   grep -qF 'the inventory is pretty-printed with two spaces' "$LOGIC"
   grep -qF 'the inventory sorts its keys' "$LOGIC"
 }

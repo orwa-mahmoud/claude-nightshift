@@ -581,13 +581,13 @@ STUB
   [ -f "$p/.nightshift/.shift-lease" ]
 }
 
-@test "the Python payload fallback distinguishes commands from static commit messages" {
+@test "the payload decoder distinguishes commands from static commit messages" {
   p="$(new_project)"
   punch_open "$p"
   claude_bind "$p" shift-session
-  nojq="$BATS_TEST_TMPDIR/python-lease-parser"
+  nojq="$BATS_TEST_TMPDIR/mcp-lease-parser"
   mkdir -p "$nojq"
-  for tool in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git ln mv python3; do
+  for tool in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git ln mv jq; do
     command -v "$tool" >/dev/null && ln -sf "$(command -v "$tool")" "$nojq/$tool"
   done
 
@@ -611,7 +611,7 @@ STUB
   is_allow
 }
 
-@test "both payload decoders preserve trailing command newlines" {
+@test "the payload decoder preserves trailing command newlines" {
   # shellcheck source=plugins/nightshift/hooks/shared/hardhat-core.sh
   . "$HOOKS/shared/hardhat-core.sh"
   command=$'printf safe\n\n'
@@ -627,17 +627,16 @@ STUB
   [ "$status" -eq 1 ]
   cmp "$expected" "$captured"
 
-  nojq="$BATS_TEST_TMPDIR/trailing-python-parser"
-  mkdir -p "$nojq"
-  ln -sf "$(command -v bash)" "$nojq/bash"
-  ln -sf "$(command -v python3)" "$nojq/python3"
-  run env PATH="$nojq" CAPTURED_TARGET="$captured" bash -c '
+  # Without jq there is no general JSON reader, so an opaque payload fails closed.
+  noparser="$BATS_TEST_TMPDIR/trailing-no-parser"
+  mkdir -p "$noparser"
+  ln -sf "$(command -v bash)" "$noparser/bash"
+  run env PATH="$noparser" CAPTURED_TARGET="$captured" bash -c '
     . "$1"
     capture_target() { printf "%s" "$1" >"$CAPTURED_TARGET"; return 1; }
     ns_hardhat_payload_targets mcp__shell__run "$2" "" capture_target
   ' nightshift "$HOOKS/shared/hardhat-core.sh" "$payload"
-  [ "$status" -eq 1 ]
-  cmp "$expected" "$captured"
+  [ "$status" -eq 2 ]
 }
 
 @test "a recovered lease fails closed when a hook payload omits session identity" {

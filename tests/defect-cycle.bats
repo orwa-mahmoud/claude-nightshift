@@ -12,7 +12,9 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 
 @test "defect hunt writes a cycle receipt and keeps the lenses" {
   grep -qF 'receipt-templates.md' "$DEFECT"
-  ! grep -qF 'runtime/defect-cycle.sh' "$DEFECT"
+  if grep -qF 'runtime/defect-cycle.sh' "$DEFECT"; then
+    return 1
+  fi
   grep -qi 'reproduction or strong code-path evidence' "$DEFECT"
   grep -qi 'rejected and duplicate' "$DEFECT"
   grep -qi 'containing regression surface' "$DEFECT"

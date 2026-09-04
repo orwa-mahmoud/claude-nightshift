@@ -83,11 +83,15 @@ CODEX_HOOKS="$HOOKS/codex"
 }
 
 @test "host protocols remain in their wrappers" {
-  ! grep -qE 'codex_emit|hookSpecificOutput' "$HOOKS/shared/gate-core.sh" "$HOOKS/shared/hardhat-core.sh"
+  if grep -qE 'codex_emit|hookSpecificOutput' "$HOOKS/shared/gate-core.sh" "$HOOKS/shared/hardhat-core.sh"; then
+    return 1
+  fi
   grep -qF 'codex_emit_block' "$HOOKS/codex/clock-out-gate.sh"
   grep -qF 'permissionDecision' "$HOOKS/hardhat.sh"
   grep -qF 'request_user_input' "$HOOKS/codex/hardhat.sh"
-  ! grep -qF 'request_user_input' "$HOOKS/hardhat.sh"
+  if grep -qF 'request_user_input' "$HOOKS/hardhat.sh"; then
+    return 1
+  fi
 }
 
 # Table: command -> expected (deny|allow) -> reason fragment

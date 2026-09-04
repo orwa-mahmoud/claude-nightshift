@@ -9,9 +9,13 @@ load helpers
 @test "hardhat is inert in a project with no punch list" {
   p="$(new_project)"
   run hardhat_bash "$p" "git push"
-  ! is_deny "$output"
+  if is_deny "$output"; then
+    return 1
+  fi
   run hardhat_ask "$p"
-  ! is_deny "$output"
+  if is_deny "$output"; then
+    return 1
+  fi
 }
 
 @test "two projects gate independently" {

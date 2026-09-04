@@ -62,11 +62,15 @@ policy() { # <project> [extra JSON without the leading comma]
   fixture_list "$p"
   run pre "$p" --json
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -qF 'Pin the linter'
+  if printf '%s' "$output" | grep -qF 'Pin the linter'; then
+    return 1
+  fi
   printf '%s' "$output" | jq -e '[.items[].title] | index("4. Pin the linter.") == null' >/dev/null
   printf '%s' "$output" | jq -e '[.gaps[].title] | index("4. Pin the linter.") == null' >/dev/null
   park "$p" >/dev/null
-  ! grep -qF 'Pin the linter' "$p/.nightshift/parking-lot.md"
+  if grep -qF 'Pin the linter' "$p/.nightshift/parking-lot.md"; then
+    return 1
+  fi
 }
 
 @test "every signal in the owner decisions is detected in an item's own text" {
@@ -112,6 +116,14 @@ MD
   - `systemctl start docker`
   - `gh auth login`
 MD
+  run pre "$p" --json
+  [ "$status" -eq 0 ]
+  # The patterns are verb-scoped: `docker.io` is a package name and `systemctl start docker`
+  # starts a daemon, so neither reaches the containers category.
+  [ "$(printf '%s' "$output" | jq -r '[.items[0].needs[].category] | join(",")')" \
+    = 'sudo,global-packages,daemons,external-services' ]
+
+  printf '  - `docker compose up -d`\n' >>"$p/.nightshift/punch-list.md"
   run pre "$p" --json
   [ "$status" -eq 0 ]
   [ "$(printf '%s' "$output" | jq -r '[.items[0].needs[].category] | join(",")')" \
@@ -264,11 +276,10 @@ MD
 MD
   run park "$p"
   [ "$status" -eq 0 ]
-  [ "${lines[0]}" = 'parked containers: 5. Log in to the registry.' ]
-  [ "${lines[1]}" = 'parked external-services: 5. Log in to the registry.' ]
-  [ "${lines[2]}" = 'park-needs: added 2' ]
+  [ "${lines[0]}" = 'parked external-services: 5. Log in to the registry.' ]
+  [ "${lines[1]}" = 'park-needs: added 1' ]
   grep -qxF 'The owner wrote this by hand.' "$p/.nightshift/parking-lot.md"
-  [ "$(grep -c 'needs allowance:' "$p/.nightshift/parking-lot.md")" -eq 5 ]
+  [ "$(grep -c 'needs allowance:' "$p/.nightshift/parking-lot.md")" -eq 4 ]
 }
 
 @test "park-needs parks nothing when every category the work needs is allowed" {

@@ -28,7 +28,9 @@ MR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/morning-receipt.sh"
   chmod 644 "$p/.nightshift/punch-list.md"
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | grep -qF 'Ending: unknown'
-  ! printf '%s\n' "$output" | grep -qF 'Ending: done'
+  if printf '%s\n' "$output" | grep -qF 'Ending: done'; then
+    return 1
+  fi
 }
 
 @test "morning-receipt temps are created mode 700" {
@@ -72,7 +74,9 @@ EOF
   for f in "$DOCTOR_PS1" "$SCHED_PS1"; do
     grep -qF 'Get-NSOpenBoxesInFile' "$f"
     grep -qF 'Get-NSOpenDrafts' "$f"
-    ! grep -qF '$seenRule' "$f"
+    if grep -qF '$seenRule' "$f"; then
+      return 1
+    fi
   done
 }
 

@@ -12,9 +12,11 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 }
 
 @test "archive and setup write history from the template" {
-  ! grep -qF 'history-context.sh' "$ARCHIVE"
+  if grep -qF 'history-context.sh' "$ARCHIVE"; then
+    return 1
+  fi
   grep -qF 'references/receipt-templates.md' "$ARCHIVE"
-  grep -qF 'history-context' "$SETUP"
-  grep -qF 'Do not call' "$SETUP"
+  grep -qF 'history-context' "$TEMPLATES"
+  grep -qF 'Do not call' "$TEMPLATES"
   grep -qF '# history-context / preset' "$TEMPLATES"
 }

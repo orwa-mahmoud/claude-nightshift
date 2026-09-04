@@ -102,8 +102,12 @@ policy_json() { # <shiftId> <toolingPolicy> <verificationLevel> [source]
   # toolingPolicy description documents the rule in prose; it is not a structural enum split by
   # work mode, so the schema alone cannot enforce it — the next test proves the helper accepts
   # every value regardless of work mode.)
-  ! grep -qiE 'work.mode' "$ROOT/plugins/nightshift/runtime/shift-policy.sh"
-  ! grep -qiE 'work.mode' "$SCHEMAS/shift-policy.json"
+  if grep -qiE 'work.mode' "$ROOT/plugins/nightshift/runtime/shift-policy.sh"; then
+    return 1
+  fi
+  if grep -qiE 'work.mode' "$SCHEMAS/shift-policy.json"; then
+    return 1
+  fi
 }
 
 @test "the helper itself is work-mode-agnostic: artifact mode's refusal is composition's job, not shift-policy.sh's" {

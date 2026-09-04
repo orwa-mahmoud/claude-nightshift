@@ -15,8 +15,8 @@ NOW=2026-09-02T02:30:00Z
 
 # The exact POSIX toolset a from-scratch bash implementation may lean on, with and without jq,
 # mirroring the ledger's own parity toolsets so both halves probe the same real binaries.
-BASELINE_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
-BASELINE_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
+BASELINE_TOOLSET_WITH_JQ="mktemp chmod bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
+BASELINE_TOOLSET_NO_JQ="mktemp chmod bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
 
 # ---------------------------------------------------------------------------------------------
 # Fixtures. A shift control file is written by a helper, never by an inline command string, so a
@@ -221,7 +221,9 @@ record() {
     --source-class eslint --command 'nsfakelint .'
   [ "$status" -eq 2 ]
   printf '%s\n' "$stderr" | grep -qF 'cannot read the ledger at'
-  ! printf '%s\n' "$stderr" | grep -qF 'Traceback'
+  if printf '%s\n' "$stderr" | grep -qF 'Traceback'; then
+    return 1
+  fi
 }
 
 @test "jq and python3 write the same baseline bytes" {
@@ -253,15 +255,17 @@ record() {
   run --separate-stderr env PATH="$bin" bash "$BL" --project "$p" \
     --source-class eslint --command 'nsfakelint .'
   [ "$status" -eq 2 ]
-  printf '%s\n' "$stderr" | grep -qF 'jq or python3 is required to read JSON'
+  printf '%s\n' "$stderr" | grep -qF 'JSON parser unavailable'
 }
 
+# The skills tell the model to write the baseline itself, from the templates. The helper still
+# ships for a caller that wants a machine-written ledger row; the shift does not require it.
 @test "the shift skills say when a baseline is written" {
   for f in "$ROOT/plugins/nightshift/skills/start/SKILL.md" \
     "$ROOT/plugins/nightshift/skills/nightshift/SKILL.md"; do
-    grep -qF 'runtime/evidence-baseline.sh' "$f" || { echo "no baseline helper: $f"; return 1; }
-    grep -qF 'once per source class' "$f" || { echo "no baseline trigger: $f"; return 1; }
-    grep -qF 'runtime\windows\evidence-baseline.ps1' "$f" \
-      || { echo "no Windows baseline helper: $f"; return 1; }
+    tr '\n' ' ' <"$f" | grep -qF 'once per source class' \
+      || { echo "no baseline trigger: $f"; return 1; }
+    grep -qF 'references/receipt-templates.md' "$f" \
+      || { echo "no receipt templates: $f"; return 1; }
   done
 }

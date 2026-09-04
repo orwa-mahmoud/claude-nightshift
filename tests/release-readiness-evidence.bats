@@ -12,6 +12,8 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 
 @test "release-readiness writes a receipt from the template" {
   grep -qF 'receipt-templates.md' "$RR"
-  ! grep -qF 'runtime/release-readiness-evidence.sh' "$RR"
+  if grep -qF 'runtime/release-readiness-evidence.sh' "$RR"; then
+    return 1
+  fi
   grep -qF '# build-onboarding / pr-readiness / release-readiness' "$TEMPLATES"
 }
