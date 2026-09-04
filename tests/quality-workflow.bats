@@ -15,8 +15,11 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 @test "Quality skill does not require the workflow helpers" {
   ! grep -qF 'runtime/quality-workflow.sh' "$QUALITY_SKILL"
   ! grep -qF 'runtime/quality-scan.sh' "$QUALITY_SKILL"
-  grep -qF 'Do not call `quality-workflow.sh`' "$QUALITY_SKILL"
+  ! grep -qF 'quality-workflow' "$QUALITY_SKILL"
+  ! grep -qF 'quality-scan' "$QUALITY_SKILL"
+  ! grep -qF 'compose-discovery' "$QUALITY_SKILL"
   ! grep -qF 'python3' "$QUALITY_SKILL"
+  grep -qF "the project's own tools" "$QUALITY_SKILL"
   grep -qF 'unavailable' "$QUALITY_SKILL"
 }
 
