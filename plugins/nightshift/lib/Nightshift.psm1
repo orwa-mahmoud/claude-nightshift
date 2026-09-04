@@ -4539,13 +4539,15 @@ $script:NSPolicyCompletionDefault = 'clear-all'
 
 # Shipped elevation patterns (grep -E), used for any category rules.json does not
 # carry. Preflight and the hardhat guard read them through Get-NSElevationPattern,
-# so the signal that parks an item is the signal that blocks the command.
+# so the signal that parks an item is the signal that blocks the command. The rules
+# template and lib/policy.sh carry the same text, so a category answers alike on
+# either engine and whether or not the owner's file names it.
 $script:NSPolicyElevationPattern = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
-$script:NSPolicyElevationPattern['sudo'] = '(^|[;&|(]|[[:space:]])(sudo|doas)([[:space:]]|$)'
-$script:NSPolicyElevationPattern['containers'] = '(^|[;&|(]|[[:space:]])(docker|docker-compose|podman|nerdctl|colima)([[:space:]]|$)'
-$script:NSPolicyElevationPattern['global-packages'] = '(^|[;&|(]|[[:space:]])(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)([[:space:]]|$)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|pip3?[[:space:]]+install[[:space:]]+--user'
-$script:NSPolicyElevationPattern['daemons'] = '(^|[;&|(]|[[:space:]])(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)'
-$script:NSPolicyElevationPattern['external-services'] = '(^|[;&|(]|[[:space:]])(gh[[:space:]]+auth[[:space:]]+login|npm[[:space:]]+login|docker[[:space:]]+login|az[[:space:]]+login|gcloud[[:space:]]+auth|aws[[:space:]]+configure)([[:space:]]|$)'
+$script:NSPolicyElevationPattern['sudo'] = '(^|[;&|(`]|[[:space:]]|''|")(/[A-Za-z0-9._-]+)*/*(sudo|doas)([[:space:]]|[;&|)''"`]|$)'
+$script:NSPolicyElevationPattern['containers'] = '(/var/run/docker\.sock|unix://[^ \t]*docker\.sock|DOCKER_HOST=)|(^|[;&|(`]|[[:space:]]|''|")(docker-compose)[[:space:]]+(up|run|start|build|down|create)|(^|[;&|(`]|[[:space:]]|''|")(docker|podman|nerdctl|colima)[[:space:]]+(run|create|start|build|compose[[:space:]]+(up|run|start|build|down|create))'
+$script:NSPolicyElevationPattern['global-packages'] = '(^|[;&|(`]|[[:space:]]|''|")(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)[[:space:]]+(install|upgrade|uninstall|remove|reinstall)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|(pip3?|cargo|go)[[:space:]]+install'
+$script:NSPolicyElevationPattern['daemons'] = '(^|[;&|(`]|[[:space:]]|''|")(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)'
+$script:NSPolicyElevationPattern['external-services'] = '(^|[;&|(`]|[[:space:]]|''|")(gh[[:space:]]+auth[[:space:]]+login|npm[[:space:]]+login|docker[[:space:]]+login|az[[:space:]]+login|gcloud[[:space:]]+auth|aws[[:space:]]+configure)([[:space:]]|$)'
 
 # Every setting the resolved view reports, in the order the table prints them.
 $script:NSPolicySettingNames = @(

@@ -285,6 +285,25 @@ try {
     $messageOnly = Get-ElevationReason "git commit -m 'sudo apt-get install jq and docker compose up'"
     Expect-True ([string]::IsNullOrEmpty($messageOnly)) "a commit message names no category: $messageOnly"
 
+    # A rules file that names no elevation answers from the built-in patterns alone, and answers
+    # the same corpus the same way — the guard does not depend on the owner's file carrying them.
+    $templateRules = [IO.File]::ReadAllText($rulesPath)
+    $strippedRules = $templateRules | ConvertFrom-Json
+    $null = $strippedRules.PSObject.Properties.Remove('elevation')
+    [IO.File]::WriteAllText($rulesPath, ($strippedRules | ConvertTo-Json -Depth 10))
+    foreach ($command in @('docker ps', 'docker logs web', 'brew list')) {
+        $reason = Get-ElevationReason $command
+        Expect-True ([string]::IsNullOrEmpty($reason)) "built-in patterns leave inspection alone: $command -> $reason"
+    }
+    foreach ($category in @('sudo', 'containers', 'global-packages')) {
+        $expected = "BLOCKED: this command needs the '$category' elevation category, which is denied for this shift. The owner allows it in .nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as `"needs allowance: $category`" and keep working."
+        foreach ($command in $bypass[$category]) {
+            $reason = Get-ElevationReason $command
+            Expect-True ($reason -ceq $expected) "built-in create-state deny $command : $reason"
+        }
+    }
+    [IO.File]::WriteAllText($rulesPath, $templateRules)
+
     $rules = Get-Content -LiteralPath $rulesPath -Raw | ConvertFrom-Json
     $rules.elevation.containers.policy = 'allow'
     [IO.File]::WriteAllText($rulesPath, ($rules | ConvertTo-Json -Depth 10))

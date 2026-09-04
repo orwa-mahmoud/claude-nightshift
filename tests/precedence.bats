@@ -171,6 +171,49 @@ bound_plan() { # <project> <deadline JSON> <command>...
   printf '%s' "$output" | grep -qF 'doas'
 }
 
+# The built-in is what a workspace falls back to; the template is what the owner reads and edits.
+# Character-for-character identity is how the fallback cannot quietly gate a different set of
+# commands than the file it stands in for.
+@test "row 2: the built-in pattern for every category is the template's, character for character" {
+  local c want
+  for c in sudo containers global-packages daemons external-services; do
+    want="$(jq -r --arg c "$c" '.elevation[$c].pattern' "$RULES_TEMPLATE")"
+    [ -n "$want" ]
+    run bash -c '. "$1"; ns_policy_default_pattern "$2"' _ "$LIB" "$c"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$want" ] || { echo "$c built-in: $output"; echo "$c template: $want"; return 1; }
+  done
+}
+
+# Elevation gates creating system state, never reading it — the same corpus the guard suites
+# match, checked here against the built-in patterns alone.
+@test "row 2: the built-in patterns match creation and leave inspection alone" {
+  local p pat cmd
+  p="$(unarmed prec-row2f)"
+  rules_set "$p" 'del(.elevation)'
+  matches() { # <category> <command>
+    pat="$(bash -c '. "$1"; ns_policy_elevation_pattern "$2" "$3"' _ "$LIB" "$p" "$1")"
+    printf '%s' "$2" | grep -qE "$pat"
+  }
+  for cmd in 'docker run alpine' 'docker create alpine' 'docker start web' 'docker build .' \
+    'docker compose up -d' 'docker-compose up'; do
+    matches containers "$cmd" || { echo "containers missed: $cmd"; return 1; }
+  done
+  for cmd in 'docker ps' 'docker logs web' 'docker inspect web'; do
+    ! matches containers "$cmd" || { echo "containers over-matched: $cmd"; return 1; }
+  done
+  for cmd in 'brew install jq' 'apt-get upgrade jq' 'cargo install ripgrep' 'go install ./cmd/x'; do
+    matches global-packages "$cmd" || { echo "global-packages missed: $cmd"; return 1; }
+  done
+  for cmd in 'brew list' 'apt-get --version'; do
+    ! matches global-packages "$cmd" || { echo "global-packages over-matched: $cmd"; return 1; }
+  done
+  for cmd in '/usr/bin/sudo id' 'sudo;id' "sh -c 'sudo id'"; do
+    matches sudo "$cmd" || { echo "sudo missed: $cmd"; return 1; }
+  done
+  ! matches sudo 'pseudo-random' || { echo "sudo over-matched: pseudo-random"; return 1; }
+}
+
 # Row 3 -------------------------------------------------------------------------------------
 @test "row 3: an exact-plan allowance permits its own commands and nothing else" {
   p="$(unarmed prec-row3a)"

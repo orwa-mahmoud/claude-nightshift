@@ -57,3 +57,50 @@ chmod git touch mkdir sleep kill ps stat cmp xargs ls readlink"
   printf '%s\n' "$output" | grep -qF 'export-support default bundle omits planted ghp_ / AKIA'
   printf '%s\n' "$output" | grep -qxF 'armed-path: ok'
 }
+
+# The rules file predates the elevation object, so every category answers from the built-in
+# patterns alone — with no parser on PATH, the reader that supplies them is awk. Creating system
+# state is denied and inspecting it is ordinary work, and an open box still holds the gate shut.
+@test "the built-in elevation patterns gate creation, not inspection, without python3 or jq" {
+  bin="$(build_toolset_bin builtin-elevation-bin $ARMED_PATH_TOOLSET)"
+  [ ! -e "$bin/python3" ]
+  [ ! -e "$bin/jq" ]
+
+  p="$(new_project no-parser-elevation)"
+  punch_open "$p"
+  jq 'del(.elevation)' "$p/.nightshift/rules.json" >"$p/rules.tmp"
+  mv "$p/rules.tmp" "$p/.nightshift/rules.json"
+  ! grep -qF '"elevation"' "$p/.nightshift/rules.json"
+
+  # jq builds the payload outside the guarded PATH; only the hook runs without a parser.
+  bare_hardhat() {
+    jq -nc --arg c "$1" '{tool_name:"Bash",tool_input:{command:$c}}' |
+      env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" CLAUDE_PROJECT_DIR="$p" \
+        bash "$HOOKS/hardhat.sh"
+  }
+  bare_gate() {
+    printf '%s' '{"hook_event_name":"Stop","session_id":"no-parser-session","transcript_path":""}' |
+      env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" CLAUDE_PROJECT_DIR="$p" \
+        bash "$HOOKS/clock-out-gate.sh"
+  }
+
+  run bare_hardhat 'docker run alpine'
+  is_deny "$output"
+  run bare_hardhat '/usr/bin/sudo id'
+  is_deny "$output"
+  run bare_hardhat 'brew install jq'
+  is_deny "$output"
+
+  run bare_hardhat 'docker ps'
+  is_allow
+  run bare_hardhat 'docker logs nightshift'
+  is_allow
+  run bare_hardhat 'brew list'
+  is_allow
+
+  run bare_gate
+  [ "$status" -eq 0 ]
+  is_block "$output"
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
+}

@@ -78,25 +78,31 @@ NS_PF4=""
 NS_PF5=""
 
 # ns_policy_default_pattern <category> — the shipped grep -E for a category, and the list of
-# categories that exist. The rules template carries the same text so the owner can see and edit
-# it; this is what applies when the file does not. The elevation guard and the permission
-# preflight both come here, so they cannot disagree.
+# categories that exist. The rules template carries this text byte for byte so the owner can see
+# and edit it; this is what applies when the file does not, or when a file predates the elevation
+# object. The elevation guard and the permission preflight both come here, so they cannot
+# disagree, and a workspace answers the same with or without a JSON parser on PATH.
+#
+# Elevation gates creating system state, not reading it: a verb-scoped pattern denies `docker run`
+# and `brew install` while `docker ps` and `brew list` stay ordinary work. The leading alternation
+# admits a path prefix and one layer of quoting, so `/usr/bin/sudo` and an `sh -c` payload land in
+# the same category as the bare command.
 ns_policy_default_pattern() {
   case "$1" in
     sudo)
-      printf '%s' '(^|[;&|(]|[[:space:]])(sudo|doas)([[:space:]]|$)'
+      printf '%s' '(^|[;&|(`]|[[:space:]]|'\''|")(/[A-Za-z0-9._-]+)*/*(sudo|doas)([[:space:]]|[;&|)'\''"`]|$)'
       ;;
     containers)
-      printf '%s' '(^|[;&|(]|[[:space:]])(docker|docker-compose|podman|nerdctl|colima)([[:space:]]|$)'
+      printf '%s' '(/var/run/docker\.sock|unix://[^ \t]*docker\.sock|DOCKER_HOST=)|(^|[;&|(`]|[[:space:]]|'\''|")(docker-compose)[[:space:]]+(up|run|start|build|down|create)|(^|[;&|(`]|[[:space:]]|'\''|")(docker|podman|nerdctl|colima)[[:space:]]+(run|create|start|build|compose[[:space:]]+(up|run|start|build|down|create))'
       ;;
     global-packages)
-      printf '%s' '(^|[;&|(]|[[:space:]])(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)([[:space:]]|$)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|pip3?[[:space:]]+install[[:space:]]+--user'
+      printf '%s' '(^|[;&|(`]|[[:space:]]|'\''|")(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)[[:space:]]+(install|upgrade|uninstall|remove|reinstall)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|(pip3?|cargo|go)[[:space:]]+install'
       ;;
     daemons)
-      printf '%s' '(^|[;&|(]|[[:space:]])(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)'
+      printf '%s' '(^|[;&|(`]|[[:space:]]|'\''|")(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)'
       ;;
     external-services)
-      printf '%s' '(^|[;&|(]|[[:space:]])(gh[[:space:]]+auth[[:space:]]+login|npm[[:space:]]+login|docker[[:space:]]+login|az[[:space:]]+login|gcloud[[:space:]]+auth|aws[[:space:]]+configure)([[:space:]]|$)'
+      printf '%s' '(^|[;&|(`]|[[:space:]]|'\''|")(gh[[:space:]]+auth[[:space:]]+login|npm[[:space:]]+login|docker[[:space:]]+login|az[[:space:]]+login|gcloud[[:space:]]+auth|aws[[:space:]]+configure)([[:space:]]|$)'
       ;;
     *) return 1 ;;
   esac
