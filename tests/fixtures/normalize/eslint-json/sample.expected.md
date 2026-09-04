@@ -10,4 +10,5 @@ eslint: 4 errors, 2 warnings in 3 files
 | warning | src/lib/parse.js | 90 | complexity | Function 'walk' has a complexity of 24. Maximum allowed is 10, and this message is deliberately l... |
 
 showing 6 of 6 items
+result: sha256:69f8a068f9c2bb08904425ab3dae65b7970669686adef1d3ddd4d0b2118d0a12
 source: tests/fixtures/normalize/eslint-json/sample.json sha256:df83753470845c781d3125a998f442cb2ded0fd878f5b87d287f8f73f4d17d76

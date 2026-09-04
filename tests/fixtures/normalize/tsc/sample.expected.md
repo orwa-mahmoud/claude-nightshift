@@ -9,4 +9,5 @@ tsc: 4 errors, 1 warning in 3 files
 | warning | src/lib/parse.ts | 90 | TS6133 | 'walk' is declared but its value is never read. |
 
 showing 5 of 5 items
+result: sha256:78365dd543469d756fa531a3e27c9cad46735cdf576ba85d9ad80d436e92ac5f
 source: tests/fixtures/normalize/tsc/sample.txt sha256:224470e56228eb5a9e1e7a365493095d0a1f3230e56607c4ea2fdf807d0ec08d

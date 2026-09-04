@@ -174,6 +174,47 @@ class_of() {
   printf '%s\n' "$output" | jq -e '.pass == false and .mode == "clear-all"' >/dev/null
 }
 
+# A tool-output finding carries the digest of its result, not of the file the tool wrote.
+# The two are different facts: rerunning a linter rewrites the file byte for byte while the
+# counts stand still, and a comparison that reads the file digest calls that a regression.
+@test "a tool-output digest survives a rerun and moves when the counts do" {
+  NORMALIZE="$ROOT/plugins/nightshift/runtime/normalize-output.sh"
+  RAW="$BATS_TEST_DIRNAME/fixtures/normalize/eslint-json/sample.json"
+  cp "$RAW" "$BATS_TEST_TMPDIR/before.json"
+  jq -c . <"$RAW" >"$BATS_TEST_TMPDIR/rerun.json"
+  jq -c '[.[] | .messages |= map(select(.severity != 2))]' <"$RAW" >"$BATS_TEST_TMPDIR/after.json"
+  cmp -s "$BATS_TEST_TMPDIR/before.json" "$BATS_TEST_TMPDIR/rerun.json" \
+    && { echo 'the rerun is byte-identical, so it proves nothing'; return 1; }
+
+  digest_of_run() {
+    bash "$NORMALIZE" --format eslint-json --input "$1" --json | jq -r .digest
+  }
+  before="$(digest_of_run "$BATS_TEST_TMPDIR/before.json")"
+  rerun="$(digest_of_run "$BATS_TEST_TMPDIR/rerun.json")"
+  after="$(digest_of_run "$BATS_TEST_TMPDIR/after.json")"
+  [ "$before" = "$rerun" ] || { echo 'the same counts gave two digests'; return 1; }
+  [ "$before" != "$after" ] || { echo 'dropped counts kept one digest'; return 1; }
+
+  # Only the raw bytes moved: still reported, with the digest the baseline recorded.
+  p="$(new_project ec-tool-rerun)"
+  ledger "$p"
+  append "$p" "$(baseline_json b1 open env-1 "eslint-lint=$before")"
+  append "$p" "$(finding_json eslint-lint open "$rerun")"
+  run compare "$p" b1 --json
+  [ "$(class_of eslint-lint)" = unchanged ] \
+    || { echo "a rerun scored $(class_of eslint-lint)"; return 1; }
+
+  # The counts dropped and the work is done: that is improvement, and it is scored as such.
+  q="$(new_project ec-tool-fixed)"
+  ledger "$q"
+  append "$q" "$(baseline_json b1 open env-1 "eslint-lint=$before")"
+  append "$q" "$(finding_json eslint-lint fixed "$after")"
+  run compare "$q" b1 --json
+  [ "$(class_of eslint-lint)" = cleared ] \
+    || { echo "a fix scored $(class_of eslint-lint)"; return 1; }
+  printf '%s\n' "$output" | jq -e '.pass == true and .summary.cleared == 1' >/dev/null
+}
+
 @test "the JSON carries exactly the documented keys, sorted, one line, one newline" {
   p="$(new_project ec-keys)"
   every_class "$p"

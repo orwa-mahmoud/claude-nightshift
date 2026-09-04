@@ -136,13 +136,40 @@ function Test-NVSection {
     return $false
 }
 
+# A delimiter on both sides of a name: an end of line, a version operator, an extras
+# bracket, a quote or a comma.
+$mentionDelimiters = [char[]]@(' ', "`t", "`r", '=', '<', '>', '[', '~', '!', '"', "'", ',')
+
+function Test-NVMentionEdge {
+    param([AllowEmptyString()][string]$Character)
+    if ($Character -eq '') { return $true }
+    return ($mentionDelimiters -contains [char]$Character)
+}
+
+# A manifest in $Directory names $Token as a package of its own. The token has to
+# stand alone: a dependency on `ruff-lsp` is not a dependency on `ruff`, so a
+# neighbouring name character rules the hit out.
 function Test-NVMentions {
     param([string]$Directory, [string]$Token)
     foreach ($file in @('package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', 'setup.cfg',
             'requirements.txt', 'tox.ini')) {
         if (-not (Test-NVFile $Directory $file)) { continue }
         $text = [IO.File]::ReadAllText((Join-NVPath $Directory $file))
-        if ($text.Contains($Token)) { return $true }
+        foreach ($line in $text.Split("`n")) {
+            $from = 0
+            while ($true) {
+                $at = $line.IndexOf($Token, $from, [StringComparison]::Ordinal)
+                if ($at -lt 0) { break }
+                $before = ''
+                if ($at -gt 0) { $before = $line.Substring($at - 1, 1) }
+                $after = ''
+                if ($at + $Token.Length -lt $line.Length) {
+                    $after = $line.Substring($at + $Token.Length, 1)
+                }
+                if ((Test-NVMentionEdge $before) -and (Test-NVMentionEdge $after)) { return $true }
+                $from = $at + 1
+            }
+        }
     }
     return $false
 }
@@ -192,6 +219,46 @@ function Get-NVLockfile {
 
 # ------------------------------------------------------------------ the walk
 
+# The deepest tree this walks. `find` has no limit and neither does a real project;
+# the cap is what stops a cycle reached some other way from running forever.
+$walkDepthLimit = 64
+
+# Every file under $Root, relative and slash-separated. Written out rather than
+# handed to -Recurse because Windows PowerShell 5.1 follows a junction and a
+# directory symlink, and `find` without -L follows neither: a reparse point is
+# skipped here for the same reason. A pruned directory is never entered, so a
+# vendored tree costs nothing to ignore.
+function Get-NVWalk {
+    param([string]$Root)
+    $found = New-Object 'Collections.Generic.List[string]'
+    $pending = New-Object 'Collections.Generic.Stack[object]'
+    $pending.Push([pscustomobject]@{ Path = $Root; Relative = ''; Depth = 0 })
+    while ($pending.Count -gt 0) {
+        $current = $pending.Pop()
+        $entries = @()
+        try { $entries = @(Get-ChildItem -LiteralPath $current.Path -Force) }
+        catch { continue }
+        foreach ($entry in $entries) {
+            $relative = $entry.Name
+            if ($current.Relative -ne '') { $relative = $current.Relative + '/' + $entry.Name }
+            if ((([int]$entry.Attributes) -band ([int][IO.FileAttributes]::ReparsePoint)) -ne 0) {
+                continue
+            }
+            if ($entry.PSIsContainer) {
+                if ($noise -ccontains $entry.Name) { continue }
+                if ($current.Depth -ge $walkDepthLimit) { continue }
+                $pending.Push([pscustomobject]@{
+                        Path = $entry.FullName; Relative = $relative
+                        Depth = $current.Depth + 1
+                    })
+                continue
+            }
+            [void]$found.Add($relative)
+        }
+    }
+    return , ([string[]]$found)
+}
+
 $vcs = 'none'
 $inside = Invoke-NSGitCommand $target @('rev-parse', '--is-inside-work-tree')
 if ($inside.ExitCode -eq 0 -and $inside.Text.Trim() -ceq 'true') { $vcs = 'git' }
@@ -204,9 +271,7 @@ if ($vcs -ceq 'git') {
     }
 }
 else {
-    $prefix = $target.TrimEnd('/', '\').Length + 1
-    foreach ($item in @(Get-ChildItem -LiteralPath $target -Recurse -File -Force -ErrorAction SilentlyContinue)) {
-        $relative = $item.FullName.Substring($prefix).Replace('\', '/')
+    foreach ($relative in (Get-NVWalk $target)) {
         if (Test-NVNoise $relative) { continue }
         [void]$all.Add($relative)
     }

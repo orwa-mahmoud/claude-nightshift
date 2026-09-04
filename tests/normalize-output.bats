@@ -17,6 +17,29 @@ PWSH_BIN="$(command -v pwsh 2>/dev/null || true)"
 FORMATS="eslint-json tsc coverage-summary sarif npm-audit junit lcov"
 CASES="sample edge broken"
 
+# Every format carries the three shared cases; a format whose parser has a shape of
+# its own carries more. all_cases is what every loop over the fixtures reads.
+all_cases() {
+  case "$1" in
+    eslint-json) printf '%s strings' "$CASES" ;;
+    tsc) printf '%s continuation' "$CASES" ;;
+    coverage-summary) printf '%s unmeasured' "$CASES" ;;
+    sarif) printf '%s wide' "$CASES" ;;
+    junit) printf '%s nested cdata' "$CASES" ;;
+    lcov) printf '%s unmeasured' "$CASES" ;;
+    *) printf '%s' "$CASES" ;;
+  esac
+}
+
+# The exit code a case is held to, read from its own golden: an unavailable summary
+# is one line and exit 3, anything else is a summary and exit 0.
+expected_status() {
+  case "$(head -1 "$FIX/$1/$2.expected.md")" in
+    unavailable*) printf 3 ;;
+    *) printf 0 ;;
+  esac
+}
+
 # The extension a fixture case carries, so the goldens can sit beside their input.
 fixture_input() {
   local fmt="$1" name="$2" f
@@ -45,14 +68,12 @@ digest_of() {
 @test "every format renders its golden markdown summary" {
   cd "$ROOT"
   for fmt in $FORMATS; do
-    for name in $CASES; do
+    for name in $(all_cases "$fmt"); do
       input="$(fixture_input "$fmt" "$name")"
+      want="$(expected_status "$fmt" "$name")"
       normalize --format "$fmt" --input "$input"
-      if [ "$name" = broken ]; then
-        [ "$status" -eq 3 ] || { echo "$fmt/$name expected exit 3, got $status"; return 1; }
-      else
-        [ "$status" -eq 0 ] || { echo "$fmt/$name: $output"; return 1; }
-      fi
+      [ "$status" -eq "$want" ] \
+        || { echo "$fmt/$name expected exit $want, got $status"; return 1; }
       printf '%s\n' "$output" | diff - "$FIX/$fmt/$name.expected.md" \
         || { echo "$fmt/$name markdown drifted"; return 1; }
     done
@@ -62,7 +83,7 @@ digest_of() {
 @test "every format renders its golden canonical JSON summary" {
   cd "$ROOT"
   for fmt in $FORMATS; do
-    for name in $CASES; do
+    for name in $(all_cases "$fmt"); do
       input="$(fixture_input "$fmt" "$name")"
       normalize --format "$fmt" --input "$input" --json
       printf '%s\n' "$output" | diff - "$FIX/$fmt/$name.expected.json" \
@@ -74,13 +95,15 @@ digest_of() {
 @test "the JSON summary is one canonical object with sorted keys" {
   cd "$ROOT"
   for fmt in $FORMATS; do
-    for name in sample edge; do
+    for name in $(all_cases "$fmt"); do
+      [ "$(expected_status "$fmt" "$name")" -eq 0 ] || continue
       input="$(fixture_input "$fmt" "$name")"
       normalize --format "$fmt" --input "$input" --json
       [ "$status" -eq 0 ]
       [ "$(printf '%s\n' "$output" | wc -l | tr -d ' ')" -eq 1 ]
       printf '%s' "$output" | jq -e '
         .version == 1 and (.digest | test("^[0-9a-f]{64}$"))
+        and (.source | test("^[0-9a-f]{64}$")) and (.input | test("/") | not)
         and (.headline | length) > 0 and (.items | type) == "array"
         and .shown == (.items | length) and .total >= .shown
       ' >/dev/null || { echo "$fmt/$name is not a usable finding body"; return 1; }
@@ -117,7 +140,8 @@ digest_of() {
     confidence: "high", impact: "developer", status: "open", ladder: "measured",
     locator: .input, digest: .digest, firstSeen: "2026-09-04T00:00:00Z",
     lastChecked: "2026-09-04T00:00:00Z", action: .headline, host: "claude",
-    workTarget: $target, message: (.counts | tostring)
+    workTarget: $target, message: (.counts | tostring),
+    details: { rawDigest: .source }
   }')"
   run /bin/bash "$PLUGIN/runtime/evidence.sh" --project "$p" append --record "$record"
   [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
@@ -148,9 +172,16 @@ digest_of() {
   [ "$(printf '%s\n' "$output" | head -1)" = "lcov: 68.57% lines covered, 288/420 in 3 files" ]
   printf '%s\n' "$output" | grep -qx '| severity | file | line | code | detail |'
   printf '%s\n' "$output" | grep -qx 'showing 3 of 3 items'
+  printf '%s\n' "$output" | tail -2 | head -1 | grep -qE '^result: sha256:[0-9a-f]{64}$'
   printf '%s\n' "$output" | tail -1 | grep -qE '^source: tests/fixtures/normalize/lcov/sample\.info sha256:[0-9a-f]{64}$'
   digest="$(printf '%s\n' "$output" | tail -1 | sed 's/.*sha256://')"
   [ "$digest" = "$(digest_of "$FIX/lcov/sample.info")" ]
+  # The result line is the summary's own digest, and it is not the file's.
+  result="$(printf '%s\n' "$output" | tail -2 | head -1 | sed 's/.*sha256://')"
+  [ "$result" != "$digest" ]
+  normalize --format lcov --input "$(fixture_input lcov sample)" --json
+  printf '%s' "$output" | jq -e --arg r "$result" --arg s "$digest" \
+    '.digest == $r and .source == $s and .input == "sample.info"' >/dev/null
 }
 
 @test "--top bounds the table and the count line still names the total" {
@@ -164,6 +195,159 @@ digest_of() {
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | grep -qx 'showing 0 of 6 items'
   ! printf '%s\n' "$output" | grep -q '^| severity'
+}
+
+# A report that nests its suites states the same tests twice: once on the outer suite and
+# once on each suite inside it. Adding both reports every test twice, so only a leaf counts.
+@test "a nested JUnit report counts its leaf suites once" {
+  cd "$ROOT"
+  normalize --format junit --input "$(fixture_input junit nested)"
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | head -1)" = "junit: 5 tests, 1 failure, 0 errors, 1 skipped in 2 suites" ]
+  normalize --format junit --input "$(fixture_input junit nested)" --json
+  printf '%s' "$output" | jq -e '
+    .counts.tests == 5 and .counts.failures == 1 and .counts.skipped == 1 and .files == 2
+    and .total == 1
+  ' >/dev/null
+}
+
+# A failure payload that quotes a suite element is prose. Read as markup it adds phantom
+# suites, phantom tests and phantom rows.
+@test "a CDATA payload and a comment never become JUnit markup" {
+  cd "$ROOT"
+  normalize --format junit --input "$(fixture_input junit cdata)" --json
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '
+    .counts.tests == 2 and .counts.failures == 1 and .files == 1 and .total == 1
+    and (.items[0] | .file == "tests.test_report" and .code == "failure")
+  ' >/dev/null
+  printf '%s' "$output" | grep -q 'ghost' && { echo 'a quoted element became markup'; return 1; }
+  printf '%s' "$output" | grep -q 'phantom' && { echo 'a quoted element became a row'; return 1; }
+  true
+}
+
+# A percentage of nothing is not full coverage. Every surface says so in the same word.
+@test "a metric with no denominator reads unmeasured, never 100%" {
+  cd "$ROOT"
+  normalize --format coverage-summary --input "$(fixture_input coverage-summary unmeasured)"
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | head -1)" \
+    = "coverage: lines unmeasured, statements 75.00%, functions 100.00%, branches unmeasured across 2 files" ]
+  printf '%s\n' "$output" | grep -qx '| info | src/generated/schema.ts | - | lines | 0/0 lines covered (unmeasured) |'
+  normalize --format coverage-summary --input "$(fixture_input coverage-summary unmeasured)" --json
+  printf '%s' "$output" | jq -e '
+    (.headline | test("lines unmeasured")) and .counts.linesTotal == 0
+    and ([.items[] | select(.file == "src/generated/schema.ts")]
+         | .[0] | .severity == "info" and (.message | test("unmeasured")))
+  ' >/dev/null
+  printf '%s' "$output" | grep -q 'lines 100' && { echo 'a zero denominator read as 100%'; return 1; }
+
+  # The whole-report case: total.lines.total 0 across the board.
+  normalize --format coverage-summary --input "$(fixture_input coverage-summary edge)"
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | grep -q '%' && { echo 'a report of nothing printed a percentage'; return 1; }
+
+  # LCOV says the same thing through LF:0.
+  normalize --format lcov --input "$(fixture_input lcov unmeasured)"
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | head -1)" = "lcov: 45.00% lines covered, 9/20 in 2 files" ]
+  printf '%s\n' "$output" | grep -qx '| info | src/generated/schema.js | - | lines | 0/0 lines covered (unmeasured) |'
+  normalize --format lcov --input "$(fixture_input lcov edge)"
+  [ "$(printf '%s\n' "$output" | head -1)" = "lcov: unmeasured lines covered, 0/0 in 1 file" ]
+}
+
+# Two paths that differ only outside ASCII are two files. The display form folds both
+# to the same bytes, so the count has to read what the report gave.
+@test "the SARIF file count uniques the uri the report gave" {
+  cd "$ROOT"
+  normalize --format sarif --input "$(fixture_input sarif wide)" --json
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '
+    .files == 2 and .counts.warnings == 2
+    and ([.items[].file] | unique | length) == 1
+  ' >/dev/null
+}
+
+# eslint writes severity as a number; a few formatters write the same number as a string.
+@test "an eslint severity written as a string is the same level" {
+  cd "$ROOT"
+  normalize --format eslint-json --input "$(fixture_input eslint-json strings)" --json
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '
+    .counts.errors == 1 and .counts.warnings == 1 and .total == 3
+    and ([.items[] | select(.code == "no-unused-vars")] | .[0].severity) == "error"
+    and ([.items[] | select(.code == "eqeqeq")] | .[0].severity) == "warning"
+    and ([.items[] | select(.code == "no-console")] | .[0].severity) == "note"
+  ' >/dev/null
+}
+
+# An input of nothing but continuation lines is a report this parser did not read.
+@test "a tsc report of only continuation lines is unavailable, not a clean compile" {
+  cd "$ROOT"
+  normalize --format tsc --input "$(fixture_input tsc continuation)"
+  [ "$status" -eq 3 ]
+  [ "$output" = "unavailable tsc: the input holds no TypeScript diagnostics" ]
+
+  # A report that states its own total is still a summary, even at zero.
+  normalize --format tsc --input "$(fixture_input tsc edge)"
+  [ "$status" -eq 0 ]
+  [ "$(printf '%s\n' "$output" | head -1)" = "tsc: 0 errors, 0 warnings in 0 files" ]
+}
+
+# The result digest is the identity of what the run found. Raw bytes that move without
+# moving a count must not read as a regression, and a count that drops must move it.
+@test "the result digest follows the counts, not the bytes" {
+  cd "$ROOT"
+  cp "$FIX/eslint-json/sample.json" "$BATS_TEST_TMPDIR/first.json"
+  jq -c . <"$FIX/eslint-json/sample.json" >"$BATS_TEST_TMPDIR/reformatted.json"
+  ! cmp -s "$BATS_TEST_TMPDIR/first.json" "$BATS_TEST_TMPDIR/reformatted.json"
+  jq -c '[.[] | .messages |= map(select(.severity != 2))]' \
+    <"$FIX/eslint-json/sample.json" >"$BATS_TEST_TMPDIR/fixed.json"
+
+  first="$(/bin/bash "$SH" --format eslint-json --input "$BATS_TEST_TMPDIR/first.json" --json)"
+  again="$(/bin/bash "$SH" --format eslint-json --input "$BATS_TEST_TMPDIR/reformatted.json" --json)"
+  fixed="$(/bin/bash "$SH" --format eslint-json --input "$BATS_TEST_TMPDIR/fixed.json" --json)"
+
+  [ "$(printf '%s' "$first" | jq -r .digest)" = "$(printf '%s' "$again" | jq -r .digest)" ]
+  [ "$(printf '%s' "$first" | jq -r .source)" != "$(printf '%s' "$again" | jq -r .source)" ]
+  [ "$(printf '%s' "$first" | jq -r .digest)" != "$(printf '%s' "$fixed" | jq -r .digest)" ]
+  printf '%s' "$fixed" | jq -e '.counts.errors == 0' >/dev/null
+}
+
+# The ledger's severity words are not a tool's. The template carries the mapping, and every
+# word a summary can print has to survive the trip through it.
+@test "every summary severity maps to a severity the ledger accepts" {
+  TEMPLATES="$PLUGIN/skills/nightshift/references/receipt-templates.md"
+  for pair in 'critical` → `critical' 'error` → `high' 'high` → `high' 'warning` → `medium' \
+    'moderate` → `medium' 'note` → `info' 'low` → `low' 'info` → `info'; do
+    grep -qF "$pair" "$TEMPLATES" || { echo "the template does not map: $pair"; return 1; }
+  done
+
+  p="$(new_project normalize-severity)"
+  run /bin/bash "$PLUGIN/runtime/evidence.sh" --project "$p" init
+  [ "$status" -eq 0 ]
+  cd "$ROOT"
+  summary="$(/bin/bash "$SH" --format eslint-json \
+    --input "$(fixture_input eslint-json sample)" --json)"
+  i=0
+  for pair in critical:critical error:high high:high warning:medium moderate:medium \
+    note:info low:low info:info; do
+    i=$((i + 1))
+    ledger="${pair#*:}"
+    record="$(printf '%s' "$summary" | jq -c --arg target "$p" --arg sev "$ledger" \
+      --arg id "tool-severity-$i" '{
+        schemaVersion: 1, id: $id, domain: "tool-output", sourceClass: "tool",
+        source: "eslint -f json .", sourceTool: "eslint", scope: ".", severity: $sev,
+        confidence: "high", impact: "developer", status: "open", ladder: "measured",
+        locator: .input, digest: .digest, firstSeen: "2026-09-04T00:00:00Z",
+        lastChecked: "2026-09-04T00:00:00Z", action: .headline, host: "claude",
+        workTarget: $target, details: { rawDigest: .source }
+      }')"
+    run /bin/bash "$PLUGIN/runtime/evidence.sh" --project "$p" append --record "$record"
+    [ "$status" -eq 0 ] || { echo "$pair rejected: $output"; return 1; }
+  done
+  run /bin/bash "$PLUGIN/runtime/evidence.sh" --project "$p" validate
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
 }
 
 @test "pytest-junit is an alias: the same bytes as junit" {
@@ -297,7 +481,7 @@ digest_of() {
   fi
   cd "$ROOT"
   for fmt in $FORMATS; do
-    for name in $CASES; do
+    for name in $(all_cases "$fmt"); do
       input="$(fixture_input "$fmt" "$name")"
       for mode in md json; do
         shflag=""

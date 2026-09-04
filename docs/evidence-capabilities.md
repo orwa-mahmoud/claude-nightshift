@@ -76,12 +76,14 @@ Two helpers exist for hosts that have them and are ignored where they do not. Bo
 nothing, install nothing, and ask nothing — no skill, gate, or catalog entry requires either one.
 
 `runtime/normalize-output.sh` (native Windows: `runtime/windows/normalize-output.ps1`) turns one
-tool's raw output into one compact summary: a headline, a bounded table of the worst rows, and the
-input path with its sha256. It reads `eslint-json`, `tsc`, `coverage-summary`, `sarif`, `npm-audit`,
-`junit` and `lcov`, with `pytest-junit` as an alias of `junit`. The summary is deterministic, so the
-model reads it instead of a large file and two nights diff byte for byte; `--json` prints the same
-thing as one canonical object for `evidence.sh append` to carry as a finding of domain
-`tool-output`.
+tool's raw output into one compact summary: a headline, a bounded table of the worst rows, the
+digest of the result, and the input path with its own sha256. It reads `eslint-json`, `tsc`,
+`coverage-summary`, `sarif`, `npm-audit`, `junit` and `lcov`, with `pytest-junit` as an alias of
+`junit`. The summary is deterministic, so the model reads it instead of a large file and two nights
+diff byte for byte; `--json` prints the same thing as one canonical object for `evidence.sh append`
+to carry as a finding of domain `tool-output`. The result digest covers the headline and the counts,
+so a rerun that finds the same thing carries the same digest, and a metric with no denominator reads
+`unmeasured` rather than a percentage.
 
 `runtime/inventory.sh` (native Windows: `runtime/windows/inventory.ps1`) reports what the work
 target declares. It walks the tree — `git ls-files` in a repository, so .gitignore is honoured —

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- runner notes: <testsuite tests="99" failures="99"> is prose, not a suite -->
+<testsuite name="reporter" tests="2" failures="1" errors="0" skipped="0" time="0.900">
+  <testcase classname="tests.test_report" name="test_render" time="0.100"/>
+  <testcase classname="tests.test_report" name="test_quotes_markup" time="0.800">
+    <failure message="report did not match" type="AssertionError"><![CDATA[expected <testsuite tests="7" failures="7"> in the report
+got <testcase classname="ghost" name="phantom"/> and <error type="Ghost">nothing</error>]]></failure>
+  </testcase>
+</testsuite>

@@ -15,6 +15,16 @@ $failures = New-Object 'System.Collections.Generic.List[string]'
 
 $formats = @('eslint-json', 'tsc', 'coverage-summary', 'sarif', 'npm-audit', 'junit', 'lcov')
 $cases = @('sample', 'edge', 'broken')
+# Every format carries the three shared cases; a format whose parser has a shape of its
+# own carries more, and both engines are held to the same goldens over all of them.
+$extraCases = @{
+    'eslint-json' = @('strings')
+    'tsc' = @('continuation')
+    'coverage-summary' = @('unmeasured')
+    'sarif' = @('wide')
+    'junit' = @('nested', 'cdata')
+    'lcov' = @('unmeasured')
+}
 
 function Expect-True {
     param([bool]$Condition, [string]$Message)
@@ -123,10 +133,17 @@ function Get-FixtureInput {
 Push-Location $repository
 try {
     foreach ($format in $formats) {
-        foreach ($case in $cases) {
+        $formatCases = @($cases)
+        if ($extraCases.ContainsKey($format)) { $formatCases += $extraCases[$format] }
+        foreach ($case in $formatCases) {
             $fixtureInput = Get-FixtureInput $format $case
+            # The exit code a case is held to, read from its own golden: an unavailable
+            # summary is one line and exit 3, anything else is a summary and exit 0.
+            $goldenFirst = [IO.File]::ReadAllLines((Join-Path $fixtures "$format/$case.expected.md"))[0]
             $expectedCode = 0
-            if ($case -ceq 'broken') { $expectedCode = 3 }
+            if ($goldenFirst.StartsWith('unavailable ', [StringComparison]::Ordinal)) {
+                $expectedCode = 3
+            }
 
             $markdown = Invoke-Normalize @('-Format', $format, '-InputPath', $fixtureInput)
             Expect-Equal $expectedCode $markdown.ExitCode "$format/$case markdown exit code"
@@ -157,6 +174,62 @@ try {
             }
         }
     }
+
+    # A nested report counts its leaf suites once, never the outer suite as well.
+    $nested = Invoke-Normalize @('-Format', 'junit', '-InputPath',
+        (Get-FixtureInput 'junit' 'nested'), '-Json')
+    $nestedReport = ConvertFrom-Json $nested.Text
+    Expect-Equal 5 $nestedReport.counts.tests 'a nested report counts every test once'
+    Expect-Equal 2 $nestedReport.files 'a nested report counts its leaf suites'
+
+    # A quoted suite element inside a payload is prose, not markup.
+    $cdata = Invoke-Normalize @('-Format', 'junit', '-InputPath',
+        (Get-FixtureInput 'junit' 'cdata'), '-Json')
+    Expect-Equal 2 (ConvertFrom-Json $cdata.Text).counts.tests 'a CDATA payload adds no tests'
+    Expect-True ($cdata.Text -cnotmatch 'phantom') 'a CDATA payload adds no rows'
+
+    # A percentage of nothing reads unmeasured on every surface.
+    $unmeasured = Invoke-Normalize @('-Format', 'coverage-summary', '-InputPath',
+        (Get-FixtureInput 'coverage-summary' 'unmeasured'))
+    Expect-True ($unmeasured.Lines[0] -cmatch 'lines unmeasured') `
+        'a zero denominator reads unmeasured in the headline'
+    Expect-True ($unmeasured.Lines -ccontains
+        '| info | src/generated/schema.ts | - | lines | 0/0 lines covered (unmeasured) |') `
+        'a file with no lines block reads unmeasured in the table'
+    Expect-True ($unmeasured.Lines[0] -cmatch 'branches unmeasured') `
+        'a second zero denominator reads unmeasured too'
+    Expect-True ($unmeasured.Lines[0] -cnotmatch 'lines 100') 'a zero denominator is never 100%'
+    $lcovUnmeasured = Invoke-Normalize @('-Format', 'lcov', '-InputPath',
+        (Get-FixtureInput 'lcov' 'unmeasured'))
+    Expect-True ($lcovUnmeasured.Lines -ccontains
+        '| info | src/generated/schema.js | - | lines | 0/0 lines covered (unmeasured) |') `
+        'an LF:0 record reads unmeasured'
+
+    # Two uris that differ only outside ASCII are two files.
+    $wide = ConvertFrom-Json (Invoke-Normalize @('-Format', 'sarif', '-InputPath',
+            (Get-FixtureInput 'sarif' 'wide'), '-Json')).Text
+    Expect-Equal 2 $wide.files 'the file count uniques the uri the report gave'
+    Expect-Equal 2 $wide.counts.warnings 'both accented paths are reported'
+
+    # A severity written as a string is the same level as the number.
+    $strings = ConvertFrom-Json (Invoke-Normalize @('-Format', 'eslint-json', '-InputPath',
+            (Get-FixtureInput 'eslint-json' 'strings'), '-Json')).Text
+    Expect-Equal 1 $strings.counts.errors 'severity "2" is an error'
+    Expect-Equal 1 $strings.counts.warnings 'severity "1" is a warning'
+
+    # An input of nothing but continuation lines is unavailable, not a clean compile.
+    $continuation = Invoke-Normalize @('-Format', 'tsc', '-InputPath',
+        (Get-FixtureInput 'tsc' 'continuation'))
+    Expect-Equal 3 $continuation.ExitCode 'continuation lines alone exit 3'
+    Expect-Equal 'unavailable tsc: the input holds no TypeScript diagnostics' `
+        $continuation.Text.TrimEnd("`n") 'continuation lines alone name the one reason'
+
+    # The result digest follows the counts, and the source digest follows the bytes.
+    $sampleRun = ConvertFrom-Json (Invoke-Normalize @('-Format', 'lcov', '-InputPath',
+            (Get-FixtureInput 'lcov' 'sample'), '-Json')).Text
+    Expect-True ($sampleRun.digest -cne $sampleRun.source) `
+        'the result digest is not the file digest'
+    Expect-Equal 'sample.info' $sampleRun.input 'the JSON body names the file, not the path'
 
     # pytest-junit is an alias, not a second parser.
     $alias = Invoke-Normalize @('-Format', 'pytest-junit', '-InputPath',

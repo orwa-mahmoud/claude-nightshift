@@ -7,4 +7,5 @@ npm-audit: 3 vulnerable packages: 1 critical, 1 high, 1 moderate, 0 low, 0 info
 | moderate | tough-cookie | - | <4.1.3 | tough-cookie Prototype Pollution vulnerability; fix: none |
 
 showing 3 of 3 items
+result: sha256:5670fd4dca80d92b74e98eca2f10a9a3d86eaef388b3e9369e4a9c58d274b10e
 source: tests/fixtures/normalize/npm-audit/sample.json sha256:7c2318b3ce2c7246e25db0cf37bc871f08297661dc4316f0f782c27a08172447

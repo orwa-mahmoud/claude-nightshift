@@ -30,8 +30,9 @@ order carries the work: a stranger's clone is followed end to end, the documente
 walkthrough disproves are corrected, the build warnings still standing are cleared, and what
 remains is measured against the release bar. Every entry keeps its own contract, discovery rules
 and definition of done, and the composed shift ends when the four are clear or the budget does.
-Guided may offer it as a preset line; it is not a card, and Automatic still composes from the
-entries themselves.
+All four are finite, so hours here are a cap rather than a requirement: six is a workable budget
+for the set, and the owner names the number. Guided may offer it as a preset line; it is
+not a card, and Automatic still composes from the entries themselves.
 
 **Adding an entry:** see [`catalog-recipe.md`](catalog-recipe.md) in this directory. An entry that
 does not declare its ending, its definition of done, and what it will never do is not reviewable,

@@ -7,4 +7,5 @@ lcov: 68.57% lines covered, 288/420 in 3 files
 | note | src/app.js | - | lines | 114/120 lines covered (95.00%) |
 
 showing 3 of 3 items
+result: sha256:fca81adad7ab297c9764edfd307addcfac40c95954ecdc6f20ceff41e0d707d2
 source: tests/fixtures/normalize/lcov/sample.info sha256:1b730a0883f7dd9acffb9e6ddd41af18bd02ce16f03330879192d4bb860e8000
