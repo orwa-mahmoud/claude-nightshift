@@ -1,0 +1,14 @@
+{
+  "name": "root",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "pnpm -r test",
+    "typecheck": "tsc -b"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "api",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "biome check ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.6.0"
+  }
+}

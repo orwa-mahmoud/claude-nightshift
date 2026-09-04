@@ -83,6 +83,15 @@ model reads it instead of a large file and two nights diff byte for byte; `--jso
 thing as one canonical object for `evidence.sh append` to carry as a finding of domain
 `tool-output`.
 
+`runtime/inventory.sh` (native Windows: `runtime/windows/inventory.ps1`) reports what the work
+target declares. It walks the tree — `git ls-files` in a repository, so .gitignore is honoured —
+and prints one table per workspace package: the package manager and lockfile behind it, the
+scripts declared for test, lint, typecheck, build and format, the config files present, and each
+named tool as `declared`, `runnable` or `absent`. Monorepos fall out of that walk. Those three
+words are the whole verdict — the report never says a project is set up wrongly, and it caches
+nothing, so a second run reads the tree again. Doctor may offer it; Status prints it only when
+asked; Hunt and Quality name it as optional, and Automatic composes a shift without it.
+
 When a helper cannot read what it was handed — an unsupported shape, a missing file, or no `jq` for
 a JSON format — it prints one line, `unavailable <what>: <reason>`, and exits 3. That is a
 first-class answer: a tool that did not report is never recorded as a tool that found nothing.

@@ -82,6 +82,12 @@ Never select TODO and FIXME debt when work mode is artifact.
 Never select coverage hunt when work mode is artifact.
 Never select tooling quality-debt entries when work mode is artifact.
 
+`runtime/normalize-output.sh` and `runtime/inventory.sh` are read-only reports a shift may
+lean on when the host carries them — if present, optional, never required. The first turns a
+supported tool format into one compact summary for the receipt and the ledger; the second lists
+each workspace package's manager, lockfile, declared scripts, configs, and which named tools are
+runnable. Automatic composes and works a shift without either.
+
 ## 2. Ask when execution starts
 
 When the prompt did not already carry clear direct-execution intent, ask

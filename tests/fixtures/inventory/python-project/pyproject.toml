@@ -1,0 +1,13 @@
+[project]
+name = "service"
+version = "0.1.0"
+dependencies = ["httpx"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

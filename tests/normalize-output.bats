@@ -330,7 +330,7 @@ digest_of() {
   QUALITY="$PLUGIN/skills/quality/SKILL.md"
   grep -qF 'runtime/normalize-output.sh' "$QUALITY"
   grep -qF 'If present,' "$QUALITY"
-  grep -qF 'Both helpers below are optional' "$QUALITY"
+  grep -qF 'Both helpers here are optional' "$QUALITY"
   for shift in clear-quality-debt coverage-hunt vulnerability-sweep flaky-test-repair \
     api-contract-drift seo-audit; do
     grep -qF 'normalize-output.sh' "$PLUGIN/skills/nightshift/references/shifts/$shift.md" \
