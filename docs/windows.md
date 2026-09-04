@@ -39,6 +39,8 @@ The native path uses the same on-disk contract and marker names as macOS and Lin
   child's environment, and runs recovery in the persisted work target;
 - the scheduler emits a daily Task Scheduler definition with `IgnoreNew`, so Task Scheduler and
   the process lease both refuse overlapping starts;
+- Start runs the same preflight through `runtime/windows/start-preflight.ps1`, and its `ok`,
+  `warn` and `refuse` sentences are byte-identical to the POSIX helper's;
 - Doctor, status's lease inspector, import-issues, archive retention, migrate-state,
   apply-profile, and export-support use bundled PowerShell helpers beside the POSIX scripts.
   Native Windows does not call `.sh` for those, and does not require `jq`, Python, Node, or a
