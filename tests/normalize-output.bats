@@ -197,8 +197,8 @@ digest_of() {
   ! printf '%s\n' "$output" | grep -q '^| severity'
 }
 
-# A Surefire or Gradle report states the same tests twice: once on the outer suite and once
-# on each suite inside it. Adding both reports every test twice, so only a leaf counts.
+# A report that nests its suites states the same tests twice: once on the outer suite and
+# once on each suite inside it. Adding both reports every test twice, so only a leaf counts.
 @test "a nested JUnit report counts its leaf suites once" {
   cd "$ROOT"
   normalize --format junit --input "$(fixture_input junit nested)"

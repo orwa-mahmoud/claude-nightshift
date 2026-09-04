@@ -431,8 +431,8 @@ function tagtext(rec,   i, c, q) {
   }
   return rec
 }
-# One suite leaves the stack. Only a leaf carries counts: a Surefire or Gradle
-# report states the same tests twice, once on the outer suite and once on each
+# One suite leaves the stack. Only a leaf carries counts: a report that nests its
+# suites states the same tests twice, once on the outer suite and once on each
 # suite inside it, and adding both reports every test twice.
 function pop(   d) {
   if (depth <= 0) return

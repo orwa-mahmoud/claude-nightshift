@@ -698,9 +698,9 @@ function Read-NOJunit {
     $saw = $false
     $className = '-'
     $caseName = '-'
-    # Only a leaf suite carries counts: a Surefire or Gradle report states the same
-    # tests twice, once on the outer suite and once on each suite inside it, and
-    # adding both reports every test twice.
+    # Only a leaf suite carries counts: a report that nests its suites states the
+    # same tests twice, once on the outer suite and once on each suite inside it,
+    # and adding both reports every test twice.
     $stack = New-Object 'Collections.Generic.List[object]'
     foreach ($record in (Get-NODecontented $text).Split('<')) {
         if ($record -eq '') { continue }
