@@ -1,5 +1,28 @@
 README="$BATS_TEST_DIRNAME/../README.md"
 DOC="$BATS_TEST_DIRNAME/../docs/morning-receipt.md"
+PLUGIN="$BATS_TEST_DIRNAME/../plugins/nightshift"
+START="$PLUGIN/skills/start/SKILL.md"
+TEMPLATES="$PLUGIN/skills/nightshift/references/receipt-templates.md"
+
+@test "the renderer's no-parser message is the one the skill tells the model to watch for" {
+  grep -qF 'JSON parser unavailable' "$PLUGIN/runtime/morning-receipt.sh"
+  grep -qF 'JSON parser unavailable' "$START"
+}
+
+@test "Start hands the model a receipt to write when the renderer has no parser" {
+  grep -qF 'receipt-templates.md' "$START"
+  grep -qF 'morning-<YYYY-MM-DD>.md' "$START"
+  grep -qF 'Every shift leaves a receipt.' "$START"
+}
+
+@test "the receipt templates carry the morning receipt block" {
+  grep -qF '## Morning receipt' "$TEMPLATES"
+  grep -qF '# Morning receipt' "$TEMPLATES"
+  for field in '- Shift:' '- Ending:' '- Gates:' '- Verified:' '- Disabled by owner:' \
+    '- Unavailable:'; do
+    grep -qF -- "$field" "$TEMPLATES" || { echo "missing field: $field"; return 1; }
+  done
+}
 
 @test "README links the morning receipt doc from the receipts section" {
   grep -qF '[Morning receipt](docs/morning-receipt.md)' "$README"

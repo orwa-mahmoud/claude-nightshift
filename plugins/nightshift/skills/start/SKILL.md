@@ -332,3 +332,9 @@ is. Cited reports follow
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md` and
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`).
+
+At clock-out the gate renders the morning receipt itself. When it reports
+`JSON parser unavailable` in `$NS/shift-log.md`, write that one page by hand into
+`$NS/receipts/morning-<YYYY-MM-DD>.md` from the Morning receipt block in
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`, naming the shift id
+when a policy carries one. Every shift leaves a receipt.

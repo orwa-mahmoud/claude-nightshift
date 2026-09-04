@@ -91,3 +91,44 @@ and host changes from `$NS/shift-log.md` in the skill. Do not call `transition-h
 
 Native `evidence.sh` already fail-closes on bad ids, temp paths, and counts. Do not require
 it. Do not require Python for a ledger. The model may write a markdown receipt instead.
+
+## Morning receipt
+
+The clock-out gate renders this page through `runtime/morning-receipt.sh`. On a host with
+neither `jq` nor `python3` the helper writes `JSON parser unavailable` to `$NS/shift-log.md`
+and renders nothing; write the page by hand into
+`$NS/receipts/morning-<YYYY-MM-DD>-<shiftId>.md`, or `morning-<YYYY-MM-DD>.md` when no shift
+policy carries an id. Fill every field from records already on disk — the punch list, the
+parking lot, `$NS/shift-log.md`, the ledger — and leave a field `unavailable` rather than
+inferring it. A check that did not run is never described as passed. Omit a section with
+nothing to report.
+
+```text
+# Morning receipt
+
+## Shift
+
+- Shift: <shiftId or omit>
+- Host: <claude|codex|cursor>
+- Work target: <path>
+- Started: <UTC stamp or omit>
+- Ended: <last shift-log stamp>
+- Ending: <done|stop|deadline|stall|unknown>
+- Items: <n> ticked, <n> open
+- Commits: <n>            # artifact mode: Receipts: <n>
+- Policy: profile <name>, verification <level>, tooling <policy>
+- Gates: <commands from the punch list, when no shift policy was written>
+- Verified: <commands that ran green, or none and why>
+- Disabled by owner: <commands a chosen level of none skipped, else none>
+- Unavailable: <tools or sources the ledger marked unavailable, else none>
+
+## Parked
+
+- <decision>
+  - Default: <what was chosen so work continued>
+  - Rollback: <how to undo it>
+
+## Next
+
+- <the next open punch-list item>
+```
