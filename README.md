@@ -138,6 +138,12 @@ Nightshift moves the contract outside the conversation so the list and decisions
 
 - **The list stays authoritative.** Open checkboxes remain open across compaction, restart, or
   recovery.
+- **Start asks nothing.** One native preflight prints a verdict per line — `ok`, `warn`, or
+  `refuse` — in the same words on every host, then arms or stops. A scheduled or headless start
+  behaves exactly like an interactive one.
+- **No Python, and no parser to install.** The plugin ships shell and PowerShell only. Hooks read
+  `rules.json` with a bundled reader that needs neither `jq` nor `python3`, and an unreadable rules
+  file fails closed instead of arming on a guess.
 - **Configured rules are mechanical.** Optional command, path, identity, and secret guards are off
   by default; hooks enforce the ones the owner chooses.
 - **One shift binds one session ID.** Start refuses to place a second agent beside a live shift; a
@@ -245,13 +251,15 @@ Named GitHub issues can be copied onto the drafting table with `/nightshift:impo
 URLs or `owner/repo` plus numbers only. Nightshift never searches GitHub and never writes back.
 
 You do not have to invent the night's work. `/nightshift:hunt` reads the catalog and can either let
-you choose the work (**Guided**) or inspect the work target and rank the strongest applicable work
-for the time available (**Automatic**). Then choose when execution begins:
+you choose the work (**Guided**) or take your sentence as the objective and compose the entries that
+serve it (**Automatic**). In Automatic the objective is binding: quality, coverage, or dependency
+work never displaces a feature or design objective because its fingerprints were easy to find. Then
+choose when execution begins:
 
 | | **Review first** | **Run directly** |
 |---|---|---|
 | **Guided** | Pick one or more shifts, inspect the assembled order, then approve or park it. | Pick the shifts and let Nightshift discover, implement, and verify their work without another pause. |
-| **Automatic** | Set the hours; Nightshift scans and ranks the work, but waits for approval before the clock starts. | Set the hours and leave; Nightshift starts the clock, selects the highest-value applicable work, and keeps shipping until quitting time. |
+| **Automatic** | Say what you want and set the hours; Nightshift composes the work that serves it, but waits for approval before the clock starts. | Say what you want, set the hours, and leave; Nightshift starts the clock, works the entries that serve your objective, and keeps shipping until quitting time. |
 
 Copyable owner requests for each cell are in [Shift modes](docs/shift-modes.md).
 
@@ -300,10 +308,10 @@ independent of that history. The precise boundaries are in
 
 ## Documentation
 
-- [**Evidence-aware capabilities**](docs/evidence-capabilities.md) — runtime helpers, profiles,
-  artifact mode, source policies, and cross-host handoff.
-- [**Maintainer verification matrix**](docs/maintainer-verification-matrix.md) — schemas, host paths,
-  and authoritative tests for the shipped architecture.
+- [**Evidence and receipts**](docs/evidence-capabilities.md) — the ledger, receipt templates,
+  profiles, tooling policy, artifact mode, and cross-host handoff.
+- [**Maintainer verification matrix**](docs/maintainer-verification-matrix.md) — where each shipped
+  surface lives and which tests hold it.
 - [**Why Nightshift exists**](docs/why-nightshift.md) — the failure modes behind the contract.
 - [**How Nightshift works**](docs/how-it-works.md) — files, gates, recovery, host differences,
   workspace layouts, guarantees, and limits.

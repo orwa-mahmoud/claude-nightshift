@@ -38,12 +38,20 @@ Only checkboxes under `## Items` in `punch-list.md` belong to the active contrac
 not activate hooks: Start, or a Hunt or Quality path that starts immediately, creates
 `.shift-armed` after preflight. The clock-out gate and owner rules are active while that marker
 exists and the shift has not ended. A `STOP` order keeps hardhat on until clock-out writes
-`ENDED`; open boxes stay as the record. Reset is the manual escape.
+`.nightshift/.ended`; open boxes stay as the record. Reset is the manual escape.
 
 Archive files ticked items and never resets the leftover Shift contract or Gates. An empty
 `## Items` section still binds the next Hunt or Start cut — review those sections before
 composing a new campaign. Status and Doctor report the leftover; Archive writes a Notes reminder
 when a campaign is fully filed.
+
+Start asks nothing. Before it arms, it runs one native preflight —
+`runtime/start-preflight.sh` (native Windows: `runtime/windows/start-preflight.ps1`) — which prints
+one verdict per line: `ok` for a fact worth stating, `warn` for something the owner should hear
+while the shift still arms, and `refuse` for a condition that stops it. The sentences are
+byte-identical on POSIX and native Windows, so a scheduled or headless run behaves exactly like an
+interactive one. Host-specific detail behind a verdict lives in
+[`start-hosts.md`](../plugins/nightshift/skills/nightshift/references/start-hosts.md).
 
 Immediately after arming, Start — and Hunt or Quality when they start immediately — make a
 harmless host-shell probe—Bash on POSIX, PowerShell on
@@ -86,14 +94,18 @@ checks per item and at the end. Profiles propose defaults during Setup; owner ru
 authoritative.
 
 **Tooling policies** are `existing-tools` (scan with what is already installed),
-`auto-add` (install missing tools under allowed elevation categories), and
-`repository-tooling` (use the project's declared toolchain). Start never asks — composition or
-Start preflight records the choice on the policy snapshot.
+`review-missing` (hold the clock until the owner approves a plan for what is missing), and
+`auto-add` (add tools under the elevation categories the shift already allows). Artifact mode is
+always `existing-tools`. Start never asks: a composition step records the choice on the policy
+snapshot, and Start works with what it finds.
 
-POSIX hooks read `rules.json` without `jq` or `python3`. An unreadable or unsupported rules file
-fails closed and does not arm. `shift-policy.json` still uses jq or python3 when those tools are
-present. Native Windows uses PowerShell's built-in JSON parser. Catalog helpers that exec
-`python3` fail that helper when Python is missing — they do not skip and continue.
+**Parsers.** The plugin ships no Python. POSIX hooks read `rules.json` with a bundled reader that
+needs neither `jq` nor `python3`; an unreadable or unsupported rules file fails closed and does not
+arm. `shift-policy.json` is JSON that the bash helpers read with `jq`, falling back to an inline
+`python3` program when `jq` is absent — with neither installed, Start says so and arms from
+`rules.json` alone rather than asking the owner to install anything. A hook payload from an MCP
+tool that cannot be decoded is denied, not waved through. Native Windows uses PowerShell's built-in
+`ConvertFrom-Json` throughout and needs no third-party parser.
 
 ## Mechanical gates and owner rules
 
@@ -271,7 +283,7 @@ plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
 ```
 
 That writes `STOP` and kills only a verified watchman. `.shift-armed` stays, so hardhat
-remains until clock-out writes `ENDED`. Reset is the manual escape. The deadline and punch list
+remains until clock-out writes `.nightshift/.ended`. Reset is the manual escape. The deadline and punch list
 stay. Reset (`reset-shift.sh` / `reset-shift.ps1`) drops runtime markers and the deadline. Purge
 deletes that project's `.nightshift/` after an exact `--confirm-path`. None of them uninstall the
 plugin.

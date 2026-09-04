@@ -18,6 +18,14 @@
 # you review the local commits or artifact receipts — push only in repository mode, or forbid pushing outright (one env line below)
 ```
 
+Start asks nothing. It runs one native preflight —
+`plugins/nightshift/runtime/start-preflight.sh`, or
+`plugins\nightshift\runtime\windows\start-preflight.ps1` on native Windows — which prints one
+verdict per line (`ok`, `warn`, `refuse`) and exits non-zero when the site must not arm. Those
+sentences are identical on every host, so a scheduled run behaves like an interactive one. Detail
+behind a host-specific verdict is in
+[`start-hosts.md`](../plugins/nightshift/skills/nightshift/references/start-hosts.md).
+
 Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes
 as Hunt. Both compose in the skill; the model plans. Copyable owner requests for each combination
 are in [Shift modes](shift-modes.md). A review-first survey is read-only until the owner chooses what happens next: **fix now**
@@ -82,7 +90,7 @@ plugins\nightshift\runtime\windows\purge-workspace.ps1 -Project C:\absolute\task
 ```
 
 Stop writes `STOP` and stands a verified watchman down. Hardhat stays until clock-out writes
-`ENDED`; Reset is the manual escape. The deadline is preserved. Reset also removes runtime
+`.nightshift/.ended`; Reset is the manual escape. The deadline is preserved. Reset also removes runtime
 markers, the deadline, and leftover STOP. Purge does Reset, then deletes only that project's
 `.nightshift/` after an exact `--confirm-path` match. None of them uninstall the plugin.
 

@@ -159,8 +159,12 @@ Tooling quality-debt entries are skipped in artifact mode.
 
 ```sh
 ls -l .nightshift/rules.json
-python3 -m json.tool .nightshift/rules.json >/dev/null
+plugins/nightshift/runtime/doctor.sh --project .   # prints what the shipped reader made of the file
 ```
+
+Doctor is the authority here because it uses the same reader the hooks use: it prints
+`rules.json is a JSON object` and one line per resolved knob, or names the exact reason the file
+was rejected. Nightshift never asks you to install a JSON parser for this.
 
 Native Windows: `Get-Content -Raw .nightshift\rules.json | ConvertFrom-Json | Out-Null`
 
@@ -174,9 +178,11 @@ against the [rules schema](knobs.md#editor-schema) without changing behaviour.
 hidden default; that question call is denied with a configuration repair. A non-empty value denies
 with that message and an empty value explicitly allows the tool.
 
-Exact tool-name matching requires `jq` or `python3` on POSIX. Start refuses to arm there without
-either parser; if one disappears during a shift, the hardhat fails closed and names the missing
-prerequisite. Native Windows uses PowerShell's built-in `ConvertFrom-Json`.
+Exact tool-name matching needs no `jq` and no `python3`: the bundled reader parses `rules.json`
+directly, and an unreadable or unsupported file fails closed rather than arming with a guess. What
+`jq` still buys on POSIX is the hook payload — a shell command is extracted with `jq` or, without
+it, a `sed` fallback, while an MCP payload that cannot be decoded is denied outright rather than
+waved through. Native Windows uses PowerShell's built-in `ConvertFrom-Json`.
 
 **Repair.** Re-run setup and accept missing keys it offers. Do not paste a half-file over an
 owner-edited `rules.json`. During an active shift the session working the night is denied

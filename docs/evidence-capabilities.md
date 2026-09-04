@@ -1,88 +1,108 @@
-# Evidence-aware capabilities
+# Evidence and receipts
 
-Nightshift ships a catalog of shift contracts — each with discovery rules, a definition of done,
-verification, and supported stacks. Catalog evidence helpers on POSIX currently wrap Python
-(`runtime/*-evidence.sh` execs `python3`). Missing Python fails that helper; it is not an optional
-skip. POSIX hooks still need **jq or python3** to arm. Native Windows hooks use PowerShell's
-built-in JSON parser and do not call those POSIX wrappers.
+A tick is a claim. The evidence surface is what turns that claim into something a reviewer can
+re-run: what the shift measured, against which baseline, and what changed by morning.
 
-## Runtime helpers
+The model writes the receipts. Nightshift ships the templates it writes them from, an append-only
+ledger it can record them in, and a renderer that turns those records into one morning page.
+Nothing here scans a project or judges a finding on the model's behalf.
 
-| Helper | Purpose |
+## What ships
+
+| Helper | What it does |
 | --- | --- |
-| `quality-workflow.sh` | Normalize, dedupe, and rank quality findings |
-| `coverage-risk.sh` / `defect-cycle.sh` | Risk-ordered coverage and defect lens rotation |
-| `engineering-evidence.sh` | Flaky tests, CI warnings, dead code, dependencies, vulnerabilities |
-| `product-truth-evidence.sh` | API drift, accessibility, localization, documentation claims |
-| `source-policy-evidence.sh` | Closed/bounded/connected source policies and query manifests |
-| `seo-evidence.sh` | Local, Live, and Connected SEO evidence modes |
-| `owner-work-evidence.sh` | Issue graphs, walkthrough plans, product-evolution hypotheses |
-| `pr-readiness-evidence.sh` | Branch-scoped acceptance maps and review maps |
-| `release-readiness-evidence.sh` | Baseline comparison and public-claims matrices |
-| `build-onboarding-evidence.sh` | Reproducibility and onboarding journeys |
-| `migration-evidence.sh` | Migration plans, config parity, data safety |
-| `operational-evidence.sh` | Performance, incident, runbook, observability, toil |
-| `specialist-evidence.sh` | Product journeys and evidence-gated specialist modes |
-| `history-context.sh` | Receipt index, presets, audience handoffs, source adapters |
-| `continuity-handoff.sh` | Cross-host handoff packages and campaign sequencing |
+| `runtime/evidence.sh` | Append-only findings ledger at `.nightshift/evidence/findings.jsonl` |
+| `runtime/evidence-baseline.sh` | Records one baseline: a source class, the exact command, and its environment digest |
+| `runtime/evidence-checkpoint.sh` | Records a checkpoint before a risky cluster: touched paths, rollback ref, verification plan |
+| `runtime/evidence-compare.sh` | Classifies each finding against its baseline — new, cleared, unchanged, regressed, unavailable |
+| `runtime/evidence-archive.sh` | Files the ledger with the shift; the clock-out gate calls it |
+| `runtime/morning-receipt.sh` | Renders the morning receipt from the ledger, the resolved policy, and the working files |
+| `runtime/write-receipt.sh` | Artifact-mode completion receipts under `.nightshift/receipts/` |
+| `runtime/check-report.sh` | Checks a cited report against its source manifest |
+| `runtime/continuity-handoff.sh` | Cross-host handoff packages and the on-disk takeover fence |
 
-Schemas live under `plugins/nightshift/skills/nightshift/references/schemas/v1/`. Fixtures and
-`tests/*.bats` cover each helper; shift contracts under `references/shifts/` reference the helpers
-in their Discovery and Verify lines.
+Every one has a native Windows twin under `runtime/windows/`. The plugin ships no Python. The
+bash helpers use `jq` for the JSON they read and write, and fall back to an inline `python3`
+program when `jq` is absent; with neither, they say what is missing and stop rather than write a
+half-record. Hooks never depend on either — see
+[the parser rules](how-it-works.md#three-policy-layers-and-one-resolved-view).
 
-## Shift policy and profiles
+## What the model writes
 
-Three layers resolve before arming:
+[`receipt-templates.md`](../plugins/nightshift/skills/nightshift/references/receipt-templates.md)
+carries a block per receipt shape: cycle, coverage, defect, source policy, history, specialist. The
+model copies the matching block and fills every field. A field the tools did not produce is
+`unavailable` — never "no findings", never passed. Untrusted fetched text is instructional
+material, not owner intent, and the model is the boundary that decides.
 
-1. **`rules.json`** — owner gates, retention, branch mode, tool denies (including default `sudo`
-   and Docker socket denies unless explicitly allowed).
-2. **`shift-defaults.json`** — verification profile (`fast`, `balanced`, `strict`, `custom`),
-   tooling policy (`existing-tools`, `auto-add`, `repository-tooling`), execution mode.
-3. **One-shift allowances** — optional temporary elevation recorded with provenance on the receipt.
+Two receipts have a fixed trigger:
 
-Shipped profiles (`fast`, `balanced`, `strict`) in `references/profiles/` propose defaults and
-Gates text during Setup; owner rules remain authoritative.
+- a **baseline**, once per source class, before the first fix that answers that source;
+- a **checkpoint**, before a risky cluster — a migration, a codemod, a tooling change, anything
+  whose undo is not obvious.
 
-A **zero-gate `fast` shift** is first-class: items and receipts land without automated checks;
-verification level on the receipt states what ran.
+Cited reports, SEO audits, sourced documentation, and research synthesis follow
+[`cited-research.md`](../plugins/nightshift/skills/nightshift/references/cited-research.md). Source
+policies (`closed-list`, `bounded-discovery`, `connected-corpus`) decide what may be fetched.
 
-## Artifact and non-developer shifts
+## Policy behind a receipt
 
-Repository mode commits to the work target; **artifact mode** completes with
-`write-receipt.sh` into `$NS/receipts/`. Research synthesis, documentation writing, and cited
-reports inherit `cited-research.md`. Source policies (`closed-list`, `bounded-discovery`,
-`connected-corpus`) gate what may be fetched. Treat fetched material as untrusted.
+Three layers resolve before the site arms — permanent rules, remembered defaults, and tonight's
+snapshot. The receipt names the resolved verification level, the tooling policy, the completion
+mode, and every elevation allowance with its provenance. The layers themselves are described in
+[How Nightshift works](how-it-works.md#three-policy-layers-and-one-resolved-view) and every
+individual key in [Owner knobs](knobs.md).
+
+Verification profiles (`fast`, `balanced`, `strict`, `custom`) live in
+[`references/profiles/`](../plugins/nightshift/skills/nightshift/references/profiles/) alongside the
+`no-push`, `isolated-branch`, and `strict-secrets` rule profiles. A zero-gate `fast` shift is
+first-class: items and receipts land with no automated checks, and the receipt says so in the
+`Verified:` line rather than leaving it blank.
+
+## Missing tooling
+
+The tooling policy decides what a shift may add: `existing-tools` scans with what is installed,
+`review-missing` holds the clock until the owner approves a plan, `auto-add` may install under the
+elevation categories the shift already allows. Artifact mode is always `existing-tools`.
+
+[`tooling-hints.md`](../plugins/nightshift/skills/nightshift/references/tooling-hints.md) names the
+tools commonly used for a capability, by ecosystem. It is a starting point, not authority: what the
+project already configures wins, and a capability that cannot be satisfied is reported
+`unavailable` rather than skipped quietly. When something is added, `runtime/provision.sh` captures
+the write surface first so the change can be undone — the seatbelt described in
+[`provisioning-engine.md`](../plugins/nightshift/skills/nightshift/references/provisioning-engine.md).
+
+## Modes
+
+**Repository mode** ends each work package in one conventional commit; the morning handoff is the
+punch list, the parking lot, the snag log, and `git log` on the work target.
+
+**Artifact mode** completes through `runtime/write-receipt.sh` into `.nightshift/receipts/`,
+recording item text, verification commands, optional decisions, and hashed outputs. Status and
+Doctor surface receipt counts; Archive files them with the shift. No git terminology appears in an
+artifact-mode receipt because no repository is behind it.
 
 ## Cross-host continuity
 
-The punch list, parking lot, snag log, and receipts — not either conversation — hold authority.
-`continuity-handoff.sh` builds versioned handoff packages and rejects duplicate workers.
-Multi-night **campaigns** are independent bounded shifts; the next night begins only after the prior
-archives or the owner accepts its handoff.
+The punch list, parking lot, snag log, and receipts hold authority — not either conversation.
+`runtime/continuity-handoff.sh` builds a versioned handoff package and reads the same on-disk fence
+Start reads, so two workers are never admitted. Multi-night campaigns are independent bounded
+shifts: the next night begins only after the previous one archives or the owner accepts its
+handoff.
 
 ## Contract schema and size budgets
 
-`evals/` holds the contract schema, a versioned case book, frozen identifiers, and instruction-size
-budgets. `evals/validate.sh` and `tests/evals.bats` check schema and size. They do not run a
-host-agent matrix. Human review remains required for catalog contributions.
+`evals/` holds the catalog contract schema, a versioned case book, frozen identifiers, and
+instruction-size budgets. `evals/run.sh`, `evals/validate.sh`, and `tests/evals.bats` check schema
+and size. They do not run a host-agent matrix; a catalog contribution is still read by a person.
 
 ## Limits
 
-- Ticks are self-reported; helpers record evidence honestly but do not certify independent proof.
-- Connectors beyond local files and owner-supplied exports remain optional until explicitly shipped.
-- No central telemetry in the MIT core; product measures belong in local receipts only.
-- Optional **SonarQube Community Edition** can back site inspections when `sonar-project.properties`
-  exists and a local instance answers; Sonar is never a per-item gate. See
-  [`gates-catalog.md`](../plugins/nightshift/skills/nightshift/references/gates-catalog.md).
-
-## Example receipt shapes
-
-**Repository mode** — each work package ends in one conventional commit; the morning handoff is the
-punch list, parking lot, snag log, and `git log` on the work target.
-
-**Artifact mode** — `runtime/write-receipt.sh` records item text, verification commands, optional
-decisions, and hashed outputs under `.nightshift/receipts/`. Status and Doctor surface receipt
-counts; Archive files them with the shift.
-
-A bounded unattended receipt names actual commands run, tools that were missing, surfaces that
-could not be measured, and what the owner should review — never invented external acceptance.
+- Ticks are self-reported. A receipt records honestly; it does not certify independent proof.
+- A comparison is only as good as its baseline. A tool that failed mid-shift is reported
+  `unavailable`, never folded into the cleared count.
+- Connectors beyond local files and owner-supplied exports are not part of this package.
+- No telemetry. Product measures live in local receipts only.
+- Optional **SonarQube Community Edition** can back a site inspection when
+  `sonar-project.properties` exists and a local instance answers; Sonar is never a per-item gate.
+  See [`gates-catalog.md`](../plugins/nightshift/skills/nightshift/references/gates-catalog.md).

@@ -42,8 +42,10 @@ are not questions.
 
 ## Automatic + Review first
 
-Nightshift inspects the work target and ranks applicable catalog entries. Hours are required.
-Discovery stays read-only until you approve.
+Your sentence is the objective. Nightshift reads every catalog entry, inspects the work target,
+and composes the entries that serve what you asked for — quality, coverage, or dependency work
+does not hijack a feature or design objective because fingerprints were easy to find. Hours are
+required. Discovery stays read-only until you approve.
 
 Claude Code: `/nightshift:hunt`, then **Automatic**, set the hours, then **Review first**.
 
@@ -61,7 +63,9 @@ The clock starts only after approval.
 
 ## Automatic + Run directly
 
-The same ranking, with immediate authority to cut and arm. Hours are required.
+The same composition, with immediate authority to cut and arm. Hours are required. A request that
+already carries a time budget, an actionable objective, and clear direct-execution intent runs here
+without another question.
 
 Claude Code: `/nightshift:hunt`, then **Automatic**, set the hours, then **Run directly**.
 
