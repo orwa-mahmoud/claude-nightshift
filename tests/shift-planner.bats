@@ -38,7 +38,9 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
   ! grep -qF 'runtime/shift-planner.sh' "$hunt"
   ! grep -qF 'runtime/shift-preview.sh' "$hunt"
   ! grep -qF 'runtime/plan-learning.sh' "$hunt"
-  grep -qF 'Do not call `shift-planner.sh`' "$hunt"
+  for helper in shift-planner shift-preview plan-learning; do
+    ! grep -qF "$helper" "$hunt" || { echo "hunt still names $helper"; return 1; }
+  done
 }
 
 @test "Quality Automatic does not require the planner or preview helpers" {
@@ -46,5 +48,7 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
   ! grep -qF 'runtime/shift-planner.sh' "$quality"
   ! grep -qF 'runtime/shift-preview.sh' "$quality"
   ! grep -qF 'runtime/plan-learning.sh' "$quality"
-  grep -qF 'Do not call `shift-planner.sh`' "$quality"
+  for helper in shift-planner shift-preview plan-learning; do
+    ! grep -qF "$helper" "$quality" || { echo "quality still names $helper"; return 1; }
+  done
 }

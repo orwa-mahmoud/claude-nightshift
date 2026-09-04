@@ -5,39 +5,53 @@ description: Run an accountable autonomous shift — work a punch list to comple
 
 # nightshift — the brain
 
-You are working a **shift**: a punch list the clock-out gate won't let you abandon. Your job is to
-finish every item to its own standard, safely, leaving receipts. This skill is how you run one.
+A **shift** is a stretch of autonomous work with a punch list you cannot walk away from. The list
+lives in `.nightshift/punch-list.md`: a contract that binds you for the whole night, then `## Items`
+— one checkbox per task, each with its own Verify and Commit lines. The clock-out gate holds the
+session until every box is `- [x]`, a stop-work order lands, or the whistle blows. That is the push
+model: the list pushes the work forward item by item, and finishing it is the ordinary way out.
 
-**State map:** `punch-list.md` → owner-approved work active in this shift;
-`drafting-table.md` → known work staged for a later shift; `parking-lot.md` → unresolved owner
-decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
-only through Hunt. Never route an ordinary plan through Hunt, call later work “parked,” or put a
-known task in the parking lot.
+Nothing interrupts the owner while they sleep. A decision that is genuinely theirs gets a sensible
+production default and a written note, so the morning is a review rather than a pile of questions.
 
-Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
-Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
-otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
-present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
+**What the owner reads in the morning**, all plain markdown under `.nightshift/`:
 
-Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
-`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
-`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
-short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
-`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
-Never search or guess.
-The shell's working directory persists between Bash calls, so never rely on a bare path.
+- `punch-list.md` — what was agreed, and which boxes are ticked.
+- `shift-log.md` — the journal: one line per cycle, plus a handover line if the night ended early.
+- `parking-lot.md` — unresolved owner decisions and the default chosen so work continued.
+- `snag-log.md` — findings with dispositions, so a later pass never re-reports an earlier one.
+- `drafting-table.md` — known work staged for a later shift.
+- `work-orders.md` — timed catalog work composed only through Hunt.
 
-Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
-`${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
-it from the absolute path attached to this skill (`skills/nightshift/SKILL.md`). Substitute that
-absolute path below; never search for the plugin.
-On native Windows, resolve the same plugin root from `$env:CLAUDE_PLUGIN_ROOT` or `$env:PLUGIN_ROOT`.
+Never route an ordinary plan through Hunt, call later work "parked," or put a known task in the
+parking lot. Repository mode also leaves one conventional commit per item; artifact mode leaves one
+receipt per item under `.nightshift/receipts/`.
 
-If `$NS/` doesn't exist yet, tell the user to run Setup, then Start.
-Give the host-native spelling: `/nightshift:setup` and `/nightshift:start` on Claude Code, or ask
-Nightshift to set up and start on Codex. Those skills own scaffolding and preflight; this skill
-owns the work.
+**Three ways a shift gets composed**, after Setup has scaffolded the site once:
+
+- **Start** works whatever is already in the punch list. It asks nothing, so a scheduled or
+  headless run behaves exactly like an interactive one.
+- **Hunt** composes a shift from the ready catalog — guided or automatic, reviewed first or run
+  directly — then cuts and starts it.
+- **Quality** does the same for the project's quality debt, and hands a feature objective to Hunt.
+
+Those skills own scaffolding, composition, and preflight. This skill owns the work itself.
+
+Bind once, then never search, guess, or re-resolve. `$TASK_ROOT` is the host-opened project
+folder: `${CLAUDE_PROJECT_DIR}` on Claude Code; on Codex the `CODEX_PROJECT_DIR` recovery override
+when Nightshift set it, otherwise `pwd -P` captured before any other shell call.
+`$NIGHTSHIFT_WORKSPACE` is the validated absolute target of `$TASK_ROOT/.nightshift-link` when that
+link exists, otherwise `$TASK_ROOT`. Then `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"` (native Windows:
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`), and every Nightshift file is `$NS/<name>`
+for the rest of the run; helpers taking `--project` or `-Project` receive
+`"$NIGHTSHIFT_WORKSPACE"`. The shell's working directory persists between calls, so a bare path is
+never safe.
+
+Resolve `$NIGHTSHIFT_PLUGIN_ROOT` from `${CLAUDE_PLUGIN_ROOT}` on Claude Code, from `$PLUGIN_ROOT`
+on Codex (native Windows: `$env:CLAUDE_PLUGIN_ROOT` or `$env:PLUGIN_ROOT`), or from the absolute
+path this skill was attached from (`skills/nightshift/SKILL.md`); never search for the plugin. If
+`$NS/` doesn't exist yet, tell the user to run Setup, then Start — `/nightshift:setup` and
+`/nightshift:start` on Claude Code, or ask Nightshift to set up and start on Codex.
 
 ## Persistent-workspace boundary
 
@@ -83,9 +97,7 @@ source class — using
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`, and reuse that
 id for every fix from that source. Before a risky cluster — a migration, a codemod, a
 provisioning step, anything whose undo is not obvious — write a checkpoint receipt naming
-touched paths, the rollback ref, and the verification plan. The model writes the receipt.
-Do not call `evidence-baseline.sh`, `evidence-checkpoint.sh`, or `evidence.py`. Do not
-require Python.
+touched paths, the rollback ref, and the verification plan. The model writes both receipts; nothing here requires a parser.
 
 Cited research, SEO audits, sourced documentation, and research synthesis follow
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md`. Verify those reports with
@@ -106,13 +118,11 @@ The owner reviews it over coffee. Known later work is not a decision: stage it i
 `$NS/drafting-table.md`.
 
 When the owner selected **run directly**, that is explicit authority to choose and implement
-reasonable, reversible production defaults within the stated scope and time. Do not turn ordinary
+reasonable, reversible production defaults within the stated scope and time, under the direct-mode
+decision policy in
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/execution-modes.md`. Do not turn ordinary
 code, API, design, localization, or cleanup judgments into blockers merely because alternatives
-exist. Preserve compatibility or provide migration and rollback, verify the result, and record the
-choice, evidence, alternatives, shipped result, and rollback in
-`$NS/parking-lot.md`. Stop only for
-publishing, merging, deploying, production-data deletion, secrets exposure, spending, or legal/licensing
-decisions outside the coding-work authorization.
+exist.
 
 ## Snag log discipline
 
