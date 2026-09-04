@@ -117,7 +117,7 @@ notes folder has no repository toolchain to add. Only existing-tools is valid th
 remembered default holds a repository-tool policy, keep existing-tools.
 
 Under auto-add, capture the write surface before writing with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" baseline --surface <rel> [<rel>...]`
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" baseline --surface <rel> [<rel>...]` (one flag takes several paths, or repeat `--surface` per path)
 (native Windows: `provision.ps1 -Command baseline -Surface …`), then install, smoke, `diff`, and
 `rollback` when smoke or the tooling commit fails.
 

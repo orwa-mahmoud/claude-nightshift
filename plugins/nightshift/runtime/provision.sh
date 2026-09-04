@@ -2,6 +2,7 @@
 # provision.sh — thin auto-add seatbelt. No recipe engine.
 #
 #   provision.sh --project DIR baseline --surface PATH [PATH ...]
+#   provision.sh --project DIR baseline --surface PATH [--surface PATH ...]
 #   provision.sh --project DIR diff
 #   provision.sh --project DIR rollback
 #   provision.sh --project DIR recover
@@ -119,6 +120,7 @@ PROJECT=""
 VERB=""
 SURFACES=()
 UNKNOWN=0
+taken=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -128,9 +130,20 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     --surface)
-      [ $# -ge 2 ] || { UNKNOWN=1; break; }
-      SURFACES+=("$2")
-      shift 2
+      # One flag may list several paths, and the flag may also be repeated per path.
+      # A bare word is a path unless it is the verb this call has not named yet.
+      shift
+      taken=0
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          -*) break ;;
+          baseline | diff | rollback | recover) [ -n "$VERB" ] || break ;;
+        esac
+        SURFACES+=("$1")
+        taken=$((taken + 1))
+        shift
+      done
+      [ "$taken" -gt 0 ] || { UNKNOWN=1; break; }
       ;;
     baseline | diff | rollback | recover)
       if [ -n "$VERB" ]; then UNKNOWN=1; break; fi

@@ -116,6 +116,33 @@ recover_seed_mutated() {
   [ ! -e "$p/.nightshift/provision-transaction.json" ]
 }
 
+@test "one --surface takes the documented path list, and the flag still repeats" {
+  p="$(new_project prov-surface-list)"
+  enable_auto_add "$p"
+  printf 'one\n' >"$p/nightshift-keep.txt"
+  printf 'two\n' >"$p/nightshift-second.txt"
+
+  run provision --project "$p" baseline --surface nightshift-keep.txt nightshift-second.txt
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | jq -e '.ok == true' >/dev/null
+  listed="$(cut -f1 "$p/.nightshift/provision-surface" | sort | tr '\n' ' ')"
+  [ "$listed" = "nightshift-keep.txt nightshift-second.txt " ]
+
+  run provision --project "$p" baseline --surface nightshift-keep.txt --surface nightshift-second.txt
+  [ "$status" -eq 0 ]
+  repeated="$(cut -f1 "$p/.nightshift/provision-surface" | sort | tr '\n' ' ')"
+  [ "$repeated" = "$listed" ]
+}
+
+@test "a --surface that names no path is a usage error, not a mutation" {
+  p="$(new_project prov-surface-empty)"
+  enable_auto_add "$p"
+  run provision --project "$p" baseline --surface --project "$p"
+  [ "$status" -eq 1 ]
+  [ ! -e "$p/.nightshift/provision-surface" ]
+  [ ! -e "$p/.nightshift/provision-baseline" ]
+}
+
 @test "symlink to /tmp/victim does not write outside the work target" {
   p="$(new_project prov-symlink)"
   enable_auto_add "$p"
