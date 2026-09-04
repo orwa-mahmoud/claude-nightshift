@@ -63,6 +63,28 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
   fi
 }
 
+# The maintainer preset is an order over existing entries. It must name the four it composes,
+# name them in that order, and stay a preset — a fifth card would put every contributor back in
+# the same diff.
+@test "the maintainer night preset composes four existing entries in order" {
+  grep -qF '## Maintainer night' "$CAT"
+  order=""
+  for entry in developer-onboarding documentation-drift ci-warning-cleanup release-readiness; do
+    [ -f "$SHIFTS/$entry.md" ] || { echo "preset names a missing entry: $entry"; return 1; }
+    grep -qF "shifts/$entry.md" "$CAT" || { echo "preset does not name: $entry"; return 1; }
+    order="$order$(grep -n "shifts/$entry.md" "$CAT" | head -1 | cut -d: -f1)
+"
+  done
+  [ "$order" = "$(printf '%s' "$order" | sort -n)
+" ] || { echo "preset names the entries out of order"; return 1; }
+  grep -qi 'one time budget' "$CAT"
+  grep -qi 'not a card' "$CAT"
+  [ ! -f "$SHIFTS/maintainer-night.md" ]
+  HUNT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/hunt/SKILL.md"
+  grep -qF 'carries the Maintainer night preset' "$HUNT"
+  grep -qF 'plus one line for any' "$HUNT"
+}
+
 # A contributed shift is a contract handed to an unattended agent on a stranger's repo. The six
 # declarations are what makes such a PR reviewable at all.
 @test "the catalog recipe demands every declaration a reviewer needs" {
