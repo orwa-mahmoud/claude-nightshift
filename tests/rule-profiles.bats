@@ -334,3 +334,23 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
   [ "$status" -eq 0 ]
 }
+
+# The Doctor and Setup skills hand the model these two invocations verbatim. A form the parser
+# rejects sends it back with "--mode must be replace or fill" and no profile listed.
+@test "the invocations Doctor and Setup name run as written" {
+  DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
+  grep -qF -- '--list' "$DOCTOR"
+  grep -qF -- '--mode fill' "$DOCTOR"
+  grep -qF -- '--mode fill|replace' "$SETUP"
+
+  p="$(new_project profiles-documented)"
+  run bash "$APPLY" --project "$p" --list
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | grep -qF 'balanced'
+
+  for mode in fill replace; do
+    run bash "$APPLY" --project "$p" --profile balanced --mode "$mode"
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    printf '%s\n' "$output" | grep -qF "Mode:    $mode"
+  done
+}
