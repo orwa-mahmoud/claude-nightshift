@@ -1,6 +1,7 @@
 load helpers
 
 DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
+DOCTOR_PS1="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
 SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
 STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 LIB="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/lib.sh"
@@ -29,7 +30,7 @@ doctor() {
   grep -qF 'write the parking lot or ask' "$SKILL"
   grep -qF 'Offer the classified repairs' "$SKILL"
   grep -qF 'Never perform a repair' "$SKILL" || grep -qF 'change nothing' "$SKILL"
-  grep -qF '$NS/deadline' "$SKILL"
+  grep -qF '$NS/.shift-armed' "$SKILL"
   jq -e '.skills == "./skills/"' "$CODEX_PLUGIN" >/dev/null
   [ -d "$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor" ]
 }
@@ -38,6 +39,22 @@ doctor() {
   grep -qF 'report that' "$SKILL"
   grep -qF 'write the parking lot or ask' "$SKILL"
   grep -qF 'the Doctor invocation remains byte-identical' "$SKILL"
+}
+
+# The inspectors already say what is wrong in English. Doctor and Status pass those warnings
+# through; they do not keep a second copy of the sentence, and they never quietly drop one.
+@test "Doctor and Status relay every inspector warning instead of restating it" {
+  for f in "$SKILL" "$STATUS"; do
+    grep -qF 'is a planted symlink where a marker should be' "$f" \
+      || grep -qF 'planted symlink where a marker should be' "$f" \
+      || { echo "no symlink-warning meaning: $f"; return 1; }
+    grep -qiF 'relay' "$f" || { echo "no relay rule: $f"; return 1; }
+    grep -qF 'never re-derive' "$f" || grep -qF 'do not re-derive' "$f" \
+      || { echo "no do-not-re-derive rule: $f"; return 1; }
+  done
+  grep -qF 'runtime/status.sh' "$STATUS"
+  grep -qF 'runtime/doctor.sh' "$STATUS"
+  grep -qF 'reimplement liveness' "$STATUS"
 }
 
 @test "a healthy armed site reports facts and never repairs" {
@@ -245,8 +262,8 @@ with open(p,"w") as f: json.dump(d,f)
   printf '%s' "$output" | grep -qF 'deadline path is not a usable file'
   ! printf '%s' "$output" | grep -q 'deadline=none'
   ! printf '%s' "$output" | grep -q 'remaining=0s'
-  grep -qF 'deadline path is not a usable file' "$SKILL"
-  grep -qF 'deadline path is not a usable file' "$STATUS"
+  grep -qF 'deadline path is not a usable file' "$DOCTOR"
+  grep -qF 'deadline path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor warns when the ended path is a symlink" {
@@ -258,8 +275,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'ended path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'gate has clocked the shift out'
-  grep -qF 'ended path is not a usable file' "$SKILL"
-  grep -qF 'ended path is not a usable file' "$STATUS"
+  grep -qF 'ended path is not a usable file' "$DOCTOR"
+  grep -qF 'ended path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor warns when the stall path is a symlink" {
@@ -271,8 +288,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'stall path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'stall count'
-  grep -qF 'stall path is not a usable file' "$SKILL"
-  grep -qF 'stall path is not a usable file' "$STATUS"
+  grep -qF 'stall path is not a usable file' "$DOCTOR"
+  grep -qF 'stall path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor warns when the session-end path is a symlink" {
@@ -284,8 +301,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'session-end path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'clean session-end marker is present'
-  grep -qF 'session-end path is not a usable file' "$SKILL"
-  grep -qF 'session-end path is not a usable file' "$STATUS"
+  grep -qF 'session-end path is not a usable file' "$DOCTOR"
+  grep -qF 'session-end path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor warns when the shift-pulse path is a symlink" {
@@ -297,8 +314,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'shift-pulse path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'shift-pulse marker is present'
-  grep -qF 'shift-pulse path is not a usable file' "$SKILL"
-  grep -qF 'shift-pulse path is not a usable file' "$STATUS"
+  grep -qF 'shift-pulse path is not a usable file' "$DOCTOR"
+  grep -qF 'shift-pulse path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor warns when the shift-session path is a symlink" {
@@ -312,8 +329,8 @@ with open(p,"w") as f: json.dump(d,f)
   ! printf '%s' "$output" | grep -qF 'recorded host planted-host'
   ! printf '%s' "$output" | grep -qF 'session id is present'
   ! printf '%s' "$output" | grep -qF 'no .shift-session yet'
-  grep -qF 'shift-session path is not a usable file' "$SKILL"
-  grep -qF 'shift-session path is not a usable file' "$STATUS"
+  grep -qF 'shift-session path is not a usable file' "$DOCTOR"
+  grep -qF 'shift-session path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor warns when the watchman pidfile path is a symlink" {
@@ -325,8 +342,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'watchman pidfile path is not a usable file'
   ! printf '%s' "$output" | grep -qF 'no live watchman pid file'
-  grep -qF 'watchman pidfile path is not a usable file' "$SKILL"
-  grep -qF 'watchman pidfile path is not a usable file' "$STATUS"
+  grep -qF 'watchman pidfile path is not a usable file' "$DOCTOR"
+  grep -qF 'watchman pidfile path is not a usable file' "$DOCTOR_PS1"
 }
 
 @test "Doctor names a failed terminal clock-out and the restored interactive lease" {
@@ -338,8 +355,8 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'terminal clock-out failed without releasing the shift'
   printf '%s' "$output" | grep -qF 'process lease restored to the interactive shift; the recorded conversation can operate'
-  grep -qF 'terminal clock-out failed without releasing the shift' "$SKILL"
-  grep -qF 'terminal clock-out failed without releasing the shift' "$STATUS"
+  grep -qF 'terminal clock-out failed without releasing the shift' "$DOCTOR"
+  grep -qF 'terminal clock-out failed without releasing the shift' "$DOCTOR_PS1"
 }
 
 @test "Doctor does not tell the owner to reopen while a recovery worker is alive" {
