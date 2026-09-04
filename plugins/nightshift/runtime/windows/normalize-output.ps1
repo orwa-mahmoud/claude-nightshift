@@ -13,6 +13,10 @@ param(
 # Same formats, same summary, same bytes: the parity test diffs both engines over
 # every fixture. PowerShell reads JSON itself, so this side never needs jq.
 #
+# Two digests travel with a summary. `digest` covers the result — the format, the
+# headline and the counts — so a rerun that reports the same numbers keeps one
+# digest. `source` covers the raw file byte for byte.
+#
 # Exit: 0 summary · 1 usage · 3 unavailable
 
 Set-StrictMode -Version 2.0
@@ -87,6 +91,20 @@ function Get-NOSanitized {
     return $value
 }
 
+# Control characters out, everything else kept. This is the form a raw file path or
+# uri is counted in, so two paths that differ only outside ASCII stay two paths.
+function Get-NOControlScrubbed {
+    param([AllowEmptyString()][AllowNull()][string]$Text)
+    if ($null -eq $Text) { return '' }
+    $sb = New-Object Text.StringBuilder
+    foreach ($ch in $Text.ToCharArray()) {
+        $code = [int]$ch
+        if ($code -lt 32 -or $code -eq 127) { [void]$sb.Append(' ') }
+        else { [void]$sb.Append($ch) }
+    }
+    return $sb.ToString()
+}
+
 function Get-NOPathText {
     param([string]$Text)
     $sb = New-Object Text.StringBuilder
@@ -131,22 +149,26 @@ function Get-NOCellEscaped {
     return $Text.Replace('|', '\|')
 }
 
-# Basis points, integer arithmetic only, so both engines round the same way.
+# Basis points, integer arithmetic only, so both engines round the same way. A zero
+# denominator is not full coverage; it is no measurement, and -1 is how every reader
+# of these three tells one from the other.
 function Get-NOBasisPoints {
     param([long]$Covered, [long]$Total)
-    if ($Total -le 0) { return 10000 }
+    if ($Total -le 0) { return [long](-1) }
     return [long][Math]::Floor(($Covered * 20000 + $Total) / (2 * $Total))
 }
 
-function Get-NOPercent {
+function Get-NOPercentLabel {
     param([long]$Covered, [long]$Total)
     $bp = Get-NOBasisPoints $Covered $Total
-    return ('{0}.{1:D2}' -f [long][Math]::Floor($bp / 100), ($bp % 100))
+    if ($bp -lt 0) { return 'unmeasured' }
+    return ('{0}.{1:D2}%' -f [long][Math]::Floor($bp / 100), ($bp % 100))
 }
 
 function Get-NOBand {
     param([long]$Covered, [long]$Total)
     $bp = Get-NOBasisPoints $Covered $Total
+    if ($bp -lt 0) { return 'info' }
     if ($bp -lt 5000) { return 'error' }
     if ($bp -lt 8000) { return 'warning' }
     return 'note'
@@ -217,7 +239,7 @@ if (-not (Test-Path -LiteralPath $absolute -PathType Leaf)) {
     Write-NOUnavailable 'the input is not a readable file'
 }
 
-try { $digest = Get-NSFileSha256 $absolute }
+try { $sourceDigest = Get-NSFileSha256 $absolute }
 catch { Write-NOUnavailable 'no sha256 tool on this host, so the summary cannot be anchored' }
 
 $script:Headline = '-'
@@ -264,6 +286,24 @@ function Read-NOLines {
 
 # --------------------------------------------------------------- eslint-json
 
+# eslint writes severity as a number, and a few formatters write the same number as
+# a string. Both mean the same level, so both read as that number.
+function Get-NOSeverityNumber {
+    param($Value)
+    if ($null -eq $Value -or $Value -is [bool]) { return [double](-1) }
+    if ($Value -is [string]) {
+        $styles = [Globalization.NumberStyles]::AllowLeadingSign -bor
+        [Globalization.NumberStyles]::AllowDecimalPoint -bor
+        [Globalization.NumberStyles]::AllowExponent
+        $parsed = [double]0
+        if ([double]::TryParse($Value, $styles,
+                [Globalization.CultureInfo]::InvariantCulture, [ref]$parsed)) { return $parsed }
+        return [double](-1)
+    }
+    try { return [double]$Value }
+    catch { return [double](-1) }
+}
+
 function Read-NOEslint {
     $root = Read-NOJsonRoot
     if ($root.Kind -ne 'array') { Write-NOUnavailable 'the report is not a JSON array' }
@@ -283,12 +323,13 @@ function Read-NOEslint {
     foreach ($row in $rows) {
         $path = Get-NOText (Get-NOField $row 'filePath')
         $messages = Get-NOArray $row 'messages'
-        if ($messages.Count -gt 0 -and -not $files.Contains($path)) { [void]$files.Add($path) }
+        $counted = Get-NOControlScrubbed $path
+        if ($messages.Count -gt 0 -and -not $files.Contains($counted)) { [void]$files.Add($counted) }
         foreach ($message in $messages) {
-            $severity = Get-NOField $message 'severity'
+            $severity = Get-NOSeverityNumber (Get-NOField $message 'severity')
             $label = 'note'
-            if ($null -ne $severity -and [string]$severity -ceq '2') { $label = 'error'; $errors++ }
-            elseif ($null -ne $severity -and [string]$severity -ceq '1') { $label = 'warning'; $warnings++ }
+            if ($severity -eq 2) { $label = 'error'; $errors++ }
+            elseif ($severity -eq 1) { $label = 'warning'; $warnings++ }
             Add-NOItem $label $path (Get-NONumber $message 'line') `
             (Get-NOText (Get-NOField $message 'ruleId')) (Get-NOText (Get-NOField $message 'message'))
         }
@@ -317,11 +358,11 @@ function Read-NOCoverage {
     }
     $files = @(Get-NOKeys $data | Where-Object { $_ -ne 'total' })
     $script:Files = $files.Count
-    $script:Headline = 'coverage: lines ' + (Get-NOPercent $metrics['lines'][0] $metrics['lines'][1]) +
-        '%, statements ' + (Get-NOPercent $metrics['statements'][0] $metrics['statements'][1]) +
-        '%, functions ' + (Get-NOPercent $metrics['functions'][0] $metrics['functions'][1]) +
-        '%, branches ' + (Get-NOPercent $metrics['branches'][0] $metrics['branches'][1]) +
-        '% across ' + (Get-NOPlural $files.Count 'file')
+    $script:Headline = 'coverage: lines ' + (Get-NOPercentLabel $metrics['lines'][0] $metrics['lines'][1]) +
+        ', statements ' + (Get-NOPercentLabel $metrics['statements'][0] $metrics['statements'][1]) +
+        ', functions ' + (Get-NOPercentLabel $metrics['functions'][0] $metrics['functions'][1]) +
+        ', branches ' + (Get-NOPercentLabel $metrics['branches'][0] $metrics['branches'][1]) +
+        ' across ' + (Get-NOPlural $files.Count 'file')
     Add-NOCount 'branchesCovered' $metrics['branches'][0]
     Add-NOCount 'branchesTotal' $metrics['branches'][1]
     Add-NOCount 'functionsCovered' $metrics['functions'][0]
@@ -335,7 +376,7 @@ function Read-NOCoverage {
         $covered = Get-NONumber $lines 'covered'
         $count = Get-NONumber $lines 'total'
         Add-NOItem (Get-NOBand $covered $count) $name 0 'lines' `
-        ("$covered/$count lines covered (" + (Get-NOPercent $covered $count) + '%)')
+        ("$covered/$count lines covered (" + (Get-NOPercentLabel $covered $count) + ')')
     }
 }
 
@@ -379,7 +420,11 @@ function Read-NOSarif {
                 if ($null -ne $found) { $uri = [string]$found }
                 $line = Get-NONumber (Get-NOField $physical 'region') 'startLine'
             }
-            if (-not $files.Contains((Get-NOSanitized $uri))) { [void]$files.Add((Get-NOSanitized $uri)) }
+            # The count is of files, so it uniques the uri the report gave. The display
+            # form folds every byte outside ASCII into a space, which would make two
+            # paths that differ only by an accent read as one file.
+            $counted = Get-NOControlScrubbed $uri
+            if (-not $files.Contains($counted)) { [void]$files.Add($counted) }
             $message = Get-NOField $result 'message'
             $text = Get-NOField $message 'text'
             if ($null -eq $text) { $text = Get-NOField $message 'markdown' }
@@ -454,6 +499,7 @@ function Read-NOTsc {
     $errors = [long]0
     $warnings = [long]0
     $noise = 0
+    $summaries = 0
     $seen = New-Object 'Collections.Generic.List[string]'
     foreach ($raw in Read-NOLines) {
         $line = $raw
@@ -483,11 +529,13 @@ function Read-NOTsc {
             if ($emitted -eq 'error') { $errors++ } else { $warnings++ }
             continue
         }
-        if ($line -cmatch '^Found [0-9]+ error') { continue }
-        if ($line -cmatch '^[ \t]') { continue }
+        if ($line -cmatch '^Found [0-9]+ error') { $summaries++; continue }
+        # Every other non-blank line counts, indented continuations included: an input
+        # of nothing but continuation lines is a report this parser did not read, not a
+        # clean compile.
         $noise++
     }
-    if ($script:Items.Count -eq 0 -and $noise -gt 0) {
+    if ($script:Items.Count -eq 0 -and $summaries -eq 0 -and $noise -gt 0) {
         Write-NOUnavailable 'the input holds no TypeScript diagnostics'
     }
     $script:Files = $seen.Count
@@ -538,7 +586,7 @@ function Read-NOLcov {
                 $totalLf += $lf
                 $totalLh += $lh
                 Add-NOItem (Get-NOBand $lh $lf) $sf 0 'lines' `
-                ("$lh/$lf lines covered (" + (Get-NOPercent $lh $lf) + '%)')
+                ("$lh/$lf lines covered (" + (Get-NOPercentLabel $lh $lf) + ')')
                 $have = $false
             }
             continue
@@ -549,11 +597,11 @@ function Read-NOLcov {
         $totalLf += $lf
         $totalLh += $lh
         Add-NOItem (Get-NOBand $lh $lf) $sf 0 'lines' `
-        ("$lh/$lf lines covered (" + (Get-NOPercent $lh $lf) + '%)')
+        ("$lh/$lf lines covered (" + (Get-NOPercentLabel $lh $lf) + ')')
     }
     if ($files -eq 0) { Write-NOUnavailable 'the input holds no lcov SF records' }
     $script:Files = $files
-    $script:Headline = 'lcov: ' + (Get-NOPercent $totalLh $totalLf) + '% lines covered, ' +
+    $script:Headline = 'lcov: ' + (Get-NOPercentLabel $totalLh $totalLf) + ' lines covered, ' +
     "$totalLh/$totalLf in " + (Get-NOPlural $files 'file')
     Add-NOCount 'linesCovered' $totalLh
     Add-NOCount 'linesTotal' $totalLf
@@ -568,6 +616,55 @@ function Get-NOUnentity {
     $value = $value.Replace('&quot;', '"')
     $value = $value.Replace('&apos;', "'")
     return $value.Replace('&amp;', '&')
+}
+
+# A CDATA section and a comment are payload, not markup. A failure message that
+# quotes a suite element would otherwise add phantom suites and phantom rows, so
+# both are cut out before anything is split on a bracket. The scan runs left to
+# right, which is what keeps a marker inside the other one literal.
+function Get-NODecontented {
+    param([string]$Text)
+    $out = New-Object Text.StringBuilder
+    $rest = $Text
+    while ($true) {
+        $cdata = $rest.IndexOf('<![CDATA[', [StringComparison]::Ordinal)
+        $comment = $rest.IndexOf('<!--', [StringComparison]::Ordinal)
+        if ($cdata -lt 0 -and $comment -lt 0) { break }
+        if ($comment -lt 0 -or ($cdata -ge 0 -and $cdata -lt $comment)) {
+            [void]$out.Append($rest.Substring(0, $cdata))
+            $rest = $rest.Substring($cdata + 9)
+            $close = $rest.IndexOf(']]>', [StringComparison]::Ordinal)
+            if ($close -lt 0) { return $out.ToString() }
+            $rest = $rest.Substring($close + 3)
+        }
+        else {
+            [void]$out.Append($rest.Substring(0, $comment))
+            $rest = $rest.Substring($comment + 4)
+            $close = $rest.IndexOf('-->', [StringComparison]::Ordinal)
+            if ($close -lt 0) { return $out.ToString() }
+            $rest = $rest.Substring($close + 3)
+        }
+    }
+    [void]$out.Append($rest)
+    return $out.ToString()
+}
+
+# The element text of one record, ending at the first bracket outside a quoted
+# attribute value, so an attribute may carry one and the text content never
+# reaches the attribute reader.
+function Get-NOTagText {
+    param([string]$Record)
+    $quote = [char]0
+    for ($i = 0; $i -lt $Record.Length; $i++) {
+        $ch = $Record[$i]
+        if ($quote -ne [char]0) {
+            if ($ch -eq $quote) { $quote = [char]0 }
+            continue
+        }
+        if ($ch -eq [char]'"' -or $ch -eq [char]"'") { $quote = $ch; continue }
+        if ($ch -eq [char]'>') { return $Record.Substring(0, $i) }
+    }
+    return $Record
 }
 
 function Get-NOAttribute {
@@ -601,33 +698,78 @@ function Read-NOJunit {
     $saw = $false
     $className = '-'
     $caseName = '-'
-    foreach ($record in $text.Split('<')) {
+    # Only a leaf suite carries counts: a Surefire or Gradle report states the same
+    # tests twice, once on the outer suite and once on each suite inside it, and
+    # adding both reports every test twice.
+    $stack = New-Object 'Collections.Generic.List[object]'
+    foreach ($record in (Get-NODecontented $text).Split('<')) {
         if ($record -eq '') { continue }
-        $name = $record
-        $cut = $name.IndexOfAny([char[]]@(' ', "`t", "`r", "`n", '>', '/'))
+        $tag = Get-NOTagText $record
+        $name = $tag
+        $closing = $false
+        if ($name.StartsWith('/', [StringComparison]::Ordinal)) {
+            $closing = $true
+            $name = $name.Substring(1)
+        }
+        $cut = $name.IndexOfAny([char[]]@(' ', "`t", "`r", "`n", '/'))
         if ($cut -ge 0) { $name = $name.Substring(0, $cut) }
         if ($name -ceq 'testsuite') {
-            $suites++
-            $tests += Get-NOAttributeNumber $record 'tests'
-            $failures += Get-NOAttributeNumber $record 'failures'
-            $errors += Get-NOAttributeNumber $record 'errors'
-            $skipped += Get-NOAttributeNumber $record 'skipped'
+            if ($closing) {
+                $popped = Pop-NOSuite $stack
+                if ($null -ne $popped) {
+                    $suites++
+                    $tests += $popped.Tests
+                    $failures += $popped.Failures
+                    $errors += $popped.Errors
+                    $skipped += $popped.Skipped
+                }
+                continue
+            }
             $saw = $true
+            if ($stack.Count -gt 0) { $stack[$stack.Count - 1].Leaf = $false }
+            [void]$stack.Add([pscustomobject]@{
+                    Tests = (Get-NOAttributeNumber $tag 'tests')
+                    Failures = (Get-NOAttributeNumber $tag 'failures')
+                    Errors = (Get-NOAttributeNumber $tag 'errors')
+                    Skipped = (Get-NOAttributeNumber $tag 'skipped')
+                    Leaf = $true
+                })
+            if ($tag.EndsWith('/', [StringComparison]::Ordinal)) {
+                $popped = Pop-NOSuite $stack
+                if ($null -ne $popped) {
+                    $suites++
+                    $tests += $popped.Tests
+                    $failures += $popped.Failures
+                    $errors += $popped.Errors
+                    $skipped += $popped.Skipped
+                }
+            }
             continue
         }
+        if ($closing) { continue }
         if ($name -ceq 'testcase') {
-            $className = Get-NOAttribute $record 'classname'
-            $caseName = Get-NOAttribute $record 'name'
+            $className = Get-NOAttribute $tag 'classname'
+            $caseName = Get-NOAttribute $tag 'name'
             if ($className -eq '') { $className = '-' }
             if ($caseName -eq '') { $caseName = '-' }
             continue
         }
         if ($name -ceq 'failure' -or $name -ceq 'error') {
-            $type = Get-NOAttribute $record 'type'
+            $type = Get-NOAttribute $tag 'type'
             $detail = $caseName
             if ($type -ne '') { $detail = "$caseName ($type)" }
             Add-NOItem 'error' $className 0 $name $detail
             continue
+        }
+    }
+    while ($stack.Count -gt 0) {
+        $popped = Pop-NOSuite $stack
+        if ($null -ne $popped) {
+            $suites++
+            $tests += $popped.Tests
+            $failures += $popped.Failures
+            $errors += $popped.Errors
+            $skipped += $popped.Skipped
         }
     }
     if (-not $saw) { Write-NOUnavailable 'the input holds no JUnit testsuite element' }
@@ -639,6 +781,17 @@ function Read-NOJunit {
     Add-NOCount 'failures' $failures
     Add-NOCount 'skipped' $skipped
     Add-NOCount 'tests' $tests
+}
+
+# One suite leaves the stack. It comes back when it is a leaf, and $null when a
+# suite inside it already spoke for the same tests.
+function Pop-NOSuite {
+    param($Stack)
+    if ($Stack.Count -eq 0) { return $null }
+    $entry = $Stack[$Stack.Count - 1]
+    $Stack.RemoveAt($Stack.Count - 1)
+    if (-not $entry.Leaf) { return $null }
+    return $entry
 }
 
 # --------------------------------------------------------------- run and render
@@ -685,7 +838,25 @@ $countLabels = [string[]]@($script:Counts | ForEach-Object { $_.Label })
 $countValues = @{}
 foreach ($entry in $script:Counts) { $countValues[$entry.Label] = $entry.Value }
 
+# The result digest covers what the run found — the format, the headline and every
+# count, in label order — and nothing about the bytes it read. Two runs that report
+# the same numbers therefore carry one digest, and a ledger comparison reads a
+# reformatted or rerun report as unchanged rather than as a regression.
+$preimage = New-Object Text.StringBuilder
+[void]$preimage.Append("normalize-output`t1`t" + $Format + "`t" + $script:Headline + "`n")
+foreach ($label in $countLabels) {
+    [void]$preimage.Append($label + "`t" + [string]$countValues[$label] + "`n")
+}
+$digest = Get-NSTextSha256 $preimage.ToString()
+
 $displayPath = Get-NOPathText $InputPath
+
+# The JSON body names the file, not the path that reached it: a summary written
+# from a temporary checkout has to compare against one written from a clone.
+$leaf = $InputPath
+$cut = [Math]::Max($leaf.LastIndexOf('/'), $leaf.LastIndexOf('\'))
+if ($cut -ge 0) { $leaf = $leaf.Substring($cut + 1) }
+$basename = Get-NOPathText $leaf
 
 if ($Json) {
     $text = '{"counts":{'
@@ -696,7 +867,7 @@ if ($Json) {
     $text += '},"digest":"' + (Get-NOJsonEscaped $digest) + '","files":' + [string]$script:Files
     $text += ',"format":"' + (Get-NOJsonEscaped $Format) + '","headline":"' +
         (Get-NOJsonEscaped $script:Headline) + '"'
-    $text += ',"input":"' + (Get-NOJsonEscaped $displayPath) + '","items":['
+    $text += ',"input":"' + (Get-NOJsonEscaped $basename) + '","items":['
     for ($i = 0; $i -lt $rows.Count; $i++) {
         if ($i -gt 0) { $text += ',' }
         $line = 'null'
@@ -706,7 +877,8 @@ if ($Json) {
             (Get-NOJsonEscaped $rows[$i].Detail) + '","severity":"' +
             (Get-NOJsonEscaped $rows[$i].Severity) + '"}'
     }
-    $text += '],"shown":' + [string]$rows.Count + ',"total":' + [string]$total + ',"version":1}'
+    $text += '],"shown":' + [string]$rows.Count + ',"source":"' +
+        (Get-NOJsonEscaped $sourceDigest) + '","total":' + [string]$total + ',"version":1}'
     Write-NOLine $text
     Complete-NOOutput
     exit 0
@@ -727,6 +899,7 @@ if ($rows.Count -gt 0) {
     Write-NOLine ''
 }
 Write-NOLine ("showing {0} of {1} items" -f $rows.Count, $total)
-Write-NOLine ("source: {0} sha256:{1}" -f $displayPath, $digest)
+Write-NOLine ("result: sha256:{0}" -f $digest)
+Write-NOLine ("source: {0} sha256:{1}" -f $displayPath, $sourceDigest)
 Complete-NOOutput
 exit 0
