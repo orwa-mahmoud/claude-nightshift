@@ -43,13 +43,14 @@ wording — are a complete prompt: compose it and run it. Examples of a complete
 
 Entries live one per file in `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/shifts/`.
 **List that directory and read every file in it**. `shift-catalog.md` beside it explains the two
-endings; it does not list the entries. Read the directory rather than reciting from memory:
-entries are added over time, and a job that exists in the folder but not in the offer is a job the
-owner never gets.
+endings and carries the Maintainer night preset; it does not list the entries.
+Read the directory rather than reciting from memory: entries are added over time, and a job
+that exists in the folder but not in the offer is a job the owner never gets.
 
 Offer two first-class modes when the prompt did not already choose:
 
-- **Guided** — one offer line per entry, with its ending marked.
+- **Guided** — one offer line per entry, with its ending marked, plus one line for any
+  preset `shift-catalog.md` names.
 - **Automatic** — inspect the work target per `execution-modes.md` (in artifact mode that includes
   `$NS/receipts/`, not a git log) and compose the entries that support the stated objective.
   Quality, coverage, and dependency work do not hijack a feature or design objective. Show evidence
@@ -81,6 +82,12 @@ Never select documentation drift when work mode is artifact.
 Never select TODO and FIXME debt when work mode is artifact.
 Never select coverage hunt when work mode is artifact.
 Never select tooling quality-debt entries when work mode is artifact.
+
+`runtime/normalize-output.sh` and `runtime/inventory.sh` are read-only reports a shift may
+lean on when the host carries them — if present, optional, never required. The first turns a
+supported tool format into one compact summary for the receipt and the ledger; the second lists
+each workspace package's manager, lockfile, declared scripts, configs, and which named tools are
+runnable. Automatic composes and works a shift without either.
 
 ## 2. Ask when execution starts
 

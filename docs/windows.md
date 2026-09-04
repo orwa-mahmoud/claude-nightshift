@@ -139,6 +139,17 @@ profiles, a local support bundle, and artifact-mode completion receipts:
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\check-report.ps1" -Project C:\path\to\workspace -Report C:\path\to\report.md -Manifest C:\path\to\sources.tsv -Output C:\path\to\report.md
 ```
 
+Two optional read-only reports ship beside them and never need `jq` on this host:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\normalize-output.ps1" -Format eslint-json -InputPath C:\path\to\eslint.json
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\inventory.ps1" -Project C:\path\to\workspace
+```
+
+`normalize-output.ps1` prints one compact summary of a tool's raw output — the same bytes the POSIX
+helper prints for the same file — and `inventory.ps1` prints one table per workspace package. Both
+write nothing, and both print one `unavailable` line and exit 3 rather than an empty report.
+
 Missing or empty receipts create no dated receipts folder.
 
 In artifact mode Doctor reports `artifact receipts N` and, when any exist, `latest artifact receipt`

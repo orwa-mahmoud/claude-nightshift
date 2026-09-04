@@ -1,0 +1,1 @@
+{"counts":{"errors":0,"failures":0,"skipped":0,"tests":3},"digest":"8ff70dcbe46a67c1f0cedff80c0e29d2b55c2cd5e62e805b0609a748d8bc0596","files":1,"format":"junit","headline":"junit: 3 tests, 0 failures, 0 errors, 0 skipped in 1 suite","input":"tests/fixtures/normalize/junit/edge.xml","items":[],"shown":0,"total":0,"version":1}

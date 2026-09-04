@@ -113,6 +113,16 @@ Skip TODO and FIXME debt when work mode is artifact.
 Skip coverage hunt when work mode is artifact.
 Skip tooling quality-debt entries when work mode is artifact.
 Then apply the discovery rules from every relevant quality entry.
+
+Run the project's own tool first. If present,
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/normalize-output.sh" --format <fmt> --input <file>`
+(native Windows: `normalize-output.ps1 -Format <fmt> -InputPath <file>`) turns a supported format
+into one compact, comparable summary — feed that into the receipt and the ledger instead of the raw
+output; otherwise read the raw output directly. Both helpers here are optional: nothing here
+requires them, and `unavailable` from one means the summary is missing, never that the tool found
+nothing. `runtime/inventory.sh` is the other one: if present, optional, it prints one table per
+workspace package — manager, lockfile, declared scripts, config files, and each named tool as
+`declared`, `runnable` or `absent`. Automatic never depends on either.
 In review-first mode use report-only commands:
 no fix flags and no writes. If `$NS/` does not exist, review-first may report, but any run-direct
 request must stop and point to Setup (`/nightshift:setup` on Claude Code, or ask Nightshift to set

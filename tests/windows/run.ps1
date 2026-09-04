@@ -522,6 +522,14 @@ try {
     $startPreflightLogicRun = Invoke-TestScript $startPreflightLogic
     Assert-Equal 0 $startPreflightLogicRun.ExitCode `
         "Start preflight verdicts: $($startPreflightLogicRun.Stdout) $($startPreflightLogicRun.Stderr)"
+    $normalizeOutputLogic = Join-Path $PSScriptRoot 'normalize-output-logic.ps1'
+    $normalizeOutputLogicRun = Invoke-TestScript $normalizeOutputLogic
+    Assert-Equal 0 $normalizeOutputLogicRun.ExitCode `
+        "tool-output summaries: $($normalizeOutputLogicRun.Stdout) $($normalizeOutputLogicRun.Stderr)"
+    $inventoryLogic = Join-Path $PSScriptRoot 'inventory-logic.ps1'
+    $inventoryLogicRun = Invoke-TestScript $inventoryLogic
+    Assert-Equal 0 $inventoryLogicRun.ExitCode `
+        "project inventory: $($inventoryLogicRun.Stdout) $($inventoryLogicRun.Stderr)"
 
     $linkedHost = Join-Path $root 'linked host'
     $null = New-Item -ItemType Directory -Path $linkedHost

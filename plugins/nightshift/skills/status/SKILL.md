@@ -121,6 +121,11 @@ and never re-derive the state behind it.
   bounded shifts; the next night begins only after the prior archives or the owner accepts the
   handoff recorded in the log.
 
-Do not print inventory command output, credentials, raw evidence, or rule values.
+Do not print a project tool's raw output, credentials, raw evidence, or rule values.
 
 Keep it a compact glanceable summary. Do not modify any file, do not begin work.
+
+The project inventory is a separate optional report the owner can ask for by name:
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/inventory.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows: `inventory.ps1 -Project "$NIGHTSHIFT_WORKSPACE"`). Status never prints it
+unasked — a table of packages is not a glance.

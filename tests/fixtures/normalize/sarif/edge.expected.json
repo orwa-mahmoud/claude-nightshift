@@ -1,0 +1,1 @@
+{"counts":{"errors":0,"notes":0,"warnings":0},"digest":"7621a425a9ca93623e622e50982b53f6c09902a48c342009f96715311708ec20","files":0,"format":"sarif","headline":"sarif: 0 errors, 0 warnings, 0 notes in 0 files","input":"tests/fixtures/normalize/sarif/edge.sarif","items":[],"shown":0,"total":0,"version":1}

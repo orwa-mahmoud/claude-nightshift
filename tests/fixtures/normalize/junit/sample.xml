@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="jest tests" tests="14" failures="3" errors="1" time="12.402">
+  <testsuite name="parse" tests="8" failures="2" errors="1" skipped="1" time="7.100">
+    <testcase classname="src/lib/parse.test.js" name="parses an empty document" time="0.004"/>
+    <testcase classname="src/lib/parse.test.js" name="rejects a token it cannot read" time="0.011">
+      <failure message="expected 1 to equal 2" type="AssertionError">Error: expected 1 to equal 2
+    at Object.&lt;anonymous&gt; (src/lib/parse.test.js:44:19)</failure>
+    </testcase>
+    <testcase classname="src/lib/parse.test.js" name="keeps &quot;quoted&quot; keys intact" time="0.008">
+      <failure message="expected &apos;a&apos; to equal &apos;b&apos;" type="AssertionError">mismatch</failure>
+    </testcase>
+    <testcase classname="src/lib/parse.test.js" name="throws on a circular reference" time="0.002">
+      <error message="TypeError: Converting circular structure to JSON" type="TypeError">stack</error>
+    </testcase>
+    <testcase classname="src/lib/parse.test.js" name="skips the slow path" time="0">
+      <skipped/>
+    </testcase>
+  </testsuite>
+  <testsuite name="table" tests="6" failures="1" errors="0" skipped="0" time="5.302">
+    <testcase classname="src/ui/table.test.js" name="renders every row" time="0.220"/>
+    <testcase classname="src/ui/table.test.js" name="sorts by the column the header names" time="0.190">
+      <failure message="rows out of order" type="AssertionError">order</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

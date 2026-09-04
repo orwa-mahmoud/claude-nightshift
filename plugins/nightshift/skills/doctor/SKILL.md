@@ -84,8 +84,8 @@ is a planted symlink where a marker should be, not an empty night; a malformed w
 working site; a failed clock-out is not a finished shift. Say what each one means for the owner
 and, when the report offers a `[confirm]` action for it, name that action.
 
-Doctor never writes the policy file, never runs inventory commands, and never prints credentials,
-raw evidence, rule values, or inventory output.
+Doctor never writes the policy file, never runs the project's own tooling, and never prints
+credentials, raw evidence, rule values, or the output of a command it did not run.
 
 ## 2. Classify actions — do not execute them
 
@@ -134,6 +134,15 @@ Two repairs the report names are separate owner actions, never Doctor's own:
   `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -List`
   and `-Profile <name> -Mode fill`. Preview is the default; only `--apply` writes, and Invoking
   Doctor never writes `rules.json`.
+
+A senior may run the read-only project inventory after the report:
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/inventory.sh" --project "$NIGHTSHIFT_WORKSPACE"`
+(native Windows: `inventory.ps1 -Project "$NIGHTSHIFT_WORKSPACE"`). It prints one table per
+workspace package — package manager and lockfile, the scripts declared for test, lint, typecheck,
+build and format, the config files present, and each named tool as `declared`, `runnable` or
+`absent`. Those three words are the whole verdict; the report never calls a project misconfigured.
+It writes and caches nothing, and Doctor never runs it — offer it, the way every other action here
+is offered.
 
 If the owner then explicitly asks to **Export support bundle**, they are no longer in Doctor.
 Run

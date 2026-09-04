@@ -1,0 +1,30 @@
+[
+  {
+    "filePath": "src/app.js",
+    "messages": [
+      { "ruleId": "no-unused-vars", "severity": 2, "line": 12, "column": 7, "message": "'config' is assigned a value but never used." },
+      { "ruleId": "eqeqeq", "severity": 2, "line": 48, "column": 11, "message": "Expected '===' and instead saw '=='." },
+      { "ruleId": "no-console", "severity": 1, "line": 3, "column": 1, "message": "Unexpected console statement." }
+    ],
+    "errorCount": 2,
+    "warningCount": 1
+  },
+  {
+    "filePath": "src/lib/parse.js",
+    "messages": [
+      { "ruleId": null, "severity": 2, "line": 1, "column": 1, "message": "Parsing error: Unexpected token }" },
+      { "ruleId": "complexity", "severity": 1, "line": 90, "column": 3, "message": "Function 'walk' has a complexity of 24. Maximum allowed is 10, and this message is deliberately long enough that the summary has to cut it short." }
+    ],
+    "errorCount": 1,
+    "warningCount": 1
+  },
+  {
+    "filePath": "src/ui/table.js",
+    "messages": [
+      { "ruleId": "no-mixed-operators", "severity": 2, "line": 7, "column": 20, "message": "Unexpected mix of '||' and '&&'." }
+    ],
+    "errorCount": 1,
+    "warningCount": 0
+  },
+  { "filePath": "src/clean.js", "messages": [], "errorCount": 0, "warningCount": 0 }
+]
