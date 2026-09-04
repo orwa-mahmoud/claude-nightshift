@@ -165,6 +165,25 @@ try {
         }
     }
 
+    # `npm run "lint all"` is one script. A key list joined by spaces reports it as two
+    # scripts that do not exist, and one of them answers to a role it never fills.
+    $spaced = Copy-Fixture 'spaced-scripts' $scratch
+    $spacedRun = Invoke-Inventory @('-Project', $spaced)
+    Expect-Equal 0 $spacedRun.ExitCode "spaced-scripts exits 0: $($spacedRun.Stderr)"
+    Expect-Equal 'test' (Get-Row $spacedRun 'script test') 'a plain script name is read'
+    Expect-Equal '-' (Get-Row $spacedRun 'script lint') 'lint all does not fill the lint role'
+    Expect-Equal '-' (Get-Row $spacedRun 'script typecheck') 'check types does not fill typecheck'
+    Expect-Equal '-' (Get-Row $spacedRun 'script build') 'build all does not fill build'
+
+    # A dependency on `ruff-lsp` is not a dependency on `ruff`, and `eslint-config-airbnb`
+    # is not eslint. A name only counts when it stands alone.
+    $near = Copy-Fixture 'near-names' $scratch
+    $nearRun = ConvertFrom-Json (Invoke-Inventory @('-Project', $near, '-Json')).Text
+    foreach ($tool in @('ruff', 'mypy', 'prettier')) {
+        Expect-Equal 'absent' $nearRun.packages[0].tools.$tool `
+            "a package name starting with $tool is not $tool"
+    }
+
     # A folder with no manifest is an inventory of nothing, not a failure.
     $empty = Copy-Fixture 'empty' $scratch
     $emptyRun = Invoke-Inventory @('-Project', $empty)

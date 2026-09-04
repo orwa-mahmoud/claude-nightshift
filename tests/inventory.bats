@@ -103,6 +103,36 @@ setup() {
   ' >/dev/null
 }
 
+# `npm run "lint all"` is one script. A key list joined by spaces reports it as two
+# scripts that do not exist, and one of them answers to a role it never fills.
+@test "a script name with a space stays one script name" {
+  p="$(prepare spaced-scripts spaced)"
+  inventory "$BIN" --project "$p"
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+  [ "$(row 'script test')" = test ]
+  [ "$(row 'script lint')" = - ]
+  [ "$(row 'script typecheck')" = - ]
+  [ "$(row 'script build')" = - ]
+
+  inventory "$BIN" --project "$p" --json
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '
+    .packages[0].scripts == { build: "-", format: "-", lint: "-", test: "test", typecheck: "-" }
+  ' >/dev/null
+}
+
+# A dependency on `ruff-lsp` is not a dependency on `ruff`, and `eslint-config-airbnb`
+# is not eslint. A name only counts when it stands alone.
+@test "a package name that merely starts with a tool is not that tool" {
+  p="$(prepare near-names near)"
+  inventory "$BIN" --project "$p" --json
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+  printf '%s' "$output" | jq -e '
+    (.packages[0].tools | .ruff == "absent" and .mypy == "absent" and .eslint == "absent"
+     and .prettier == "absent" and .pytest == "declared")
+  ' >/dev/null
+}
+
 @test "a build directory is not mistaken for a package" {
   p="$(prepare pnpm-monorepo mono)"
   [ -f "$p/dist/package.json" ]
@@ -177,7 +207,7 @@ setup() {
 }
 
 @test "a tool is only ever declared, runnable or absent" {
-  for fixture in npm-single pnpm-monorepo python-project go-module; do
+  for fixture in npm-single pnpm-monorepo python-project go-module spaced-scripts near-names; do
     p="$(prepare "$fixture" "state-$fixture")"
     inventory "$BIN" --project "$p" --json
     [ "$status" -eq 0 ]
@@ -264,7 +294,8 @@ setup() {
   if ! have_pwsh; then
     skip 'pwsh not installed'
   fi
-  for fixture in npm-single pnpm-monorepo python-project go-module empty; do
+  for fixture in npm-single pnpm-monorepo python-project go-module empty spaced-scripts \
+    near-names; do
     p="$(prepare "$fixture" "parity-$fixture")"
     # Both engines are handed the physical path: bash resolves symlinks itself, PowerShell
     # 5.1 has no portable way to, and the platform's temp root is a symlink on macOS.
@@ -285,6 +316,32 @@ setup() {
         || { echo "$fixture $mode differs between engines"; return 1; }
     done
   done
+}
+
+# `find` without -L descends no symlink and lists no symlinked file. A recursive walk that
+# followed one would report a package outside the work target, and a cycle would never end.
+@test "neither engine follows a link out of the work target" {
+  p="$(prepare spaced-scripts linked)"
+  mkdir -p "$BATS_TEST_TMPDIR/outside/pkg"
+  cp "$FIX/go-module/go.mod" "$BATS_TEST_TMPDIR/outside/pkg/go.mod"
+  ln -s "$BATS_TEST_TMPDIR/outside" "$p/outside"
+  ln -s "$p/package.json" "$p/aliased.json"
+
+  inventory "$BIN" --project "$p" --json
+  [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+  printf '%s' "$output" | jq -e '[.packages[].path] == ["."]' >/dev/null \
+    || { echo "the walk left the work target: $output"; return 1; }
+
+  if have_pwsh; then
+    physical="$(cd "$p" && pwd -P)"
+    env -i PATH="$BIN" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+      /bin/bash "$SH" --project "$physical" --json >"$BATS_TEST_TMPDIR/sh.json"
+    env -i PATH="$BIN:$(dirname "$PWSH_BIN")" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
+      "$PWSH_BIN" -NoProfile -NonInteractive -File "$PS1_TWIN" \
+      -Project "$physical" -Json >"$BATS_TEST_TMPDIR/ps.json"
+    cmp "$BATS_TEST_TMPDIR/sh.json" "$BATS_TEST_TMPDIR/ps.json" \
+      || { echo 'the engines disagree about a linked directory'; return 1; }
+  fi
 }
 
 @test "the native Windows twin ships and is registered in the Windows suite" {

@@ -160,12 +160,37 @@ _section() {
   LC_ALL=C grep -q "$3" "$TARGET/$1/$2"
 }
 
-# _mentions DIR TOKEN -> 0 when a manifest in DIR names TOKEN.
+# The token has to stand alone: a dependency on `ruff-lsp` is not a dependency on
+# `ruff`, so a neighbouring name character rules the hit out and only a delimiter — an
+# end of line, a version operator, an extras bracket, a quote or a comma — lets it
+# through. Status 0 when the file names the token that way.
+# shellcheck disable=SC2016 # awk program; $0 is an awk field
+AWK_MENTIONS='
+function edge(c) { return (c == "") ? 1 : (index(DELIM, c) > 0) }
+BEGIN { DELIM = " \t\r=<>[~!\"," sprintf("%c", 39); n = length(tok); ok = 0 }
+{
+  s = $0
+  p = 0
+  while (1) {
+    i = index(substr(s, p + 1), tok)
+    if (i == 0) break
+    i = p + i
+    if (edge(i == 1 ? "" : substr(s, i - 1, 1)) && edge(substr(s, i + n, 1))) {
+      ok = 1
+      exit
+    }
+    p = i
+  }
+}
+END { exit ok ? 0 : 1 }
+'
+
+# _mentions DIR TOKEN -> 0 when a manifest in DIR names TOKEN as a package of its own.
 _mentions() {
   local dir="$1" token="$2" f
   for f in package.json Cargo.toml go.mod pyproject.toml setup.cfg requirements.txt tox.ini; do
     [ -f "$TARGET/$dir/$f" ] || continue
-    LC_ALL=C grep -qF "$token" "$TARGET/$dir/$f" && return 0
+    LC_ALL=C awk -v tok="$token" "$AWK_MENTIONS" "$TARGET/$dir/$f" && return 0
   done
   return 1
 }
@@ -229,11 +254,13 @@ _lockfile() {
   return 0
 }
 
+# One script name per line, because a name may hold spaces: `npm run "lint all"` is
+# one script, and a list joined by spaces would report it as two that do not exist.
 JQ_PACKAGE='
 def cl: gsub("[[:cntrl:]]"; " ");
-[ "scripts\t" + ((.scripts // {}) | keys | join(" ") | cl),
-  "workspaces\t" + (if (.workspaces == null) then "no" else "yes" end)
-] | .[]
+( ["workspaces\t" + (if (.workspaces == null) then "no" else "yes" end)]
++ ((.scripts // {}) | keys | map("script-key\t" + (. | cl)))
+) | .[]
 '
 
 STREAM="$TMPD/stream"
@@ -256,14 +283,14 @@ while IFS= read -r dir; do
   [ -f "$TARGET/$dir/Cargo.toml" ] && KIND=cargo
   [ -f "$TARGET/$dir/package.json" ] && KIND=node
 
-  SCRIPT_KEYS=""
+  : >"$TMPD/scriptkeys"
   WORKSPACES=-
   if [ -f "$TARGET/$dir/package.json" ]; then
     command -v jq >/dev/null 2>&1 ||
       unavail 'jq is required to read package.json and is not on PATH'
     jq -r "$JQ_PACKAGE" <"$TARGET/$dir/package.json" >"$TMPD/pkg" 2>/dev/null ||
       unavail "$dir/package.json is not readable JSON"
-    SCRIPT_KEYS="$(LC_ALL=C awk -F'\t' '$1 == "scripts" { print $2; exit }' <"$TMPD/pkg")"
+    LC_ALL=C awk -F'\t' '$1 == "script-key" { print $2 }' <"$TMPD/pkg" >"$TMPD/scriptkeys"
     WORKSPACES="$(LC_ALL=C awk -F'\t' '$1 == "workspaces" { print $2; exit }' <"$TMPD/pkg")"
     if [ "$WORKSPACES" = no ] && [ -f "$TARGET/$dir/pnpm-workspace.yaml" ]; then
       WORKSPACES=yes
@@ -296,12 +323,12 @@ while IFS= read -r dir; do
     esac
     value=-
     for candidate in $candidates; do
-      for key in $SCRIPT_KEYS; do
+      while IFS= read -r key; do
         if [ "$key" = "$candidate" ]; then
           value="$candidate"
           break
         fi
-      done
+      done <"$TMPD/scriptkeys"
       [ "$value" = - ] || break
     done
     printf 'script\t%s\t%s\t%s\n' "$dir" "$role" "$value" >>"$STREAM"
