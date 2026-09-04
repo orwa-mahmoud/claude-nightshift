@@ -181,8 +181,8 @@ with that message and an empty value explicitly allows the tool.
 Exact tool-name matching needs no `jq` and no `python3`: the bundled reader parses `rules.json`
 directly, and an unreadable or unsupported file fails closed rather than arming with a guess. What
 `jq` still buys on POSIX is the hook payload — a shell command is extracted with `jq` or, without
-it, a `sed` fallback, while an MCP payload that cannot be decoded is denied outright rather than
-waved through. Native Windows uses PowerShell's built-in `ConvertFrom-Json`.
+it, a `sed` fallback, while an MCP payload that cannot be decoded is treated as if it addressed
+the process lease and denied. Native Windows uses PowerShell's built-in `ConvertFrom-Json`.
 
 **Repair.** Re-run setup and accept missing keys it offers. Do not paste a half-file over an
 owner-edited `rules.json`. During an active shift the session working the night is denied

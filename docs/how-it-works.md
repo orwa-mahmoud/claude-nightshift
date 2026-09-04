@@ -103,9 +103,10 @@ snapshot, and Start works with what it finds.
 needs neither `jq` nor `python3`; an unreadable or unsupported rules file fails closed and does not
 arm. `shift-policy.json` is JSON that the bash helpers read with `jq`, falling back to an inline
 `python3` program when `jq` is absent — with neither installed, Start says so and arms from
-`rules.json` alone rather than asking the owner to install anything. A hook payload from an MCP
-tool that cannot be decoded is denied, not waved through. Native Windows uses PowerShell's built-in
-`ConvertFrom-Json` throughout and needs no third-party parser.
+`rules.json` alone rather than asking the owner to install anything. An MCP payload the hardhat
+cannot decode is treated as if it addressed the process lease, so an opaque call is denied rather
+than waved through. Native Windows uses PowerShell's built-in `ConvertFrom-Json` throughout and
+needs no third-party parser.
 
 ## Mechanical gates and owner rules
 
