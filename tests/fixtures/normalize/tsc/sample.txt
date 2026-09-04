@@ -1,0 +1,6 @@
+src/app.ts(12,5): error TS2322: Type 'string' is not assignable to type 'number'.
+src/app.ts(48,11): error TS2551: Property 'lenght' does not exist on type 'Row[]'. Did you mean 'length'?
+src/lib/parse.ts(90,3): warning TS6133: 'walk' is declared but its value is never read.
+src/ui/table.tsx(7,20): error TS7006: Parameter 'row' implicitly has an 'any' type.
+error TS5023: Unknown compiler option 'strictNullCheck'.
+Found 4 errors in 3 files.

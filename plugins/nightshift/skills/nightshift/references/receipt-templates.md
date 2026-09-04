@@ -87,6 +87,33 @@ Fence-check is native (`continuity-handoff.sh fence-check`). Summarize stand-dow
 and host changes from `$NS/shift-log.md` in the skill. Do not call `transition-history`,
 `handoff-package`, or `campaign-sequence`.
 
+## Tool output
+
+A supported tool format travels as one compact summary instead of a raw file.
+`runtime/normalize-output.sh --format <fmt> --input <file> --json` (native Windows:
+`normalize-output.ps1 -Format <fmt> -InputPath <file> -Json`) prints one canonical object; record it
+as a finding of domain `tool-output`. Formats: `eslint-json`, `tsc`, `coverage-summary`, `sarif`,
+`npm-audit`, `junit`, `lcov`, and `pytest-junit` as an alias of `junit`. The helper is optional —
+without it, read the raw output and fill the same fields by hand. `unavailable <fmt>: <reason>` is
+a status of `unavailable`, never a cleared count.
+
+```text
+# tool-output
+domain: tool-output
+sourceClass: tool
+sourceTool: <eslint|tsc|coverage|sarif|npm-audit|junit|lcov>
+source: <the command that produced the raw file>
+scope: <the package or path the tool ran over>
+locator: <the raw output path>
+digest: <the summary's sha256, from its source: line>
+severity: <the highest severity the summary shows>
+status: <open|unavailable>
+ladder: measured
+headline: <the summary's first line, verbatim>
+counts: <the summary's counts object, verbatim>
+top: <the rows the summary printed, or unavailable>
+```
+
 ## Evidence ledger
 
 Native `evidence.sh` already fail-closes on bad ids, temp paths, and counts. Do not require

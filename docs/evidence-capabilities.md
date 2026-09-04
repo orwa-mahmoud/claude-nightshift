@@ -70,6 +70,23 @@ project already configures wins, and a capability that cannot be satisfied is re
 the write surface first so the change can be undone — the seatbelt described in
 [`provisioning-engine.md`](../plugins/nightshift/skills/nightshift/references/provisioning-engine.md).
 
+## Optional read-only helpers
+
+Two helpers exist for hosts that have them and are ignored where they do not. Both read only, write
+nothing, install nothing, and ask nothing — no skill, gate, or catalog entry requires either one.
+
+`runtime/normalize-output.sh` (native Windows: `runtime/windows/normalize-output.ps1`) turns one
+tool's raw output into one compact summary: a headline, a bounded table of the worst rows, and the
+input path with its sha256. It reads `eslint-json`, `tsc`, `coverage-summary`, `sarif`, `npm-audit`,
+`junit` and `lcov`, with `pytest-junit` as an alias of `junit`. The summary is deterministic, so the
+model reads it instead of a large file and two nights diff byte for byte; `--json` prints the same
+thing as one canonical object for `evidence.sh append` to carry as a finding of domain
+`tool-output`.
+
+When a helper cannot read what it was handed — an unsupported shape, a missing file, or no `jq` for
+a JSON format — it prints one line, `unavailable <what>: <reason>`, and exits 3. That is a
+first-class answer: a tool that did not report is never recorded as a tool that found nothing.
+
 ## Modes
 
 **Repository mode** ends each work package in one conventional commit; the morning handoff is the

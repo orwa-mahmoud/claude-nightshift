@@ -1,0 +1,39 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "minimist": {
+      "name": "minimist",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [ { "source": 1097677, "name": "minimist", "title": "Prototype Pollution in minimist", "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h", "severity": "critical", "range": "<1.2.6" } ],
+      "effects": [ "mkdirp" ],
+      "range": "<1.2.6",
+      "nodes": [ "node_modules/minimist" ],
+      "fixAvailable": true
+    },
+    "semver": {
+      "name": "semver",
+      "severity": "high",
+      "isDirect": true,
+      "via": [ { "source": 1096547, "name": "semver", "title": "semver vulnerable to Regular Expression Denial of Service", "url": "https://github.com/advisories/GHSA-c2qf-rxjj-qqgw", "severity": "high", "range": ">=7.0.0 <7.5.2" } ],
+      "effects": [],
+      "range": ">=7.0.0 <7.5.2",
+      "nodes": [ "node_modules/semver" ],
+      "fixAvailable": { "name": "semver", "version": "7.5.4", "isSemVerMajor": false }
+    },
+    "tough-cookie": {
+      "name": "tough-cookie",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [ { "source": 1097682, "name": "tough-cookie", "title": "tough-cookie Prototype Pollution vulnerability", "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3", "severity": "moderate", "range": "<4.1.3" } ],
+      "effects": [ "request" ],
+      "range": "<4.1.3",
+      "nodes": [ "node_modules/tough-cookie" ],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": { "info": 0, "low": 0, "moderate": 1, "high": 1, "critical": 1, "total": 3 },
+    "dependencies": { "prod": 210, "dev": 640, "total": 850 }
+  }
+}
