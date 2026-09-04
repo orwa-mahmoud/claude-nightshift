@@ -268,8 +268,8 @@ session-start overrides for tests and one-off exceptions — say so only if aske
 synced from this file, offer to remove them: the file is the one copy.
 
 **Local rule profiles — offer, never impose.** Setup may list the shipped examples in
-`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 JSON file there) and preview
-one with
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 or version-2 JSON
+file there) and preview one with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
 On native Windows, preview with
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.

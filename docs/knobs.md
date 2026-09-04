@@ -170,8 +170,9 @@ thread is currently only how the owner refreshes a stale panel before inspecting
 the linked upstream refresh work would make that handoff smoother, not enable recovery itself.
 
 **Local profiles.** `runtime/apply-profile.sh` (native Windows: `runtime/windows/apply-profile.ps1`)
-can preview or copy every version-1 JSON file in
-`plugins/nightshift/skills/nightshift/references/profiles/`. That is a
+can preview or copy every version-1 or version-2 JSON file in
+`plugins/nightshift/skills/nightshift/references/profiles/`; the shipped `balanced`, `fast`, and
+`strict` profiles are version 2 and also carry shift defaults and a Gates block. That is a
 one-time local write, not a policy subscription. Fill keeps every owner value and refuses a file
 missing either native question policy. Replace starts from the complete shipped template, applies
 the profile, and shows the full next file first. Apply only while unarmed. Native Windows uses
