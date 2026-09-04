@@ -39,8 +39,8 @@ MODES="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/
 @test "pull-request readiness gates every commit and disposition findings" {
   grep -qi 'item gate is green at every commit' "$E"
   grep -qi 'disposition every finding' "$E"
-  grep -qi 'ready-for-human-review' "$E"
-  grep -qi 'finiteEndingReached' "$E"
+  grep -qi 'reads ready for human review' "$E"
+  grep -qi 'review map reaches a finite' "$E"
   grep -qi 'snag-log.md' "$E"
 }
 

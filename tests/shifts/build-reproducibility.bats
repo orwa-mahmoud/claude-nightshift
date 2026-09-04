@@ -26,7 +26,7 @@ HUNT="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/hunt/SKILL.md"
 @test "build reproducibility refuses owner-only installs and honest environment limits" {
   grep -qi 'Refuse owner-only install' "$E"
   grep -qi 'clean room' "$E"
-  grep -qi 'environmentTested' "$E"
+  grep -qi 'name the environment each run actually used' "$E"
   grep -qi 'Never claim a clean room' "$E"
 }
 

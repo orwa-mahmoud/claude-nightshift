@@ -31,12 +31,12 @@ environment-specific and production-only values.
 Select when persisted data or schema changes need ordering, backfill, locks, or representative
 samples. Record the environment first — disposable, specifically owner-approved, or production —
 and write the operation list before any data operation: backfill, locks, defaults and nullability,
-idempotency, rollback, and representative data coverage. Execute data work only in disposable or
-specifically owner-approved environments; live production and destructive operations remain outside
-normal direct-mode authority unless the owner explicitly approved that exact environment in the
-punch-list scope. Production-refusal holds even when the plan asks for it. On a mid-migration
-failure, roll back when a rollback path exists and otherwise stop and park the recovery for the
-owner — never guess forward through half-applied state.
+idempotency, rollback, and representative data coverage.
+Execute data work only in disposable or specifically owner-approved environments; live production
+and destructive operations remain outside normal direct-mode authority unless the owner explicitly
+approved that exact environment in the punch-list scope. Production-refusal holds even when the
+plan asks for it. On a mid-migration failure, roll back when a rollback path exists and otherwise
+stop and park the recovery for the owner — never guess forward through half-applied state.
 
 ```text
 - [ ] **Migration compatibility — plan and execute a guarded migration with rollback.**
@@ -64,7 +64,7 @@ owner — never guess forward through half-applied state.
     cover the surfaces touched, rollback is documented, and every breaking or production blocker is
     fixed, rejected with reason, or parked.
   - Verify: the item gate is green at every commit; the project's own compatibility and migration
-    tests pass on the surfaces touched; the receipt separates additive from breaking changes,
-    reports config parity as shape-only, names the environment each data operation ran in, and
-    states plainly that no legal or production authority was inferred.
+    tests pass on the surfaces touched; the receipt's verdict separates additive from breaking
+    changes, reports config parity as shape-only, names the environment each data operation ran in,
+    and states plainly that no legal or production authority was inferred.
 ```

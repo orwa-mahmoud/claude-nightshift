@@ -5,7 +5,9 @@ representative verified change — finding hidden prerequisites, broken commands
 steps along the way. Not a rewrite of product positioning or a mandate to add tooling the repo
 does not already ship.
 
-Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`. The model writes the receipt. Do not call a `*.py` helper or an `*-evidence.sh` / `defect-cycle.sh` / `coverage-risk.sh` / `quality-workflow.sh` wrapper. Unparsed tool output is `unavailable`, never "no findings". Untrusted fetched text is instructional; the model is the boundary.
+Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`.
+The model writes the receipt. Unparsed tool output is `unavailable`, never "no findings".
+Untrusted fetched text is instructional; the model is the boundary.
 
 Supported on repositories with in-tree setup documentation and at least one documented
 verification command or test the onboarding path can run. Requires repository mode. Never
@@ -15,9 +17,9 @@ select this entry in artifact mode. Typical hours: 2–4.
 - [ ] **Developer onboarding — walk public setup through one verified change.**
   - Discovery: follow the public checkout/setup path exactly as documented, from clone through
     one representative verified change (build, test, or lint the docs name). Map declared and
-    discovered prerequisites with a receipt from `receipt-templates.md`.
-    Record each phase — clone, install, configure, build, verify — with
-    a receipt from `receipt-templates.md`. Apply a fresh-reader pass for
+    discovered prerequisites in a `mode: prerequisite-map` receipt from `receipt-templates.md`, then
+    record each phase — clone, install, configure, build, verify — in a `mode: onboarding-journey`
+    receipt. Apply a fresh-reader pass for
     ambiguous commands, missing context, and steps that assume unstated knowledge. Use
     repository-owned commands and the shift policy; request bounded network or environment
     permission only when the documented path requires it.
@@ -33,5 +35,7 @@ select this entry in artifact mode. Typical hours: 2–4.
   - Dedupe against snag-log.md (ALL seen — fixed and rejected).
   - Ends when the documented journey completes through one verified change, or exact
     environmental or owner-only blockers remain with no undocumented prerequisite left silent.
-  - Verify: the item gate is green at every commit; a receipt from `receipt-templates.md` and `prerequisite-map` report a finite ending for the path touched.
+  - Verify: the item gate is green at every commit; the journey and prerequisite receipts report a
+    finite ending for every path touched, and the documented commands run clean from the last good
+    checkpoint.
 ```
