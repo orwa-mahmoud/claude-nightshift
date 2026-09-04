@@ -207,10 +207,6 @@ decides nothing on its own, and either skill may change it for a single shift.
 - **Repository** — ask the full question above (including review-first vs run-direct), then
  persist the answer.
 
-**Legacy migration.** After `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh"` folds a leftover
-`capability-policy.json` into `shift-defaults.json`'s tooling policy, delete that leftover file —
-it no longer exists as a Nightshift state file.
-
 ## 4. Permissions — the night cannot click Allow
 
 An unattended shift stalls forever on a permission prompt, and a watchman revival runs headless —

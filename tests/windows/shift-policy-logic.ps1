@@ -3,7 +3,7 @@
 #
 # Covers the frozen 02A interface: the three files, the one resolver and every
 # precedence row, exact-plan binding, the armed refusal, the archive, the legacy
-# capability-policy.json migration, and the Doctor and support-bundle views.
+# the state-version migration, and the Doctor and support-bundle views.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
@@ -587,15 +587,9 @@ try {
     }
     Expect-True $doctorRun.StdoutText.Contains('deadline file 1789000000 does not match shift-policy deadlineEpoch 1788000000') `
         'Doctor names both deadline values on a mismatch'
-    [IO.File]::WriteAllText((Join-Path $deadlineNs 'capability-policy.json'), '{"policy":"auto-add"}', $utf8)
-    $doctorLegacy = Invoke-Script -Path $doctor -Arguments @('-Project', $deadlineProject)
-    Expect-True $doctorLegacy.StdoutText.Contains('legacy capability-policy.json present; Setup removes it') `
-        'Doctor reports a leftover capability-policy.json once'
     $doctorMalformed = Invoke-Script -Path $doctor -Arguments @('-Project', $malformed)
     Expect-True $doctorMalformed.StdoutText.Contains('shift-policy.json is malformed (toolingPolicy:') `
         'Doctor names the malformed field'
-    Expect-True (-not $doctorRun.StdoutText.Contains('capability policy existing-tools')) `
-        'Doctor no longer prints the retired capability policy fact'
 
     # === 11. the support bundle ships the view, never the files ===
     $supportProject = Join-Path $root 'support'
@@ -623,25 +617,14 @@ try {
     Expect-True $bundleText.Contains('protectedDirs= (rules, permanent)') `
         'an empty owner value has nothing to redact'
 
-    # === 12. the legacy capability-policy.json migration ===
+    # === 12. migrate-state writes the state marker only ===
     $legacyProject = Join-Path $root 'legacy'
     $legacyNs = New-PolicyProject $legacyProject
     [IO.File]::WriteAllText((Join-Path $legacyNs 'state-version'), "1`n", $utf8)
-    [IO.File]::WriteAllText((Join-Path $legacyNs 'capability-policy.json'),
-        '{"schemaVersion":1,"policy":"review-missing","remember":true}', $utf8)
     $migrateRun = Invoke-Script -Path $migrateState -Arguments @('-Project', $legacyProject)
     Expect-Equal 0 $migrateRun.ExitCode "migrate-state exits 0 ($($migrateRun.StderrText))"
-    Expect-True $migrateRun.StdoutText.Contains('capability-policy.json is retired; tooling policy review-missing is now the shift-defaults prefill') `
-        'migrate-state reports the retired file once'
-    Expect-True (-not (Test-Path -LiteralPath (Join-Path $legacyNs 'capability-policy.json') -PathType Leaf)) `
-        'migrate-state deletes the legacy file'
-    Expect-Equal 'review-missing' (Get-NSShiftDefaults $legacyProject)['toolingPolicy'] `
-        'the legacy policy becomes the remembered prefill'
-    Expect-True ([IO.File]::ReadAllText((Join-Path $legacyNs 'shift-log.md'))).Contains('capability-policy.json is retired') `
-        'the migration leaves one log line'
-    $migrateAgain = Invoke-Script -Path $migrateState -Arguments @('-Project', $legacyProject)
-    Expect-Equal 0 $migrateAgain.ExitCode 'migrate-state stays idempotent'
-    Expect-True (-not $migrateAgain.StdoutText.Contains('is retired')) 'the second migration reports nothing to retire'
+    Expect-True (-not $migrateRun.StdoutText.Contains('is retired')) `
+        'migrate-state retires nothing but the state marker'
 }
 finally {
     Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue

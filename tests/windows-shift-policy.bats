@@ -72,7 +72,6 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 @test "Windows Doctor and support render the resolved view, never the policy files" {
   grep -qF 'resolved policy' "$WIN/doctor.ps1"
   grep -qF 'Format-NSPolicyTable' "$WIN/doctor.ps1"
-  grep -qF 'legacy capability-policy.json present; Setup removes it' "$WIN/doctor.ps1"
   grep -qF 'does not match shift-policy deadlineEpoch' "$WIN/doctor.ps1"
   grep -qF 'shift-policy.json is malformed' "$WIN/doctor.ps1"
   if grep -qF 'capability policy' "$WIN/doctor.ps1"; then
@@ -85,12 +84,11 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   fi
 }
 
-@test "Windows migrate-state retires a legacy capability-policy.json" {
-  grep -qF 'Invoke-NSMigrateCapabilityPolicy' "$WIN/migrate-state.ps1"
-  grep -qF 'capability-policy.json is retired' "$WIN/migrate-state.ps1"
+@test "Windows migrate-state writes the state marker and nothing else" {
   grep -qF 'refuse to migrate while the shift is armed' "$WIN/migrate-state.ps1"
-  grep -qF 'migrate-state deletes the legacy file' "$LOGIC"
-  grep -qF 'the legacy policy becomes the remembered prefill' "$LOGIC"
+  if grep -qF 'capability-policy' "$WIN/migrate-state.ps1"; then
+    return 1
+  fi
 }
 
 @test "Windows shift-policy logic passes when pwsh is present" {
