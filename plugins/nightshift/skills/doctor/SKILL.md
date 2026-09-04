@@ -49,7 +49,7 @@ On native Windows:
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions, and do not re-derive
 anything it already resolved: the script uses the same workspace, work-mode, work-target, policy
-and ownership libraries as the hooks, and both hosts print the same lines.
+and ownership libraries as the hooks, and both implementations print the same lines.
 
 The report answers, in its own words: where the workspace is and whether `.nightshift-link` is
 valid; the schema version and whether it is current, legacy, malformed, or newer than this plugin;

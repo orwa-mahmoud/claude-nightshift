@@ -209,7 +209,8 @@ do not leave an empty order heading behind), put only the item under `## Items` 
   `$NIGHTSHIFT_PLUGIN_ROOT/runtime/codex/watchman.sh`, Cursor
   `$NIGHTSHIFT_PLUGIN_ROOT/runtime/cursor/watchman.sh`, and native Windows
   `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\start-watchman.ps1"`
-  `-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`).
+  `-Project "$NIGHTSHIFT_WORKSPACE" -HostName claude` (Codex: `-HostName codex`; Cursor:
+  `-HostName cursor`).
 
 An empty `## Items` section still keeps the Shift contract and Gates; they bind the cut item.
 Record leftover campaign rules in `$NS/parking-lot.md` when they are not this order's.

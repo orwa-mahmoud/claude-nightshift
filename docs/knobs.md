@@ -1,8 +1,8 @@
 # Owner knobs
 
 The scaffolded rules file carries every supported key. Optional guards are off until you set them;
-the two explicit question-tool entries default to parking so an unattended shift does not wait for
-the owner.
+the three explicit question-tool entries default to parking so an unattended shift does not wait
+for the owner.
 
 The contract itself is a knob too: the punch-list text above `## Items` and the rules file's
 `clockOutMessage` are the owner's words. The shipped default asks one commit per item in

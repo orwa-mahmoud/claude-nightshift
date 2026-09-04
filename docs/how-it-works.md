@@ -1,7 +1,7 @@
 # How Nightshift works
 
-Nightshift is a native plugin for Codex and Claude Code. It adds no proxy, hosted service, or
-second agent runtime. Skills define the working method, files preserve the contract, hooks enforce
+Nightshift is a native plugin for Claude Code, Codex, and Cursor. It adds no proxy, hosted
+service, or second agent runtime. Skills define the working method, files preserve the contract, hooks enforce
 the host-specific boundaries that are available, and local shell or PowerShell processes handle
 scheduling and recovery when no live session can act.
 
@@ -110,9 +110,9 @@ needs no third-party parser.
 
 ## Mechanical gates and owner rules
 
-On both Claude Code and Codex, an attempted stop with open punch-list items receives the focused
-contract again. On both hosts, hook-backed rules can deny commands, protected paths, suspicious
-secret patterns, or commits under the wrong identity.
+On Claude Code, Codex, and Cursor, an attempted stop with open punch-list items receives the
+focused contract again. On every host, hook-backed rules can deny commands, protected paths,
+suspicious secret patterns, or commits under the wrong identity.
 
 The five elevation categories deny by default. Optional command, path, identity, and secret
 guards (`forbiddenCommands`, `protectedDirs`, `expectedEmail`, `neverCommitPatterns`) stay empty
@@ -345,7 +345,7 @@ marketplace and local plugin hooks and only runs project `.cursor/hooks.json`. S
 copy the shipped Cursor hook file there on an explicit yes; that is a Cursor limitation,
 not a Nightshift skip.
 
-The differences among Claude Code and Codex are in recovery evidence. Claude Code exposes Escape,
+The differences among the hosts are in recovery evidence. Claude Code exposes Escape,
 clean session-end, process, transcript, pulse, and API-error signals. Codex exposes SessionEnd
 (reason `other`), pulse, process, and rollout activity, but not Escape or a verified API-wedge
 signature. Cursor liveness is pulse plus recorded pid plus transcript growth plus lease pid;

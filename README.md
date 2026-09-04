@@ -1,12 +1,12 @@
 # nightshift
 
-Nightshift gives [OpenAI Codex](https://openai.com/codex/) and
-[Claude Code](https://claude.com/claude-code) accountable, time-bounded engineering shifts. Hand it
-your own punch list or let it research the product, rank opportunities, and build the strongest
-complete improvements until quitting time. State stays on disk, owner-defined safety rules are
-enforced by hooks, and the morning handoff is reviewable. Codex and Claude Code cannot quietly
-clock out with open work; both keep the active objective and remaining work available on disk
-through compaction or resume. Product-evolution and owner-walkthrough shifts also record the exact
+Nightshift gives [Claude Code](https://claude.com/claude-code),
+[OpenAI Codex](https://openai.com/codex/), and [Cursor](https://cursor.com) accountable,
+time-bounded engineering shifts. Hand it your own punch list or let it research the product, rank
+opportunities, and build the strongest complete improvements until quitting time. State stays on
+disk, owner-defined safety rules are enforced by hooks, and the morning handoff is reviewable. No
+host quietly clocks out with open work; each keeps the active objective and remaining work
+available on disk through compaction or resume. Product-evolution and owner-walkthrough shifts also record the exact
 next action and verification still due.
 
 [Install](#install) · [Run a first shift](#run-a-first-shift) ·
@@ -290,10 +290,10 @@ The [contribution map](docs/contribution-map.md) and
 [`catalog-recipe.md`](plugins/nightshift/skills/nightshift/references/catalog-recipe.md) show the
 two files and checks.
 
-## Built into both hosts, not pasted into a prompt
+## Built into every host, not pasted into a prompt
 
-Nightshift ships native skills and hook wiring for Codex and Claude Code from one package. It wraps
-nothing and proxies nothing. The skills carry the working method, disk files keep the objective,
+Nightshift ships native skills and hook wiring for Claude Code, Codex, and Cursor from one package.
+It wraps nothing and proxies nothing. The skills carry the working method, disk files keep the objective,
 evidence, and decisions available across compaction or resume, and hooks enforce the boundaries
 each host exposes.
 
