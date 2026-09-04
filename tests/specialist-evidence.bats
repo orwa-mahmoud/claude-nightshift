@@ -24,10 +24,18 @@ VULN="$ROOT/plugins/nightshift/skills/nightshift/references/shifts/vulnerability
 }
 
 @test "parent contracts write receipts without calling the removed wrapper" {
-  ! grep -qF 'runtime/specialist-evidence.sh' "$DOCS"
-  ! grep -qF 'runtime/specialist-evidence.sh' "$RESEARCH"
-  ! grep -qF 'runtime/specialist-evidence.sh' "$CLEAR"
-  ! grep -qF 'runtime/specialist-evidence.sh' "$VULN"
+  if grep -qF 'runtime/specialist-evidence.sh' "$DOCS"; then
+    return 1
+  fi
+  if grep -qF 'runtime/specialist-evidence.sh' "$RESEARCH"; then
+    return 1
+  fi
+  if grep -qF 'runtime/specialist-evidence.sh' "$CLEAR"; then
+    return 1
+  fi
+  if grep -qF 'runtime/specialist-evidence.sh' "$VULN"; then
+    return 1
+  fi
   grep -qF 'receipt-templates.md' "$DOCS"
   grep -qF 'receipt-templates.md' "$RESEARCH"
   grep -qF 'receipt-templates.md' "$CLEAR"

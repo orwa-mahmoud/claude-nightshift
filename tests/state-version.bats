@@ -221,7 +221,9 @@ codex_ask() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'State:       1 (current)'
   printf '%s' "$output" | grep -q 'state version 1 (current)'
-  ! printf '%s' "$output" | grep -q '\[confirm\].*migrate-state.sh'
+  if printf '%s' "$output" | grep -q '\[confirm\].*migrate-state.sh'; then
+    return 1
+  fi
 
   printf '4\n' >"$p/.nightshift/state-version"
   before="$(fingerprint "$p")"
@@ -243,13 +245,15 @@ codex_ask() {
 
 @test "hooks start status archive and recovery never call the migrator" {
   root="$BATS_TEST_DIRNAME/../plugins/nightshift"
-  ! grep -RIn 'ns_migrate_state' \
+  if grep -RIn 'ns_migrate_state' \
     "$root/hooks" \
     "$root/runtime/claude" \
     "$root/runtime/codex" \
     "$root/runtime/doctor.sh" \
     "$root/runtime/schedule.sh" \
-    "$root/runtime/link-workspace.sh"
+    "$root/runtime/link-workspace.sh"; then
+    return 1
+  fi
   grep -qF 'runtime/migrate-state.sh' "$SETUP"
   grep -qF 'state-version' "$SETUP"
   grep -qF 'state-version' "$START"
@@ -257,7 +261,7 @@ codex_ask() {
   grep -qF 'never run migration from status' "$STATUS"
   grep -qF 'never migrate' "$ARCHIVE"
   grep -qF 'migrate-state.sh' "$DOCTOR_SKILL"
-  grep -qF 'never run it because Doctor was invoked' "$DOCTOR_SKILL"
+  grep -qF 'separate owner actions, never Doctor' "$DOCTOR_SKILL"
 }
 
 LOGIC="$BATS_TEST_DIRNAME/windows/migrate-state-logic.ps1"

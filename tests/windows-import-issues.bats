@@ -12,16 +12,24 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/import-issues.p
   grep -qF 'Review flags: destructive' "$LOGIC"
   grep -qF 'PositionalBinding = $false' "$HELPER"
   grep -qF '[IO.FileAttributes]::ReparsePoint' "$HELPER"
-  ! grep -qF -- '-Recurse' "$HELPER"
+  if grep -qF -- '-Recurse' "$HELPER"; then
+    return 1
+  fi
 }
 
 @test "Windows import-issues usage errors name native flags" {
   grep -qF -- '-Repo requires' "$HELPER"
   grep -qF -- '-AuthorizedRepo must be' "$HELPER"
   grep -qF -- '-AllowClosed' "$HELPER"
-  ! grep -qF 'import-issues: --repo' "$HELPER"
-  ! grep -qF '--authorized-repo' "$HELPER"
-  ! grep -qF '--allow-closed' "$HELPER"
+  if grep -qF 'import-issues: --repo' "$HELPER"; then
+    return 1
+  fi
+  if grep -qF '--authorized-repo' "$HELPER"; then
+    return 1
+  fi
+  if grep -qF '--allow-closed' "$HELPER"; then
+    return 1
+  fi
   grep -qF 'gh issue view' "$HELPER"
 }
 

@@ -26,10 +26,13 @@ esac
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 
-if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } \
-  || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; }; then
   exit 0
 fi
+# A failed count is not zero. An unreadable punch list leaves the shift standing, so the
+# session end is still recorded.
+OPEN="$(ns_open_boxes "$PUNCH")" || OPEN=1
+[ "$OPEN" -gt 0 ] || exit 0
 
 SID="${CODEX_SESSION_ID:-}"
 if [ -f "$NS/.shift-session" ] && [ ! -L "$NS/.shift-session" ]; then

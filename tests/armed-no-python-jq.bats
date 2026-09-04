@@ -22,8 +22,12 @@ chmod git touch mkdir sleep kill ps stat cmp xargs ls readlink"
   grep -qF 'use the next 20 hours adding features and enhancing existing ones' "$HUNT"
   grep -qF '8 hours clear lint and test debt' "$HUNT"
   grep -qF 'arm using `$NS/rules.json` alone' "$START"
-  ! grep -qF 'python3' "$QUALITY"
-  ! grep -qF 'python3' "$HUNT"
+  if grep -qF 'python3' "$QUALITY"; then
+    return 1
+  fi
+  if grep -qF 'python3' "$HUNT"; then
+    return 1
+  fi
 }
 
 @test "the plugin ships no Python" {
@@ -70,7 +74,9 @@ chmod git touch mkdir sleep kill ps stat cmp xargs ls readlink"
   punch_open "$p"
   jq 'del(.elevation)' "$p/.nightshift/rules.json" >"$p/rules.tmp"
   mv "$p/rules.tmp" "$p/.nightshift/rules.json"
-  ! grep -qF '"elevation"' "$p/.nightshift/rules.json"
+  if grep -qF '"elevation"' "$p/.nightshift/rules.json"; then
+    return 1
+  fi
 
   # jq builds the payload outside the guarded PATH; only the hook runs without a parser.
   bare_hardhat() {

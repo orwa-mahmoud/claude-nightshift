@@ -94,7 +94,9 @@ planted_repo() {
   run bash "$DOCTOR" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work target could not be resolved; treating workspace as the code root'
-  ! printf '%s' "$output" | grep -qF "work target $planted"
+  if printf '%s' "$output" | grep -qF "work target $planted"; then
+    return 1
+  fi
 }
 
 @test "unstored resolve skips a symlink child git repository" {

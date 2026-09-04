@@ -1,2 +1,0 @@
-check-imports: cycle detected
-  src/app/imports.js:12 orders -> customers -> orders

@@ -14,7 +14,9 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 @test "the Windows morning-receipt helper is native and thin" {
   [ -f "$WIN/morning-receipt.ps1" ]
   grep -qF 'Invoke-NSMorningReceiptCommand' "$WIN/morning-receipt.ps1"
-  ! grep -RE 'brew |npm install|pip install|python3|jq is required' "$WIN/morning-receipt.ps1"
+  if grep -RE 'brew |npm install|pip install|python3|jq is required' "$WIN/morning-receipt.ps1"; then
+    return 1
+  fi
 }
 
 @test "the receipt renders the six frozen sections and the four views" {

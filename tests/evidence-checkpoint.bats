@@ -16,8 +16,8 @@ NOW=2026-09-02T02:30:00Z
 
 # The same parity toolsets the ledger and the baseline writer use, so every probed tool resolves
 # to the same real binary with and without jq.
-CHECKPOINT_TOOLSET_WITH_JQ="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
-CHECKPOINT_TOOLSET_NO_JQ="bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
+CHECKPOINT_TOOLSET_WITH_JQ="mktemp chmod bash sh jq git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
+CHECKPOINT_TOOLSET_NO_JQ="mktemp chmod bash sh git sed grep find sort ls awk cat tr head tail wc cut mkdir cp rm mv env cmp date uname test dirname basename readlink stat printf true false xargs shasum openssl"
 
 # ---------------------------------------------------------------------------------------------
 # Fixtures. A shift control file is written by a helper, never by an inline command string.
@@ -228,16 +228,18 @@ b.js' --rollback HEAD --plan 'the gate'
   run --separate-stderr env PATH="$bin" bash "$CP" --project "$p" \
     --baseline baseline-eslint-000000000000 --touched app.js --rollback HEAD --plan 'the gate'
   [ "$status" -eq 2 ]
-  printf '%s\n' "$stderr" | grep -qF 'jq or python3 is required to read JSON'
+  printf '%s\n' "$stderr" | grep -qF 'JSON parser unavailable'
 }
 
+# Same shape as the baseline: the model writes the checkpoint receipt from the templates.
 @test "the shift skills say when a checkpoint is written" {
   for f in "$ROOT/plugins/nightshift/skills/start/SKILL.md" \
     "$ROOT/plugins/nightshift/skills/nightshift/SKILL.md"; do
-    grep -qF 'runtime/evidence-checkpoint.sh' "$f" \
-      || { echo "no checkpoint helper: $f"; return 1; }
-    grep -qF 'Before a risky cluster' "$f" || { echo "no checkpoint trigger: $f"; return 1; }
-    grep -qF 'runtime\windows\evidence-checkpoint.ps1' "$f" \
-      || { echo "no Windows checkpoint helper: $f"; return 1; }
+    tr '\n' ' ' <"$f" | grep -qiF 'before a risky cluster' \
+      || { echo "no checkpoint trigger: $f"; return 1; }
+    tr '\n' ' ' <"$f" | grep -qF 'the rollback ref' \
+      || { echo "no rollback ref: $f"; return 1; }
+    grep -qF 'references/receipt-templates.md' "$f" \
+      || { echo "no receipt templates: $f"; return 1; }
   done
 }

@@ -1,9 +1,0 @@
-{
-  "migrationState": "failed",
-  "completedSteps": ["expand-schema", "backfill"],
-  "failedStep": "dual-write",
-  "rollbackSteps": ["disable-dual-write", "restore-v1-read"],
-  "idempotent": true,
-  "locks": [{"name": "users_migration", "active": true}],
-  "stagedChanges": ["compatibility view"]
-}

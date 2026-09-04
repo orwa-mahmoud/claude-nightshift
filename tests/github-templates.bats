@@ -10,7 +10,9 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
 }
 @test "the pull request template asks about parity, not generic adapters" {
   grep -qF 'Harness parity (shared Claude Code / Codex behaviour)' "$PR"
-  ! grep -qi 'Adapter (support for another harness)' "$PR"
+  if grep -qi 'Adapter (support for another harness)' "$PR"; then
+    return 1
+  fi
   grep -qi 'not a generic adapter' "$CONTRIBUTING"
   grep -qF 'Codex and Claude Code' "$CONTRIBUTING"
 }
@@ -60,9 +62,15 @@ parse_yaml() {
   grep -qF 'https://github.com/orwa-mahmoud/nightshift/blob/main/SECURITY.md' "$FAILED"
   grep -qF 'I have removed prompts, credentials, repository content, and full transcripts' "$FAILED"
   grep -qF 'Local guard and gate reports are public issues' "$FAILED"
-  ! grep -qi 'paste the full transcript' "$FAILED"
-  ! grep -qi 'include your prompt' "$FAILED"
-  ! grep -qi 'those go to a private advisory' "$FAILED"
+  if grep -qi 'paste the full transcript' "$FAILED"; then
+    return 1
+  fi
+  if grep -qi 'include your prompt' "$FAILED"; then
+    return 1
+  fi
+  if grep -qi 'those go to a private advisory' "$FAILED"; then
+    return 1
+  fi
 }
 
 @test "SECURITY.md points failed nights at the form and keeps an optional advisory" {
@@ -70,7 +78,9 @@ parse_yaml() {
   grep -qF 'A private advisory is optional' "$SECURITY"
   grep -qF 'issues/new?template=failed_shift.yml' "$SECURITY"
   grep -qF 'security/advisories/new' "$SECURITY"
-  ! grep -qi 'do not open a public issue' "$SECURITY"
+  if grep -qi 'do not open a public issue' "$SECURITY"; then
+    return 1
+  fi
   [ -f "$FAILED" ]
 }
 

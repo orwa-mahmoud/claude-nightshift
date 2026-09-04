@@ -333,7 +333,9 @@ bound_plan() { # <project> <deadline JSON> <command>...
     --toolingPolicy auto-add --execution run-direct >/dev/null
   run bash "$SP" --project "$p" resolve --json
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -qF '"source":"defaults"'
+  if printf '%s' "$output" | grep -qF '"source":"defaults"'; then
+    return 1
+  fi
   # The remembered choices prefill the next question; they do not decide tonight.
   [ "$(setting "$p" toolingPolicy)" = 'existing-tools|built-in|-' ]
   [ "$(setting "$p" verificationLevel)" = 'none|built-in|-' ]
@@ -353,8 +355,12 @@ bound_plan() { # <project> <deadline JSON> <command>...
   # No second copy of the commands: the resolved view carries no gate list at all.
   run bash "$SP" --project "$p" resolve --json
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -qF "$GATES_BLOCK"
-  ! printf '%s' "$output" | grep -qiF gatesdigest
+  if printf '%s' "$output" | grep -qF "$GATES_BLOCK"; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qiF gatesdigest; then
+    return 1
+  fi
   # Last writer wins on the block itself; the policy is not consulted for the commands.
   printf '## Items\n' >"$p/.nightshift/punch-list.md"
   run bash "$SP" --project "$p" get

@@ -337,7 +337,9 @@ STUB
     "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
   [ "$(reason)" = "fresh-fallback" ]
   [ "$(calls)" -ge 1 ]
-  ! grep -q 'exec resume' "$P/.nightshift/agent-calls"
+  if grep -q 'exec resume' "$P/.nightshift/agent-calls"; then
+    return 1
+  fi
 }
 
 @test "a resumable UUID is passed to exec resume and not replaced" {

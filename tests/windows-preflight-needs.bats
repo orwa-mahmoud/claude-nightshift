@@ -13,7 +13,9 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 @test "the Windows preflight helper is native and thin" {
   [ -f "$WIN/preflight-needs.ps1" ]
   grep -qF 'Invoke-NSPreflightNeedsCommand' "$WIN/preflight-needs.ps1"
-  ! grep -RE 'brew |npm install|pip install|python3|jq is required' "$WIN/preflight-needs.ps1"
+  if grep -RE 'brew |npm install|pip install|python3|jq is required' "$WIN/preflight-needs.ps1"; then
+    return 1
+  fi
 }
 
 @test "preflight and the guard read the same elevation patterns" {
@@ -24,7 +26,8 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF "NSPolicyElevationPattern['daemons']" "$MODULE"
   grep -qF "NSPolicyElevationPattern['external-services']" "$MODULE"
   grep -qF 'sudo|doas' "$MODULE"
-  grep -qF 'docker|docker-compose|podman|nerdctl|colima' "$MODULE"
+  grep -qF '(docker-compose)[[:space:]]+(up|run|start|build|down|create)' "$MODULE"
+  grep -qF '(docker|podman|nerdctl|colima)[[:space:]]+(run|create|start|build' "$MODULE"
   grep -qF 'gh[[:space:]]+auth[[:space:]]+login' "$MODULE"
   grep -qF 'Convert-NSPolicyErePattern' "$MODULE"
 }

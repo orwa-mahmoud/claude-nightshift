@@ -520,15 +520,10 @@ fi
 fact "last checkpoint $(ns_status_last_checkpoint "$WORKSPACE")"
 fact "stall attempts $(ns_status_stall_attempts "$NS")"
 
-DET="$(ns_evidence_detection_path "$WORKSPACE")"
-if [ -f "$DET" ] && [ ! -L "$DET" ] && command -v jq >/dev/null 2>&1; then
-  while IFS=$'\t' read -r cap status reason; do
-    [ -n "$cap" ] || continue
-    fact "capability $cap status=$status reason=${reason:-ok}"
-  done < <(jq -r '.detection.capabilities | to_entries[] | [.key, .value.status, (.value.reason // "")] | @tsv' "$DET" 2>/dev/null)
-elif [ -f "$NS/capabilities.json" ] && [ ! -L "$NS/capabilities.json" ]; then
+# capabilities.json is the tooling cache the shift keeps after a tooling commit lands.
+if [ -f "$NS/capabilities.json" ] && [ ! -L "$NS/capabilities.json" ] && command -v jq >/dev/null 2>&1; then
   inv_n="$(jq '.items | length' "$NS/capabilities.json" 2>/dev/null || printf 0)"
-  fact "inventory items=$inv_n (detection cache absent; run refresh-inventory at Start)"
+  fact "tooling cache items=$inv_n"
 fi
 
 [ -n "$TPATH" ] && [ ! -f "$TPATH" ] && warn "recorded transcript/rollout path is not a readable file"

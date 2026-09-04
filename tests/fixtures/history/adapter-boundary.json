@@ -1,8 +1,0 @@
-{
-  "adapter": "local-export",
-  "authorized": true,
-  "readOnly": true,
-  "trustClass": "owner-supplied-export",
-  "scope": {"read": true, "write": false},
-  "queryBudget": {"maxQueries": 50}
-}

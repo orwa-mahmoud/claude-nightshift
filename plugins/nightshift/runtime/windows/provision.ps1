@@ -39,7 +39,7 @@ if ([string]::IsNullOrEmpty($Command)) { exit (Write-NSSeatbeltUsage) }
 
 $allowed = @('baseline', 'diff', 'rollback', 'recover')
 if ($allowed -notcontains $Command) {
-    # Unknown command does not mutate. plan/apply/recipe are gone.
+    # An unrecognized command prints the usage and mutates nothing.
     exit (Write-NSSeatbeltUsage)
 }
 

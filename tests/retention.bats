@@ -59,9 +59,15 @@ age_file() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'scheduled.log'
   printf '%s' "$output" | grep -q 'archive/2020-01-01'
-  ! printf '%s' "$output" | grep -q 'archive/2026-08-01'
-  ! printf '%s' "$output" | grep -q 'punch-list.md'
-  ! printf '%s' "$output" | grep -q 'notes-from-owner'
+  if printf '%s' "$output" | grep -q 'archive/2026-08-01'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -q 'punch-list.md'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -q 'notes-from-owner'; then
+    return 1
+  fi
   printf '%s' "$output" | grep -q 'Dry run'
   [ -f "$p/.nightshift/scheduled.log" ]
   [ -d "$p/.nightshift/archive/2020-01-01" ]
@@ -108,9 +114,15 @@ age_file() {
   [ -z "$output" ]
   run bash "$RETAIN" --project "$p"
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -q 'scheduled.log'
-  ! printf '%s' "$output" | grep -q 'archive/2020-01-01'
-  ! printf '%s' "$output" | grep -q 'archive/2018-01-01'
+  if printf '%s' "$output" | grep -q 'scheduled.log'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -q 'archive/2020-01-01'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -q 'archive/2018-01-01'; then
+    return 1
+  fi
   run bash "$RETAIN" --project "$p" --apply
   [ "$status" -eq 0 ]
   [ -L "$p/.nightshift/scheduled.log" ]
@@ -182,16 +194,22 @@ age_file() {
 }
 
 @test "hooks start status and Doctor never prune history" {
-  ! grep -RIn 'retain-history\|ns_retention_apply' \
+  if grep -RIn 'retain-history\|ns_retention_apply' \
     "$ROOT/hooks" \
     "$ROOT/runtime/claude" \
     "$ROOT/runtime/codex" \
     "$ROOT/runtime/doctor.sh" \
     "$ROOT/runtime/schedule.sh" \
     "$ROOT/runtime/migrate-state.sh" \
-    "$START" "$STATUS"
-  ! grep -n 'ns_retention_apply\|retain-history.sh --apply' "$DOCTOR"
-  ! grep -n 'retain-history' "$ROOT/runtime/windows/doctor.ps1"
+    "$START" "$STATUS"; then
+    return 1
+  fi
+  if grep -n 'ns_retention_apply\|retain-history.sh --apply' "$DOCTOR"; then
+    return 1
+  fi
+  if grep -n 'retain-history' "$ROOT/runtime/windows/doctor.ps1"; then
+    return 1
+  fi
   grep -qF 'retain-history.sh' "$ARCHIVE"
   grep -qF 'explicit confirmation' "$ARCHIVE" || grep -qF 'owner confirms' "$ARCHIVE"
   grep -qF 'Never call `retain-history.sh`' "$ARCHIVE"

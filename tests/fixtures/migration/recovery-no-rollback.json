@@ -1,8 +1,0 @@
-{
-  "migrationState": "failed",
-  "completedSteps": ["expand-schema"],
-  "failedStep": "backfill",
-  "rollbackSteps": [],
-  "idempotent": false,
-  "locks": []
-}

@@ -792,7 +792,9 @@ STUB
     env PATH="$noparser" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
   printf '%s' "$out" | grep -q "park"
-  ! printf '%s' "$out" | grep -q "jq or python3"
+  if printf '%s' "$out" | grep -q "jq or python3"; then
+    return 1
+  fi
 }
 
 # ---- one copy: the rules file IS the config; env is only a session-start override ----

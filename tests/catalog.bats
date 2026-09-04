@@ -58,7 +58,9 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
 @test "the catalog index points at the directory and lists no entries" {
   grep -qF 'shifts/' "$CAT"
   grep -qi 'this page never lists' "$CAT"
-  ! grep -qE '^## .+ — (finite|open-ended) — ' "$CAT"
+  if grep -qE '^## .+ — (finite|open-ended) — ' "$CAT"; then
+    return 1
+  fi
 }
 
 # A contributed shift is a contract handed to an unattended agent on a stranger's repo. The six

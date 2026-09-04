@@ -43,7 +43,9 @@ CODES="completed owner-stop owner-disarm stale-pid invalid-session exhausted-ret
   mkdir -p "$ns"
   bash -c '. "$1"; ns_record_reason "$2" revived "$(printf "ok\tdetail\nextra")"' _ "$LIB" "$ns"
   [ "$(sed -n 1p "$ns/.watch-reason")" = "revived" ]
-  ! grep -q $'\t' "$ns/.watch-reason"
+  if grep -q $'\t' "$ns/.watch-reason"; then
+    return 1
+  fi
   bash -c '. "$1"; ns_record_reason "$2" not-a-real-code' _ "$LIB" "$ns"
   [ "$(sed -n 1p "$ns/.watch-reason")" = "stand-down" ]
 }

@@ -1,6 +1,0 @@
-{
-  "id": "d-002",
-  "locator": "packages/api/src/orders.js:88",
-  "evidenceKind": "reproduced",
-  "summary": "double-submit creates duplicate order rows under concurrency"
-}

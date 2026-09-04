@@ -35,9 +35,15 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 
 @test "Hunt Automatic does not require the planner or preview helpers" {
   hunt="$ROOT/plugins/nightshift/skills/hunt/SKILL.md"
-  ! grep -qF 'runtime/shift-planner.sh' "$hunt"
-  ! grep -qF 'runtime/shift-preview.sh' "$hunt"
-  ! grep -qF 'runtime/plan-learning.sh' "$hunt"
+  if grep -qF 'runtime/shift-planner.sh' "$hunt"; then
+    return 1
+  fi
+  if grep -qF 'runtime/shift-preview.sh' "$hunt"; then
+    return 1
+  fi
+  if grep -qF 'runtime/plan-learning.sh' "$hunt"; then
+    return 1
+  fi
   for helper in shift-planner shift-preview plan-learning; do
     ! grep -qF "$helper" "$hunt" || { echo "hunt still names $helper"; return 1; }
   done
@@ -45,9 +51,15 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 
 @test "Quality Automatic does not require the planner or preview helpers" {
   quality="$ROOT/plugins/nightshift/skills/quality/SKILL.md"
-  ! grep -qF 'runtime/shift-planner.sh' "$quality"
-  ! grep -qF 'runtime/shift-preview.sh' "$quality"
-  ! grep -qF 'runtime/plan-learning.sh' "$quality"
+  if grep -qF 'runtime/shift-planner.sh' "$quality"; then
+    return 1
+  fi
+  if grep -qF 'runtime/shift-preview.sh' "$quality"; then
+    return 1
+  fi
+  if grep -qF 'runtime/plan-learning.sh' "$quality"; then
+    return 1
+  fi
   for helper in shift-planner shift-preview plan-learning; do
     ! grep -qF "$helper" "$quality" || { echo "quality still names $helper"; return 1; }
   done

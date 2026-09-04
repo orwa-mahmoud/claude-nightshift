@@ -101,8 +101,12 @@ call_lib() {
   run bash "$DOCTOR" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work mode repository'
-  ! printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'
-  ! printf '%s' "$output" | grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode'
+  if printf '%s' "$output" | grep -qF 'work mode is unset; Setup would propose artifact'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'persist the proposed artifact mode with Setup; Doctor does not write work-mode'; then
+    return 1
+  fi
 }
 
 @test "Doctor warns when an unset mode would be proposed as artifact" {
@@ -214,7 +218,9 @@ planted_repo() {
   grep -qF '[ -L "${child%/}" ]' "$PATHS"
   awk '/^ns_work_target\(\)/,/^ns_record_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
   awk '/^ns_work_target\(\)/,/^ns_record_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "$record" ]'
-  ! awk '/^repo_root\(\)/,/^ns_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'
+  if awk '/^repo_root\(\)/,/^ns_work_target\(\)/' "$GITLIB" | grep -qF '[ -L "${child%/}" ]'; then
+    return 1
+  fi
   awk '/function Get-NSProposedWorkMode/,/^function Resolve-NSWorkspaceRoot/' "$PSM1" | grep -qF 'ReparsePoint'
   awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'ReparsePoint'
   awk '/function Resolve-NSWorkTarget/,/^function Write-NSWorkTarget/' "$PSM1" | grep -qF 'Test-NSReparsePoint $record'

@@ -4,7 +4,9 @@ KNOBS="$BATS_TEST_DIRNAME/../docs/knobs.md"
 @test "security policy distinguishes Nightshift from launched agents" {
   grep -qF 'does not phone home' "$SECURITY"
   grep -qF 'coding agent selected by' "$SECURITY"
-  ! grep -qF 'no network calls' "$SECURITY"
+  if grep -qF 'no network calls' "$SECURITY"; then
+    return 1
+  fi
 }
 
 @test "notification command is documented as unrestricted owner shell" {

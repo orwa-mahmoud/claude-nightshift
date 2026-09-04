@@ -10,7 +10,9 @@ CODEX_HOOKS="$HOOKS/codex"
 is_codex_release() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | jq -e '.continue == true' >/dev/null
-  ! printf '%s' "$output" | grep -q '"decision":"block"'
+  if printf '%s' "$output" | grep -q '"decision":"block"'; then
+    return 1
+  fi
 }
 
 # codex_gate <project> [ENV=VAL ...] — pipes a minimal Stop payload to the Codex gate, with

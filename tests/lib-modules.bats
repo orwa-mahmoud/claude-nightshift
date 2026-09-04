@@ -36,7 +36,9 @@ LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
 }
 
 @test "lib.sh is a loader; each public function has one implementation" {
-  ! grep -qE '^[a-zA-Z_][a-zA-Z0-9_]*\(\) \{' "$LIB"
+  if grep -qE '^[a-zA-Z_][a-zA-Z0-9_]*\(\) \{' "$LIB"; then
+    return 1
+  fi
   for fn in ns_workspace_root repo_root ns_lock ns_state_kind ns_policy_resolve ns_pid_alive valid_ere; do
     n="$(grep -hE "^${fn}\(\) \{" "$LIB_DIR"/*.sh | wc -l | tr -d ' ')"
     [ "$n" -eq 1 ] || { echo "expected one $fn, got $n"; return 1; }

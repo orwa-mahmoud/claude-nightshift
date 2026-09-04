@@ -30,10 +30,13 @@ esac
 NS="$PROJECT_DIR/.nightshift"
 PUNCH="$NS/punch-list.md"
 
-if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } \
-  || [ "$(ns_open_boxes "$PUNCH")" -eq 0 ]; then
+if [ ! -f "$NS/.shift-armed" ] || [ ! -f "$PUNCH" ] || { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; }; then
   exit 0
 fi
+# A failed count is not zero. An unreadable punch list leaves the shift standing, so the
+# session end is still recorded.
+OPEN="$(ns_open_boxes "$PUNCH")" || OPEN=1
+[ "$OPEN" -gt 0 ] || exit 0
 
 # jq preferred, sed fallback — same policy as hardhat: a missing jq never disables the hook.
 # Only the shift's own session ending is the owner's hand on the door — a helper tab closing in

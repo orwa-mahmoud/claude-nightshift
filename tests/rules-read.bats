@@ -82,14 +82,18 @@ no_json_bin() {
   printf '%s\n' "$output" | grep -qxF 'watchMinutes=10 (rules, permanent)'
   printf '%s\n' "$output" | grep -qxF 'elevation.sudo=deny (rules, permanent)'
   printf '%s\n' "$output" | grep -qxF 'verificationLevel=none (built-in, -)'
-  ! printf '%s\n' "$output" | grep -qF 'jq or python3'
+  if printf '%s\n' "$output" | grep -qF 'jq or python3'; then
+    return 1
+  fi
 
   out="$(jq -nc --arg c 'sudo id' '{tool_name:"Bash",tool_input:{command:$c}}' |
     env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
       CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh")"
   is_deny "$out"
   printf '%s' "$out" | grep -qF "needs allowance: sudo"
-  ! printf '%s' "$out" | grep -qF 'jq or python3'
+  if printf '%s' "$out" | grep -qF 'jq or python3'; then
+    return 1
+  fi
 }
 
 @test "malformed rules refuse to arm with a named reason" {
@@ -104,13 +108,21 @@ no_json_bin() {
   grep -qF 'ns_rules_check' "$START"
   grep -qF 'refuse to arm' "$START"
   grep -qF 'named reason' "$START"
-  ! grep -qF 'install jq or python3' "$START"
-  ! grep -qiE '\bawk\b' "$START"
+  if grep -qF 'install jq or python3' "$START"; then
+    return 1
+  fi
+  if grep -qiE '\bawk\b' "$START"; then
+    return 1
+  fi
 }
 
 @test "Doctor and Status never ask to install jq or python3" {
-  ! grep -qF 'install jq or python3' "$DOCTOR"
-  ! grep -qF 'jq or python3 required' "$STATUS"
+  if grep -qF 'install jq or python3' "$DOCTOR"; then
+    return 1
+  fi
+  if grep -qF 'jq or python3 required' "$STATUS"; then
+    return 1
+  fi
   p="$(new_project rules-doctor)"
   punch_open "$p"
   bin="$(no_json_bin rules-doctor-bin)"
@@ -119,7 +131,9 @@ no_json_bin() {
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'rules.json is a JSON object'
   printf '%s' "$output" | grep -qF 'watchMinutes=10 (rules, permanent)'
-  ! printf '%s' "$output" | grep -qF 'jq or python3'
+  if printf '%s' "$output" | grep -qF 'jq or python3'; then
+    return 1
+  fi
 }
 
 @test "the reader agrees on the default awk and on gawk when present" {
@@ -141,9 +155,19 @@ no_json_bin() {
 }
 
 @test "owner-facing docs never name the reader implementation" {
-  ! grep -qiE '\bawk\b' "$ROOT/docs/how-it-works.md"
-  ! grep -qiE '\bawk\b' "$ROOT/docs/knobs.md"
-  ! grep -qiE '\bawk\b' "$START"
-  ! grep -qiE '\bawk\b' "$ROOT/plugins/nightshift/skills/doctor/SKILL.md"
-  ! grep -qiE '\bawk\b' "$ROOT/plugins/nightshift/skills/status/SKILL.md"
+  if grep -qiE '\bawk\b' "$ROOT/docs/how-it-works.md"; then
+    return 1
+  fi
+  if grep -qiE '\bawk\b' "$ROOT/docs/knobs.md"; then
+    return 1
+  fi
+  if grep -qiE '\bawk\b' "$START"; then
+    return 1
+  fi
+  if grep -qiE '\bawk\b' "$ROOT/plugins/nightshift/skills/doctor/SKILL.md"; then
+    return 1
+  fi
+  if grep -qiE '\bawk\b' "$ROOT/plugins/nightshift/skills/status/SKILL.md"; then
+    return 1
+  fi
 }

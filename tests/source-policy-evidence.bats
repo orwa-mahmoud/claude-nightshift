@@ -14,6 +14,6 @@ CITED="$ROOT/plugins/nightshift/skills/nightshift/references/cited-research.md"
   grep -qF 'Do not call' "$TEMPLATES"
   grep -qF 'source-policy-evidence.sh' "$TEMPLATES"
   grep -qF 'redact-untrusted' "$TEMPLATES"
-  grep -qF 'that command is gone' "$TEMPLATES"
+  grep -qF 'are not Nightshift commands' "$TEMPLATES"
   grep -qF 'model is the boundary' "$CITED"
 }

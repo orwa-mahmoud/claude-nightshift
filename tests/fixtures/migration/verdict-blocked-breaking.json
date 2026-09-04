@@ -1,9 +1,0 @@
-{
-  "inventory": {"action": "proceed", "inventory": {"rollbackSteps": ["restore-v1-read"]}},
-  "compatibility": {"breaking": [{"surface": "users.email"}], "reviewFirstRequired": true},
-  "configParity": {"parityMaintained": true},
-  "dataSafety": {"productionRefused": false, "action": "proceed", "blockers": []},
-  "recovery": {"migrationState": "failed", "midMigrationRecoveryAvailable": true},
-  "reviewFirstDefault": true,
-  "runDirectBounded": true
-}

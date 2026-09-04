@@ -1,9 +1,0 @@
-{
-  "specialistKind": "backup-restore",
-  "selectionMode": "automatic",
-  "evidence": {
-    "namedData": "orders-db",
-    "recoveryObjective": "RPO 1h"
-  },
-  "ownerAuthorityGranted": false
-}

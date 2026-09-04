@@ -17,8 +17,10 @@ MODULE="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'Invoke-NSEvidenceCompareCommand' "$WIN/evidence-compare.ps1"
   grep -qF 'Invoke-NSEvidenceBaselineCommand' "$WIN/evidence-baseline.ps1"
   grep -qF 'Invoke-NSEvidenceCheckpointCommand' "$WIN/evidence-checkpoint.ps1"
-  ! grep -RE 'brew |npm install|pip install|python3|jq is required' \
-    "$WIN/evidence-compare.ps1" "$WIN/evidence-baseline.ps1" "$WIN/evidence-checkpoint.ps1"
+  if grep -RE 'brew |npm install|pip install|python3|jq is required' \
+    "$WIN/evidence-compare.ps1" "$WIN/evidence-baseline.ps1" "$WIN/evidence-checkpoint.ps1"; then
+    return 1
+  fi
 }
 
 @test "the comparison carries every frozen class and JSON key" {

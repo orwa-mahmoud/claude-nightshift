@@ -12,7 +12,9 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 
 @test "seo audit writes a receipt and refuses invented live-crawl" {
   grep -qF 'receipt-templates.md' "$SEO"
-  ! grep -qF 'runtime/seo-evidence.sh' "$SEO"
+  if grep -qF 'runtime/seo-evidence.sh' "$SEO"; then
+    return 1
+  fi
   grep -qF '# seo' "$TEMPLATES"
   grep -qF 'Refuse live-crawl' "$TEMPLATES"
   grep -qF 'neverLeaveApprovedOrigins' "$TEMPLATES"

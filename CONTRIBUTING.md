@@ -1,8 +1,8 @@
 # Contributing to Nightshift
 
 Thanks for looking under the hood. The plugin is deliberately bounded — a punch-list contract,
-native enforcement and recovery on disk, transparent skills, and evidence helpers that record what
-was measured — so contributions should preserve explicit authority, local ownership, reversibility,
+native enforcement and recovery on disk, transparent skills, and a ledger that records what was
+measured — so contributions should preserve explicit authority, local ownership, reversibility,
 cross-host alignment, and honest evidence.
 
 The bounded core: on-disk work contract, stop-gate hook, watchman recovery, and skills that hold an
@@ -52,7 +52,11 @@ bats -r tests/                       # serial full suite (same coverage, slower)
 git ls-files '*.sh' | xargs shellcheck -x  # lint — the same set CI checks
 tests/coverage.sh                    # line coverage via kcov (runs in docker on non-Linux)
 claude plugin validate . --strict    # manifest + marketplace validation
+evals/run.sh                         # catalog contract schema, case book, and size budgets
 ```
+
+Shell must stay Python-free: the plugin ships no `.py` file, and `tests/armed-no-python-jq.bats`
+holds that line together with an armed shift that has neither `jq` nor `python3` installed.
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
 on every push. Bats runs as six parallel shards on both Ubuntu and macOS (same partition as

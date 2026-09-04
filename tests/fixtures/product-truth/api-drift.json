@@ -1,7 +1,0 @@
-{
-  "authoritativeSource": "openapi.yaml",
-  "mismatches": [
-    {"locator": "GET /users/{id}", "kind": "additive", "consumers": ["web-app"]},
-    {"locator": "DELETE /users/{id}", "kind": "breaking", "consumers": ["mobile-sdk", "web-app"]}
-  ]
-}

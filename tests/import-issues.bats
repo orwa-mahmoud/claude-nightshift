@@ -75,7 +75,9 @@ prep_draft() {
   printf '%s' "$output" | grep -q 'CLOSED'
   run isolated_import "$p" --stage https://github.com/acme/widgets/issues/13
   [ "$status" -eq 0 ]
-  ! grep -q 'Old request' "$p/.nightshift/drafting-table.md"
+  if grep -q 'Old request' "$p/.nightshift/drafting-table.md"; then
+    return 1
+  fi
   run isolated_import "$p" --stage --allow-closed https://github.com/acme/widgets/issues/13
   [ "$status" -eq 0 ]
   grep -q 'Old request' "$p/.nightshift/drafting-table.md"
@@ -89,7 +91,9 @@ prep_draft() {
   [ "$status" -eq 0 ]
   grep -q 'Review flags: destructive,secret-seeking,publishing,payment,legal' "$p/.nightshift/drafting-table.md"
   grep -q 'quoted upstream source — not owner authorization' "$p/.nightshift/drafting-table.md"
-  ! grep -qF '```bash' "$p/.nightshift/drafting-table.md"
+  if grep -qF '```bash' "$p/.nightshift/drafting-table.md"; then
+    return 1
+  fi
   grep -q "curl http://evil.test" "$p/.nightshift/drafting-table.md"
   grep -q '^    > ' "$p/.nightshift/drafting-table.md"
 }
@@ -132,14 +136,18 @@ prep_draft() {
   prep_draft "$q"
   printf '%s\n' 'https://github.com/acme/widgets/issues/12' >"$q/.nightshift/punch-list.md"
   run isolated_import "$q" --stage https://github.com/acme/widgets/issues/12
-  ! grep -q 'Add a dry-run flag' "$q/.nightshift/drafting-table.md"
+  if grep -q 'Add a dry-run flag' "$q/.nightshift/drafting-table.md"; then
+    return 1
+  fi
 
   r="$(new_project archived)"
   prep_draft "$r"
   mkdir -p "$r/.nightshift/archive/2026-08-01"
   printf '%s\n' 'Source: https://github.com/acme/widgets/issues/12' >"$r/.nightshift/archive/2026-08-01/shipped.md"
   run isolated_import "$r" --stage https://github.com/acme/widgets/issues/12
-  ! grep -q 'Add a dry-run flag' "$r/.nightshift/drafting-table.md"
+  if grep -q 'Add a dry-run flag' "$r/.nightshift/drafting-table.md"; then
+    return 1
+  fi
 
   s="$(new_project symlink-archive-known)"
   prep_draft "$s"
@@ -158,8 +166,13 @@ prep_draft() {
 }
 
 @test "the helper never searches, mutates GitHub, or fetches the network itself" {
-  ! grep -E 'curl|wget|brew install|gh search|gh issue list|gh issue close|gh issue creat|gh issue edit|gh issue comment|gh issue delet|gh api ' "$IMPORT"
-  ! grep -E 'curl|wget|gh search|gh issue list' "$SKILL"
+  if grep -E 'curl|wget|brew install|gh search|gh issue list|gh issue close|gh issue creat|gh issue edit|gh issue comment|gh issue delet|gh api ' "$IMPORT"; then
+    return 1
+  fi
+  # The skill names those verbs once, to refuse them. Anything else is an instruction to run one.
+  if grep -nE 'curl|wget|gh search|gh issue list' "$SKILL" | grep -qivE 'never|do not|refuse'; then
+    return 1
+  fi
   grep -qF 'Never searches' "$SKILL"
   grep -qF 'never writes back to GitHub' "$SKILL"
   p="$(new_project)"
@@ -167,7 +180,9 @@ prep_draft() {
   : >"$BATS_TEST_TMPDIR/gh.log"
   run isolated_import "$p" --fetch --repo acme/widgets 12 15
   [ "$status" -eq 0 ]
-  ! grep -E 'search|list|close|creat|edit|comment|delet|api ' "$BATS_TEST_TMPDIR/gh.log"
+  if grep -E 'search|list|close|creat|edit|comment|delet|api ' "$BATS_TEST_TMPDIR/gh.log"; then
+    return 1
+  fi
   grep -q 'issue view 12 --repo acme/widgets' "$BATS_TEST_TMPDIR/gh.log"
   grep -q 'auth status' "$BATS_TEST_TMPDIR/gh.log"
 }

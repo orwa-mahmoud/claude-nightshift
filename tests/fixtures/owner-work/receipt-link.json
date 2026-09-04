@@ -1,7 +1,0 @@
-{
-  "sourceUrl": "https://github.com/acme/widgets/issues/12",
-  "commit": "abc1234def",
-  "verification": "bats tests/import-issues.bats green",
-  "scope": "Add dry-run flag to import helper",
-  "divergence": "implemented preview-only; upstream asked for full dry-run across all commands"
-}

@@ -23,7 +23,7 @@ Status prints the first section on request.
    policy, completion mode, and every elevation allowance with its provenance. Three lines always
    appear here, in this order: `Verified:` names what ran green and by which command,
    `Disabled by owner:` names the checks the chosen verification level skipped, and
-   `Unavailable:` names any tool or source the ledger or the detector marked unavailable. A
+   `Unavailable:` names any tool or source the ledger marked unavailable. A
    disabled check is never described as a passed one.
 2. **Baseline** — one line per originating source (the tool, its exact command, and its
    environment) with that source's environment digest and raw-output digest, so a reviewer can
@@ -62,5 +62,6 @@ only differ in which sections they show and how much detail survives inside them
 
 Digests throughout are sha256, hex-encoded. Every table row cites the ledger record id and
 locator behind it — nothing in the receipt lacks a source record. Timestamps are UTC
-(`%Y-%m-%dT%H:%M:%SZ`) and honor `NIGHTSHIFT_EVIDENCE_NOW` in tests. The bash, PowerShell, and
-jq/python renderers produce byte-identical Markdown from the same ledger.
+(`%Y-%m-%dT%H:%M:%SZ`) and honor `NIGHTSHIFT_EVIDENCE_NOW` in tests. The bash and PowerShell
+renderers produce byte-identical Markdown from the same ledger, and the bash side produces the same
+bytes whether it reads JSON with `jq` or its `python3` fallback.

@@ -104,7 +104,9 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'Lease:       valid (generation'
   printf '%s' "$output" | grep -q 'watchman recovery (capability not printed)'
-  ! printf '%s' "$output" | grep -qF "$nonce"
+  if printf '%s' "$output" | grep -qF "$nonce"; then
+    return 1
+  fi
 }
 
 @test "invoking Doctor alone changes no state" {
@@ -144,7 +146,9 @@ with open(p,"w") as f: json.dump(d,f)
   printf '%s' "$output" | grep -q 'invalid .nightshift-link'
   printf '%s' "$output" | grep -q '\[confirm\].*link-workspace.sh'
   printf '%s' "$output" | grep -q '/runtime/link-workspace.sh'
-  ! printf '%s' "$output" | grep -q 'using runtime/link-workspace.sh'
+  if printf '%s' "$output" | grep -q 'using runtime/link-workspace.sh'; then
+    return 1
+  fi
   after="$(fingerprint "$host")"
   [ "$before" = "$after" ]
 }
@@ -161,7 +165,9 @@ with open(p,"w") as f: json.dump(d,f)
   printf '%s' "$output" | grep -q 'Link:        valid'
   printf '%s' "$output" | grep -qF "Workspace:   $(cd -P "$workspace" && pwd)"
   printf '%s' "$output" | grep -q 'open=1'
-  ! printf '%s' "$output" | grep -q 'no .nightshift/'
+  if printf '%s' "$output" | grep -q 'no .nightshift/'; then
+    return 1
+  fi
 }
 
 @test "broken rules are a warning, not a rewrite" {
@@ -182,7 +188,9 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'toolDeny.request_user_input is missing'
   printf '%s' "$output" | grep -q '\[confirm\].*request_user_input'
-  ! jq -e '.toolDeny | has("request_user_input")' "$p/.nightshift/rules.json" >/dev/null
+  if jq -e '.toolDeny | has("request_user_input")' "$p/.nightshift/rules.json" >/dev/null; then
+    return 1
+  fi
 }
 
 @test "stale unarmed watchman pid is classified safe automatic" {
@@ -229,7 +237,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q "deadline=$future remaining="
-  ! printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'
+  if printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'; then
+    return 1
+  fi
 }
 
 @test "Doctor reports elapsed when the UNIX epoch deadline is past" {
@@ -249,7 +259,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'deadline is not a UNIX epoch'
-  ! printf '%s' "$output" | grep -q 'deadline=none'
+  if printf '%s' "$output" | grep -q 'deadline=none'; then
+    return 1
+  fi
 }
 
 @test "Doctor warns when the deadline path is a symlink" {
@@ -260,8 +272,12 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'deadline path is not a usable file'
-  ! printf '%s' "$output" | grep -q 'deadline=none'
-  ! printf '%s' "$output" | grep -q 'remaining=0s'
+  if printf '%s' "$output" | grep -q 'deadline=none'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -q 'remaining=0s'; then
+    return 1
+  fi
   grep -qF 'deadline path is not a usable file' "$DOCTOR"
   grep -qF 'deadline path is not a usable file' "$DOCTOR_PS1"
 }
@@ -274,7 +290,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'ended path is not a usable file'
-  ! printf '%s' "$output" | grep -qF 'gate has clocked the shift out'
+  if printf '%s' "$output" | grep -qF 'gate has clocked the shift out'; then
+    return 1
+  fi
   grep -qF 'ended path is not a usable file' "$DOCTOR"
   grep -qF 'ended path is not a usable file' "$DOCTOR_PS1"
 }
@@ -287,7 +305,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'stall path is not a usable file'
-  ! printf '%s' "$output" | grep -qF 'stall count'
+  if printf '%s' "$output" | grep -qF 'stall count'; then
+    return 1
+  fi
   grep -qF 'stall path is not a usable file' "$DOCTOR"
   grep -qF 'stall path is not a usable file' "$DOCTOR_PS1"
 }
@@ -300,7 +320,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'session-end path is not a usable file'
-  ! printf '%s' "$output" | grep -qF 'clean session-end marker is present'
+  if printf '%s' "$output" | grep -qF 'clean session-end marker is present'; then
+    return 1
+  fi
   grep -qF 'session-end path is not a usable file' "$DOCTOR"
   grep -qF 'session-end path is not a usable file' "$DOCTOR_PS1"
 }
@@ -313,7 +335,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'shift-pulse path is not a usable file'
-  ! printf '%s' "$output" | grep -qF 'shift-pulse marker is present'
+  if printf '%s' "$output" | grep -qF 'shift-pulse marker is present'; then
+    return 1
+  fi
   grep -qF 'shift-pulse path is not a usable file' "$DOCTOR"
   grep -qF 'shift-pulse path is not a usable file' "$DOCTOR_PS1"
 }
@@ -326,9 +350,15 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'shift-session path is not a usable file'
-  ! printf '%s' "$output" | grep -qF 'recorded host planted-host'
-  ! printf '%s' "$output" | grep -qF 'session id is present'
-  ! printf '%s' "$output" | grep -qF 'no .shift-session yet'
+  if printf '%s' "$output" | grep -qF 'recorded host planted-host'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'session id is present'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'no .shift-session yet'; then
+    return 1
+  fi
   grep -qF 'shift-session path is not a usable file' "$DOCTOR"
   grep -qF 'shift-session path is not a usable file' "$DOCTOR_PS1"
 }
@@ -341,7 +371,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'watchman pidfile path is not a usable file'
-  ! printf '%s' "$output" | grep -qF 'no live watchman pid file'
+  if printf '%s' "$output" | grep -qF 'no live watchman pid file'; then
+    return 1
+  fi
   grep -qF 'watchman pidfile path is not a usable file' "$DOCTOR"
   grep -qF 'watchman pidfile path is not a usable file' "$DOCTOR_PS1"
 }
@@ -371,7 +403,9 @@ with open(p,"w") as f: json.dump(d,f)
   printf '%s' "$output" | grep -qF 'terminal clock-out failed without releasing the shift'
   printf '%s' "$output" | grep -qF 'recovery worker is alive; the recorded conversation cannot reclaim yet'
   printf '%s' "$output" | grep -qF 'reopening the recorded conversation stays blocked'
-  ! printf '%s' "$output" | grep -qF 'the recorded conversation can operate'
+  if printf '%s' "$output" | grep -qF 'the recorded conversation can operate'; then
+    return 1
+  fi
 }
 
 @test "Doctor names a dead recovery attempt as reclaimable by the recorded conversation" {
@@ -382,7 +416,9 @@ with open(p,"w") as f: json.dump(d,f)
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF "lease held by a dead recovery attempt (generation 2, pid $$); the recorded conversation reclaims it on its next tool call"
-  ! printf '%s' "$output" | grep -qF 'recovery worker is alive'
+  if printf '%s' "$output" | grep -qF 'recovery worker is alive'; then
+    return 1
+  fi
 }
 
 @test "the drafting-table item-shape example is not a staged draft" {
@@ -393,7 +429,9 @@ with open(p,"w") as f: json.dump(d,f)
   printf '## Items\n\n' >"$p/.nightshift/punch-list.md"
   run doctor "$p"
   [ "$status" -eq 0 ]
-  ! printf '%s' "$output" | grep -q 'staged drafting-table items='
+  if printf '%s' "$output" | grep -q 'staged drafting-table items='; then
+    return 1
+  fi
 }
 
 @test "drafting-table items after the rule are counted" {
@@ -450,7 +488,9 @@ EOF
   printf '%s' "$output" | grep -q 'recorded host codex'
   printf '%s' "$output" | grep -q 'Codex identity kind unsupported'
   printf '%s' "$output" | grep -q '\[blocked\].*resumable Codex session id'
-  ! printf '%s' "$output" | grep -q 'thread_abc'
+  if printf '%s' "$output" | grep -q 'thread_abc'; then
+    return 1
+  fi
 }
 
 @test "a resumable Codex identity is reported without printing the id" {
@@ -460,7 +500,9 @@ EOF
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'Codex identity kind resumable'
-  ! printf '%s' "$output" | grep -q "$sid"
+  if printf '%s' "$output" | grep -q "$sid"; then
+    return 1
+  fi
 }
 
 @test "Doctor renders a recorded watchman reason without transcript content" {
@@ -469,7 +511,9 @@ EOF
   run doctor "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'watchman reason owner-stop (owner stop-work order)'
-  ! printf '%s' "$output" | grep -q 'never paste a prompt'
+  if printf '%s' "$output" | grep -q 'never paste a prompt'; then
+    return 1
+  fi
 }
 
 @test "paths with spaces are diagnosed read-only" {
@@ -501,7 +545,9 @@ EOF
 
 @test "doctor and export-support call the policy resolver, never the legacy helper" {
   EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/export-support.sh"
-  ! grep -qE 'capability-policy\.(py|sh)' "$DOCTOR" "$EXPORT"
+  if grep -qE 'capability-policy\.(py|sh)' "$DOCTOR" "$EXPORT"; then
+    return 1
+  fi
   grep -qF 'ns_policy_resolve_table' "$DOCTOR"
 }
 
@@ -655,7 +701,9 @@ stalled_provision() { # <project> <stage> — a transaction whose baseline is re
   [ "$status" -eq 0 ]
   printf '%s' "$output" |
     grep -qF 'provision transaction stage=apply capability=fixture-recover baseline=provable'
-  ! printf '%s' "$output" | grep -qF 'Start will refuse to arm'
+  if printf '%s' "$output" | grep -qF 'Start will refuse to arm'; then
+    return 1
+  fi
   [ "$(fingerprint "$p")" = "$before" ]
 }
 

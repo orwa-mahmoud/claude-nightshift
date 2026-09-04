@@ -182,7 +182,9 @@ recover_seed_mutated() {
   grep -qF 'diff' "$WIN"
   grep -qF 'recover' "$WIN"
   grep -qF 'rollback' "$WIN"
-  ! grep -qF "'plan'" "$WIN"
+  if grep -qF "'plan'" "$WIN"; then
+    return 1
+  fi
 }
 
 @test "Start and Hunt name the thin seatbelt" {

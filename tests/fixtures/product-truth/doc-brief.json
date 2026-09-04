@@ -1,8 +1,0 @@
-{
-  "audience": "plugin maintainers",
-  "decisionOrAction": "document the shift-policy flow",
-  "prerequisites": ["installed plugin", "repository with .nightshift/"],
-  "architectureNotes": ["shift-policy.json is authoritative for tonight"],
-  "sourceHierarchy": ["SKILL.md", "runtime/shift-policy.sh", "rules.json"],
-  "verifiedExamples": ["shift-policy.sh defaults-get"]
-}

@@ -20,7 +20,9 @@ CURSOR_MARKET="$ROOT/.cursor-plugin/marketplace.json"
 @test "docs forbid resuming an IDE conversation_id" {
   grep -qF 'never pass the IDE' "$HOW"
   grep -qF 'conversation_id' "$HOW"
-  ! grep -qE 'agent --resume .*conversation_id' "$HOW" "$KNOBS" "$START"
+  if grep -qE 'agent --resume .*conversation_id' "$HOW" "$KNOBS" "$START"; then
+    return 1
+  fi
 }
 
 @test "docs name the Cursor CLI file-hook limitation" {
@@ -31,10 +33,16 @@ CURSOR_MARKET="$ROOT/.cursor-plugin/marketplace.json"
 }
 
 @test "public install copy still waits on a verified Cursor shift" {
-  ! grep -qE '^### Cursor' "$README"
+  if grep -qE '^### Cursor' "$README"; then
+    return 1
+  fi
   grep -qF 'marketplace listing waits' "$HOW"
-  ! grep -qi cursor "$MARKET"
-  ! grep -qi cursor "$CODEX_MARKET"
+  if grep -qi cursor "$MARKET"; then
+    return 1
+  fi
+  if grep -qi cursor "$CODEX_MARKET"; then
+    return 1
+  fi
 }
 
 @test "the Cursor marketplace file points at the shipped plugin" {

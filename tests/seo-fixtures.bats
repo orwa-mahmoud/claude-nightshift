@@ -54,7 +54,9 @@ CONTRACT="$ROOT/plugins/nightshift/skills/nightshift/references/shifts/seo-audit
 }
 
 @test "seo audit contract writes a receipt without the removed helper" {
-  ! grep -qF 'runtime/seo-evidence.sh' "$CONTRACT"
+  if grep -qF 'runtime/seo-evidence.sh' "$CONTRACT"; then
+    return 1
+  fi
   grep -qF 'receipt-templates.md' "$CONTRACT"
   grep -qF 'local-inventory' "$CONTRACT"
   grep -qF 'live-crawl' "$CONTRACT"

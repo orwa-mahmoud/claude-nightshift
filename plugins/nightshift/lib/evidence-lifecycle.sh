@@ -6,11 +6,6 @@ ns_evidence_jsonl() {
   printf '%s/.nightshift/evidence/findings.jsonl' "${1%/}"
 }
 
-# ns_evidence_detection_path <workspace>
-ns_evidence_detection_path() {
-  printf '%s/.nightshift/capability-detection.json' "${1%/}"
-}
-
 # ns_gate_checkpoint_token <workspace> — latest checkpoint id for stall fingerprints.
 ns_gate_checkpoint_token() {
   local ws="${1:?}" jsonl line id=""

@@ -60,7 +60,9 @@ setup() {
   command_line="$(printf '%s\n' "$output" | grep "codex exec -a never" | head -1)"
   if printf '%s' "$command_line" | grep -q '<string>'; then
     printf '%s' "$command_line" | grep -q '&amp;'
-    ! printf '%s' "$command_line" | grep -q ' & '
+    if printf '%s' "$command_line" | grep -q ' & '; then
+      return 1
+    fi
     command_line="$(printf '%s' "$command_line" | sed 's/^[[:space:]]*<string>//; s#</string>[[:space:]]*$##; s/&amp;/\&/g; s/&lt;/</g; s/&gt;/>/g')"
   else
     command_line="$(printf '%s' "$command_line" | sed 's/^[[:space:]]*[0-9*][0-9*]*[[:space:]][0-9*][0-9*]*[[:space:]]\* \* \*[[:space:]]*//; s/[[:space:]]*# nightshift:.*$//')"
@@ -481,7 +483,9 @@ EOF
   printf '%s' "$output" | grep -q '%%percent'
   printf '%s' "$output" | grep -q 'Nightshift runs none'
   printf '%s' "$output" | grep -q 'systemctl --user enable --now'
-  ! printf '%s' "$output" | grep -q 'After=network'
+  if printf '%s' "$output" | grep -q 'After=network'; then
+    return 1
+  fi
   [ ! -e "$home/.config/systemd/user" ]
 }
 

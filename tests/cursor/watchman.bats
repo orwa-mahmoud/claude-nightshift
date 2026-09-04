@@ -75,7 +75,9 @@ stale_pulse() {
   [ "$status" -eq 0 ]
   [ "$(calls)" -eq 0 ]
   [ ! -f "$P/.nightshift/.shift-worker" ]
-  ! grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"
+  if grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 @test "a stale pulse with no growth and no session-end mints a CLI worker then resumes it" {
@@ -121,7 +123,9 @@ stale_pulse() {
   [ "$(cat "$P/.nightshift/.shift-worker")" = "kept-cli-worker" ]
   [ -f "$AGENT_LOG" ]
   grep -q 'resume=kept-cli-worker' "$AGENT_LOG"
-  ! grep -q 'create-chat' "$AGENT_LOG"
+  if grep -q 'create-chat' "$AGENT_LOG"; then
+    return 1
+  fi
 }
 
 @test "a second wake resumes the stored CLI worker instead of minting again" {
@@ -131,7 +135,9 @@ stale_pulse() {
   [ "$status" -eq 0 ]
   [ "$(cat "$P/.nightshift/.shift-worker")" = "kept-cli-worker" ]
   grep -q 'resuming CLI worker kept-cli-worker' "$P/.nightshift/shift-log.md"
-  ! grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"
+  if grep -q 'minting a CLI worker' "$P/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 @test "the live agent binary never receives the origin IDE conversation id" {
@@ -143,7 +149,9 @@ stale_pulse() {
   [ -f "$AGENT_LOG" ]
   grep -q 'create-chat' "$AGENT_LOG"
   grep -q 'resume=minted-from-agent' "$AGENT_LOG"
-  ! grep -q 'origin-ide' "$AGENT_LOG"
+  if grep -q 'origin-ide' "$AGENT_LOG"; then
+    return 1
+  fi
   [ "$(cat "$P/.nightshift/.shift-worker")" = "minted-from-agent" ]
 }
 
