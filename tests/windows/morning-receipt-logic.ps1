@@ -369,6 +369,47 @@ try {
     Expect-True $fast.Contains('- Ending: done') 'a punch list with every box ticked ends done'
     Expect-True (-not $fast.Contains('- Verified: npm test')) 'a disabled check is never rendered as a check that passed'
 
+    # === 3b. A shift that wrote no policy ===
+    # The punch list's own Gates section is the shift's gate, and the owner
+    # disabled nothing, so the receipt says so both ways round.
+    $plainProject = Join-Path $root 'plain-start'
+    $null = New-ReceiptProject -Path $plainProject -Gates '`npm test`' `
+        -Items "- [x] Tidy the changelog`n" -WithPolicy $false
+    & git -C $plainProject init --quiet
+    & git -C $plainProject -c user.name=nightshift -c user.email=nightshift@localhost `
+        commit --allow-empty --quiet -m 'init'
+    $plainRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $plainProject)
+    Expect-Equal 0 $plainRun.ExitCode "a shift with no policy renders ($($plainRun.StderrText))"
+    $plain = $plainRun.StdoutText
+    Expect-True $plain.Contains('- Gates: npm test (punch list)') `
+        'a shift with no policy names the punch-list gates as its gate'
+    Expect-True $plain.Contains("- Verified: none $dash no shift policy was written") `
+        'a shift with no policy says why nothing was verified'
+    Expect-True $plain.Contains('- Disabled by owner: none') `
+        'a shift with no policy credits the owner with disabling nothing'
+    if ((Test-Path -LiteralPath $bashReceipt -PathType Leaf) -and $null -ne $bashCommand) {
+        $plainBash = Invoke-ProcessBytes -FileName $bashCommand.Source `
+            -Arguments @($bashReceipt, '--project', $plainProject, '--view', 'owner') `
+            -EnvOverrides @{ NIGHTSHIFT_EVIDENCE_NOW = $fixedNow }
+        Expect-True (Test-NSBytesEqual $plainRun.StdoutBytes $plainBash.StdoutBytes) `
+            'both renderers report a policy-free shift the same way'
+    }
+
+    # The gate names that receipt for the date alone: there is no shift id.
+    $plainGateProject = Join-Path $root 'plain-gate'
+    $plainGateNs = New-ReceiptProject -Path $plainGateProject -Items "- [x] Quiet the lint rule`n" `
+        -WithPolicy $false
+    [IO.File]::WriteAllText((Join-Path $plainGateNs '.shift-armed'), '', $utf8)
+    [IO.File]::WriteAllText((Join-Path $plainGateNs 'STOP'), "owner`n", $utf8)
+    $plainGateRun = Invoke-Script -Path $gate -Arguments @('-HostName', 'claude') `
+        -InputText ('{"session_id":"11111111-2222-3333-4444-555555555555","cwd":"' + ($plainGateProject -replace '\\', '/') + '"}') `
+        -Environment @{ CLAUDE_PROJECT_DIR = $plainGateProject }
+    Expect-Equal 0 $plainGateRun.ExitCode "the gate answers without a policy ($($plainGateRun.StderrText))"
+    Expect-True (Test-Path -LiteralPath (Join-Path $plainGateNs 'receipts/morning-2026-09-02.md') -PathType Leaf) `
+        'a shift with no policy files receipts/morning-<date>.md'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $plainGateNs 'receipts/morning-2026-09-02-unknown.md') -PathType Leaf)) `
+        'no receipt is filed under an invented shift id'
+
     # === 4. The endings ===
     [IO.File]::WriteAllText((Join-Path $ns 'STOP'), "deadline`n", $utf8)
     $deadlineRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $project)

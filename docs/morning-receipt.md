@@ -11,9 +11,10 @@ ledger record, a commit, or a receipt earns a line in the receipt.
 `runtime/morning-receipt.sh --project DIR [--view owner|reviewer|release|artifact] [--out PATH]`
 (native Windows: `runtime/windows/morning-receipt.ps1`) renders it on demand. The clock-out gate
 also writes the owner view automatically, best effort, to
-`.nightshift/receipts/morning-<YYYY-MM-DD>-<shiftId>.md` — a failed render never blocks the
-shift from ending, and `/nightshift:archive` moves the file with the rest of the night's receipts.
-Status prints the first section on request.
+`.nightshift/receipts/morning-<YYYY-MM-DD>-<shiftId>.md`, or
+`.nightshift/receipts/morning-<YYYY-MM-DD>.md` when the shift wrote no policy and so has no id —
+a failed render never blocks the shift from ending, and `/nightshift:archive` moves the file with
+the rest of the night's receipts.
 
 ## What each section means
 
@@ -24,7 +25,11 @@ Status prints the first section on request.
    appear here, in this order: `Verified:` names what ran green and by which command,
    `Disabled by owner:` names the checks the chosen verification level skipped, and
    `Unavailable:` names any tool or source the ledger marked unavailable. A
-   disabled check is never described as a passed one.
+   disabled check is never described as a passed one, and the owner is credited with disabling a
+   check only when a shift policy set `verificationLevel` to `none`. A shift that wrote no policy
+   runs on the built-in floor: a `Gates:` line names the commands the punch list's `## Gates`
+   section asked for, `Verified:` reads `none — no shift policy was written`, and
+   `Disabled by owner:` reads `none`.
 2. **Baseline** — one line per originating source (the tool, its exact command, and its
    environment) with that source's environment digest and raw-output digest, so a reviewer can
    tell exactly what ran and against what versions.
@@ -40,10 +45,10 @@ Status prints the first section on request.
 6. **Next** — the exact next action, taken from the punch list's open items and, during a long
    product-evolution or owner-walkthrough shift, the single opportunity marked `Status: building`.
 
-Any section with nothing to report is left out entirely rather than printed empty. A zero-gate
-`fast` shift with no ledger renders only the Shift section, and its `Verified:` line reads exactly
-`Verified: none — verification level none (owner)` — the absence of checks is stated, not implied
-by a missing section.
+Any section with nothing to report is left out entirely rather than printed empty. A `fast` shift
+whose policy chose `none` and left no ledger renders only the Shift section, and its `Verified:`
+line reads exactly `Verified: none — verification level none (owner)` — the absence of checks is
+stated, not implied by a missing section.
 
 ## Which view is for whom
 

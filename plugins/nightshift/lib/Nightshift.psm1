@@ -6231,9 +6231,9 @@ $script:NSReceiptTitle = '# Morning receipt'
 $script:NSReceiptViewNames = @('owner', 'reviewer', 'release', 'artifact')
 $script:NSReceiptNone = 'none'
 $script:NSReceiptEndingUnknown = 'unknown'
-$script:NSReceiptShiftUnknown = 'unknown'
 $script:NSReceiptFilePrefix = 'morning-'
 $script:NSReceiptFileFormat = 'morning-{0}-{1}.md'
+$script:NSReceiptDateFileFormat = 'morning-{0}.md'
 $script:NSReceiptFieldFormat = '- {0}: {1}'
 $script:NSReceiptNestedFormat = '  - {0}: {1}'
 $script:NSReceiptPlainFormat = '- {0}'
@@ -6242,6 +6242,9 @@ $script:NSReceiptPolicyFormat = 'profile {0}, verification {1}, tooling {2}'
 $script:NSReceiptAllowanceFormat = '{0} ({1}, {2})'
 $script:NSReceiptBaselineFormat = '{0} `{1}` {2} env {3} raw {4} ({5})'
 $script:NSReceiptVerifiedNoneFormat = 'none {0} verification level {1} (owner)'
+$script:NSReceiptVerifiedNoPolicyFormat = 'none {0} no shift policy was written'
+$script:NSReceiptGatesFormat = '{0} (punch list)'
+$script:NSReceiptChosenSource = 'one-shift'
 $script:NSReceiptNextFormat = '{0} {1} next: {2}'
 
 # Section keys in receipt order, their headings, and the sections each view
@@ -6274,6 +6277,7 @@ $script:NSReceiptLabels['commits'] = 'Commits'
 $script:NSReceiptLabels['receipts'] = 'Receipts'
 $script:NSReceiptLabels['policy'] = 'Policy'
 $script:NSReceiptLabels['allowance'] = 'Allowance'
+$script:NSReceiptLabels['gates'] = 'Gates'
 $script:NSReceiptLabels['verified'] = 'Verified'
 $script:NSReceiptLabels['disabled'] = 'Disabled by owner'
 $script:NSReceiptLabels['unavailable'] = 'Unavailable'
@@ -6993,10 +6997,11 @@ function Get-NSCompareMarkdown {
 
 # The gate writes this path in end_shift and the archive helper moves the file
 # from it. UTC, so a shift that crosses local midnight still files under the day
-# the ledger stamped.
+# the ledger stamped. A shift that wrote no policy has no id, and the date alone
+# names its receipt.
 function Get-NSMorningReceiptPath {
     param([Parameter(Mandatory = $true)][string]$Workspace)
-    $shiftId = $script:NSReceiptShiftUnknown
+    $shiftId = ''
     $policy = $null
     try {
         $policy = Get-NSShiftPolicy $Workspace
@@ -7008,7 +7013,12 @@ function Get-NSMorningReceiptPath {
         $candidate = Get-NSRecordText $policy 'shiftId'
         if ($candidate.Length -gt 0) { $shiftId = $candidate }
     }
-    $name = $script:NSReceiptFileFormat -f (Get-NSEvidenceDay), $shiftId
+    if ($shiftId.Length -gt 0) {
+        $name = $script:NSReceiptFileFormat -f (Get-NSEvidenceDay), $shiftId
+    }
+    else {
+        $name = $script:NSReceiptDateFileFormat -f (Get-NSEvidenceDay)
+    }
     return (Join-NSPath (Get-NSReceiptsDir (Get-NSAbsolutePath $Workspace)) $name)
 }
 
@@ -7327,12 +7337,15 @@ function Get-NSReceiptContext {
         $resolution = $null
     }
     $verificationLevel = 'none'
+    $verificationSource = 'built-in'
     $toolingPolicy = 'existing-tools'
     if ($null -ne $resolution) {
         $verificationLevel = [string]$resolution['settings']['verificationLevel']['value']
+        $verificationSource = [string]$resolution['settings']['verificationLevel']['source']
         $toolingPolicy = [string]$resolution['settings']['toolingPolicy']['value']
     }
     $context['verificationLevel'] = $verificationLevel
+    $context['verificationSource'] = $verificationSource
     $context['toolingPolicy'] = $toolingPolicy
 
     $profile = ''
@@ -7411,16 +7424,28 @@ function Get-NSReceiptShiftLines {
         Add-NSReceiptField $lines 'allowance' ([string]$allowance)
     }
 
+    $gates = @($Context['gates'])
+    $chosen = ([string]$Context['verificationSource']) -ceq $script:NSReceiptChosenSource
+    # A shift that wrote no policy runs on the built-in floor, and the punch list's own Gates
+    # section is what it was told to run. Naming those commands as the shift's gate keeps the
+    # receipt from crediting the owner with a decision they never made.
+    if (-not $chosen -and $gates.Count -gt 0) {
+        Add-NSReceiptField $lines 'gates' ($script:NSReceiptGatesFormat -f ($gates -join $script:NSMdSourceSeparator))
+    }
+
     $verified = @($Context['verified'])
     if ($verified.Count -gt 0) {
         Add-NSReceiptField $lines 'verified' (($verified -join $script:NSMdSourceSeparator))
     }
-    else {
+    elseif ($chosen) {
         Add-NSReceiptField $lines 'verified' ($script:NSReceiptVerifiedNoneFormat -f (Get-NSEvidenceDash), ([string]$Context['verificationLevel']))
+    }
+    else {
+        Add-NSReceiptField $lines 'verified' ($script:NSReceiptVerifiedNoPolicyFormat -f (Get-NSEvidenceDash))
     }
 
     $disabled = @()
-    if (([string]$Context['verificationLevel']) -ceq 'none') { $disabled = @($Context['gates']) }
+    if ($chosen -and (([string]$Context['verificationLevel']) -ceq 'none')) { $disabled = $gates }
     if ($disabled.Count -gt 0) {
         Add-NSReceiptField $lines 'disabled' (($disabled -join $script:NSMdSourceSeparator))
     }

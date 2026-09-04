@@ -311,7 +311,7 @@ SH
   fi
 }
 
-@test "a shift that never wrote a policy files its receipt as unknown" {
+@test "a shift that never wrote a policy names its receipt for the date alone" {
   root="$(plugin_copy receipt-unknown)"
   renderer_ok "$root"
   p="$(new_project gate-receipt-unknown)"
@@ -320,7 +320,8 @@ SH
 
   run gate_from "$root" "$p"
   is_release
-  [ -f "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+  [ -f "$p/.nightshift/receipts/morning-$today.md" ]
+  [ ! -e "$p/.nightshift/receipts/morning-$today-unknown.md" ]
 }
 
 @test "an absent morning-receipt renderer never blocks the release" {
@@ -350,7 +351,7 @@ SH
   [ -f "$p/.nightshift/.ended" ]
   grep -qF 'morning receipt render failed: morning-receipt: no ledger to read' \
     "$p/.nightshift/shift-log.md"
-  [ ! -e "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+  [ ! -e "$p/.nightshift/receipts/morning-$today.md" ]
 }
 
 @test "a deadline release and a stop-work order both leave the receipt behind" {
@@ -363,14 +364,14 @@ SH
   printf '%s\n' "$(( $(date +%s) - 60 ))" >"$p/.nightshift/deadline"
   run gate_from "$root" "$p"
   is_release
-  [ -f "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+  [ -f "$p/.nightshift/receipts/morning-$today.md" ]
 
   q="$(new_project gate-receipt-stop)"
   punch_open "$q"
   : >"$q/.nightshift/STOP"
   run gate_from "$root" "$q"
   is_release
-  [ -f "$q/.nightshift/receipts/morning-$today-unknown.md" ]
+  [ -f "$q/.nightshift/receipts/morning-$today.md" ]
 }
 
 @test "every host gate renders the morning receipt the same way" {

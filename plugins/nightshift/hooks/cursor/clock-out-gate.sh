@@ -108,7 +108,7 @@ release_lease() {
 
 # The morning receipt — the one page the owner reads over coffee. Rendered from records only.
 # Best effort: an absent or failing renderer leaves one line in the shift log and the release
-# stands. $1 is tonight's shiftId.
+# stands. $1 is tonight's shiftId, empty when no policy was written.
 render_morning_receipt() {
   local renderer="$_here/../../runtime/morning-receipt.sh" dir="$NS/receipts" err
   if [ ! -f "$renderer" ]; then
@@ -124,7 +124,7 @@ render_morning_receipt() {
     return 0
   }
   err="$(bash "$renderer" --project "$PROJECT_DIR" --view owner \
-    --out "$dir/morning-$(date '+%Y-%m-%d')-$1.md" 2>&1)" && return 0
+    --out "$dir/morning-$(date '+%Y-%m-%d')${1:+-$1}.md" 2>&1)" && return 0
   log_line "morning receipt render failed: $(printf '%s' "$err" | head -n1)"
 }
 
@@ -151,10 +151,9 @@ end_shift() {
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
   release_lease
-  # A shift that never wrote a policy files its receipt as unknown.
+  # A shift that never wrote a policy has no id, and its receipt is named for the date alone.
   shift_id="$(ns_policy_shift_id "$PROJECT_DIR" 2>/dev/null)" || shift_id=""
-  [ -n "$shift_id" ] || shift_id=unknown
-  archive_findings_ledger "$shift_id"
+  archive_findings_ledger "${shift_id:-unknown}"
   render_morning_receipt "$shift_id"
   receipts_commit "$1"
   whistle "$1"

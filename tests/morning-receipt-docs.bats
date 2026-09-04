@@ -29,6 +29,18 @@ DOC="$BATS_TEST_DIRNAME/../docs/morning-receipt.md"
   grep -qF 'runtime/morning-receipt.sh' "$DOC"
   grep -qF 'runtime/windows/morning-receipt.ps1' "$DOC"
   grep -qF '.nightshift/receipts/morning-<YYYY-MM-DD>-<shiftId>.md' "$DOC"
+  grep -qF '.nightshift/receipts/morning-<YYYY-MM-DD>.md' "$DOC"
+}
+
+@test "morning-receipt doc separates an absent policy from a chosen level of none" {
+  grep -qF 'no shift policy was written' "$DOC"
+  grep -qF "punch list's \`## Gates\`" "$DOC"
+}
+
+@test "morning-receipt doc claims nothing Status does not print" {
+  if grep -qF 'Status prints the first section' "$DOC"; then
+    return 1
+  fi
 }
 
 @test "morning-receipt doc names no competing tool" {

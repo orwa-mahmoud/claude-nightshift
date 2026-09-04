@@ -163,6 +163,8 @@ EOF
 JOINER=" $DASH "
 SOURCE_SEP=', '
 NONE='none'
+GATES_FROM='punch list'
+NO_POLICY='no shift policy was written'
 
 # _short_digest FULL -> SHORT_DIGEST: the first twelve hex chars PowerShell shows.
 _short_digest() {
@@ -536,11 +538,14 @@ _load_policy() {
   done <"$TMPD/policy"
 }
 
-# _resolved NAME -> RVALUE: one row of the resolved view. Every helper that needs a
-# policy answer reads the same resolver, so the receipt cannot report a different one.
+# _resolved NAME -> RVALUE, RSOURCE: one row of the resolved view. Every helper that needs a
+# policy answer reads the same resolver, so the receipt cannot report a different one. RSOURCE
+# is `one-shift` only when tonight's policy set the value, which is how the receipt tells an
+# owner's choice apart from the built-in floor a shift that wrote no policy runs on.
 _resolved() {
   local line rest meta
   RVALUE=""
+  RSOURCE=""
   while IFS= read -r line; do
     case "$line" in
       "$1="*) ;;
@@ -551,6 +556,8 @@ _resolved() {
       *" ("*)
         meta="${rest##*" ("}"
         RVALUE="${rest%" ($meta"}"
+        RSOURCE="${meta%%,*}"
+        RSOURCE="${RSOURCE%)}"
         ;;
       *) RVALUE="$rest" ;;
     esac
@@ -769,7 +776,7 @@ _key_by_domain() { # <destination> <domain>
 }
 
 _lines_shift() {
-  local i mode ticked open level tooling target
+  local i mode ticked open level chosen tooling target gates
   SEC=""
   sec_field Shift "$P_SHIFTID"
   _session_host
@@ -801,6 +808,7 @@ _lines_shift() {
   _policy_profile
   _resolved verificationLevel
   level="$RVALUE"
+  chosen="$RSOURCE"
   _resolved toolingPolicy
   tooling="$RVALUE"
   sec_add "- Policy: profile $POLICY_PROFILE, verification $level, tooling $tooling"
@@ -832,20 +840,25 @@ EOF
     esac
     i=$((i + 1))
   done
+  _gate_commands
+  _join_sorted "$TMPD/gates" "$SOURCE_SEP"
+  gates="$JOINED"
+  # A shift that wrote no policy runs on the built-in floor, and the punch list's own Gates
+  # section is what it was told to run. Naming those commands as the shift's gate keeps the
+  # receipt from crediting the owner with a decision they never made.
+  if [ "$chosen" != one-shift ] && [ -n "$gates" ]; then
+    sec_add "- Gates: $gates ($GATES_FROM)"
+  fi
   _join_sorted "$TMPD/verified" "$SOURCE_SEP"
   if [ -n "$JOINED" ]; then
     sec_add "- Verified: $JOINED"
-  else
+  elif [ "$chosen" = one-shift ]; then
     sec_add "- Verified: none $DASH verification level $level (owner)"
+  else
+    sec_add "- Verified: none $DASH $NO_POLICY"
   fi
-  if [ "$level" = none ]; then
-    _gate_commands
-    _join_sorted "$TMPD/gates" "$SOURCE_SEP"
-    if [ -n "$JOINED" ]; then
-      sec_add "- Disabled by owner: $JOINED"
-    else
-      sec_add "- Disabled by owner: $NONE"
-    fi
+  if [ "$level" = none ] && [ "$chosen" = one-shift ] && [ -n "$gates" ]; then
+    sec_add "- Disabled by owner: $gates"
   else
     sec_add "- Disabled by owner: $NONE"
   fi
