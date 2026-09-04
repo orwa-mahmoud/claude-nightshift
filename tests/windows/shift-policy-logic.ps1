@@ -285,6 +285,11 @@ try {
     }
     Expect-True ((Get-NSElevationPattern $noElevation 'sudo').Contains('sudo|doas')) `
         'a workspace with no elevation object still gets the shipped patterns'
+    $templateElevation = (ConvertFrom-NSJsonText ([IO.File]::ReadAllText($rulesTemplate, $utf8)))['elevation']
+    foreach ($category in @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')) {
+        Expect-Equal $templateElevation[$category]['pattern'] (Get-NSElevationPattern $noElevation $category) `
+            "the built-in $category pattern is the template's, character for character"
+    }
 
     $rulesAllow = Join-Path $root 'rules-allow'
     $rulesAllowNs = New-PolicyProject $rulesAllow
