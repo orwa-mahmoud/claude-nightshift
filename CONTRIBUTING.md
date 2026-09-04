@@ -104,7 +104,7 @@ it will never do, its verification, and the stacks it supports. Every catalog PR
 read by a human before merge: a plausible entry can still be a bad night on someone
 else's repository, and no automated check catches that.
 
-Nightshift is an augmentation layer in the Codex, Claude Code, and Cursor ecosystems. It
+Nightshift is an augmentation layer in the Codex and Claude Code ecosystems. It
 integrates through each host's native plugins, skills, and hooks — without
 introducing a separate agent runtime, proxy, or installation channel. Shared
 behaviour should stay aligned across both hosts; host-specific code should be a
