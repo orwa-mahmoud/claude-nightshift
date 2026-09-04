@@ -1,5 +1,0 @@
-{
-  "locator": "packages/api/src/public-api.ts:exportOldHelper",
-  "references": ["publicExport"],
-  "blastRadius": ["packages/api", "packages/web"]
-}

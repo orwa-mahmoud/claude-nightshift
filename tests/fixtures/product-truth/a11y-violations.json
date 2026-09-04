@@ -1,7 +1,0 @@
-{
-  "environmentExists": true,
-  "violations": [
-    {"rule": "axe/color-contrast", "locator": "src/Button.tsx", "message": "insufficient contrast"},
-    {"rule": "human/journey-keyboard", "locator": "checkout flow", "message": "tab order unclear", "requiresHumanReview": true}
-  ]
-}

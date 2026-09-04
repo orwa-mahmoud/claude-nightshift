@@ -1,9 +1,0 @@
-{
-  "audience": "reviewer",
-  "evidence": {
-    "summary": "PR readiness shift on feat/auth",
-    "verification": "gates green",
-    "reviewMap": {"open": 1},
-    "remainingRisks": ["doc drift"]
-  }
-}

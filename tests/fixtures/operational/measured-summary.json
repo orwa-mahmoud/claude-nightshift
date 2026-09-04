@@ -1,7 +1,0 @@
-{
-  "rows": [
-    {"surface": "api latency", "measured": true, "provenance": "benchmark export"},
-    {"surface": "field crux", "measured": false, "reason": "no export supplied"},
-    {"surface": "production traces", "measured": false, "reason": "not measured in scope"}
-  ]
-}

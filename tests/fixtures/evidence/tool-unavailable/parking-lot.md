@@ -1,3 +1,0 @@
-# Parking Lot
-
-(empty)

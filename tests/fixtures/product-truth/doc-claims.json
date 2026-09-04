@@ -1,6 +1,0 @@
-{
-  "claims": [
-    {"text": "Install with npm install -g nightshift", "surface": "README.md", "authority": "repository", "verifiedLocally": false},
-    {"text": "MIT licensed", "surface": "README.md", "authority": "LICENSE", "verifiedLocally": true}
-  ]
-}

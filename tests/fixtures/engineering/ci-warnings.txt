@@ -1,3 +1,0 @@
-[workflow:ci] job:lint step:tsc warning: src/app/config.ts uses deprecated API from upstream-lib
-warning: packages/api/src/util.ts: unused variable in repository-owned code
-deprecated: runner image ships openssl 1.1 — external emitter
