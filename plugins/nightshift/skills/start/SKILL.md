@@ -64,7 +64,7 @@ one verdict:
   print it verbatim and stop. Exit status 0 means the shift may arm; non-zero is a refusal; 2 is a
   usage error in the call you just made.
 
-The helper owns everything the skill used to re-derive: workspace and `.nightshift-link`
+The helper owns all of it, so the skill re-derives none of it: workspace and `.nightshift-link`
 resolution, `state-version` (Start never writes the marker; migration is a Setup or Doctor repair
 with `migrate-state.sh`, or
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`

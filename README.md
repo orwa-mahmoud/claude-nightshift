@@ -280,8 +280,7 @@ list and end when it is clear, so hours are a cap rather than a requirement.
 
 The entries live one per file in
 [`shifts/`](plugins/nightshift/skills/nightshift/references/shifts/) — read that directory for the current set
-and the exact contract of each. Nothing enumerates them, deliberately: a page listing the catalog
-would put every contributor in the same diff.
+and the exact contract of each. No page enumerates them.
 
 **Running a night that isn't in there? Add it.** Catalog entries are the easiest contributions to
 review and merge: one Markdown contract and its focused test, with no shared hook change. Each
@@ -355,12 +354,11 @@ independent of that history. The precise boundaries are in
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 
-## Roadmap
+## Codex wedge detection
 
-**Codex support** is complete for the night: gate, guards, skills, scheduling and the watchman
-all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
-session alive at an API error is stood by, not revived, until that transcript signature has been
-observed during an outage — see
+Gate, guards, skills, scheduling and the watchman all run on OpenAI Codex from the same package.
+The one open edge is wedge detection: a Codex session alive at an API error is stood by, not
+revived, until that transcript signature has been observed during an outage — see
 [#41](https://github.com/orwa-mahmoud/nightshift/issues/41).
 
 ## Contributing
