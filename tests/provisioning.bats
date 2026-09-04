@@ -3,7 +3,6 @@
 
 ROOT="$BATS_TEST_DIRNAME/.."
 PROVISION="$ROOT/plugins/nightshift/runtime/provision.sh"
-PREFLIGHT="$ROOT/plugins/nightshift/runtime/provision-preflight.sh"
 LINKER="$ROOT/plugins/nightshift/runtime/link-workspace.sh"
 WIN="$ROOT/plugins/nightshift/runtime/windows/provision.ps1"
 ENGINE="$ROOT/plugins/nightshift/skills/nightshift/references/provisioning-engine.md"
@@ -16,7 +15,7 @@ RECOVER_RECIPE="$FIXTURES/recover-recipe.json"
 OWNER_DIRTY_SH="$FIXTURES/owner-dirty.sh"
 INSTALL_TX="$FIXTURES/install-transaction.sh"
 
-# Everything a host needs to resolve a policy and report a preflight, minus python3.
+# Everything a host needs to resolve a policy and take a surface baseline, minus python3.
 PROVISION_TOOLSET_NO_PYTHON="bash sh jq git sed grep find sort ls awk cat tr head tail wc cut \
 mkdir cp rm mv ln env date uname test dirname basename printf true false mktemp shasum"
 
@@ -48,8 +47,8 @@ allow_in_rules() {
   bash "$FIXTURES/write-rules-elevation.sh" --project "$1" --category "$2" --policy "$3"
 }
 
-# The frictionless grant the preflight looks for, so a permission reason in the report can only
-# come from the check under test.
+# The frictionless grant an unattended shift needs, so a permission reason can only come from
+# the check under test.
 grant_unattended() {
   mkdir -p "$1/.claude"
   jq -n '{permissions:{defaultMode:"bypassPermissions"}}' >"$1/.claude/settings.local.json"
@@ -116,6 +115,33 @@ recover_seed_mutated() {
   [ ! -e "$p/.nightshift/provision-transaction.json" ]
 }
 
+@test "one --surface takes the documented path list, and the flag still repeats" {
+  p="$(new_project prov-surface-list)"
+  enable_auto_add "$p"
+  printf 'one\n' >"$p/nightshift-keep.txt"
+  printf 'two\n' >"$p/nightshift-second.txt"
+
+  run provision --project "$p" baseline --surface nightshift-keep.txt nightshift-second.txt
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | jq -e '.ok == true' >/dev/null
+  listed="$(cut -f1 "$p/.nightshift/provision-surface" | sort | tr '\n' ' ')"
+  [ "$listed" = "nightshift-keep.txt nightshift-second.txt " ]
+
+  run provision --project "$p" baseline --surface nightshift-keep.txt --surface nightshift-second.txt
+  [ "$status" -eq 0 ]
+  repeated="$(cut -f1 "$p/.nightshift/provision-surface" | sort | tr '\n' ' ')"
+  [ "$repeated" = "$listed" ]
+}
+
+@test "a --surface that names no path is a usage error, not a mutation" {
+  p="$(new_project prov-surface-empty)"
+  enable_auto_add "$p"
+  run provision --project "$p" baseline --surface --project "$p"
+  [ "$status" -eq 1 ]
+  [ ! -e "$p/.nightshift/provision-surface" ]
+  [ ! -e "$p/.nightshift/provision-baseline" ]
+}
+
 @test "symlink to /tmp/victim does not write outside the work target" {
   p="$(new_project prov-symlink)"
   enable_auto_add "$p"
@@ -163,17 +189,18 @@ recover_seed_mutated() {
   [ ! -e "$p/.nightshift/capabilities.json" ]
 }
 
-@test "preflight does not require python under auto-add" {
+@test "the seatbelt does not require python under auto-add" {
   p="$(new_project prov-pre-runtime)"
   grant_unattended "$p"
   # shellcheck disable=SC2086
   bin="$(build_toolset_bin prov-no-python $PROVISION_TOOLSET_NO_PYTHON)"
   [ ! -e "$bin/python3" ]
   auto_add "$p"
+  printf 'baseline\n' >"$p/nightshift-keep.txt"
   run env -i PATH="$bin" HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
-    bash "$PREFLIGHT" --project "$p" check
+    bash "$PROVISION" --project "$p" baseline --surface nightshift-keep.txt
   [ "$status" -eq 0 ]
-  printf '%s\n' "$output" | jq -e '.ok == true and .skipReasons == []' >/dev/null
+  printf '%s\n' "$output" | jq -e '.ok == true' >/dev/null
 }
 
 @test "Windows provision.ps1 names baseline diff recover rollback" {

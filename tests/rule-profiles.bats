@@ -294,8 +294,20 @@ JSON
   grep -qF 'apply-profile.sh' "$SETUP"
   grep -qF 'one-time local copy' "$SETUP"
   grep -qF 'Refuse `--apply` / `-Apply` while armed' "$SETUP"
-  grep -qF 'every version-1 JSON file' "$SETUP"
-  grep -qF 'every version-1 JSON file' "$BATS_TEST_DIRNAME/../docs/knobs.md"
+  grep -qF 'every version-1 or version-2 JSON' "$SETUP"
+  grep -qF 'every version-1 or version-2 JSON file' "$BATS_TEST_DIRNAME/../docs/knobs.md"
+}
+
+@test "the documented profile versions are the ones the helper accepts" {
+  grep -qF '.version == 1 or .version == 2' "$APPLY"
+  for f in "$PROFILES"/*.json; do
+    v="$(jq -r '.version' "$f")"
+    [ "$v" = 1 ] || [ "$v" = 2 ] || { echo "$f is version $v"; return 1; }
+  done
+  # The shipped v2 profiles the docs name by name.
+  for name in balanced fast strict; do
+    [ "$(jq -r '.version' "$PROFILES/$name.json")" = 2 ] || { echo "$name is not v2"; return 1; }
+  done
 }
 
 @test "Windows apply-profile usage errors name native flags" {
@@ -321,4 +333,24 @@ RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
   fi
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
   [ "$status" -eq 0 ]
+}
+
+# The Doctor and Setup skills hand the model these two invocations verbatim. A form the parser
+# rejects sends it back with "--mode must be replace or fill" and no profile listed.
+@test "the invocations Doctor and Setup name run as written" {
+  DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
+  grep -qF -- '--list' "$DOCTOR"
+  grep -qF -- '--mode fill' "$DOCTOR"
+  grep -qF -- '--mode fill|replace' "$SETUP"
+
+  p="$(new_project profiles-documented)"
+  run bash "$APPLY" --project "$p" --list
+  [ "$status" -eq 0 ]
+  printf '%s\n' "$output" | grep -qF 'balanced'
+
+  for mode in fill replace; do
+    run bash "$APPLY" --project "$p" --profile balanced --mode "$mode"
+    [ "$status" -eq 0 ] || { printf '%s\n' "$output"; return 1; }
+    printf '%s\n' "$output" | grep -qF "Mode:    $mode"
+  done
 }

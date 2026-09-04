@@ -16,7 +16,6 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $plugin = Join-Path $repository 'plugins/nightshift'
 $ledger = Join-Path $plugin 'runtime/windows/evidence.ps1'
-$baselineHelper = Join-Path $plugin 'runtime/windows/evidence-baseline.ps1'
 $receiptHelper = Join-Path $plugin 'runtime/windows/morning-receipt.ps1'
 $archiveHelper = Join-Path $plugin 'runtime/windows/archive-receipts.ps1'
 $gate = Join-Path $plugin 'hooks/windows/clock-out-gate.ps1'
@@ -236,6 +235,55 @@ function New-FindingJson {
     return (ConvertTo-NSCanonicalJson $record -Compact)
 }
 
+function New-BaselineJson {
+    # A baseline record as the model writes one through the ledger.
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Environment,
+        [string]$SourceClass = 'lint',
+        [string]$Command = 'npm run lint',
+        [string]$Scope = 'repo',
+        [string[]]$Seen = @()
+    )
+    $entries = New-Object Collections.Generic.List[object]
+    foreach ($pair in $Seen) {
+        if ([string]::IsNullOrEmpty($pair)) { continue }
+        $at = $pair.IndexOf('=')
+        $entry = New-NSOrdinalMap
+        $entry['digest'] = if ($at -ge 0) { $pair.Substring($at + 1) } else { '' }
+        $entry['id'] = if ($at -ge 0) { $pair.Substring(0, $at) } else { $pair }
+        $entries.Add($entry)
+    }
+    $details = New-NSOrdinalMap
+    $details['command'] = $Command
+    $details['environmentDigest'] = $Environment
+    $details['rawDigest'] = 'raw-' + $Id
+    $details['scope'] = $Scope
+    $details['seen'] = @($entries.ToArray())
+    $details['sourceClass'] = $SourceClass
+    $record = New-NSOrdinalMap
+    $record['schemaVersion'] = 1
+    $record['id'] = $Id
+    $record['domain'] = 'baseline'
+    $record['sourceClass'] = $SourceClass
+    $record['source'] = $Command
+    $record['scope'] = $Scope
+    $record['severity'] = 'info'
+    $record['confidence'] = 'high'
+    $record['impact'] = 'none'
+    $record['status'] = 'open'
+    $record['ladder'] = 'measured'
+    $record['locator'] = $Scope
+    $record['digest'] = 'digest-' + $Id
+    $record['firstSeen'] = $fixedNow
+    $record['lastChecked'] = $fixedNow
+    $record['action'] = 'baseline recorded'
+    $record['host'] = 'claude'
+    $record['workTarget'] = 'test-target'
+    $record['details'] = $details
+    return (ConvertTo-NSCanonicalJson $record -Compact)
+}
+
 function Add-Finding {
     param(
         [Parameter(Mandatory = $true)][string]$Project,
@@ -262,10 +310,8 @@ try {
     $opportunity = "# Opportunity map`n`n## Opportunities`n`n### Import map rewrite`nStatus: building`nNext: split the vendor chunk`n"
     [IO.File]::WriteAllText((Join-Path $ns 'opportunity-map.md'), $opportunity, $utf8)
 
-    $baselineRun = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $project, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo', '-Versions', 'os=test-os',
-        '-Seen', "F-cleared=$digestCleared", "F-unchanged=$digestUnchanged", '-Raw', 'lint output line')
+    $baselineRun = Add-Finding -Project $project -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-cleared=$digestCleared", "F-unchanged=$digestUnchanged"))
     Expect-Equal 0 $baselineRun.ExitCode "the fixture baseline is written ($($baselineRun.StderrText))"
     $null = Add-Finding -Project $project -Json (New-FindingJson -Id 'F-cleared' -Digest $digestCleared `
             -Status 'fixed' -Ladder 'verified-after-change' -Fix 'fix(lint): quiet the rule' -VerificationLocator 'npm run lint')
@@ -368,6 +414,47 @@ try {
     Expect-True (-not $fast.Contains('## What changed')) 'a shift with no ledger omits the comparison section'
     Expect-True $fast.Contains('- Ending: done') 'a punch list with every box ticked ends done'
     Expect-True (-not $fast.Contains('- Verified: npm test')) 'a disabled check is never rendered as a check that passed'
+
+    # === 3b. A shift that wrote no policy ===
+    # The punch list's own Gates section is the shift's gate, and the owner
+    # disabled nothing, so the receipt says so both ways round.
+    $plainProject = Join-Path $root 'plain-start'
+    $null = New-ReceiptProject -Path $plainProject -Gates '`npm test`' `
+        -Items "- [x] Tidy the changelog`n" -WithPolicy $false
+    & git -C $plainProject init --quiet
+    & git -C $plainProject -c user.name=nightshift -c user.email=nightshift@localhost `
+        commit --allow-empty --quiet -m 'init'
+    $plainRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $plainProject)
+    Expect-Equal 0 $plainRun.ExitCode "a shift with no policy renders ($($plainRun.StderrText))"
+    $plain = $plainRun.StdoutText
+    Expect-True $plain.Contains('- Gates: npm test (punch list)') `
+        'a shift with no policy names the punch-list gates as its gate'
+    Expect-True $plain.Contains("- Verified: none $dash no shift policy was written") `
+        'a shift with no policy says why nothing was verified'
+    Expect-True $plain.Contains('- Disabled by owner: none') `
+        'a shift with no policy credits the owner with disabling nothing'
+    if ((Test-Path -LiteralPath $bashReceipt -PathType Leaf) -and $null -ne $bashCommand) {
+        $plainBash = Invoke-ProcessBytes -FileName $bashCommand.Source `
+            -Arguments @($bashReceipt, '--project', $plainProject, '--view', 'owner') `
+            -EnvOverrides @{ NIGHTSHIFT_EVIDENCE_NOW = $fixedNow }
+        Expect-True (Test-NSBytesEqual $plainRun.StdoutBytes $plainBash.StdoutBytes) `
+            'both renderers report a policy-free shift the same way'
+    }
+
+    # The gate names that receipt for the date alone: there is no shift id.
+    $plainGateProject = Join-Path $root 'plain-gate'
+    $plainGateNs = New-ReceiptProject -Path $plainGateProject -Items "- [x] Quiet the lint rule`n" `
+        -WithPolicy $false
+    [IO.File]::WriteAllText((Join-Path $plainGateNs '.shift-armed'), '', $utf8)
+    [IO.File]::WriteAllText((Join-Path $plainGateNs 'STOP'), "owner`n", $utf8)
+    $plainGateRun = Invoke-Script -Path $gate -Arguments @('-HostName', 'claude') `
+        -InputText ('{"session_id":"11111111-2222-3333-4444-555555555555","cwd":"' + ($plainGateProject -replace '\\', '/') + '"}') `
+        -Environment @{ CLAUDE_PROJECT_DIR = $plainGateProject }
+    Expect-Equal 0 $plainGateRun.ExitCode "the gate answers without a policy ($($plainGateRun.StderrText))"
+    Expect-True (Test-Path -LiteralPath (Join-Path $plainGateNs 'receipts/morning-2026-09-02.md') -PathType Leaf) `
+        'a shift with no policy files receipts/morning-<date>.md'
+    Expect-True (-not (Test-Path -LiteralPath (Join-Path $plainGateNs 'receipts/morning-2026-09-02-unknown.md') -PathType Leaf)) `
+        'no receipt is filed under an invented shift id'
 
     # === 4. The endings ===
     [IO.File]::WriteAllText((Join-Path $ns 'STOP'), "deadline`n", $utf8)

@@ -385,7 +385,7 @@ if ([string]$policyState['state'] -eq 'malformed') {
     Write-Repair "repair the named field in $ns/shift-policy.json, or delete the file so the next Start writes safe defaults"
 }
 elseif ([string]$policyState['state'] -eq 'absent') {
-    Write-Ok 'policy absent - write one from the remembered project default before arming'
+    Write-Warn 'policy absent; write one from the remembered project default before arming'
 }
 else {
     Write-Ok 'policy resolved'

@@ -64,7 +64,7 @@ one verdict:
   print it verbatim and stop. Exit status 0 means the shift may arm; non-zero is a refusal; 2 is a
   usage error in the call you just made.
 
-The helper owns everything the skill used to re-derive: workspace and `.nightshift-link`
+The helper owns all of it, so the skill re-derives none of it: workspace and `.nightshift-link`
 resolution, `state-version` (Start never writes the marker; migration is a Setup or Doctor repair
 with `migrate-state.sh`, or
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
@@ -332,3 +332,9 @@ is. Cited reports follow
 `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/cited-research.md` and
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/check-report.sh"` (native Windows:
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\check-report.ps1"`).
+
+At clock-out the gate renders the morning receipt itself. When it reports
+`JSON parser unavailable` in `$NS/shift-log.md`, write that one page by hand into
+`$NS/receipts/morning-<YYYY-MM-DD>.md` from the Morning receipt block in
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`, naming the shift id
+when a policy carries one. Every shift leaves a receipt.

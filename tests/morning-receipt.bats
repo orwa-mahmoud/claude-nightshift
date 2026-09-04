@@ -1,0 +1,77 @@
+load helpers
+
+RECEIPT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/morning-receipt.sh"
+
+# A project whose punch list names two gate commands and whose boxes are all ticked.
+gated_project() { # <name>
+  local p
+  p="$(new_project "$1")"
+  cat >"$p/.nightshift/punch-list.md" <<'MD'
+# Punch list
+
+## Gates
+
+- Item gate: `npm test` and `npm run lint`
+
+## Items
+
+- [x] Tidy the changelog
+MD
+  printf '%s' "$p"
+}
+
+# write_shift_policy <project> <verificationLevel>
+write_shift_policy() {
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"%s","toolingPolicy":"existing-tools"}\n' \
+    "$2" >"$1/.nightshift/shift-policy.json"
+}
+
+@test "a shift with no policy names the punch-list gates as its gate" {
+  p="$(gated_project receipt-no-policy)"
+  run bash "$RECEIPT" --project "$p" --view owner
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'- Gates: npm run lint, npm test (punch list)'* ]]
+}
+
+@test "a shift with no policy reports why nothing was verified" {
+  p="$(gated_project receipt-no-policy-verified)"
+  run bash "$RECEIPT" --project "$p" --view owner
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'- Verified: none — no shift policy was written'* ]]
+}
+
+@test "a shift with no policy credits the owner with disabling nothing" {
+  p="$(gated_project receipt-no-policy-disabled)"
+  run bash "$RECEIPT" --project "$p" --view owner
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'- Disabled by owner: none'* ]]
+}
+
+@test "a policy that chose verification none names the gates it disabled" {
+  p="$(gated_project receipt-level-none)"
+  write_shift_policy "$p" none
+  run bash "$RECEIPT" --project "$p" --view owner
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'- Verified: none — verification level none (owner)'* ]]
+  [[ "$output" == *'- Disabled by owner: npm run lint, npm test'* ]]
+  [[ "$output" != *'- Gates:'* ]]
+}
+
+@test "a policy that kept verification on disables nothing" {
+  p="$(gated_project receipt-level-final)"
+  write_shift_policy "$p" final
+  run bash "$RECEIPT" --project "$p" --view owner
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'- Verified: none — verification level final (owner)'* ]]
+  [[ "$output" == *'- Disabled by owner: none'* ]]
+}
+
+@test "a shift with no policy and no gates states the same reason without a gate line" {
+  p="$(new_project receipt-no-gates)"
+  printf '# Punch list\n\n## Items\n\n- [x] Tidy the changelog\n' >"$p/.nightshift/punch-list.md"
+  run bash "$RECEIPT" --project "$p" --view owner
+  [ "$status" -eq 0 ]
+  [[ "$output" != *'- Gates:'* ]]
+  [[ "$output" == *'- Verified: none — no shift policy was written'* ]]
+  [[ "$output" == *'- Disabled by owner: none'* ]]
+}

@@ -2,7 +2,8 @@
 # archive-receipts.sh — copy the live receipts into a dated archive folder.
 #
 # Every regular file directly under receipts/ travels: the artifact receipts an item wrote and
-# the shift's own morning-<YYYY-MM-DD>-<shiftId>.md.
+# the shift's own morning-<YYYY-MM-DD>-<shiftId>.md, or morning-<YYYY-MM-DD>.md when the shift
+# wrote no policy to take an id from.
 # Leaves live copies in place so stall progress still sees them. Skips hidden
 # files and does not follow symlinks. Missing or empty receipts is success and
 # does not create an empty dated folder.

@@ -382,7 +382,7 @@ if ns_policy_json_tool >/dev/null 2>&1; then
       if [ -f "$NS/shift-policy.json" ]; then
         ok "policy resolved"
       else
-        ok "policy absent - write one from the remembered project default before arming"
+        warn "policy absent; write one from the remembered project default before arming"
       fi
       ;;
   esac

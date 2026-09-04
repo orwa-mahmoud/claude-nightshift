@@ -170,9 +170,6 @@ if ($null -ne $resolution) {
         Add-NSWarn "shift-policy.json is malformed ($($resolution['policyError'])); the shift resolves to built-in defaults and rules only"
         Add-NSAct confirm 'repair the named field in shift-policy.json, or delete the file so the next Start writes safe defaults'
     }
-    if ($resolution['legacyCapabilityPolicy']) {
-        Add-NSWarn 'legacy capability-policy.json present; Setup removes it'
-    }
     $deadlineFileEpoch = $resolution['deadlineFile']
     $deadlinePolicyEpoch = $resolution['deadlinePolicy']
     if ($null -ne $deadlineFileEpoch -and $null -ne $deadlinePolicyEpoch -and [long]$deadlineFileEpoch -ne [long]$deadlinePolicyEpoch) {

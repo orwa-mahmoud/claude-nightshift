@@ -49,7 +49,7 @@ On native Windows:
 
 Print its report verbatim. Do not summarise away Facts, Warnings, or Actions, and do not re-derive
 anything it already resolved: the script uses the same workspace, work-mode, work-target, policy
-and ownership libraries as the hooks, and both hosts print the same lines.
+and ownership libraries as the hooks, and both implementations print the same lines.
 
 The report answers, in its own words: where the workspace is and whether `.nightshift-link` is
 valid; the schema version and whether it is current, legacy, malformed, or newer than this plugin;
@@ -128,10 +128,12 @@ Two repairs the report names are separate owner actions, never Doctor's own:
   `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh" --project "$NIGHTSHIFT_WORKSPACE"`, or
   `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\migrate-state.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`
   on native Windows. A future version is `[blocked]`: never downgrade a marker.
-- A local rule profile. Doctor may list the shipped examples and show a preview with
-  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE"` (native
-  Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE"`).
-  Invoking Doctor never writes `rules.json`.
+- A local rule profile. Doctor may list the shipped examples with
+  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --list`
+  and preview one with `--profile <name> --mode fill` (or `--mode replace`). Native Windows:
+  `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -List`
+  and `-Profile <name> -Mode fill`. Preview is the default; only `--apply` writes, and Invoking
+  Doctor never writes `rules.json`.
 
 If the owner then explicitly asks to **Export support bundle**, they are no longer in Doctor.
 Run

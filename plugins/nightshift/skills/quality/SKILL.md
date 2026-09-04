@@ -77,7 +77,7 @@ cut, or arm. Review-first writes only that policy; run-direct arms as soon as it
 Artifact mode refuses repository-tool policies
 (`auto-add` and `review-missing`) and explains why; only existing-tools is valid there.
 Under auto-add, capture the write surface first with
-`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" baseline --surface <rel> [<rel>...]`
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/provision.sh" --project "$NIGHTSHIFT_WORKSPACE" baseline --surface <rel> [<rel>...]` (one flag takes several paths, or repeat `--surface` per path)
 (native Windows: `provision.ps1 -Command baseline -Surface …`), then install, smoke, `diff`, and
 `rollback` on failure.
 

@@ -150,10 +150,6 @@ else
   POLICY_LINES=""
   warn "the shift policy could not be resolved; treat the shift as built-in defaults plus rules"
 fi
-if [ -f "$NS/capability-policy.json" ]; then
-  warn "legacy capability-policy.json present; Setup removes it"
-fi
-
 # A provisioning transaction on disk means an install stopped mid-flight. The recovery helper
 # owns the reading and the proof; Doctor prints its one diagnosis line and never settles it.
 if [ -e "$NS/provision-transaction.json" ] || [ -L "$NS/provision-transaction.json" ]; then

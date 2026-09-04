@@ -6,12 +6,15 @@ The model installs. The helper only captures a write surface, diffs it, and rest
 
 ```text
 provision.sh --project DIR baseline --surface PATH [PATH ...]
+provision.sh --project DIR baseline --surface PATH [--surface PATH ...]
 provision.sh --project DIR diff
 provision.sh --project DIR rollback
 provision.sh --project DIR recover
 ```
 
-Windows: `runtime/windows/provision.ps1` with the same verbs.
+One `--surface` may list several paths, and the flag may be repeated instead; both name the same
+surface. Windows: `runtime/windows/provision.ps1` with the same verbs, taking
+`-Surface PATH[,PATH...]`.
 
 Exit: `0` ok · `1` usage or a runtime failure · `2` refused (symlink/reparse escape or locked
 path) · `3` a restore that could not be proven.

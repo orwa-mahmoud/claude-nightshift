@@ -1,12 +1,12 @@
 # nightshift
 
-Nightshift gives [OpenAI Codex](https://openai.com/codex/) and
-[Claude Code](https://claude.com/claude-code) accountable, time-bounded engineering shifts. Hand it
-your own punch list or let it research the product, rank opportunities, and build the strongest
-complete improvements until quitting time. State stays on disk, owner-defined safety rules are
-enforced by hooks, and the morning handoff is reviewable. Codex and Claude Code cannot quietly
-clock out with open work; both keep the active objective and remaining work available on disk
-through compaction or resume. Product-evolution and owner-walkthrough shifts also record the exact
+Nightshift gives [Claude Code](https://claude.com/claude-code),
+[OpenAI Codex](https://openai.com/codex/), and [Cursor](https://cursor.com) accountable,
+time-bounded engineering shifts. Hand it your own punch list or let it research the product, rank
+opportunities, and build the strongest complete improvements until quitting time. State stays on
+disk, owner-defined safety rules are enforced by hooks, and the morning handoff is reviewable. No
+host quietly clocks out with open work; each keeps the active objective and remaining work
+available on disk through compaction or resume. Product-evolution and owner-walkthrough shifts also record the exact
 next action and verification still due.
 
 [Install](#install) · [Run a first shift](#run-a-first-shift) ·
@@ -280,8 +280,7 @@ list and end when it is clear, so hours are a cap rather than a requirement.
 
 The entries live one per file in
 [`shifts/`](plugins/nightshift/skills/nightshift/references/shifts/) — read that directory for the current set
-and the exact contract of each. Nothing enumerates them, deliberately: a page listing the catalog
-would put every contributor in the same diff.
+and the exact contract of each. No page enumerates them.
 
 **Running a night that isn't in there? Add it.** Catalog entries are the easiest contributions to
 review and merge: one Markdown contract and its focused test, with no shared hook change. Each
@@ -290,10 +289,10 @@ The [contribution map](docs/contribution-map.md) and
 [`catalog-recipe.md`](plugins/nightshift/skills/nightshift/references/catalog-recipe.md) show the
 two files and checks.
 
-## Built into both hosts, not pasted into a prompt
+## Built into every host, not pasted into a prompt
 
-Nightshift ships native skills and hook wiring for Codex and Claude Code from one package. It wraps
-nothing and proxies nothing. The skills carry the working method, disk files keep the objective,
+Nightshift ships native skills and hook wiring for Claude Code, Codex, and Cursor from one package.
+It wraps nothing and proxies nothing. The skills carry the working method, disk files keep the objective,
 evidence, and decisions available across compaction or resume, and hooks enforce the boundaries
 each host exposes.
 
@@ -355,12 +354,11 @@ independent of that history. The precise boundaries are in
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 
-## Roadmap
+## Codex wedge detection
 
-**Codex support** is complete for the night: gate, guards, skills, scheduling and the watchman
-all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
-session alive at an API error is stood by, not revived, until that transcript signature has been
-observed during an outage — see
+Gate, guards, skills, scheduling and the watchman all run on OpenAI Codex from the same package.
+The one open edge is wedge detection: a Codex session alive at an API error is stood by, not
+revived, until that transcript signature has been observed during an outage — see
 [#41](https://github.com/orwa-mahmoud/nightshift/issues/41).
 
 ## Contributing

@@ -1,9 +1,8 @@
-# Portable PowerShell coverage for the native Windows baseline, checkpoint and
-# comparison helpers.
+# Portable PowerShell coverage for the native Windows comparison helper.
 # Run on macOS or Windows: pwsh -File tests/windows/evidence-compare-logic.ps1
 #
-# Covers the frozen 03A interface: the two lifecycle record kinds and their
-# details, all eight comparison classes, tool-unavailable-is-not-improvement,
+# Covers the frozen 03A interface: the baseline record the comparison reads,
+# all eight comparison classes, tool-unavailable-is-not-improvement,
 # a moved environment digest, dedupe that keeps every originating tool,
 # clear-all against no-regression-plus-selected-debt, the validator's
 # acceptance of completionMode and selectedDebt, exact byte formatting, and
@@ -17,8 +16,6 @@ if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $plugin = Join-Path $repository 'plugins/nightshift'
 $ledger = Join-Path $plugin 'runtime/windows/evidence.ps1'
-$baselineHelper = Join-Path $plugin 'runtime/windows/evidence-baseline.ps1'
-$checkpointHelper = Join-Path $plugin 'runtime/windows/evidence-checkpoint.ps1'
 $compareHelper = Join-Path $plugin 'runtime/windows/evidence-compare.ps1'
 $policyHelper = Join-Path $plugin 'runtime/windows/shift-policy.ps1'
 $bashCompare = Join-Path $plugin 'runtime/evidence-compare.sh'
@@ -238,6 +235,64 @@ function New-FindingJson {
     return (ConvertTo-NSCanonicalJson $record -Compact)
 }
 
+function New-BaselineJson {
+    # A baseline record as the model writes one through the ledger: domain
+    # "baseline", the exact command, the environment digest the comparison
+    # measures against, and every finding that source already had.
+    param(
+        [Parameter(Mandatory = $true)][string]$Id,
+        [Parameter(Mandatory = $true)][string]$Environment,
+        [string]$Status = 'open',
+        [string]$SourceClass = 'lint',
+        [string]$Command = 'npm run lint',
+        [string]$Scope = 'repo',
+        [string[]]$Seen = @()
+    )
+    $entries = New-Object Collections.Generic.List[object]
+    foreach ($pair in $Seen) {
+        if ([string]::IsNullOrEmpty($pair)) { continue }
+        $at = $pair.IndexOf('=')
+        $entry = New-NSOrdinalMap
+        if ($at -ge 0) {
+            $entry['digest'] = $pair.Substring($at + 1)
+            $entry['id'] = $pair.Substring(0, $at)
+        }
+        else {
+            $entry['digest'] = ''
+            $entry['id'] = $pair
+        }
+        $entries.Add($entry)
+    }
+    $details = New-NSOrdinalMap
+    $details['command'] = $Command
+    $details['environmentDigest'] = $Environment
+    $details['rawDigest'] = 'raw-' + $Id
+    $details['scope'] = $Scope
+    $details['seen'] = @($entries.ToArray())
+    $details['sourceClass'] = $SourceClass
+    $record = New-NSOrdinalMap
+    $record['schemaVersion'] = 1
+    $record['id'] = $Id
+    $record['domain'] = 'baseline'
+    $record['sourceClass'] = $SourceClass
+    $record['source'] = $Command
+    $record['scope'] = $Scope
+    $record['severity'] = 'info'
+    $record['confidence'] = 'high'
+    $record['impact'] = 'none'
+    $record['status'] = $Status
+    $record['ladder'] = 'measured'
+    $record['locator'] = $Scope
+    $record['digest'] = 'digest-' + $Id
+    $record['firstSeen'] = $fixedNow
+    $record['lastChecked'] = $fixedNow
+    $record['action'] = 'baseline recorded'
+    $record['host'] = 'claude'
+    $record['workTarget'] = 'test-target'
+    $record['details'] = $details
+    return (ConvertTo-NSCanonicalJson $record -Compact)
+}
+
 function Add-Finding {
     param(
         [Parameter(Mandatory = $true)][string]$Project,
@@ -302,15 +357,11 @@ try {
     $project = Join-Path $root 'classes'
     $ns = New-EvidenceProject $project
 
-    $baselineRun = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $project, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo',
-        '-Versions', 'os=test-os', 'node=20.11.1',
-        '-Seen', "F-cleared=$digestCleared", "F-unchanged=$digestUnchanged",
-        "F-regressed=$digestBefore", "F-gone=$digestGone",
-        '-Raw', 'lint output line')
-    Expect-Equal 0 $baselineRun.ExitCode "evidence-baseline exits 0 ($($baselineRun.StderrText))"
-    Expect-Equal 'B1' $baselineRun.StdoutText.Trim() 'evidence-baseline prints the record id'
+    $baselineRun = Add-Finding -Project $project -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-cleared=$digestCleared", "F-unchanged=$digestUnchanged",
+                "F-regressed=$digestBefore", "F-gone=$digestGone"))
+    Expect-Equal 0 $baselineRun.ExitCode "the ledger takes a baseline record ($($baselineRun.StderrText))"
+    Expect-Equal 'B1' $baselineRun.StdoutText.Trim() 'the ledger prints the baseline record id'
 
     $findings = @(
         (New-FindingJson -Id 'F-cleared' -Digest $digestCleared -Status 'fixed' -Ladder 'verified-after-change' `
@@ -397,7 +448,7 @@ try {
     $usageRun = Invoke-Script -Path $compareHelper -Arguments @('-Project', $project, '-Baseline', 'B1', '-Json', '-Md')
     Expect-Equal 1 $usageRun.ExitCode 'two output formats at once is a usage error'
 
-    # === 2. The baseline record: fields, details, digests ===
+    # === 2. The ledger keeps the baseline record the comparison reads ===
     $ledgerPath = Join-Path $ns 'evidence/findings.jsonl'
     $baselineRecord = $null
     foreach ($line in [IO.File]::ReadAllLines($ledgerPath)) {
@@ -408,62 +459,19 @@ try {
     Expect-True ($null -ne $baselineRecord) 'the baseline record is in the ledger'
     if ($null -ne $baselineRecord) {
         Expect-Equal 'baseline' $baselineRecord.domain 'the baseline record carries the baseline domain'
-        Expect-Equal 'measured' $baselineRecord.ladder 'a baseline with raw output is measured'
         Expect-Equal 'npm run lint' $baselineRecord.source 'the exact command is the record source'
-        $detailKeys = @($baselineRecord.details.PSObject.Properties.Name) -join ','
-        Expect-Equal 'command,environmentDigest,rawDigest,scope,seen,sourceClass,versions' $detailKeys `
-            'the baseline details carry exactly the frozen field set'
-        $expectedEnvironment = Get-Sha256Hex "node`t20.11.1`nos`ttest-os`n"
-        Expect-Equal $expectedEnvironment $baselineRecord.details.environmentDigest `
-            'the environment digest is sha256 over sorted tool/version lines'
-        Expect-Equal (Get-Sha256Hex 'lint output line') $baselineRecord.details.rawDigest `
-            'the raw digest is sha256 over the stored raw output'
-        Expect-Equal $baselineRecord.rawDigest $baselineRecord.details.rawDigest `
-            'the details raw digest is the digest the ledger stored'
+        Expect-Equal 'env-1' $baselineRecord.details.environmentDigest `
+            'the comparison reads the environment digest off the record'
         Expect-Equal 4 (@($baselineRecord.details.seen).Count) 'every seen id is recorded'
         Expect-Equal 'F-cleared' (@($baselineRecord.details.seen)[0].id) 'seen ids are sorted in byte order'
-        Expect-Equal 'node' (@($baselineRecord.details.versions)[0].name) 'versions are sorted by tool name'
     }
 
-    # === 3. A checkpoint record ===
-    $checkpointFile = Join-Path $project 'build/report.txt'
-    $null = New-Item -ItemType Directory -Path (Split-Path -Parent $checkpointFile) -Force
-    [IO.File]::WriteAllText($checkpointFile, "generated`n", $utf8)
-    $checkpointRun = Invoke-Script -Path $checkpointHelper -Arguments @(
-        '-Project', $project, '-Id', 'C1', '-Baseline', 'B1',
-        '-Artifacts', 'build/report.txt', '-Touched', 'src/app.js', 'src/lib.js',
-        '-Rollback', 'refs/nightshift/pre-C1', '-Plan', 'npm run lint', '-Scope', 'repo')
-    Expect-Equal 0 $checkpointRun.ExitCode "evidence-checkpoint exits 0 ($($checkpointRun.StderrText))"
-    Expect-Equal 'C1' $checkpointRun.StdoutText.Trim() 'evidence-checkpoint prints the record id'
-    $checkpointRecord = $null
-    foreach ($line in [IO.File]::ReadAllLines($ledgerPath)) {
-        if ($line.Length -eq 0) { continue }
-        $parsed = $line | ConvertFrom-Json
-        if ([string]$parsed.id -ceq 'C1') { $checkpointRecord = $parsed }
-    }
-    Expect-True ($null -ne $checkpointRecord) 'the checkpoint record is in the ledger'
-    if ($null -ne $checkpointRecord) {
-        Expect-Equal 'checkpoint' $checkpointRecord.domain 'the checkpoint record carries the checkpoint domain'
-        $checkpointKeys = @($checkpointRecord.details.PSObject.Properties.Name) -join ','
-        Expect-Equal 'artifacts,baseline,head,plan,rollback,touched,worktreeDigest' $checkpointKeys `
-            'the checkpoint details carry exactly the frozen field set'
-        Expect-Equal 'B1' $checkpointRecord.details.baseline 'the checkpoint names the baseline it relies on'
-        Expect-Equal 'refs/nightshift/pre-C1' $checkpointRecord.details.rollback 'the rollback instruction is recorded verbatim'
-        Expect-Equal 'src/app.js,src/lib.js' ((@($checkpointRecord.details.touched)) -join ',') `
-            'the touched surface is sorted in byte order'
-        Expect-Equal 'build/report.txt' (@($checkpointRecord.details.artifacts)[0].path) 'the artifact inventory keeps the path'
-        Expect-Equal (Get-Sha256Hex "generated`n") (@($checkpointRecord.details.artifacts)[0].digest) `
-            'the artifact inventory carries the content digest'
-        Expect-Equal 'nohead' $checkpointRecord.details.head 'a target with no repository records no HEAD'
-    }
 
-    # === 4. clear-all against no-regression-plus-selected-debt, same ledger ===
+    # === 3. clear-all against no-regression-plus-selected-debt, same ledger ===
     $modeProject = Join-Path $root 'modes'
     $modeNs = New-EvidenceProject $modeProject
-    $modeBaseline = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $modeProject, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo', '-Versions', 'os=test-os',
-        '-Seen', "F-cleared=$digestCleared", "F-unchanged=$digestUnchanged")
+    $modeBaseline = Add-Finding -Project $modeProject -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-cleared=$digestCleared", "F-unchanged=$digestUnchanged"))
     Expect-Equal 0 $modeBaseline.ExitCode "the mode fixture baseline is written ($($modeBaseline.StderrText))"
     $null = Add-Finding -Project $modeProject -Json (New-FindingJson -Id 'F-cleared' -Digest $digestCleared -Status 'fixed')
     $null = Add-Finding -Project $modeProject -Json (New-FindingJson -Id 'F-unchanged' -Digest $digestUnchanged)
@@ -487,13 +495,11 @@ try {
     Expect-Equal 'F-unchanged' ((@($unmetDocument.summary.selectedDebtOutstanding)) -join ',') `
         'the summary names the selected debt still outstanding'
 
-    # === 5. A tool that could not run is never an improvement ===
+    # === 4. A tool that could not run is never an improvement ===
     $toolProject = Join-Path $root 'tool-unavailable'
     $toolNs = New-EvidenceProject $toolProject
-    $null = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $toolProject, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo', '-Versions', 'os=test-os',
-        '-Seen', "F-cleared=$digestCleared")
+    $null = Add-Finding -Project $toolProject -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-cleared=$digestCleared"))
     $null = Add-Finding -Project $toolProject -Json (New-FindingJson -Id 'F-cleared' -Digest $digestCleared -Status 'unavailable')
     Write-PolicyFile -NightshiftDir $toolNs -CompletionMode 'clear-all'
     $toolRun = Invoke-Script -Path $compareHelper -Arguments @('-Project', $toolProject, '-Baseline', 'B1', '-Json')
@@ -502,17 +508,13 @@ try {
     Expect-Equal 'unavailable' (Get-RowClass $toolDocument 'F-cleared') 'an unavailable tool is reported as unavailable'
     Expect-Equal 0 $toolDocument.summary.cleared 'an unavailable tool clears nothing'
 
-    # === 6. A moved environment digest is not a comparison ===
+    # === 5. A moved environment digest is not a comparison ===
     $envProject = Join-Path $root 'environment'
     $null = New-EvidenceProject $envProject
-    $null = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $envProject, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo',
-        '-Versions', 'os=test-os', 'node=20.11.1', '-Seen', "F-cleared=$digestCleared")
-    $null = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $envProject, '-Id', 'B2', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo',
-        '-Versions', 'os=test-os', 'node=22.0.0', '-Seen', "F-cleared=$digestCleared")
+    $null = Add-Finding -Project $envProject -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-cleared=$digestCleared"))
+    $null = Add-Finding -Project $envProject -Json (New-BaselineJson -Id 'B2' -Environment 'env-2' `
+            -Seen @("F-cleared=$digestCleared"))
     $null = Add-Finding -Project $envProject -Json (New-FindingJson -Id 'F-cleared' -Digest $digestCleared -Status 'fixed')
     $envRun = Invoke-Script -Path $compareHelper -Arguments @('-Project', $envProject, '-Baseline', 'B1', '-Json')
     Expect-Equal 3 $envRun.ExitCode 'a moved environment digest never passes clear-all'
@@ -522,14 +524,9 @@ try {
 
     $envAbsenceProject = Join-Path $root 'environment-absence'
     $null = New-EvidenceProject $envAbsenceProject
-    $null = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $envAbsenceProject, '-Id', 'B1', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo',
-        '-Versions', 'os=test-os', 'node=20.11.1', '-Seen', "F-gone=$digestCleared")
-    $null = Invoke-Script -Path $baselineHelper -Arguments @(
-        '-Project', $envAbsenceProject, '-Id', 'B2', '-SourceClass', 'lint',
-        '-Command', 'npm run lint', '-Scope', 'repo',
-        '-Versions', 'os=test-os', 'node=22.0.0')
+    $null = Add-Finding -Project $envAbsenceProject -Json (New-BaselineJson -Id 'B1' -Environment 'env-1' `
+            -Seen @("F-gone=$digestCleared"))
+    $null = Add-Finding -Project $envAbsenceProject -Json (New-BaselineJson -Id 'B2' -Environment 'env-2')
     $envAbsenceRun = Invoke-Script -Path $compareHelper -Arguments @('-Project', $envAbsenceProject, '-Baseline', 'B1', '-Json')
     Expect-Equal 3 $envAbsenceRun.ExitCode 'environment-moved absence never passes clear-all'
     $envAbsenceDocument = $envAbsenceRun.StdoutText | ConvertFrom-Json
@@ -537,7 +534,7 @@ try {
         'environment-moved absence is unavailable, never cleared'
     Expect-Equal 0 $envAbsenceDocument.summary.cleared 'environment-moved absence clears nothing'
 
-    # === 7. The validator accepts the two new policy fields, and only these values ===
+    # === 6. The validator accepts the two new policy fields, and only these values ===
     $policyProject = Join-Path $root 'policy'
     $policyNs = New-EvidenceProject $policyProject
     $goodPolicy = Join-Path $root 'good-policy.json'
@@ -580,14 +577,14 @@ try {
     Expect-True (-not $resolveRun.StdoutText.Contains('completionMode')) 'resolve does not report completionMode'
     Expect-True (-not $resolveRun.StdoutText.Contains('selectedDebt')) 'resolve does not report selectedDebt'
 
-    # === 8. The runtime helpers stay native ===
-    foreach ($script in @($baselineHelper, $checkpointHelper, $compareHelper)) {
+    # === 7. The runtime helpers stay native ===
+    foreach ($script in @($ledger, $compareHelper)) {
         $text = [IO.File]::ReadAllText($script)
         Expect-True (-not $text.Contains('python')) "$([IO.Path]::GetFileName($script)) names no python interpreter"
         Expect-True (-not $text.Contains('jq ')) "$([IO.Path]::GetFileName($script)) names no jq"
     }
 
-    # === 9. Byte parity with the bash helper ===
+    # === 8. Byte parity with the bash helper ===
     if ((Test-Path -LiteralPath $bashCompare -PathType Leaf) -and $null -ne $bashCommand) {
         foreach ($format in @('--json', '--md')) {
             $bashRun = Invoke-ProcessBytes -FileName $bashCommand.Source `

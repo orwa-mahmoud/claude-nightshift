@@ -9,12 +9,14 @@ SECURITY="$BATS_TEST_DIRNAME/../SECURITY.md"
   grep -qF 'OpenAI Codex (hooks and skills)' "$BUG"
 }
 @test "the pull request template asks about parity, not generic adapters" {
-  grep -qF 'Harness parity (shared Claude Code / Codex behaviour)' "$PR"
+  grep -qF 'Harness parity (shared Claude Code / Codex / Cursor behaviour)' "$PR"
   if grep -qi 'Adapter (support for another harness)' "$PR"; then
     return 1
   fi
   grep -qi 'not a generic adapter' "$CONTRIBUTING"
-  grep -qF 'Codex and Claude Code' "$CONTRIBUTING"
+  for one in 'Claude Code' 'Codex' 'Cursor'; do
+    grep -qF "$one" "$CONTRIBUTING" || { echo "CONTRIBUTING does not name $one"; return 1; }
+  done
 }
 
 @test "CONTRIBUTING names the Windows CI job" {

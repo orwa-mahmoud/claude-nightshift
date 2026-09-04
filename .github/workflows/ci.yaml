@@ -1,8 +1,7 @@
 name: ci
 
-# A branch push and its pull request are the same commit, so an unfiltered `push` ran every job
-# twice for no extra signal. Branch work is covered by `pull_request`; `push` is here for main,
-# where there is no PR to carry it — and where a green run is what lets release publish.
+# Branch work is covered by `pull_request`; `push` covers main, where there is no PR to carry it
+# and where a green run is what lets release publish.
 on:
   push:
     branches: [main]

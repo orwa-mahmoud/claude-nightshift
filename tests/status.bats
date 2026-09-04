@@ -38,12 +38,18 @@ load helpers
   : >"$p/.nightshift/.shift-armed"
   git -C "$p" commit -q --allow-empty -m "progress"
   FP1="$(bash -c 'PROJECT_DIR="'"$p"'"; . "'"$ROOT"'/plugins/nightshift/lib/lib.sh"; . "'"$ROOT"'/plugins/nightshift/hooks/shared/gate-core.sh"; ns_gate_progress_token')"
-  mkdir -p "$p/.nightshift/evidence"
-  bash "$ROOT/plugins/nightshift/runtime/evidence-baseline.sh" --project "$p" \
-    --source-class test --command 'fixture' --scope unit >/dev/null
-  baseline_id="$(jq -r 'select(.domain=="baseline") | .id' "$p/.nightshift/evidence/findings.jsonl" | tail -n1)"
-  bash "$ROOT/plugins/nightshift/runtime/evidence-checkpoint.sh" --project "$p" \
-    --baseline "$baseline_id" --touched README --rollback manual --plan 'fixture' >/dev/null
+  printf '%s\n' "$p" >"$p/.nightshift/work-target"
+  bash "$ROOT/plugins/nightshift/runtime/evidence.sh" --project "$p" init >/dev/null
+  bash "$ROOT/plugins/nightshift/runtime/evidence.sh" --project "$p" append --record "$(
+    jq -nc --arg t "$p" '{
+      schemaVersion: 1, id: "c1", domain: "checkpoint", sourceClass: "worktree",
+      source: "manual", scope: "unit", severity: "info", confidence: "high",
+      impact: "none", status: "open", ladder: "observed", locator: "nohead",
+      digest: "digest-c1", firstSeen: "2026-09-02T00:00:00Z",
+      lastChecked: "2026-09-02T00:00:00Z", action: "checkpoint recorded",
+      host: "claude", workTarget: $t,
+      details: { baseline: "b1", touched: ["README"], rollback: "manual", plan: "fixture" }
+    }')" >/dev/null
   FP2="$(bash -c 'PROJECT_DIR="'"$p"'"; . "'"$ROOT"'/plugins/nightshift/lib/lib.sh"; . "'"$ROOT"'/plugins/nightshift/hooks/shared/gate-core.sh"; ns_gate_progress_token')"
   [ "$FP1" != "$FP2" ]
 }

@@ -207,10 +207,6 @@ decides nothing on its own, and either skill may change it for a single shift.
 - **Repository** — ask the full question above (including review-first vs run-direct), then
  persist the answer.
 
-**Legacy migration.** After `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/migrate-state.sh"` folds a leftover
-`capability-policy.json` into `shift-defaults.json`'s tooling policy, delete that leftover file —
-it no longer exists as a Nightshift state file.
-
 ## 4. Permissions — the night cannot click Allow
 
 An unattended shift stalls forever on a permission prompt, and a watchman revival runs headless —
@@ -268,8 +264,8 @@ session-start overrides for tests and one-off exceptions — say so only if aske
 synced from this file, offer to remove them: the file is the one copy.
 
 **Local rule profiles — offer, never impose.** Setup may list the shipped examples in
-`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 JSON file there) and preview
-one with
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 or version-2 JSON
+file there) and preview one with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
 On native Windows, preview with
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.

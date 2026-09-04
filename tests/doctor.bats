@@ -592,15 +592,6 @@ EOF
   printf '%s' "$output" | grep -q 'resolved policy'
 }
 
-@test "Doctor warns about a leftover legacy capability-policy.json" {
-  p="$(new_project)"
-  punch_open "$p"
-  printf '{"policy":"auto-add"}\n' >"$p/.nightshift/capability-policy.json"
-  run doctor "$p"
-  [ "$status" -eq 0 ]
-  printf '%s' "$output" | grep -qF 'legacy capability-policy.json present; Setup removes it'
-}
-
 @test "Doctor warns when shift-policy.json is malformed, names the field, and still resolves built-in plus rules" {
   p="$(new_project)"
   punch_open "$p"

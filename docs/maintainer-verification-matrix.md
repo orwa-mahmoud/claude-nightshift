@@ -22,9 +22,8 @@ parallel `tests/run-shard.sh` jobs.
 | Surface | Runtime | Tests |
 | --- | --- | --- |
 | Findings ledger | `plugins/nightshift/runtime/evidence.sh`, `plugins/nightshift/runtime/windows/evidence.ps1` | `tests/evidence.bats`, `tests/windows-evidence.bats` |
-| Baseline and checkpoint | `plugins/nightshift/runtime/evidence-baseline.sh`, `plugins/nightshift/runtime/evidence-checkpoint.sh` | `tests/evidence-baseline.bats`, `tests/evidence-checkpoint.bats` |
 | Comparison | `plugins/nightshift/runtime/evidence-compare.sh`, `plugins/nightshift/runtime/evidence-compare.jq` | `tests/evidence-compare.bats`, `tests/windows-evidence-compare.bats` |
-| Morning receipt | `plugins/nightshift/runtime/morning-receipt.sh`, `plugins/nightshift/runtime/windows/morning-receipt.ps1` | `tests/morning-receipt-docs.bats`, `tests/windows-morning-receipt.bats` |
+| Morning receipt | `plugins/nightshift/runtime/morning-receipt.sh`, `plugins/nightshift/runtime/windows/morning-receipt.ps1` | `tests/morning-receipt.bats`, `tests/morning-receipt-docs.bats`, `tests/windows-morning-receipt.bats` |
 | Artifact receipts and archive | `plugins/nightshift/runtime/write-receipt.sh`, `plugins/nightshift/runtime/archive-receipts.sh`, `plugins/nightshift/runtime/evidence-archive.sh` | `tests/artifact-receipts.bats`, `tests/archive-receipts.bats`, `tests/work-mode.bats` |
 | Cited reports | `plugins/nightshift/runtime/check-report.sh` | `tests/cited-research.bats`, `tests/redaction-malicious.bats` |
 | Cross-host handoff | `plugins/nightshift/runtime/continuity-handoff.sh` | `tests/continuity-handoff.bats` |
