@@ -116,9 +116,9 @@ suspicious secret patterns, or commits under the wrong identity.
 
 The five elevation categories deny by default. Optional command, path, identity, and secret
 guards (`forbiddenCommands`, `protectedDirs`, `expectedEmail`, `neverCommitPatterns`) stay empty
-until the owner sets them; Setup proposes them and the owner chooses. The two explicit
+until the owner sets them; Setup proposes them and the owner chooses. The three explicit
 question-tool entries are the exception: the shipped rules park questions so an unattended shift
-does not wait, and the owner may set either value to an empty string to allow that host's
+does not wait, and the owner may set any of them to an empty string to allow that host's
 question tool. Active rules hold in every permission mode, including a
 broadly permitted unattended session. That combination lets the host run without approval prompts
 while hooks still enforce the owner's configured boundaries—a frictionless permission mode plus
