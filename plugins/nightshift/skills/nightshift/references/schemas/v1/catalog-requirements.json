@@ -192,14 +192,6 @@
       "tooling": "existing-tools",
       "artifact": false
     },
-    "maintainer-health": {
-      "requires": [],
-      "requiresAny": ["scripts", "local-markdown", "test", "owner-gates"],
-      "optional": ["ci", "documentation-link"],
-      "fallback": "compose preset from available maintainer contracts only",
-      "tooling": "existing-tools",
-      "artifact": false
-    },
     "build-reproducibility": {
       "requires": [],
       "requiresAny": ["scripts", "owner-gates", "local-markdown"],
@@ -229,22 +221,6 @@
       "requiresAny": ["local-markdown", "scripts", "api-schema"],
       "optional": ["test", "owner-gates"],
       "fallback": "plan from owner-supplied migration guidance only",
-      "tooling": "existing-tools",
-      "artifact": false
-    },
-    "configuration-parity": {
-      "requires": [],
-      "requiresAny": ["local-markdown", "scripts"],
-      "optional": ["owner-gates"],
-      "fallback": "compare owner-supplied config manifests only",
-      "tooling": "existing-tools",
-      "artifact": false
-    },
-    "data-migration": {
-      "requires": [],
-      "requiresAny": ["scripts", "api-schema", "local-markdown"],
-      "optional": ["test", "owner-gates"],
-      "fallback": "plan from owner-supplied data migration guidance only",
       "tooling": "existing-tools",
       "artifact": false
     },

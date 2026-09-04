@@ -25,6 +25,9 @@ change → install → smoke → `diff` → record → tooling commit. On smoke 
 `rollback` must actually run. Write `$NS/capabilities.json` only after the commit succeeds.
 Do not ask the owner to install Python or `jq`. No pinned recipe runner.
 
+[`tooling-hints.md`](tooling-hints.md) names the tools commonly used per ecosystem. It is a
+starting point under the owner's tooling policy, never a licence to install.
+
 ## Containment
 
 A surface path that leaves the work target, names locked owner state, or is a symlink /

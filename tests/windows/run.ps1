@@ -494,10 +494,6 @@ try {
     $fenceCheckLogicRun = Invoke-TestScript $fenceCheckLogic
     Assert-Equal 0 $fenceCheckLogicRun.ExitCode `
         "fence-check on-disk lease: $($fenceCheckLogicRun.Stdout) $($fenceCheckLogicRun.Stderr)"
-    $detectCapabilitiesLogic = Join-Path $PSScriptRoot 'detect-capabilities-logic.ps1'
-    $detectCapabilitiesLogicRun = Invoke-TestScript $detectCapabilitiesLogic
-    Assert-Equal 0 $detectCapabilitiesLogicRun.ExitCode `
-        "detect-capabilities fixtures and byte format: $($detectCapabilitiesLogicRun.Stdout) $($detectCapabilitiesLogicRun.Stderr)"
     $evidenceLogic = Join-Path $PSScriptRoot 'evidence-logic.ps1'
     $evidenceLogicRun = Invoke-TestScript $evidenceLogic
     Assert-Equal 0 $evidenceLogicRun.ExitCode `

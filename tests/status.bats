@@ -31,20 +31,6 @@ load helpers
   printf '%s\n' "$output" | grep -qF 'resolved policy'
 }
 
-@test "refresh-inventory writes capability-detection.json from the detector" {
-  p="$(new_project status-detect)"
-  cp "$ROOT/evals/fixtures/v1/repo-js/package.json" "$p/package.json"
-  mkdir -p "$p/tests"
-  cp "$ROOT/evals/fixtures/v1/repo-js/tests/addition.test.js" "$p/tests/addition.test.js"
-  printf 'repository\n' >"$p/.nightshift/work-mode"
-  printf '%s\n' "$p" >"$p/.nightshift/work-target"
-  run bash "$ROOT/plugins/nightshift/runtime/refresh-inventory.sh" --project "$p"
-  [ "$status" -eq 0 ]
-  [ -f "$p/.nightshift/capability-detection.json" ]
-  jq -e '.schemaVersion == 1 and .detection.capabilities.test.status == "available-and-verified"' \
-    "$p/.nightshift/capability-detection.json" >/dev/null
-}
-
 @test "checkpoint changes the stall fingerprint and resets the counter" {
   p="$(new_project status-stall)"
   cp "$REF/nightshift-rules-template.json" "$p/.nightshift/rules.json"

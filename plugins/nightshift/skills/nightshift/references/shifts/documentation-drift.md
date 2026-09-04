@@ -9,19 +9,23 @@ version that only the docs still claim. Not a rewrite of positioning, voice, or 
 ## Content-architecture mode
 
 Select when the owner wants documentation structure and freshness reviewed under Documentation —
-not a separate catalog entry. Run a receipt from `receipt-templates.md` on the
-in-repo documentation tree, then repair orphan or stale pages the helper lists. Mechanical
-freshness fixes only; park audience, voice, and information-architecture tradeoffs.
+not a separate catalog entry. Inventory the in-repo documentation tree into a
+`mode: doc-claim-matrix` receipt from `receipt-templates.md`, then repair the orphan or stale pages
+it lists. Mechanical freshness fixes only; park audience, voice, and information-architecture
+tradeoffs.
 
 ## Public-claims mode
 
 Select when release or marketing surfaces must match shipped behavior: website pages, README,
 manifests, directory listings, examples, install commands, version strings, privacy/security copy,
 released package contents, and observed runtime behavior. Run
-a receipt from `receipt-templates.md` across those surfaces (in addition to
+Extend the same claim matrix across those surfaces (in addition to
 the in-repo matrix below when local docs are in scope). Fix mechanical drift only; park
 positioning, legal, and brand decisions in parking-lot.md. Never publish or deploy from this shift.
 Route full baseline-vs-candidate release comparison to release-readiness.
+
+Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`.
+The model writes the receipt. Unparsed tool output is `unavailable`, never "no findings".
 
 Supported on any repository that keeps documentation in-tree (markdown, man pages, `--help`
 examples checked into the repo). Skip generated sites whose source of truth is elsewhere.
@@ -30,9 +34,10 @@ Never select this entry in artifact mode. Do not `git init` a notes folder to ma
 ```text
 - [ ] **Documentation drift — make in-repo docs match the current tree.**
   - Discovery: walk tracked documentation (README, docs/, skill and command files, examples).
-    For content-architecture mode run a receipt from `receipt-templates.md` first.
-    Build a claim-to-authority matrix with a receipt from `receipt-templates.md`
-    across README, manifests, CLI/help, examples, versions, and released behavior. Collect local references — relative links, fenced commands, filenames, version strings that
+    For content-architecture mode inventory the documentation tree first.
+    Build a claim-to-authority matrix in a `mode: doc-claim-matrix` receipt from
+    `receipt-templates.md` across README, manifests, CLI/help, examples, versions, and released
+    behavior. Collect local references — relative links, fenced commands, filenames, version strings that
     claim to describe this repository. Resolve each against the tree and the manifests that
     already exist here (plugin.json version, PATH commands the repo documents, files on disk).
     Do not query the network for "current" product claims.

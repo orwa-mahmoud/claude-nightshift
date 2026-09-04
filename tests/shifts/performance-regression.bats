@@ -9,7 +9,7 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 @test "performance regression requires distributions and baseline" {
   grep -qi 'at least two samples' "$E"
   grep -qi 'Never invent a baseline' "$E"
-  grep -qi 'fasterClaimAllowed' "$E"
+  grep -qi 'Never write faster or regression language without a present baseline' "$E"
 }
 
 @test "performance regression refuses unsafe load and correctness tradeoffs" {

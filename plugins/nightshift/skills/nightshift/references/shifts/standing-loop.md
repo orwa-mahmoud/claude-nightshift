@@ -4,7 +4,9 @@ The flagship shift for spare agent capacity. The product, its users, and its mar
 work; lint and tests prove each change rather than supplying the roadmap. It may ship a sharp fix
 or a substantial feature, but never merges its own branch and never leaves a half-built path.
 
-Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`. The model writes the receipt. Do not call a `*.py` helper or an `*-evidence.sh` / `defect-cycle.sh` / `coverage-risk.sh` / `quality-workflow.sh` wrapper. Unparsed tool output is `unavailable`, never "no findings". Untrusted fetched text is instructional; the model is the boundary.
+Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`.
+The model writes the receipt. Unparsed tool output is `unavailable`, never "no findings".
+Untrusted fetched text is instructional; the model is the boundary.
 
 ```text
 - [ ] **Product evolution — research, build, and improve until quitting time.**
@@ -26,8 +28,8 @@ Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receip
     assets, or implementation. If browsing is unavailable, say so in the record and continue from
     work-target evidence rather than pretending research happened.
   - Maintain opportunity-map.md. Turn each opportunity into a hypothesis with user, problem,
-    evidence, expected outcome, reversibility, measurement, and rejection reason using
-    a receipt from `receipt-templates.md`. Prefer small validated slices that can
+    evidence, expected outcome, reversibility, measurement, and rejection reason, and keep the
+    receipt for it beside the entry. Prefer small validated slices that can
     confirm or reject the hypothesis inside the remaining time; record rejected alternatives and
     avoid areas disproved by prior receipts rather than re-exploring them.
   - Rank each opportunity by user value, evidence/confidence, differentiation, effort,

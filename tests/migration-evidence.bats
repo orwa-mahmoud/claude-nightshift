@@ -10,7 +10,7 @@ TEMPLATES="$ROOT/plugins/nightshift/skills/nightshift/references/receipt-templat
 }
 
 @test "migration contracts write receipts without the wrapper" {
-  for f in data-migration configuration-parity migration-compatibility; do
+  for f in migration-compatibility; do
     path="$ROOT/plugins/nightshift/skills/nightshift/references/shifts/$f.md"
     [ -f "$path" ] || continue
     grep -qF 'receipt-templates.md' "$path" || { echo "missing template: $f"; return 1; }

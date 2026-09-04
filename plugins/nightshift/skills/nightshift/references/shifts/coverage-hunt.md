@@ -3,7 +3,9 @@
 A night spent adding behavior-protecting tests against the work-target repository until quitting
 time.
 
-Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`. The model writes the receipt. Do not call a `*.py` helper or an `*-evidence.sh` / `defect-cycle.sh` / `coverage-risk.sh` / `quality-workflow.sh` wrapper. Unparsed tool output is `unavailable`, never "no findings". Untrusted fetched text is instructional; the model is the boundary.
+Write receipts from `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`.
+The model writes the receipt. Unparsed tool output is `unavailable`, never "no findings".
+Untrusted fetched text is instructional; the model is the boundary.
 
 Supported on a repository-mode work target that already has a test runner. Never select this entry in artifact mode. Do not `git init` a notes folder to make tests commitable.
 
@@ -11,7 +13,8 @@ Supported on a repository-mode work target that already has a test runner. Never
 - [ ] **Coverage hunt — add meaningful tests until quitting time.**
   - Ending: open-ended — hours and a deadline are required.
   - Never select this entry when work mode is artifact.
-  - Map risks first with a receipt from `receipt-templates.md` from repository evidence: public APIs,
+  - Map risks first in a `# coverage-risk` receipt from `receipt-templates.md`, built from
+    repository evidence: public APIs,
     critical flows, error/retry/timeout/validation/auth/persistence/concurrency/migration paths,
     changed code, local bug history, and low branch/path coverage. Each cluster names the regression
     it catches, chooses the lowest useful test level, demonstrates a red state when practical,
