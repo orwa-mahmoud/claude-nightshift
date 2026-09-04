@@ -194,7 +194,7 @@ digest_of() {
   normalize --format eslint-json --input "$(fixture_input eslint-json sample)" --top 0
   [ "$status" -eq 0 ]
   printf '%s\n' "$output" | grep -qx 'showing 0 of 6 items'
-  ! printf '%s\n' "$output" | grep -q '^| severity'
+  if printf '%s\n' "$output" | grep -q '^| severity'; then echo "unexpected table header"; return 1; fi
 }
 
 # A report that nests its suites states the same tests twice: once on the outer suite and
@@ -367,7 +367,7 @@ digest_of() {
     [ "$(printf '%s\n' "$output" | wc -l | tr -d ' ')" -eq 1 ]
     printf '%s\n' "$output" | grep -qE "^unavailable $fmt: .+" \
       || { echo "$fmt: $output"; return 1; }
-    ! printf '%s\n' "$output" | grep -qi '0 errors'
+    if printf '%s\n' "$output" | grep -qi '0 errors'; then echo "unparsed input read as clean"; return 1; fi
   done
 }
 
@@ -461,7 +461,7 @@ digest_of() {
 @test "the summary carries no carriage return and ends with one newline" {
   cd "$ROOT"
   /bin/bash "$SH" --format junit --input "$(fixture_input junit sample)" >"$BATS_TEST_TMPDIR/out.md"
-  ! LC_ALL=C grep -q "$(printf '\r')" "$BATS_TEST_TMPDIR/out.md"
+  if LC_ALL=C grep -q "$(printf '\r')" "$BATS_TEST_TMPDIR/out.md"; then echo "carriage return in output"; return 1; fi
   [ "$(tail -c 1 "$BATS_TEST_TMPDIR/out.md" | od -An -c | tr -d ' ')" = '\n' ]
 }
 
