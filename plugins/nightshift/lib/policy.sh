@@ -384,26 +384,29 @@ sys.stdout.write("".join(
 # _ns_policy_facts <operation> <python-program> <file> — the fact stream on stdout.
 # Status 1 when the file is not JSON, 2 when no parser is installed.
 _ns_policy_facts() {
-  local tool
+  local tool src prog
   tool="$(ns_policy_json_tool)" || return 2
+  src="$(ns_native_display_path "$3")"
   if [ "$tool" = jq ]; then
-    jq -r --arg op "$1" -f "$NS_POLICY_EMIT_JQ" "$3" 2>/dev/null || return 1
+    prog="$(ns_native_display_path "$NS_POLICY_EMIT_JQ")"
+    jq -r --arg op "$1" -f "$prog" "$src" 2>/dev/null || return 1
   else
-    python3 -c "$2" "$3" 2>/dev/null || return 1
+    python3 -c "$2" "$src" 2>/dev/null || return 1
   fi
 }
 
 # ns_policy_canon_json <file> — the document as compact canonical JSON: sorted keys, \uXXXX
 # escaping. The one wire form the bash and PowerShell resolvers both emit.
 ns_policy_canon_json() {
-  local tool
+  local tool src
   tool="$(ns_policy_json_tool)" || return 2
+  src="$(ns_native_display_path "$1")"
   if [ "$tool" = jq ]; then
-    jq -caS . "$1" 2>/dev/null || return 1
+    jq -caS . "$src" 2>/dev/null || return 1
   else
     python3 -c 'import json, sys
 sys.stdout.write(json.dumps(json.load(open(sys.argv[1])), sort_keys=True, separators=(",", ":")) + "\n")' \
-      "$1" 2>/dev/null || return 1
+      "$src" 2>/dev/null || return 1
   fi
 }
 
