@@ -1,5 +1,7 @@
 # nightshift
 
+[![HOL Guard](https://img.shields.io/endpoint?url=https%3A%2F%2Fhol.org%2Fapi%2Fregistry%2Fbadges%2Fplugin%3Fslug%3Dorwa-mahmoud%252Fnightshift%26metric%3Dtrust)](https://hol.org/go/guard/orwa-mahmoud-uae?dest=%2Fguard%2Fbilling%3Fpromo%3DGUARD20-ORWA-MAHMOUD-UAE%23upgrade&link_id=9a8e4449-def8-4c8d-9ba9-a4eac24754c3&utm_source=insights_share&utm_medium=affiliate_cta&utm_campaign=share20)
+
 Nightshift gives [Claude Code](https://claude.com/claude-code),
 [OpenAI Codex](https://openai.com/codex/), and [Cursor](https://cursor.com) accountable,
 time-bounded engineering shifts. Hand it your own punch list or let it research the product, rank
