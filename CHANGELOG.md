@@ -3,6 +3,33 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.20.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.19.0...v0.20.0) (2026-09-05)
+
+
+### Features
+
+* **start:** one native preflight prints a verdict per line (`ok` / `warn` / `refuse`) and arms without asking, so a scheduled run behaves like an interactive one; it needs neither jq nor python3
+* **hunt, quality:** the owner's sentence is the objective — no keyword router. A time budget plus an actionable goal composes and runs directly. Feature, product, or UI work given to Quality continues as Hunt; quality tools do not hijack that night
+* **policy:** hooks read Nightshift's own `rules.json` with a bundled reader (POSIX awk + bash, Windows `ConvertFrom-Json`). A malformed file fails closed and does not arm
+* **rules:** five elevation categories — `sudo`, `containers`, `global-packages`, `daemons`, `external-services` — are denied by default. Elevation gates creating system state (`docker run`, `brew install`, path-prefixed or `sh -c` `sudo`); `docker ps` and `brew list` stay ordinary work. Built-in patterns match the shipped template whether or not the file carries an `elevation` object and whether or not jq is on PATH
+* **receipts:** the model writes the morning receipt from a template under `.nightshift/receipts/`. Status and Doctor show one resolved policy block and the source of every effective setting
+* **runtime:** the plugin ships no Python. Skills read helper verdicts instead of runbooks. Auto-add is the model plus a bash/PowerShell seatbelt (`baseline` / `diff` / `rollback`); there is no install engine and no pinned recipe catalog
+* **catalog:** 30 stand-alone shifts that use the project's own tools or report `unavailable`. Tooling hints name common tools; they pin no version and run no install
+* **hosts:** Claude Code, Codex, and Cursor share the same contract. Cursor's question tool is denied during a shift, same as the other two hosts
+
+
+### Bug Fixes
+
+* **hardhat:** control-file denies compare canonical absolute paths, so `.nightshift//`, `/./`, `/../`, and `\\` forms cannot write `shift-policy.json` or the other control files
+* **hardhat:** STOP means stop work now; the hook stays armed until clock-out writes `.ended`. Reset is the explicit escape
+* **runtime:** the worker fence reads the on-disk lease / session / pid. A model-authored "I am not a duplicate" cannot take over; a missing fence refuses to arm
+* **evidence:** finding ids stay inside `.nightshift`; temps that hold tool output use mode `700`. An unreadable punch list fails closed — clock-out does not release as "0 open"
+* **policy:** verification defaults to `none` on POSIX and Windows unless the owner or a profile set one
+* **support:** the default bundle is an allowlisted subset (version, markers, policy summary, counts). Raw `scheduled.log` and unrestricted evidence are omitted. There is no secret scanner and no "redacted / sanitized" claim
+* **hooks:** a punch list that exists but cannot be counted keeps hardhat armed on both engines
+* **windows:** PowerShell 5.1 no longer uses unguarded `ProcessStartInfo.ArgumentList`
+* **docs:** drop "optional Python / honest skip", "hardhat is a sandbox", and planner/redaction claims that the runtime does not keep
+
 ## [0.19.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.18.1...v0.19.0) (2026-09-01)
 
 
