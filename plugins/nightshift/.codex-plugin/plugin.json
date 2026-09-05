@@ -54,9 +54,9 @@
       "Dated archive of finished runs"
     ],
     "defaultPrompt": [
-      "Set up Nightshift in this project workspace.",
-      "Show me the ready-made shifts I can run tonight.",
-      "Use the next four hours to research and improve this product."
+      "Set up Nightshift and show me the highest-value work it can do in this project.",
+      "Add new features and improve existing ones for 10 hours.",
+      "Raise test coverage and quality for 10 hours. Add safe local development tools when needed."
     ],
     "websiteURL": "https://nightshift.orwamahmoud.com/",
     "privacyPolicyURL": "https://nightshift.orwamahmoud.com/privacy",
