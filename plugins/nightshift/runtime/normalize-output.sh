@@ -92,13 +92,15 @@ unavail() {
   exit 3
 }
 
-[ -f "$INPUT" ] && [ -r "$INPUT" ] || unavail 'the input is not a readable file'
+if [ ! -f "$INPUT" ] || [ ! -r "$INPUT" ]; then
+  unavail 'the input is not a readable file'
+fi
 
 SOURCE_DIGEST="$(ns_policy_sha256_text <"$INPUT")" ||
   unavail 'no sha256 tool on this host, so the summary cannot be anchored'
 
 TMPD=""
-# shellcheck disable=SC2329 # trap EXIT invokes this
+# shellcheck disable=SC2317,SC2329 # trap EXIT invokes this
 _cleanup() { [ -z "$TMPD" ] || rm -rf -- "$TMPD"; }
 trap _cleanup EXIT
 TMPD="$(mktemp -d "${TMPDIR:-/tmp}/nightshift-normalize.XXXXXX")" ||

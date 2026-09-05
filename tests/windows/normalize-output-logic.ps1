@@ -130,6 +130,19 @@ function Get-FixtureInput {
     throw "no fixture input for $Format/$Case"
 }
 
+function Get-FixtureSourceDigest {
+    param([string]$RelativePath)
+    $absolute = Join-Path $repository $RelativePath
+    return (Get-FileHash -LiteralPath $absolute -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-ExpectedSummary {
+    param([string]$GoldenPath, [string]$SourceDigest)
+    $text = [IO.File]::ReadAllText($GoldenPath) -replace "`r`n", "`n" -replace "`r", "`n"
+    $text = $text -replace '(?m)^(source: .* sha256:)[0-9a-f]{64}$', "`${1}$SourceDigest"
+    return ($text -replace '("source":")[0-9a-f]{64}"', "`${1}$SourceDigest`"")
+}
+
 Push-Location $repository
 try {
     foreach ($format in $formats) {
@@ -147,14 +160,15 @@ try {
 
             $markdown = Invoke-Normalize @('-Format', $format, '-InputPath', $fixtureInput)
             Expect-Equal $expectedCode $markdown.ExitCode "$format/$case markdown exit code"
+            $sourceDigest = Get-FixtureSourceDigest $fixtureInput
             $goldenMd = Join-Path $fixtures "$format/$case.expected.md"
-            Expect-Equal ([IO.File]::ReadAllText($goldenMd)) $markdown.Text `
+            Expect-Equal (Get-ExpectedSummary $goldenMd $sourceDigest) $markdown.Text `
                 "$format/$case renders the golden markdown summary"
 
             $json = Invoke-Normalize @('-Format', $format, '-InputPath', $fixtureInput, '-Json')
             Expect-Equal $expectedCode $json.ExitCode "$format/$case JSON exit code"
             $goldenJson = Join-Path $fixtures "$format/$case.expected.json"
-            Expect-Equal ([IO.File]::ReadAllText($goldenJson)) $json.Text `
+            Expect-Equal (Get-ExpectedSummary $goldenJson $sourceDigest) $json.Text `
                 "$format/$case renders the golden JSON summary"
 
             $bytes = [Text.Encoding]::UTF8.GetBytes($markdown.Text)

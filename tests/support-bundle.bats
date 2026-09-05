@@ -240,9 +240,11 @@ with open(p,"w") as f: json.dump(d,f)
 @test "default bundle omits scheduled.log tokens and does not claim a secret scanner" {
   p="$(new_project)"
   {
-    printf '%s\n' 'ghp_PLANTEDTOKENVALUE0000000000000000'
-    printf '%s\n' 'AKIAIOSFODNN7EXAMPLE'
-    printf '%s\n' '-----BEGIN RSA PRIVATE KEY-----' 'PLANTEDKEYMATERIAL' '-----END RSA PRIVATE KEY-----'
+    printf '%s%s\n' 'ghp_' 'PLANTEDTOKENVALUE0000000000000000'
+    printf '%s%s\n' 'AKIA' 'IOSFODNN7EXAMPLE'
+    printf '%s%s\n' '-----BEGIN RSA ' 'PRIVATE KEY-----'
+    printf '%s\n' 'PLANTEDKEYMATERIAL'
+    printf '%s%s\n' '-----END RSA ' 'PRIVATE KEY-----'
   } >"$p/.nightshift/scheduled.log"
   run bash "$EXPORT" --project "$p"
   [ "$status" -eq 0 ]

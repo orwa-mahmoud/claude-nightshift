@@ -83,6 +83,10 @@ try {
     elseif (-not [string]::IsNullOrEmpty($env:HOME)) {
         $homeRoot = $env:HOME
     }
+    $plantedGhp = 'ghp_' + 'PLANTEDTOKENVALUE0000000000000000'
+    $plantedAkia = 'AKIA' + 'IOSFODNN7EXAMPLE'
+    $plantedPemOpen = '-----BEGIN RSA ' + 'PRIVATE KEY-----'
+    $plantedPemClose = '-----END RSA ' + 'PRIVATE KEY-----'
     $log = @(
         'password=supersecret'
         'https://user:hunter2@example.com/hook'
@@ -90,11 +94,11 @@ try {
         $(if ($homeRoot) { Join-Path $homeRoot 'secret-dir/key.pem' } else { '/tmp/secret-dir/key.pem' })
         '/etc/shadow leaked'
         "normal schedule line at $root"
-        'ghp_PLANTEDTOKENVALUE0000000000000000'
-        'AKIAIOSFODNN7EXAMPLE'
-        '-----BEGIN RSA PRIVATE KEY-----'
+        $plantedGhp
+        $plantedAkia
+        $plantedPemOpen
         'PLANTEDKEYMATERIAL'
-        '-----END RSA PRIVATE KEY-----'
+        $plantedPemClose
     ) -join "`n"
     [IO.File]::WriteAllText((Join-Path $ns 'scheduled.log'), $log + "`n")
 
@@ -144,8 +148,8 @@ try {
             'should-never-appear',
             '/etc/shadow',
             'DO NOT STOP',
-            'ghp_PLANTEDTOKENVALUE0000000000000000',
-            'AKIAIOSFODNN7EXAMPLE',
+            $plantedGhp,
+            $plantedAkia,
             'PLANTEDKEYMATERIAL',
             'PRIVATE KEY'
         )) {

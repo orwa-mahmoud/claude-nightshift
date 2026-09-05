@@ -52,8 +52,7 @@
 # halves emit the same bytes for the same ledger.
 set -u
 
-_here="${BASH_SOURCE[0]%/*}"
-[ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+_here="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]//\\//}")" && pwd)" || exit 2
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
 EC_JQ="$_here/evidence-compare.jq"
@@ -141,7 +140,7 @@ _ec_mktmp() {
   }
 }
 
-# shellcheck disable=SC2329 # trap EXIT invokes this
+# shellcheck disable=SC2317,SC2329 # trap EXIT invokes this
 _ec_cleanup() { [ -z "${TMPD:-}" ] || rm -rf "$TMPD"; }
 
 # ---------------------------------------------------------------- the fact stream

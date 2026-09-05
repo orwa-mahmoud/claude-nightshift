@@ -406,19 +406,19 @@ foreach ($directory in $packageDirs) {
     $toolStates = New-Object 'Collections.Generic.List[object]'
     foreach ($tool in $tools) {
         switch -CaseSensitive ($tool) {
-            'biome' { $config = $cfgBiome; $bin = 'biome'; $token = 'biome' }
-            'clippy' { $config = $cfgClippy; $bin = 'cargo-clippy'; $token = 'clippy' }
-            'eslint' { $config = $cfgEslint; $bin = 'eslint'; $token = 'eslint' }
-            'golangci-lint' { $config = $cfgGolangci; $bin = 'golangci-lint'; $token = 'golangci-lint' }
-            'mypy' { $config = $cfgMypy; $bin = 'mypy'; $token = 'mypy' }
-            'prettier' { $config = $cfgPrettier; $bin = 'prettier'; $token = 'prettier' }
-            'pytest' { $config = $cfgPytest; $bin = 'pytest'; $token = 'pytest' }
-            'ruff' { $config = $cfgRuff; $bin = 'ruff'; $token = 'ruff' }
-            'tsc' { $config = $cfgTsconfig; $bin = 'tsc'; $token = 'typescript' }
+            'biome' { $config = $cfgBiome; $bin = 'biome'; $mention = 'biome' }
+            'clippy' { $config = $cfgClippy; $bin = 'cargo-clippy'; $mention = 'clippy' }
+            'eslint' { $config = $cfgEslint; $bin = 'eslint'; $mention = 'eslint' }
+            'golangci-lint' { $config = $cfgGolangci; $bin = 'golangci-lint'; $mention = 'golangci-lint' }
+            'mypy' { $config = $cfgMypy; $bin = 'mypy'; $mention = 'mypy' }
+            'prettier' { $config = $cfgPrettier; $bin = 'prettier'; $mention = 'prettier' }
+            'pytest' { $config = $cfgPytest; $bin = 'pytest'; $mention = 'pytest' }
+            'ruff' { $config = $cfgRuff; $bin = 'ruff'; $mention = 'ruff' }
+            'tsc' { $config = $cfgTsconfig; $bin = 'tsc'; $mention = 'typescript' }
         }
         $state = 'absent'
         if (Test-NVBin $directory $bin) { $state = 'runnable' }
-        elseif ($config -cne '-' -or (Test-NVMentions $directory $token)) { $state = 'declared' }
+        elseif ($config -cne '-' -or (Test-NVMentions $directory $mention)) { $state = 'declared' }
         [void]$toolStates.Add([pscustomobject]@{ Name = $tool; Value = $state })
     }
 

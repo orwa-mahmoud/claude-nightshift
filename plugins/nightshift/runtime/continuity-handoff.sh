@@ -10,8 +10,7 @@
 # Exit: 0 ok · 1 refuse/usage · 2 unavailable/missing runtime
 set -u
 
-_here="${BASH_SOURCE[0]%/*}"
-[ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
+_here="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]//\\//}")" && pwd)" || exit 2
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
 

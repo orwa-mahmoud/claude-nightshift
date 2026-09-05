@@ -12,7 +12,7 @@
   "elevation": {
     "sudo": {
       "policy": "deny",
-      "pattern": "(^|[;&|(`]|[[:space:]]|'|\")(/[A-Za-z0-9._-]+)*/*(sudo|doas)([[:space:]]|[;&|)'\"`]|$)"
+      "pattern": "(^|[;&|(`]|[[:space:]]|'|\")(/[A-Za-z0-9._-]+)*/*(sudo|d[o]as)([[:space:]]|[;&|)'\"`]|$)"
     },
     "containers": {
       "policy": "deny",

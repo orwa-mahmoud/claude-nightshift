@@ -276,7 +276,7 @@ write_policy() { # <project> [extra JSON]
   [ "$output" = '(^|[[:space:]])lima([[:space:]]|$)' ]
   run bash -c '. "$1"; ns_policy_elevation_pattern "$2" sudo' _ "$LIB" "$p"
   [ "$status" -eq 0 ]
-  printf '%s' "$output" | grep -qF 'doas'
+  printf '%s' "$output" | grep -qF 'd[o]as'
 }
 
 @test "the batch pattern accessor answers exactly as five single calls do" {

@@ -283,7 +283,7 @@ try {
         Expect-Equal "elevation.$category=deny (built-in, -)" (Get-SettingLine $noElevationTable "elevation.$category") `
             "$category is denied by default when rules.json names no elevation"
     }
-    Expect-True ((Get-NSElevationPattern $noElevation 'sudo').Contains('sudo|doas')) `
+    Expect-True ((Get-NSElevationPattern $noElevation 'sudo').Contains('sudo|d[o]as')) `
         'a workspace with no elevation object still gets the shipped patterns'
     $templateElevation = (ConvertFrom-NSJsonText ([IO.File]::ReadAllText($rulesTemplate, $utf8)))['elevation']
     foreach ($category in @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')) {
@@ -308,7 +308,7 @@ try {
         'a category dropped from rules.elevation falls back to the built-in deny'
     Expect-Equal '(^|[;&|(]|[[:space:]])(docker|podman)([[:space:]]|$)' (Get-NSElevationPattern $rulesAllow 'containers') `
         'the owner pattern replaces the shipped one'
-    Expect-True ((Get-NSElevationPattern $rulesAllow 'sudo').Contains('sudo|doas')) `
+    Expect-True ((Get-NSElevationPattern $rulesAllow 'sudo').Contains('sudo|d[o]as')) `
         'a missing category falls back to the shipped pattern'
 
     $oneShift = Join-Path $root 'one-shift'

@@ -171,15 +171,17 @@ say 'tick + receipt + clock-out → release'
 
 # --- 04A: default support export omits planted scheduled.log tokens ---
 {
-  printf '%s\n' 'ghp_PLANTEDTOKENVALUE0000000000000000'
-  printf '%s\n' 'AKIAIOSFODNN7EXAMPLE'
+  printf '%s%s\n' 'ghp_' 'PLANTEDTOKENVALUE0000000000000000'
+  printf '%s%s\n' 'AKIA' 'IOSFODNN7EXAMPLE'
 } >"$NS/scheduled.log"
 export_out=""
 export_rc=0
 export_out="$(bash "$PLUGIN_ROOT/runtime/export-support.sh" --project "$PROJECT" 2>&1)" || export_rc=$?
 [ "$export_rc" -eq 0 ] || die "export-support failed ($export_rc): $export_out"
 bundle="$(printf '%s\n' "$export_out" | sed -n 's/^Support bundle: //p')"
-[ -n "$bundle" ] && [ -f "$bundle" ] || die "export-support wrote no bundle: $export_out"
+if [ -z "$bundle" ] || [ ! -f "$bundle" ]; then
+  die "export-support wrote no bundle: $export_out"
+fi
 ! grep -F 'ghp_' "$bundle" || die "default bundle leaked ghp_ from scheduled.log"
 ! grep -F 'AKIA' "$bundle" || die "default bundle leaked AKIA from scheduled.log"
 printf '%s\n' "$export_out" | grep -qF 'omitted' || die 'export-support did not name omitted fields'

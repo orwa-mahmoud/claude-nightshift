@@ -24,6 +24,12 @@ $ErrorActionPreference = 'Stop'
 
 $pluginRoot = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $pluginRoot 'lib/Nightshift.psm1') -Force -DisableNameChecking
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+
+function Write-NSLf {
+    param([string]$Text)
+    [Console]::Out.Write($Text + "`n")
+}
 
 function Write-NSSeatbeltUsage {
     Write-Error @'
@@ -106,7 +112,7 @@ switch ($Command) {
         foreach ($rel in $Surface) {
             if (Test-NSSurfaceEscape -Rel $rel -Root $target) {
                 if (Test-Path -LiteralPath $base) { Remove-Item -LiteralPath $base -Recurse -Force }
-                Write-Output ('{"ok":false,"refused":true,"reason":"surface-escape:' + $rel + '"}')
+                Write-NSLf ('{"ok":false,"refused":true,"reason":"surface-escape:' + $rel + '"}')
                 exit 2
             }
             $path = Join-Path $target $rel
@@ -119,14 +125,14 @@ switch ($Command) {
                 Copy-Item -LiteralPath $path -Destination (Join-Path $base $digest) -Force
             } elseif (Test-Path -LiteralPath $path) {
                 if (Test-Path -LiteralPath $base) { Remove-Item -LiteralPath $base -Recurse -Force }
-                Write-Output ('{"ok":false,"refused":true,"reason":"surface-not-file:' + $rel + '"}')
+                Write-NSLf ('{"ok":false,"refused":true,"reason":"surface-not-file:' + $rel + '"}')
                 exit 2
             }
             $rows.Add(($rel + "`t" + $existed + "`t" + $digest))
         }
         Set-Content -LiteralPath $manifest -Value $rows -Encoding utf8
         Set-Content -LiteralPath $tx -Value '{"schemaVersion":1,"stage":"baseline"}' -Encoding utf8
-        Write-Output '{"ok":true,"refused":false,"rolledBack":false,"command":"baseline"}'
+        Write-NSLf '{"ok":true,"refused":false,"rolledBack":false,"command":"baseline"}'
         exit 0
     }
     'diff' {
@@ -162,12 +168,12 @@ switch ($Command) {
             if ($changed) { $touched.Add($rel) }
         }
         $json = ($touched | ForEach-Object { '"' + $_ + '"' }) -join ','
-        Write-Output ('{"ok":true,"touched":[' + $json + ']}')
+        Write-NSLf ('{"ok":true,"touched":[' + $json + ']}')
         exit 0
     }
     { $_ -in @('rollback', 'recover') } {
         if (-not (Test-Path -LiteralPath $manifest)) {
-            Write-Output '{"detail":"no transaction","ok":true,"recovered":false}'
+            Write-NSLf '{"detail":"no transaction","ok":true,"recovered":false}'
             exit 0
         }
         $base = Join-NSPath $ns 'provision-baseline'
@@ -178,7 +184,7 @@ switch ($Command) {
             $existed = $parts[1]
             $digest = $parts[2]
             if (Test-NSSurfaceEscape -Rel $rel -Root $target) {
-                Write-Output '{"ok":false,"proven":false,"rolledBack":false,"reason":"surface-escape"}'
+                Write-NSLf '{"ok":false,"proven":false,"rolledBack":false,"reason":"surface-escape"}'
                 exit 3
             }
             $path = Join-Path $target $rel
@@ -189,14 +195,14 @@ switch ($Command) {
                 } elseif (-not $item.PSIsContainer) {
                     Remove-Item -LiteralPath $path -Force
                 } else {
-                    Write-Output '{"ok":false,"proven":false,"rolledBack":false,"reason":"restore-failed"}'
+                    Write-NSLf '{"ok":false,"proven":false,"rolledBack":false,"reason":"restore-failed"}'
                     exit 3
                 }
             }
             if ($existed -eq '1') {
                 $blob = Join-Path $base $digest
                 if (-not (Test-Path -LiteralPath $blob)) {
-                    Write-Output '{"ok":false,"proven":false,"rolledBack":false,"reason":"restore-failed"}'
+                    Write-NSLf '{"ok":false,"proven":false,"rolledBack":false,"reason":"restore-failed"}'
                     exit 3
                 }
                 $dir = Split-Path -Parent $path
@@ -209,7 +215,7 @@ switch ($Command) {
         Remove-Item -LiteralPath $manifest -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $tx -Force -ErrorAction SilentlyContinue
         if (Test-Path -LiteralPath $base) { Remove-Item -LiteralPath $base -Recurse -Force }
-        Write-Output '{"ok":true,"rolledBack":true,"recovered":true}'
+        Write-NSLf '{"ok":true,"rolledBack":true,"recovered":true}'
         exit 0
     }
 }

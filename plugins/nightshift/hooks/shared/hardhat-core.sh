@@ -544,7 +544,9 @@ ns_hardhat_elevation_reason() {
   # One parse of the rules for all five categories; each line is category<TAB>pattern.
   _patterns="$(ns_policy_elevation_patterns "$PROJECT_DIR")" || return 1
   while IFS="$(printf '\t')" read -r _cat _pat; do
-    [ -n "$_cat" ] && [ -n "$_pat" ] || continue
+    if [ -z "$_cat" ] || [ -z "$_pat" ]; then
+      continue
+    fi
     valid_ere "$_pat" || {
       printf '%s' "BLOCKED: elevation.$_cat.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
       return 0

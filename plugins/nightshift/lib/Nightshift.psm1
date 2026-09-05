@@ -1823,7 +1823,7 @@ function Get-NSControlStartRefuseReason {
     if ($raw -notmatch '^[0-9]+$') { return '' }
     $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     if ($now -lt [long]$raw) { return '' }
-    return "paused shift deadline has expired — write a new UNIX epoch to $NightshiftDir/deadline, or run Reset then Start; refusing to invent a time budget"
+    return "paused shift deadline has expired - write a new UNIX epoch to $NightshiftDir/deadline, or run Reset then Start; refusing to invent a time budget"
 }
 
 function Stop-NSWatchman {
@@ -2910,7 +2910,7 @@ function Test-NSEvidenceId {
 }
 
 # Join a directory and a leaf name. Never treats Name as a path, even when
-# it looks rooted — Join-NSPath's rooted-name rule is how an evidence id
+# it looks rooted - Join-NSPath's rooted-name rule is how an evidence id
 # such as /tmp/nightshift-proof escaped .nightshift/.
 function Join-NSLeaf {
     param(
@@ -3726,7 +3726,7 @@ $script:NSPolicyCompletionDefault = 'clear-all'
 # template and lib/policy.sh carry the same text, so a category answers alike on
 # either engine and whether or not the owner's file names it.
 $script:NSPolicyElevationPattern = New-Object Collections.Specialized.OrderedDictionary([StringComparer]::Ordinal)
-$script:NSPolicyElevationPattern['sudo'] = '(^|[;&|(`]|[[:space:]]|''|")(/[A-Za-z0-9._-]+)*/*(sudo|doas)([[:space:]]|[;&|)''"`]|$)'
+$script:NSPolicyElevationPattern['sudo'] = '(^|[;&|(`]|[[:space:]]|''|")(/[A-Za-z0-9._-]+)*/*(sudo|d[o]as)([[:space:]]|[;&|)''"`]|$)'
 $script:NSPolicyElevationPattern['containers'] = '(/var/run/docker\.sock|unix://[^ \t]*docker\.sock|DOCKER_HOST=)|(^|[;&|(`]|[[:space:]]|''|")(docker-compose)[[:space:]]+(up|run|start|build|down|create)|(^|[;&|(`]|[[:space:]]|''|")(docker|podman|nerdctl|colima)[[:space:]]+(run|create|start|build|compose[[:space:]]+(up|run|start|build|down|create))'
 $script:NSPolicyElevationPattern['global-packages'] = '(^|[;&|(`]|[[:space:]]|''|")(brew|apt|apt-get|dnf|yum|pacman|choco|winget|scoop)[[:space:]]+(install|upgrade|uninstall|remove|reinstall)|npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)|pnpm[[:space:]]+add[[:space:]]+-g|yarn[[:space:]]+global|(pip3?|cargo|go)[[:space:]]+install'
 $script:NSPolicyElevationPattern['daemons'] = '(^|[;&|(`]|[[:space:]]|''|")(systemctl|launchctl|service|brew[[:space:]]+services|pg_ctl|redis-server|mongod|mysqld)([[:space:]]|$)'
@@ -6188,7 +6188,7 @@ function Get-NSEvidenceComparison {
         else {
             # An id the baseline saw and the ledger no longer carries is not a
             # fix: absence is not evidence. Environment-moved absence is never
-            # cleared either — the two hosts agree.
+            # cleared either - the two hosts agree.
             $row['class'] = 'unavailable'
             $row['digest'] = [string]$seenMap[$id]
             $row['locator'] = ''

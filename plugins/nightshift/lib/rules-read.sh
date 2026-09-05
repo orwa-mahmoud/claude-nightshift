@@ -121,7 +121,9 @@ _ns_rules_row() {
     line="${line#*"$_NS_RULES_TAB"}"
     p3="${line%%"$_NS_RULES_TAB"*}"
     line="${line#*"$_NS_RULES_TAB"}"
-    [ "$p1" = "$1" ] && [ "$p2" = "$2" ] && [ "$p3" = "$3" ] || continue
+    if [ "$p1" != "$1" ] || [ "$p2" != "$2" ] || [ "$p3" != "$3" ]; then
+      continue
+    fi
     printf '%s' "$line"
     return 0
   done
@@ -178,7 +180,9 @@ ns_rules_get() {
         line="${line#*"$_NS_RULES_TAB"}"
         child_typ="${line%%"$_NS_RULES_TAB"*}"
         child_val="${line#*"$_NS_RULES_TAB"}"
-        [ -n "$p2" ] && [ -z "$p3" ] || continue
+        if [ -z "$p2" ] || [ -n "$p3" ]; then
+          continue
+        fi
         case "$child_typ" in s | n | b) ;; *) continue ;; esac
         if [ "$typ" = a ]; then
           [ "$first" -eq 1 ] || parts="$parts,"
@@ -281,7 +285,9 @@ ns_rules_tool_deny_json() {
     line="${line#*"$_NS_RULES_TAB"}"
     typ="${line%%"$_NS_RULES_TAB"*}"
     val="${line#*"$_NS_RULES_TAB"}"
-    [ -n "$p2" ] && [ -z "$p3" ] && [ "$typ" = s ] || continue
+    if [ -z "$p2" ] || [ -n "$p3" ] || [ "$typ" != s ]; then
+      continue
+    fi
     [ "$first" -eq 1 ] || printf ','
     first=0
     printf '%s:%s' "$(ns_rules_json_key "$p2")" "$val"
@@ -322,7 +328,9 @@ ns_rules_map_parse() {
     line="${line#*"$_NS_RULES_TAB"}"
     typ="${line%%"$_NS_RULES_TAB"*}"
     val="${line#*"$_NS_RULES_TAB"}"
-    [ -n "$p1" ] && [ -z "$p2" ] && [ -z "$p3" ] && [ "$typ" = s ] || continue
+    if [ -z "$p1" ] || [ -n "$p2" ] || [ -n "$p3" ] || [ "$typ" != s ]; then
+      continue
+    fi
     NS_RULES_MAP="$NS_RULES_MAP$p1$_NS_RULES_TAB$(ns_json_text "$val")$_NS_RULES_NL"
   done
   NS_RULES_MAP_SRC="$src"

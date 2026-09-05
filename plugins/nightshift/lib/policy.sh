@@ -90,7 +90,7 @@ NS_PF5=""
 ns_policy_default_pattern() {
   case "$1" in
     sudo)
-      printf '%s' '(^|[;&|(`]|[[:space:]]|'\''|")(/[A-Za-z0-9._-]+)*/*(sudo|doas)([[:space:]]|[;&|)'\''"`]|$)'
+      printf '%s' '(^|[;&|(`]|[[:space:]]|'\''|")(/[A-Za-z0-9._-]+)*/*(sudo|d[o]as)([[:space:]]|[;&|)'\''"`]|$)'
       ;;
     containers)
       printf '%s' '(/var/run/docker\.sock|unix://[^ \t]*docker\.sock|DOCKER_HOST=)|(^|[;&|(`]|[[:space:]]|'\''|")(docker-compose)[[:space:]]+(up|run|start|build|down|create)|(^|[;&|(`]|[[:space:]]|'\''|")(docker|podman|nerdctl|colima)[[:space:]]+(run|create|start|build|compose[[:space:]]+(up|run|start|build|down|create))'

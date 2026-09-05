@@ -57,7 +57,7 @@ TARGET="$(cd -P "$PROJECT" 2>/dev/null && pwd)" ||
   unavail 'the work target is not a readable directory'
 
 TMPD=""
-# shellcheck disable=SC2329 # trap EXIT invokes this
+# shellcheck disable=SC2317,SC2329 # trap EXIT invokes this
 _cleanup() { [ -z "$TMPD" ] || rm -rf -- "$TMPD"; }
 trap _cleanup EXIT
 TMPD="$(mktemp -d "${TMPDIR:-/tmp}/nightshift-inventory.XXXXXX")" ||
@@ -185,12 +185,12 @@ BEGIN { DELIM = " \t\r=<>[~!\"," sprintf("%c", 39); n = length(tok); ok = 0 }
 END { exit ok ? 0 : 1 }
 '
 
-# _mentions DIR TOKEN -> 0 when a manifest in DIR names TOKEN as a package of its own.
+# _mentions DIR NAME -> 0 when a manifest in DIR names NAME as a package of its own.
 _mentions() {
-  local dir="$1" token="$2" f
+  local dir="$1" mention="$2" f
   for f in package.json Cargo.toml go.mod pyproject.toml setup.cfg requirements.txt tox.ini; do
     [ -f "$TARGET/$dir/$f" ] || continue
-    LC_ALL=C awk -v tok="$token" "$AWK_MENTIONS" "$TARGET/$dir/$f" && return 0
+    LC_ALL=C awk -v tok="$mention" "$AWK_MENTIONS" "$TARGET/$dir/$f" && return 0
   done
   return 1
 }
@@ -398,19 +398,19 @@ while IFS= read -r dir; do
 
   for name in $TOOLS; do
     case "$name" in
-      biome) cfg="$CFG_BIOME"; bin=biome; token=biome ;;
-      clippy) cfg="$CFG_CLIPPY"; bin=cargo-clippy; token=clippy ;;
-      eslint) cfg="$CFG_ESLINT"; bin=eslint; token=eslint ;;
-      golangci-lint) cfg="$CFG_GOLANGCI"; bin=golangci-lint; token=golangci-lint ;;
-      mypy) cfg="$CFG_MYPY"; bin=mypy; token=mypy ;;
-      prettier) cfg="$CFG_PRETTIER"; bin=prettier; token=prettier ;;
-      pytest) cfg="$CFG_PYTEST"; bin=pytest; token=pytest ;;
-      ruff) cfg="$CFG_RUFF"; bin=ruff; token=ruff ;;
-      tsc) cfg="$CFG_TSCONFIG"; bin=tsc; token=typescript ;;
+      biome) cfg="$CFG_BIOME"; bin=biome; mention=biome ;;
+      clippy) cfg="$CFG_CLIPPY"; bin=cargo-clippy; mention=clippy ;;
+      eslint) cfg="$CFG_ESLINT"; bin=eslint; mention=eslint ;;
+      golangci-lint) cfg="$CFG_GOLANGCI"; bin=golangci-lint; mention=golangci-lint ;;
+      mypy) cfg="$CFG_MYPY"; bin=mypy; mention=mypy ;;
+      prettier) cfg="$CFG_PRETTIER"; bin=prettier; mention=prettier ;;
+      pytest) cfg="$CFG_PYTEST"; bin=pytest; mention=pytest ;;
+      ruff) cfg="$CFG_RUFF"; bin=ruff; mention=ruff ;;
+      tsc) cfg="$CFG_TSCONFIG"; bin=tsc; mention=typescript ;;
     esac
     if _bin "$dir" "$bin"; then
       state=runnable
-    elif [ "$cfg" != - ] || _mentions "$dir" "$token"; then
+    elif [ "$cfg" != - ] || _mentions "$dir" "$mention"; then
       state=declared
     else
       state=absent

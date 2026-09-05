@@ -168,7 +168,7 @@ bound_plan() { # <project> <deadline JSON> <command>...
   # The guard still has a pattern to match with.
   run bash -c '. "$1"; ns_policy_elevation_pattern "$2" sudo' _ "$LIB" "$p"
   [ "$status" -eq 0 ]
-  printf '%s' "$output" | grep -qF 'doas'
+  printf '%s' "$output" | grep -qF 'd[o]as'
 }
 
 # The built-in is what a workspace falls back to; the template is what the owner reads and edits.

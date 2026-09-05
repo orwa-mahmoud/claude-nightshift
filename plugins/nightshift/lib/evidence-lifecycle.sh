@@ -10,10 +10,10 @@ ns_evidence_jsonl() {
 ns_gate_checkpoint_token() {
   local ws="${1:?}" jsonl line id=""
   jsonl="$(ns_evidence_jsonl "$ws")"
-  [ -f "$jsonl" ] && [ ! -L "$jsonl" ] || {
+  if [ ! -f "$jsonl" ] || [ -L "$jsonl" ]; then
     printf 'none'
     return 0
-  }
+  fi
   if command -v jq >/dev/null 2>&1; then
     id="$(jq -r 'select(.domain == "checkpoint") | .id' "$jsonl" 2>/dev/null | tail -n1)"
   elif command -v python3 >/dev/null 2>&1; then
@@ -43,10 +43,10 @@ PY
 ns_evidence_counts() {
   local ws="${1:?}" jsonl f=0 o=0 b=0 c=0
   jsonl="$(ns_evidence_jsonl "$ws")"
-  [ -f "$jsonl" ] && [ ! -L "$jsonl" ] || {
+  if [ ! -f "$jsonl" ] || [ -L "$jsonl" ]; then
     printf 'findings=0 open=0 baseline=0 checkpoint=0'
     return 0
-  }
+  fi
   if command -v jq >/dev/null 2>&1; then
     while IFS= read -r line; do
       [ -n "$line" ] || continue
@@ -115,10 +115,10 @@ ns_status_last_checkpoint() {
 ns_status_stall_attempts() {
   local ns="${1:?}" n=""
   local stall="$ns/.stall"
-  [ -f "$stall" ] && [ ! -L "$stall" ] || {
+  if [ ! -f "$stall" ] || [ -L "$stall" ]; then
     printf '0'
     return 0
-  }
+  fi
   n="$(sed -n '2p' "$stall" 2>/dev/null | tr -d '[:space:]')"
   case "$n" in '' | *[!0-9]*) n=0 ;; esac
   printf '%s' "$n"

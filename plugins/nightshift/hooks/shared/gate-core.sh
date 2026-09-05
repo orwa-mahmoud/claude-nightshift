@@ -38,15 +38,15 @@ ns_gate_project_head() {
 # Stall progress token: repository mode uses the work-target HEAD; artifact mode uses
 # completion receipts so a missing git repo cannot pretend a commit landed.
 ns_gate_progress_token() {
-  local mode token ckpt
+  local mode mark ckpt
   mode="$(ns_work_mode "$PROJECT_DIR" 2>/dev/null)" || mode=repository
   if [ "$mode" = artifact ]; then
-    token="$(ns_receipts_fingerprint "$PROJECT_DIR")"
+    mark="$(ns_receipts_fingerprint "$PROJECT_DIR")"
   else
-    token="$(ns_gate_project_head)"
+    mark="$(ns_gate_project_head)"
   fi
   ckpt="$(ns_gate_checkpoint_token "$PROJECT_DIR")"
-  printf '%s:%s' "$token" "${ckpt:-none}"
+  printf '%s:%s' "$mark" "${ckpt:-none}"
 }
 
 # The gate honours the earlier of the projected deadline file and the shift policy's own
