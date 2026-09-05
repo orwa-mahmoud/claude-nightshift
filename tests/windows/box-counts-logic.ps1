@@ -36,6 +36,22 @@ try {
     $missing = Get-NSBoxCounts (Join-Path $root 'missing-punch.md')
     Expect-True ($missing.Open -eq 0 -and $missing.Ticked -eq 0 -and $missing.Total -eq 0) `
         'a missing punch list counts as zero'
+    Expect-True $missing.Readable 'a missing punch list is readable-as-absent, not unreadable'
+
+    $onWindows = $env:OS -eq 'Windows_NT'
+    if (-not $onWindows) {
+        $locked = Join-Path $root 'locked-punch.md'
+        [IO.File]::WriteAllText($locked, "## Items`n- [ ] **1. real.**`n")
+        & chmod 000 $locked
+        try {
+            $lockedCounts = Get-NSBoxCounts $locked
+            Expect-True (-not $lockedCounts.Readable) `
+                'an unreadable punch list is not counted as zero open'
+        }
+        finally {
+            & chmod 644 $locked
+        }
+    }
 
     $orders = Join-Path $root 'work-orders.md'
     [IO.File]::WriteAllText($orders, "# Work Orders`n`n- [ ] **one.**`n- [x] **done.**`n- [ ] **two.**`n")

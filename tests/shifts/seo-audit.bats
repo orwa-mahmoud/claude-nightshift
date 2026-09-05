@@ -3,6 +3,12 @@ CHECK="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/check-report.sh"
 FIXTURE="$BATS_TEST_DIRNAME/../fixtures/seo-audit"
 WIN="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/windows/check-report.ps1"
 
+@test "SEO audit uses receipt templates and refuses live-crawl without budgets" {
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qi 'Refuse live-crawl' "$E"
+  grep -qF 'neverLeaveApprovedOrigins' "$E"
+}
+
 @test "SEO audit discovers only owner-approved sources" {
   grep -qi 'Discovery' "$E"
   grep -qi 'owner-approved' "$E"

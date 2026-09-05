@@ -134,6 +134,13 @@ ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent 
       IFS= read -r NS_LEASE_START || return 1
     if IFS= read -r _; then return 1; fi
   } <"$f"
+  # Native Windows writers use CRLF; read -r keeps the CR and the line checks refuse it.
+  NS_LEASE_SID="${NS_LEASE_SID%$'\r'}"
+  NS_LEASE_HOST="${NS_LEASE_HOST%$'\r'}"
+  NS_LEASE_GENERATION="${NS_LEASE_GENERATION%$'\r'}"
+  NS_LEASE_NONCE="${NS_LEASE_NONCE%$'\r'}"
+  NS_LEASE_PID="${NS_LEASE_PID%$'\r'}"
+  NS_LEASE_START="${NS_LEASE_START%$'\r'}"
   ns_lease_safe_line "$NS_LEASE_SID" && ns_lease_safe_line "$NS_LEASE_HOST" \
     && ns_lease_safe_line "$NS_LEASE_GENERATION" && ns_lease_safe_line "$NS_LEASE_NONCE" \
     && ns_lease_safe_line "$NS_LEASE_PID" && ns_lease_safe_line "$NS_LEASE_START" || return 1
@@ -279,6 +286,39 @@ ns_lease_reclaim_interactive() { # <ns> <sid> <host> <old-generation> <pid> <sta
   rc=$?
   ns_lease_unlock "$ns"
   return "$rc"
+}
+
+# Take back a lease whose recovery holder is gone. A revival carries a nonce and the pid of
+# the process it fenced the site for; when that process is provably dead the site has no owner,
+# and the conversation the record names may resume it at the next generation with an empty
+# nonce and its own process. Provable death only, under the lease lock: an unreadable pid, an
+# empty one, or a process the host cannot classify all leave the lease alone.
+ns_lease_reclaim_recorded() { # <ns> <sid> <host> <pid> <start>
+  local ns="$1" sid="$2" host="$3" pid="$4" start="$5" generation reclaimed rc
+  [ -n "$sid" ] || return 1
+  ns_lease_lock "$ns" || return 1
+  if ! ns_lease_valid "$ns"; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  if [ "$NS_LEASE_HOST" != "$host" ] || [ -z "$NS_LEASE_NONCE" ] || [ -z "$NS_LEASE_PID" ]; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+  rc=$?
+  if [ "$rc" -ne 1 ]; then
+    ns_lease_unlock "$ns"
+    return 1
+  fi
+  generation="$NS_LEASE_GENERATION"
+  reclaimed=$((generation + 1))
+  ns_lease_write_unlocked "$ns" "$sid" "$host" "$reclaimed" "" "$pid" "$start"
+  rc=$?
+  ns_lease_unlock "$ns"
+  [ "$rc" -eq 0 ] || return 1
+  ns_shift_log "$ns" "lease reclaimed by the recorded conversation after a dead recovery attempt (generation $generation → $reclaimed)"
+  return 0
 }
 
 ns_lease_allows() { # <ns> <sid> <host> <pid> <start> <nonce> <generation>
@@ -478,6 +518,14 @@ ns_shift_authorize() { # <host> <pid> <start> <mode:hardhat|gate>
   ns_lease_allows "$NS" "$check_sid" "$host" "$pid" "$start" \
     "$LEASE_NONCE" "$LEASE_GENERATION"
   lease_rc=$?
+  # A recovery attempt that died holds nothing. The conversation the record names takes the
+  # lease back here rather than waiting for a worker that will never report; a live holder,
+  # a scope the record no longer names, and a process the host cannot classify keep the fence.
+  if [ "$lease_rc" -eq 1 ] && [ -n "${SID:-}" ] && [ "$SID" = "$rec" ] \
+    && [ -z "$LEASE_NONCE" ] \
+    && ns_lease_reclaim_recorded "$NS" "$rec" "$host" "$pid" "$start"; then
+    lease_rc=0
+  fi
   if [ "$lease_rc" -eq 1 ]; then
     if [ "$mode" = hardhat ]; then
       if ns_lease_load "$NS" && [ -n "$NS_LEASE_NONCE" ] \
@@ -801,4 +849,105 @@ ns_lease_pid_live() { # <ns>
   ns_lease_valid "$1" || return 1
   [ -n "$NS_LEASE_PID" ] || return 1
   ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+}
+
+ns_fence_print() { # <action> <duplicate> <fenced> <active> <takeover>
+  local action="$1" duplicate="$2" fenced="$3" active="$4" takeover="$5"
+  local json_true=true json_false=false
+  printf '{\n'
+  printf '  "action": "%s",\n' "$action"
+  printf '  "duplicateWorkerRejected": %s,\n' "$([ "$duplicate" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "kind": "handoff-fence",\n'
+  printf '  "priorOwnerFenced": %s,\n' "$([ "$fenced" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "priorWorkerActive": %s,\n' "$([ "$active" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "schemaVersion": 1,\n'
+  printf '  "takeoverAllowed": %s,\n' "$([ "$takeover" -eq 1 ] && printf '%s' "$json_true" || printf '%s' "$json_false")"
+  printf '  "twoActiveWorkersAllowed": false\n'
+  printf '}\n'
+}
+
+# Worker fence from on-disk lease / session / pid. Model-authored flags are not consulted.
+# Prints a handoff-fence object. 0 proceed · 1 refuse · 2 unavailable
+ns_fence_check() { # <ns>
+  local ns="$1"
+  local prior_fenced=0 prior_active=0 duplicate=0 takeover=0 action=refuse
+  local session_exists=0 session_pid="" session_start="" session_host="" session_sid=""
+  local lease_rc sess_rc
+
+  if [ -z "$ns" ] || [ ! -d "$ns" ] || [ -L "$ns" ]; then
+    ns_fence_print refuse 0 0 0 0
+    return 2
+  fi
+
+  if ! ns_lease_load "$ns"; then
+    ns_fence_print refuse 0 0 0 0
+    return 2
+  fi
+
+  if [ -e "$ns/.shift-session" ] || [ -L "$ns/.shift-session" ]; then
+    if ! ns_session_present "$ns"; then
+      ns_fence_print refuse 0 0 0 0
+      return 2
+    fi
+    session_exists=1
+    session_sid="$(ns_session_line "$ns" 1)"
+    session_pid="$(ns_session_line "$ns" 3 | tr -d '[:space:]')"
+    session_start="$(ns_session_line "$ns" 4)"
+    session_host="$(ns_session_line "$ns" 5 | tr -d '[:space:]')"
+    [ -n "$session_host" ] || session_host=claude
+    case "$session_host" in
+      claude | codex | cursor) ;;
+      *)
+        ns_fence_print refuse 0 0 0 0
+        return 2
+        ;;
+    esac
+    [ -n "$session_sid" ] || {
+      ns_fence_print refuse 0 0 0 0
+      return 2
+    }
+  fi
+
+  if [ -z "$NS_LEASE_PID" ]; then
+    prior_fenced=1
+  else
+    ns_recorded_process "$NS_LEASE_PID" "$NS_LEASE_START"
+    lease_rc=$?
+    case "$lease_rc" in
+      0) prior_active=1 ;;
+      1) prior_fenced=1 ;;
+      *)
+        ns_fence_print refuse 0 0 0 0
+        return 2
+        ;;
+    esac
+  fi
+
+  if [ "$session_exists" -eq 1 ] && [ -n "$session_pid" ]; then
+    ns_recorded_process "$session_pid" "$session_start"
+    sess_rc=$?
+    case "$sess_rc" in
+      0)
+        if [ -n "$NS_LEASE_PID" ] && [ "$session_pid" != "$NS_LEASE_PID" ]; then
+          duplicate=1
+        fi
+        prior_active=1
+        prior_fenced=0
+        ;;
+      1) ;;
+      *)
+        ns_fence_print refuse 0 0 0 0
+        return 2
+        ;;
+    esac
+  fi
+
+  if [ "$prior_active" -eq 0 ] && [ "$duplicate" -eq 0 ] && [ "$prior_fenced" -eq 1 ]; then
+    takeover=1
+    action=proceed
+    ns_fence_print "$action" "$duplicate" "$prior_fenced" "$prior_active" "$takeover"
+    return 0
+  fi
+  ns_fence_print refuse "$duplicate" "$prior_fenced" "$prior_active" 0
+  return 1
 }

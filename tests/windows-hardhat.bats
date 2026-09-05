@@ -4,6 +4,7 @@ LOGIC="$BATS_TEST_DIRNAME/windows/hardhat-logic.ps1"
 RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/windows/hardhat.ps1"
 CORE="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/shared/hardhat-core.sh"
+PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
 
 WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
 
@@ -29,6 +30,9 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
     return 0
   fi
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  if [ "$status" -ne 0 ]; then
+    printf '%s\n' "$output"
+  fi
   [ "$status" -eq 0 ]
 }
 
@@ -78,4 +82,27 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
   grep -qF 'somewhere the configured commit guards cannot verify' "$HELPER"
   grep -qF 'configured commit guards cannot verify' "$RUN"
   grep -qF 'configured commit guards cannot verify' "$LOGIC"
+}
+
+@test "Windows fence wording is unchanged and the dead-holder reclaim is wired" {
+  grep -qF 'BLOCKED: this shift is being recovered in another process. Wait or issue STOP from a separate session; reopening the recorded conversation stays blocked while that worker holds the lease.' "$PSM1"
+  grep -qF 'BLOCKED: this shift continued in a recovered process. Reopen the recorded conversation before using tools here.' "$PSM1"
+  grep -qF 'function Reclaim-NSLeaseRecorded' "$PSM1"
+  grep -qF 'lease reclaimed by the recorded conversation after a dead recovery attempt' "$PSM1"
+  grep -qF 'Test-NSTrustedShiftControl' "$HELPER"
+  grep -qF 'lease reclaimed by the recorded conversation after a dead recovery attempt' "$LOGIC"
+  grep -qF 'a live recovery worker still fences the recorded conversation' "$LOGIC"
+  grep -qF 'the Stop helper is allowed through a live foreign lease' "$LOGIC"
+  grep -qF 'a disarmed site holds nobody' "$LOGIC"
+}
+
+@test "Windows hardhat lease-reclaim logic passes when pwsh is present" {
+  if ! command -v pwsh >/dev/null 2>&1; then
+    return 0
+  fi
+  run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  if [ "$status" -ne 0 ]; then
+    printf '%s\n' "$output"
+  fi
+  [ "$status" -eq 0 ]
 }

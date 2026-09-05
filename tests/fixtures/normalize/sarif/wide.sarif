@@ -1,0 +1,36 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "semgrep", "semanticVersion": "1.79.0" } },
+      "results": [
+        {
+          "ruleId": "i18n.path.accented",
+          "level": "warning",
+          "message": { "text": "Two paths differ only by an accent." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/café.ts" },
+                "region": { "startLine": 3 }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "i18n.path.accented",
+          "level": "warning",
+          "message": { "text": "Two paths differ only by an accent." },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": { "uri": "src/cafè.ts" },
+                "region": { "startLine": 4 }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -8,7 +8,7 @@ $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 Import-Module (Join-Path $repository 'plugins/nightshift/lib/Nightshift.psm1') -Force -DisableNameChecking
 
 $codes = @(
-    'completed', 'owner-stop', 'stale-pid', 'invalid-session', 'exhausted-retry',
+    'completed', 'owner-stop', 'owner-disarm', 'stale-pid', 'invalid-session', 'exhausted-retry',
     'unknown-wedge', 'revived', 'stand-down', 'wrong-host', 'deadline',
     'clean-session-end', 'esc-standby', 'silent-standby', 'non-resumable-session',
     'unreadable-rules', 'fresh-fallback', 'unsupported-state', 'process-evidence-unavailable',

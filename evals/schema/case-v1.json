@@ -1,0 +1,82 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "contract",
+    "scenario",
+    "request",
+    "fixture",
+    "expectedRouting",
+    "forbiddenRouting",
+    "workMode",
+    "host",
+    "authority",
+    "requiredEvidence",
+    "expectedEnding",
+    "interruption",
+    "rubric"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "id": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9.-]+$" },
+    "contract": { "type": "string", "minLength": 1 },
+    "scenario": {
+      "type": "string",
+      "enum": [
+        "positive",
+        "negative",
+        "ambiguous-neighbor",
+        "missing-tool",
+        "large-backlog",
+        "artifact-mode",
+        "interrupted-revived",
+        "unsafe-authority",
+        "unsupported-environment"
+      ]
+    },
+    "request": { "type": "string", "minLength": 1 },
+    "fixture": { "type": "string", "minLength": 1 },
+    "expectedRouting": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "forbiddenRouting": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "workMode": { "type": "string", "enum": ["repository", "artifact"] },
+    "host": { "type": "string", "enum": ["claude", "codex", "cursor"] },
+    "authority": {
+      "type": "string",
+      "enum": ["owner-approved", "untrusted", "unsafe", "none"]
+    },
+    "requiredEvidence": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "expectedEnding": { "type": "string", "enum": ["finite", "open-ended"] },
+    "interruption": {
+      "type": "string",
+      "enum": ["none", "crash", "stop", "deadline", "revive"]
+    },
+    "rubric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["must", "mustNot"],
+      "properties": {
+        "must": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "mustNot": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

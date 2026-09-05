@@ -1,9 +1,22 @@
 #!/usr/bin/env bash
 # Shared hardhat decisions. Host wrappers own payload parsing and deny response emission.
 
+# Armed site rules apply until clock-out writes ENDED. STOP is a stop-work order, not
+# the ending — open boxes stay as the record and do not stand the hardhat down. Reset
+# is the manual escape. A punch list that exists but will not count keeps the site armed:
+# only a readable list with every box ticked takes the hardhat off.
 ns_hardhat_active() {
-  [ -f "$NS/.shift-armed" ] && [ -f "$PUNCH" ] && { [ ! -f "$ENDED" ] || [ -L "$ENDED" ]; } \
-    && [ "$(ns_open_boxes "$PUNCH")" -gt 0 ]
+  local _open
+  if [ -f "$ENDED" ] && [ ! -L "$ENDED" ]; then
+    return 1
+  fi
+  [ -f "$NS/.shift-armed" ] || return 1
+  [ -f "$PUNCH" ] || return 1
+  if [ -f "$NS/STOP" ] && [ ! -L "$NS/STOP" ]; then
+    return 0
+  fi
+  _open="$(ns_open_boxes "$PUNCH")" || return 0
+  [ "$_open" -gt 0 ]
 }
 
 ns_hardhat_is_command_tool() {
@@ -133,45 +146,8 @@ ns_hardhat_payload_targets() { # $1 = tool, $2 = raw payload, $3 = command/patch
             )
         ' 2>/dev/null)" || return 2
         decoder=jq
-      elif command -v python3 >/dev/null 2>&1; then
-        targets="$(printf '%s' "$2" | python3 -c 'import base64,json,re,sys
-d=json.load(sys.stdin).get("tool_input",{})
-k=re.compile(r"((^|_)(path|filepath|file|filename|directory|dir|uri|name)$|^(target|destination|dest|source|src)$)",re.I)
-c=re.compile(r"(^|_)(command|cmd|script)$",re.I)
-def emit(kind,item):
-    if "\n" in item:
-        encoded=base64.b64encode(item.encode()).decode()
-        print(f"{kind.upper()}\t{encoded}")
-    else:
-        print(f"{kind.lower()}\t{item}")
-def strings(v):
-    out=[]
-    if isinstance(v,str): out.append(v)
-    elif isinstance(v,list):
-        for x in v: out.extend(strings(x))
-    elif isinstance(v,dict):
-        for x in v.values(): out.extend(strings(x))
-    return out
-def walk(v):
-    if isinstance(v,dict):
-        dirs=[]
-        names=[]
-        for key,value in v.items():
-            values=strings(value)
-            if c.search(key):
-                for item in values: emit("C",item)
-            elif k.search(key):
-                for item in values: emit("P",item)
-            if re.fullmatch(r"(directory|dir)",key,re.I): dirs.extend(values)
-            if re.fullmatch(r"(name|filename|file)",key,re.I): names.extend(values)
-            walk(value)
-        for directory in dirs:
-            for name in names: emit("P",f"{directory}/{name}")
-    elif isinstance(v,list):
-        for x in v: walk(x)
-walk(d)' 2>/dev/null)" || return 2
-        decoder=python3
       else
+        # No general Bash JSON parser. Missing jq fails closed.
         return 2
       fi
       NS_HARDHAT_TARGETS_FOR="$2"
@@ -194,8 +170,7 @@ walk(d)' 2>/dev/null)" || return 2
               printf '\034'
             )" || return 2
           else
-            target="$(python3 -c 'import base64,sys
-sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/dev/null)" || return 2
+            return 2
           fi
           target="${target%$'\034'}"
           if [ "$record_type" = "C" ]; then
@@ -214,43 +189,173 @@ sys.stdout.buffer.write(base64.b64decode(sys.argv[1])+b"\x1c")' "$encoded" 2>/de
   return 1
 }
 
-# Bound-worker control plane: forge/delete of the files the gate keys off.
+# Bound-worker control plane: forge/delete of the files the gate keys off. The shift policy, the
+# remembered defaults and the derived deadline join them: tonight's authority is written before
+# arming, so an armed agent that could rewrite it could widen its own permissions.
 # punch-list.md may be edited; only a delete/rename of that file is denied.
-ns_hardhat_control_rewrite_path() {
-  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode)(/|$|[^[:alnum:]_.-])'
-}
-
-ns_hardhat_control_list_path() {
-  printf '%s' "$1" | grep -qE '(^|/|\.)nightshift/punch-list\.md(/|$|[^[:alnum:]_.-])'
-}
-
-ns_hardhat_control_rewrite_name() {
-  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode)([;&|()[:space:]]|$)'
-}
-
-ns_hardhat_control_list_name() {
-  printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(\./)?punch-list\.md([;&|()[:space:]]|$)'
+# Regex is a pre-filter. A write is a hit only when the target's canonical absolute path
+# equals $NS/<control-file>, so // /./ /../ backslashes and absolute twins cannot slip past.
+ns_hardhat_control_prefilter() {
+  printf '%s' "$1" | grep -qE \
+    '(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline|punch-list\.md)'
 }
 
 ns_hardhat_control_delete_verb() {
   printf '%s' "$1" | grep -qE '(^|[;&|()[:space:]])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([[:space:]]|$)'
 }
 
-ns_hardhat_control_targeted() {
-  local normalized
-  normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
-  ns_hardhat_control_rewrite_path "$normalized" && return 0
-  ns_hardhat_control_list_path "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
-  if ns_hardhat_nightshift_dir_context "$normalized"; then
-    ns_hardhat_control_rewrite_name "$normalized" && return 0
-    ns_hardhat_control_list_name "$normalized" && ns_hardhat_control_delete_verb "$normalized" && return 0
+ns_hardhat_control_bare_name() {
+  case "$1" in
+    STOP | .shift-armed | .ended | .shift-session | .shift-worker | work-target | work-mode \
+      | shift-policy.json | shift-defaults.json | deadline | punch-list.md \
+      | ./STOP | ./.shift-armed | ./.ended | ./.shift-session | ./.shift-worker \
+      | ./work-target | ./work-mode | ./shift-policy.json | ./shift-defaults.json \
+      | ./deadline | ./punch-list.md)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+# Lexically collapse // /./ /../ on an absolute slash path. Directory need not exist.
+ns_hardhat_lex_abs() {
+  local p="$1" out="" part rest
+  case "$p" in /*) ;; *) return 1 ;; esac
+  rest="${p#/}"
+  while [ -n "$rest" ]; do
+    case "$rest" in
+      */*)
+        part="${rest%%/*}"
+        rest="${rest#*/}"
+        ;;
+      *)
+        part="$rest"
+        rest=""
+        ;;
+    esac
+    case "$part" in
+      '' | .) continue ;;
+      ..) out="${out%/*}" ;;
+      *) out="$out/$part" ;;
+    esac
+  done
+  [ -n "$out" ] || out=/
+  printf '%s' "$out"
+}
+
+# Canonical absolute path of a write target. The leaf need not exist; directory
+# symlinks are followed. Relative paths resolve against CWD, then PROJECT_DIR.
+ns_hardhat_canon_write_target() {
+  local p="$1" base dir leaf
+  [ -n "$p" ] || return 1
+  p="$(printf '%s' "$p" | sed "s#\\\\#/#g; s#[\"']##g")"
+  [ -n "$p" ] || return 1
+  case "$p" in
+    /*) ;;
+    *)
+      if [ -n "${CWD:-}" ]; then
+        base="${CWD%/}"
+      elif [ -n "${PROJECT_DIR:-}" ]; then
+        base="${PROJECT_DIR%/}"
+      else
+        return 1
+      fi
+      case "$base" in
+        /*) ;;
+        *)
+          [ -n "${PROJECT_DIR:-}" ] || return 1
+          base="${PROJECT_DIR%/}/$base"
+          ;;
+      esac
+      p="$base/$p"
+      ;;
+  esac
+  p="$(ns_hardhat_lex_abs "$p")" || return 1
+  if [ "$p" = / ]; then
+    printf '/'
+    return 0
   fi
+  leaf="${p##*/}"
+  dir="${p%/*}"
+  [ -n "$dir" ] || dir=/
+  dir="$(cd -P "$dir" >/dev/null 2>&1 && pwd -P)" || return 1
+  if [ "$dir" = / ]; then
+    printf '/%s' "$leaf"
+  else
+    printf '%s/%s' "$dir" "$leaf"
+  fi
+}
+
+ns_hardhat_control_expected() {
+  [ -n "${NS:-}" ] || return 1
+  ns_hardhat_canon_write_target "$NS/$1"
+}
+
+ns_hardhat_control_rewrite_hit() {
+  local name exp
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    exp="$(ns_hardhat_control_expected "$name")" || continue
+    [ "$1" = "$exp" ] && return 0
+  done <<'EOF'
+STOP
+.shift-armed
+.ended
+.shift-session
+.shift-worker
+work-target
+work-mode
+shift-policy.json
+shift-defaults.json
+deadline
+EOF
+  return 1
+}
+
+ns_hardhat_control_list_hit() {
+  local exp
+  exp="$(ns_hardhat_control_expected punch-list.md)" || return 1
+  [ "$1" = "$exp" ]
+}
+
+ns_hardhat_control_candidates() {
+  printf '%s\n' "$1" | tr ';|&()<>' '\n' | tr -s '[:space:]' '\n'
+}
+
+ns_hardhat_control_candidate_hits() {
+  local cand="$1" full="$2" canon leaf
+  leaf="${cand##*/}"
+  leaf="${leaf#./}"
+  if ns_hardhat_control_bare_name "$cand" && ns_hardhat_nightshift_dir_context "$full"; then
+    canon="$(ns_hardhat_control_expected "$leaf")" || return 1
+  else
+    canon="$(ns_hardhat_canon_write_target "$cand")" || return 1
+  fi
+  ns_hardhat_control_rewrite_hit "$canon" && return 0
+  ns_hardhat_control_list_hit "$canon" && ns_hardhat_control_delete_verb "$full"
+}
+
+ns_hardhat_control_targeted() {
+  local normalized candidate
+  normalized="$(printf '%s' "$1" | sed "s#\\\\#/#g; s#[\"']##g")"
+  ns_hardhat_control_prefilter "$normalized" || return 1
+  [ -n "${NS:-}" ] || return 1
+  if ! printf '%s' "$normalized" | grep -qE '[[:space:];&|<>()]'; then
+    ns_hardhat_control_candidate_hits "$normalized" "$normalized"
+    return
+  fi
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] || continue
+    ns_hardhat_control_candidate_hits "$candidate" "$normalized" && return 0
+  done <<EOF
+$(ns_hardhat_control_candidates "$normalized")
+EOF
   return 1
 }
 
 ns_hardhat_payload_targets_control() {
   case "$1" in
-    Read | Grep | Glob | LS | WebFetch | WebSearch | Task | TodoWrite | AskUserQuestion | request_user_input | NotebookRead)
+    Read | Grep | Glob | LS | WebFetch | WebSearch | Task | TodoWrite | AskQuestion | AskUserQuestion | request_user_input | NotebookRead)
       return 1
       ;;
     *read* | *Read*)
@@ -270,10 +375,10 @@ ns_hardhat_payload_targets_lease() {
   rc=$?
   [ "$rc" -eq 0 ] && return 0
   [ "$rc" -eq 2 ] || return 1
-  # Start requires jq or python3. If that parser disappears mid-shift, unknown local tools fail
-  # closed rather than letting a helper conversation address the lease through an opaque payload.
+  # If toolDeny cannot be read exactly, unknown local tools fail closed rather than letting a
+  # helper conversation address the lease through an opaque payload.
   case "$1" in
-    AskUserQuestion | request_user_input | WebFetch | WebSearch | Task | TodoWrite) return 1 ;;
+    AskQuestion | AskUserQuestion | request_user_input | WebFetch | WebSearch | Task | TodoWrite) return 1 ;;
     *) return 0 ;;
   esac
 }
@@ -359,27 +464,11 @@ ns_hardhat_scrub() {
 
 ns_hardhat_rules_has() {
   [ -n "${TOOL_RULES:-}" ] || return 1
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | jq -e --arg t "$1" 'has($t)' >/dev/null 2>&1
-  elif command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-sys.exit(0 if sys.argv[1] in d else 1)' "$1" >/dev/null 2>&1
-  else
-    return 1
-  fi
+  ns_rules_map_has "$TOOL_RULES" "$1"
 }
 
 ns_hardhat_rules_msg() {
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | jq -r --arg t "$1" '.[$t] // empty' 2>/dev/null
-  elif command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$TOOL_RULES" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-print(d.get(sys.argv[1],""))' "$1" 2>/dev/null
-  else
-    return 1
-  fi
+  ns_rules_map_msg "$TOOL_RULES" "$1"
 }
 
 ns_hardhat_tool_deny_broken() {
@@ -387,15 +476,7 @@ ns_hardhat_tool_deny_broken() {
   case "$TOOL_RULES" in
     __nightshift_invalid_tool_rules__ | __nightshift_tool_rules_parser_missing__) return 0 ;;
   esac
-  if command -v jq >/dev/null 2>&1; then
-    ! printf '%s' "$TOOL_RULES" | jq -e 'type == "object" and all(.[]; type == "string")' >/dev/null 2>&1
-  elif command -v python3 >/dev/null 2>&1; then
-    ! printf '%s' "$TOOL_RULES" | python3 -c 'import json,sys
-d=json.load(sys.stdin)
-sys.exit(0 if isinstance(d,dict) and all(isinstance(v,str) for v in d.values()) else 1)' >/dev/null 2>&1
-  else
-    return 0
-  fi
+  ! ns_rules_map_parse "$TOOL_RULES"
 }
 
 ns_hardhat_tool_deny_reason() {
@@ -426,6 +507,65 @@ ns_hardhat_is_git_write() {
 
 ns_hardhat_is_commit() {
   ns_hardhat_git_verb "$1" commit
+}
+
+# Print a simple quoted payload after eval or a shell -c, or nothing.
+# Hardening only: one pair of quotes, no nested parser, not a sandbox.
+ns_hardhat_elevation_inner() {
+  local s="$1" inner
+  printf '%s' "$s" | grep -qE '(^|[;&|()[:space:]])(eval|[A-Za-z0-9./_-]*sh[[:space:]]+-[a-zA-Z]*c)[[:space:]]' || return 1
+  inner="$(printf '%s' "$s" | sed -n "s/.*eval[[:space:]]\{1,\}'\([^']*\)'.*/\1/p")"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  inner="$(printf '%s' "$s" | sed -n 's/.*eval[[:space:]]\{1,\}"\([^"]*\)".*/\1/p')"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  inner="$(printf '%s' "$s" | sed -n "s/.*[A-Za-z0-9./_-]*sh[[:space:]]\{1,\}-[a-zA-Z]*c[[:space:]]\{1,\}'\([^']*\)'.*/\1/p")"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  inner="$(printf '%s' "$s" | sed -n 's/.*[A-Za-z0-9./_-]*sh[[:space:]]\{1,\}-[a-zA-Z]*c[[:space:]]\{1,\}"\([^"]*\)".*/\1/p')"
+  [ -n "$inner" ] && { printf '%s' "$inner"; return 0; }
+  return 1
+}
+
+# Print a deny reason when the command needs an elevation category this shift does not allow,
+# or return 1 to allow. Uses globals: SCRUBBED PROJECT_DIR
+#
+# Elevation gates creating system state, never using what already runs: the category patterns come
+# from rules.elevation (or the shipped defaults) through ns_policy_elevation_pattern, which the
+# permission preflight reads too, so the guard and the preflight can never disagree about what a
+# command needs. Whether tonight lifts a deny is the resolver's answer alone — ns_policy_allowed
+# carries the whole precedence table, including the exact-plan binding — so this reads a status
+# and writes the sentence the agent acts on. A pattern the owner broke denies rather than lapses.
+# A simple eval / sh -c quoted payload is matched as well as the outer text; that is hardening,
+# not isolation — a determined rewrite still gets through.
+ns_hardhat_elevation_reason() {
+  local _cat _pat _rc _reason _patterns _subject _inner
+  _subject="$SCRUBBED"
+  _inner="$(ns_hardhat_elevation_inner "$SCRUBBED" || true)"
+  [ -n "$_inner" ] && _subject="$SCRUBBED $_inner"
+  # One parse of the rules for all five categories; each line is category<TAB>pattern.
+  _patterns="$(ns_policy_elevation_patterns "$PROJECT_DIR")" || return 1
+  while IFS="$(printf '\t')" read -r _cat _pat; do
+    if [ -z "$_cat" ] || [ -z "$_pat" ]; then
+      continue
+    fi
+    valid_ere "$_pat" || {
+      printf '%s' "BLOCKED: elevation.$_cat.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
+      return 0
+    }
+    printf '%s' "$_subject" | grep -qE "$_pat" || continue
+    ns_policy_allowed "$PROJECT_DIR" "$_cat" "$SCRUBBED"
+    _rc=$?
+    [ "$_rc" -eq 0 ] && continue
+    _reason="BLOCKED: this command needs the '$_cat' elevation category, which is denied for this shift."
+    if [ "$_rc" -eq 2 ]; then
+      printf '%s' "$_reason An exact-plan allowance exists but this command is not one of its approved commands."
+    else
+      printf '%s' "$_reason The owner allows it in .nightshift/rules.json (elevation.$_cat.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as \"needs allowance: $_cat\" and keep working."
+    fi
+    return 0
+  done <<EOF
+$_patterns
+EOF
+  return 1
 }
 
 # Print a deny reason for a Bash-like command, or return 1 to allow.
@@ -550,6 +690,10 @@ ns_hardhat_command_reason() {
     printf '%s' "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
     return 0
   fi
+
+  # forbiddenCommands is the owner's own list and stays independent of the categories: a command
+  # can clear it and still need an allowance the shift does not hold.
+  ns_hardhat_elevation_reason && return 0
   return 1
 }
 

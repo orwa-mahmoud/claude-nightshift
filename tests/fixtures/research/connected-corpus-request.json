@@ -1,0 +1,7 @@
+{
+  "policy": "connected-corpus",
+  "corpusPath": "exports/research",
+  "exportPath": "exports/gsc",
+  "connectorScope": "owner-supplied-csv",
+  "approvedSources": []
+}

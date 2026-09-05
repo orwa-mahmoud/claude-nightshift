@@ -30,6 +30,9 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
   grep -qF 'opportunity-map.md' "$E"
   grep -qF 'Next' "$E"
   grep -qF 'Verify remaining' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qi 'Plan before cutting' "$E"
+  grep -qi 'reversible defaults' "$E"
   grep -qi 'Never open a second building entry' "$E"
 }
 

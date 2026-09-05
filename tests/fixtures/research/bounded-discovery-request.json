@@ -1,0 +1,10 @@
+{
+  "policy": "bounded-discovery",
+  "topic": "widget pricing",
+  "queryBudget": 3,
+  "timeBudgetMinutes": 20,
+  "allowedDomains": ["example.com", "docs.example.com"],
+  "allowedSourceClasses": ["primary", "secondary"],
+  "recencyDays": 365,
+  "approvedSources": []
+}

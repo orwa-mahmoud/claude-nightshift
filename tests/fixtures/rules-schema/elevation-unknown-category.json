@@ -1,0 +1,6 @@
+{
+  "toolDeny": { "AskUserQuestion": "", "request_user_input": "", "AskQuestion": "" },
+  "elevation": {
+    "network": { "policy": "allow", "pattern": "curl" }
+  }
+}

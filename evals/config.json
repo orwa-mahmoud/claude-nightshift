@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "identifiers": "plugins/nightshift/skills/nightshift/references/schemas/v1/identifiers.json",
+  "caseSchema": "evals/schema/case-v1.json",
+  "reportSchema": "evals/schema/report-v1.json",
+  "catalogShifts": "plugins/nightshift/skills/nightshift/references/shifts",
+  "skills": {
+    "hunt": "plugins/nightshift/skills/hunt/SKILL.md",
+    "quality": "plugins/nightshift/skills/quality/SKILL.md"
+  },
+  "budgets": {
+    "maxBytes": 32768,
+    "maxEstimatedTokens": 8192,
+    "bytesPerToken": 4
+  },
+  "informationalBaseline": {
+    "gate": false,
+    "note": "Comparing contract-enabled behavior with a normal host-agent baseline is an informational model evaluation. Run several samples and report variance; never use that comparison as a deterministic release gate."
+  }
+}

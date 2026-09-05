@@ -48,6 +48,9 @@ HELPER="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/doctor.ps1"
   grep -qF 'watchman pidfile path is not a usable file' "$HELPER"
   grep -qF 'Test-NSReparsePoint $watchmanPath' "$HELPER"
   grep -qF 'terminal clock-out failed without releasing the shift' "$HELPER"
+  grep -qF 'lease held by a dead recovery attempt' "$HELPER"
+  grep -qF 'the recorded conversation reclaims it on its next tool call' "$HELPER"
+  grep -qF 'lease held by a dead recovery attempt' "$LOGIC"
 }
 
 @test "Windows Doctor leftover and staged-work logic passes when pwsh is present" {

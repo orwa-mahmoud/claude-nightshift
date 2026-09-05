@@ -36,7 +36,7 @@ codex_hardhat_ask() {
 @test "a scary-looking command passes when the forbidden list is unset" {
   p="$(new_project)"
   punch_open "$p"
-  run codex_hardhat_bash "$p" "docker compose down"
+  run codex_hardhat_bash "$p" "kubectl delete pod api-7f9"
   is_allow
 }
 
@@ -307,4 +307,196 @@ codex_hardhat_ask() {
   input="$(jq -nc '{tool_name:"Bash",tool_input:{command:"git push"}}')"
   out="$(printf '%s' "$input" | env PATH="$bindir" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
   is_deny "$out"
+}
+
+# --- the policy files are control files, and elevation is the owner's switch ---
+
+# rules_elevation <project> <category> <policy>
+rules_elevation() {
+  local f="$1/.nightshift/rules.json"
+  jq --arg c "$2" --arg v "$3" '.elevation[$c].policy = $v' "$f" >"$f.new"
+  mv "$f.new" "$f"
+}
+
+# shift_policy <project> [allowances JSON array]
+shift_policy() {
+  jq -nc --argjson a "${2:-[]}" \
+    '{schemaVersion:1,shiftId:"9f2c40ab77e51d63",createdAt:"2026-09-02T02:30:00Z",
+      source:"composition",deadlineEpoch:null,verificationLevel:"final",
+      toolingPolicy:"existing-tools",allowances:$a}' >"$1/.nightshift/shift-policy.json"
+}
+
+codex_reason() { printf '%s' "$1" | jq -r '.hookSpecificOutput.permissionDecisionReason'; }
+
+@test "codex denies rewriting the shift policy, its defaults, and the deadline" {
+  p="$(new_project)"
+  punch_open "$p"
+  shift_policy "$p"
+  for f in shift-policy.json shift-defaults.json deadline; do
+    run codex_hardhat_bash "$p" "printf 'forged' > .nightshift/$f"
+    is_deny "$output" || { echo "path rewrite allowed: $f"; return 1; }
+    printf '%s' "$output" | grep -qF "$f" || { echo "deny does not name $f"; return 1; }
+    run codex_hardhat_bash "$p" "cd .nightshift && rm -f $f"
+    is_deny "$output" || { echo "name delete allowed: $f"; return 1; }
+  done
+}
+
+@test "codex denies every elevation category by default with the same repair" {
+  p="$(new_project)"
+  punch_open "$p"
+  ws="$(cd -P "$p" && pwd -P)"
+  while IFS='|' read -r category command; do
+    [ -n "$category" ] || continue
+    run codex_hardhat_bash "$p" "$command"
+    is_deny "$output" || { echo "allowed: $command"; return 1; }
+    expected="BLOCKED: this command needs the '$category' elevation category, which is denied for this shift. The owner allows it in $ws/.nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in $ws/.nightshift/parking-lot.md as \"needs allowance: $category\" and keep working."
+    [ "$(codex_reason "$output")" = "$expected" ] \
+      || { echo "wrong message for $category: $(codex_reason "$output")"; return 1; }
+  done <<'ROWS'
+sudo|sudo apt-get install -y jq
+containers|docker compose up -d
+global-packages|brew install shellcheck
+daemons|systemctl start nginx
+external-services|gh auth login
+ROWS
+}
+
+@test "codex honours a rules allowance and a one-shift allowance alike" {
+  p="$(new_project)"
+  punch_open "$p"
+  rules_elevation "$p" containers allow
+  run codex_hardhat_bash "$p" "docker compose up -d"
+  is_allow
+  q="$(new_project codex-one-shift)"
+  punch_open "$q"
+  shift_policy "$q" '[{"category":"daemons","scope":"category","provenance":"one-shift"}]'
+  run codex_hardhat_bash "$q" "systemctl start nginx"
+  is_allow
+}
+
+@test "codex reads the scrubbed command, so a commit message names nothing" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_bash "$p" "git commit -m 'sudo apt-get install jq and docker compose up'"
+  is_allow
+}
+
+@test "codex create-state elevation denies bypass forms and leaves reads alone" {
+  p="$(new_project)"
+  punch_open "$p"
+  run codex_hardhat_bash "$p" "/usr/bin/sudo id"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+  run codex_hardhat_bash "$p" "sh -c 'sudo apt-get install -y jq'"
+  is_deny "$output"
+  printf '%s' "$output" | grep -qF "needs allowance: sudo"
+  run codex_hardhat_bash "$p" "docker ps"
+  is_allow
+  run codex_hardhat_bash "$p" "brew list"
+  is_allow
+}
+
+# ---- the owner's emergency helpers outrank the process fence; disarm is total ----
+
+PLUGIN_ROOT="$(cd -P "$BATS_TEST_DIRNAME/../../plugins/nightshift" && pwd -P)"
+FOREIGN_NONCE=codex.2.4711.8.9
+
+# codex_sid_bash <project> <session-id> <command> [ENV=VAL ...]
+codex_sid_bash() {
+  local p="$1" sid="$2" c="$3"
+  shift 3
+  jq -nc --arg sid "$sid" --arg c "$c" \
+    '{tool_name:"Bash",session_id:$sid,tool_input:{command:$c}}' |
+    env "$@" CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh"
+}
+
+# codex_shift_helper_passes <project> <session-id>
+codex_shift_helper_passes() {
+  local p="$1" sid="$2" helper out
+  for helper in "stop-shift.sh --project $p" "reset-shift.sh --project $p" \
+    "purge-workspace.sh --project $p --confirm-path $p"; do
+    out="$(codex_sid_bash "$p" "$sid" "bash $PLUGIN_ROOT/runtime/$helper")"
+    [ -z "$out" ] || { echo "helper refused: [$sid] $helper -> $out"; return 1; }
+  done
+  return 0
+}
+
+@test "codex runs the owner helpers from any conversation while a live worker holds the lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" shift-session "" "" "" codex
+  lease_record "$p" shift-session codex 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+
+  codex_shift_helper_passes "$p" shift-session
+  codex_shift_helper_passes "$p" helper-thread
+
+  out="$(codex_sid_bash "$p" shift-session "echo hi")"
+  is_deny "$out"
+  printf '%s' "$out" | grep -q "being recovered in another process"
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+# codex_every_rule_passes <project> <session-id>
+codex_every_rule_passes() {
+  local p="$1" sid="$2" command out
+  while IFS= read -r command; do
+    [ -n "$command" ] || continue
+    out="$(codex_sid_bash "$p" "$sid" "$command" \
+      NIGHTSHIFT_FORBIDDEN_COMMANDS='git push' NIGHTSHIFT_PROTECTED_DIRS='ai_docs')"
+    [ -z "$out" ] || { echo "rule applied to a disarmed site: [$sid] $command -> $out"; return 1; }
+  done <<'CMDS'
+echo hi
+git push
+git add ai_docs/x
+sudo apt-get install -y jq
+rm -f .nightshift/.shift-lease
+touch .nightshift/STOP
+printf '{}' > .nightshift/rules.json
+CMDS
+  out="$(jq -nc --arg sid "$sid" '{tool_name:"request_user_input",session_id:$sid,tool_input:{}}' |
+    env CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the question rule applied to a disarmed site: [$sid] -> $out"; return 1; }
+  out="$(jq -nc --arg sid "$sid" --arg fp "$p/.nightshift/.shift-session" \
+    '{tool_name:"apply_patch",session_id:$sid,tool_input:{patch:("*** Update File: " + $fp)}}' |
+    env CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the control rule applied to a disarmed site: [$sid] -> $out"; return 1; }
+  out="$(jq -nc --arg sid "$sid" \
+    '{tool_name:"mcp__filesystem__read_file",session_id:$sid,tool_input:{path:"README.md"}}' |
+    env CODEX_PROJECT_DIR="$p" bash "$CODEX_HOOKS/hardhat.sh")"
+  [ -z "$out" ] || { echo "the fence applied to a disarmed site: [$sid] -> $out"; return 1; }
+  return 0
+}
+
+@test "codex applies no rule on an unarmed site, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" shift-session "" "" "" codex
+  lease_record "$p" shift-session codex 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+  rm "$p/.nightshift/.shift-armed"
+
+  codex_every_rule_passes "$p" shift-session
+  codex_every_rule_passes "$p" helper-thread
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+@test "codex applies no rule on a stopped shift, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" shift-session "" "" "" codex
+  lease_record "$p" shift-session codex 2 "$FOREIGN_NONCE" "$dead" ""
+  printf 'stopped by owner\n' >"$p/.nightshift/STOP"
+  rm "$p/.nightshift/.shift-armed"
+
+  codex_every_rule_passes "$p" shift-session
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
 }

@@ -1,0 +1,37 @@
+{
+  "queries": [
+    {
+      "id": "S1",
+      "locator": "https://docs.example.com/pricing",
+      "retrievedAt": "2026-09-02T10:00:00Z",
+      "author": "Example Corp",
+      "publishedAt": "2026-08-01",
+      "sourceClass": "primary",
+      "confidence": "high",
+      "status": "ok"
+    },
+    {
+      "id": "S2",
+      "locator": "https://blog.example.com/review",
+      "sourceClass": "secondary",
+      "confidence": "medium",
+      "status": "ok"
+    },
+    {
+      "id": "S3",
+      "locator": "https://forum.example.com/thread",
+      "sourceClass": "community",
+      "confidence": "low",
+      "status": "ok",
+      "exclusions": ["anonymous-posts"]
+    }
+  ],
+  "contradictions": [
+    {
+      "between": ["S1", "S2"],
+      "topic": "pricing model",
+      "resolution": "named-not-resolved"
+    }
+  ],
+  "limitations": ["S3 is anecdotal; no production telemetry supplied"]
+}

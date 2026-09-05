@@ -1,0 +1,19 @@
+{
+  "capabilityId": "fixture-elev-sudo",
+  "ecosystems": ["*"],
+  "versionConstraints": {},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": ["elev-sudo-config.txt"],
+  "minimalConfig": {
+    "elev-sudo-config.txt": "ok\n"
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1",
+  "elevationCategories": ["sudo"]
+}

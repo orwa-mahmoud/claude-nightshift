@@ -1,0 +1,13 @@
+{
+  "policy": "connected-corpus",
+  "bounds": {
+    "corpusRoot": "exports/research/",
+    "exportOnly": true
+  },
+  "sources": [
+    "file:exports/research/report.json",
+    "file:exports/research/notes.md",
+    "file:private/other.md",
+    "https://api.vendor.com/live"
+  ]
+}

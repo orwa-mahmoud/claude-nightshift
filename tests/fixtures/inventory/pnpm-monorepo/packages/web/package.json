@@ -1,0 +1,11 @@
+{
+  "name": "web",
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

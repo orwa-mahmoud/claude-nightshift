@@ -21,14 +21,16 @@ ns_pulse_owner_ok() { # <ns> <sid>
 }
 
 ns_pulse_emit() { # <ns> <sid>
-  local ns="$1" sid="$2" punch epoch
+  local ns="$1" sid="$2" punch epoch open
   [ -n "$ns" ] && [ -n "$sid" ] || return 0
   punch="$ns/punch-list.md"
   if [ ! -f "$ns/.shift-armed" ] || [ ! -f "$punch" ] \
-    || { [ -f "$ns/.ended" ] && [ ! -L "$ns/.ended" ]; } \
-    || [ "$(ns_open_boxes "$punch")" -eq 0 ]; then
+    || { [ -f "$ns/.ended" ] && [ ! -L "$ns/.ended" ]; }; then
     return 0
   fi
+  # A failed count is not zero. The session is alive either way, so the pulse stands.
+  open="$(ns_open_boxes "$punch")" || open=1
+  [ "$open" -gt 0 ] || return 0
   ns_pulse_owner_ok "$ns" "$sid" || return 0
   epoch="$(date +%s)"
   [ -L "$ns/.shift-pulse" ] && rm -f "$ns/.shift-pulse"

@@ -2,11 +2,31 @@ E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shif
 CHECK="$BATS_TEST_DIRNAME/../../plugins/nightshift/runtime/check-report.sh"
 FIXTURE="$BATS_TEST_DIRNAME/../fixtures/research-synthesis"
 
+@test "research synthesis competitive and analytics modes use specialist gates" {
+  grep -qi 'Competitive-landscape mode' "$E"
+  grep -qi 'Product-analytics investigation mode' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qi 'generic dashboard' "$E"
+  grep -qi 'causal claim from correlation' "$E"
+}
+
 @test "research synthesis compares sources and refuses filled-in gaps" {
   grep -qi 'Discovery' "$E"
   grep -qi 'agreement and contradiction' "$E"
   grep -qi 'never filled in' "$E"
   grep -qi 'confidence and limits' "$E"
+}
+
+@test "research synthesis resolves source policy and redacts untrusted material" {
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qi 'primary' "$E"
+  grep -qi 'secondary' "$E"
+  grep -qi 'community' "$E"
+  grep -qF 'git init' "$E"
 }
 
 @test "research synthesis keeps resumable notes and artifact receipts" {

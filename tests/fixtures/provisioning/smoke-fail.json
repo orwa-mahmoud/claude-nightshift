@@ -1,0 +1,18 @@
+{
+  "capabilityId": "fixture-lint",
+  "ecosystems": ["javascript-typescript"],
+  "versionConstraints": {"node": ">=18"},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [
+    "printf 'installed\\n' > nightshift-fake.txt"
+  ],
+  "allowedFiles": ["nightshift-fake.txt"],
+  "minimalConfig": {},
+  "smoke": {"command": "false"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-free",
+  "permissionRequirements": [],
+  "recipeVersion": "1"
+}

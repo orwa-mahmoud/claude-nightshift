@@ -11,61 +11,35 @@ rule() {
   if [ -n "$3" ]; then printf '%s' "$3"; return; fi
   local f="$1/.nightshift/rules.json"
   [ -f "$f" ] || return 0
-  if command -v jq >/dev/null 2>&1; then
-    jq -r --arg k "$2" '.[$k] // empty | if type == "object" or type == "array" then tojson else tostring end' "$f" 2>/dev/null
-  else
-    sed -n 's/.*"'"$2"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$f" | sed -n 1p
-  fi
+  ns_rules_get "$f" "$2"
 }
 
-# toolDeny requires exact JSON key matching. Normalize it with jq or Python; never approximate
-# owner policy with grep. The sentinel makes malformed input and parserless hosts fail closed.
+# toolDeny requires exact key matching. The shipped reader accepts the template's
+# object-of-strings shape and nothing else. Malformed input fails closed.
 ns_tool_map_ok() { # stdin = a JSON object of string values
-  if command -v jq >/dev/null 2>&1; then
-    jq -ce 'if type == "object" and all(.[]; type == "string") then . else error("invalid tool map") end' 2>/dev/null
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys
-d=json.load(sys.stdin)
-assert isinstance(d,dict) and all(isinstance(v,str) for v in d.values())
-print(json.dumps(d,separators=(",",":")))' 2>/dev/null
-  else
-    return 2
-  fi
+  local raw
+  raw="$(cat)"
+  ns_rules_map_parse "$raw" || return 1
+  printf '%s' "$raw"
 }
 
 ns_tool_rules() { # $1 = project dir, $2 = session override
-  local f="$1/.nightshift/rules.json" raw out rc
+  local f="$1/.nightshift/rules.json" raw
   if [ -n "$2" ]; then
     raw="$2"
-  else
-    [ -f "$f" ] || return 0
-    if command -v jq >/dev/null 2>&1; then
-      raw="$(jq -ce '.toolDeny // {}' "$f" 2>/dev/null)" || {
-        printf '%s' '__nightshift_invalid_tool_rules__'
-        return
-      }
-    elif command -v python3 >/dev/null 2>&1; then
-      raw="$(python3 -c 'import json,sys
-print(json.dumps(json.load(open(sys.argv[1])).get("toolDeny",{}),separators=(",",":")))' "$f" 2>/dev/null)" || {
-        printf '%s' '__nightshift_invalid_tool_rules__'
-        return
-      }
-    else
-      printf '%s' '__nightshift_tool_rules_parser_missing__'
+    ns_rules_map_parse "$raw" || {
+      printf '%s' '__nightshift_invalid_tool_rules__'
       return
-    fi
-  fi
-  out="$(printf '%s' "$raw" | ns_tool_map_ok)"
-  rc=$?
-  if [ "$rc" -eq 2 ]; then
-    printf '%s' '__nightshift_tool_rules_parser_missing__'
+    }
+    printf '%s' "$raw"
     return
   fi
-  if [ "$rc" -ne 0 ]; then
+  [ -f "$f" ] || return 0
+  ns_rules_load "$f" || {
     printf '%s' '__nightshift_invalid_tool_rules__'
     return
-  fi
-  printf '%s' "$out"
+  }
+  ns_rules_tool_deny_json "$f"
 }
 
 # The punch list's `## Items` heading is the boundary between the owner's contract and the work.
@@ -74,11 +48,26 @@ print(json.dumps(json.load(open(sys.argv[1])).get("toolDeny",{}),separators=(","
 # a shift the gate considers finished. One implementation is how they cannot disagree.
 ns_items_section() { sed -n '/^## Items[[:space:]]*$/,$p' "$1" 2>/dev/null; }
 
-# grep -c prints the count AND exits 1 on zero matches; keep the number, drop the status.
+# A count is a verdict about how much work is open, so it is either a number or a failure —
+# never a silent zero. An absent list is the one honest zero: there is no work because there is
+# no list. Everything else that can go wrong — the file exists but cannot be read, sed or grep is
+# missing from a stripped PATH, the ERE is rejected — returns non-zero and prints nothing, and
+# callers hold the site armed and the gate shut on that.
+#
+# grep -c prints the count AND exits 1 on zero matches, so status 1 is a real answer here and
+# only status 2 and up is an error. The pipeline is split so the reader's status is its own.
 ns_count_boxes() { # $1 = punch list, $2 = ERE for the box state
-  local n
-  n="$(ns_items_section "$1" | grep -cE "$2" 2>/dev/null || true)"
-  printf '%s' "${n:-0}"
+  local section n rc
+  [ -e "$1" ] || { printf '0'; return 0; }
+  [ -r "$1" ] || return 1
+  section="$(ns_items_section "$1")" || return 1
+  n="$(printf '%s\n' "$section" | grep -cE "$2" 2>/dev/null)"
+  rc=$?
+  [ "$rc" -le 1 ] || return 1
+  case "$n" in
+    '' | *[!0-9]*) return 1 ;;
+  esac
+  printf '%s' "$n"
 }
 
 ns_open_boxes()   { ns_count_boxes "$1" '^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'; }
@@ -108,6 +97,7 @@ ns_reason_label() {
   case "$1" in
     completed) printf 'shift completed' ;;
     owner-stop) printf 'owner stop-work order' ;;
+    owner-disarm) printf 'shift disarmed - the armed marker is gone' ;;
     stale-pid) printf 'recorded process is stale' ;;
     invalid-session) printf 'session identity is missing or unreadable' ;;
     exhausted-retry) printf 'revival retries exhausted this wake' ;;
@@ -133,7 +123,7 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
   local dir="$1" code="$2" detail="${3:-}"
   [ -d "$dir" ] || return 1
   case "$code" in
-    completed|owner-stop|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable|clock-out-failed) ;;
+    completed|owner-stop|owner-disarm|stale-pid|invalid-session|exhausted-retry|unknown-wedge|revived|stand-down|wrong-host|deadline|clean-session-end|esc-standby|silent-standby|non-resumable-session|unreadable-rules|fresh-fallback|unsupported-state|process-evidence-unavailable|clock-out-failed) ;;
     *) code="stand-down" ;;
   esac
   detail="$(printf '%s' "$detail" | tr -d '\000-\037' | sed 's/[[:space:]]*$//')"
@@ -142,6 +132,14 @@ ns_record_reason() { # <nightshift-dir> <code> [detail]
 
 ns_reason_code() { sed -n 1p "$1/.watch-reason" 2>/dev/null | tr -d '[:space:]'; }
 ns_reason_detail() { sed -n 2p "$1/.watch-reason" 2>/dev/null; }
+
+# The shift log is the owner's record of what the runtime did. Append-only, one line per
+# event, in the format the gate and the control helpers already write. Hooks do not load
+# the control module, so this is the writer they share.
+ns_shift_log() { # <nightshift-dir> <line>
+  [ -d "$1" ] || return 0
+  printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$2" >>"$1/shift-log.md"
+}
 
 # Workspace schema. One integer in .nightshift/state-version is the authority. This plugin
 # supports version 1. A missing marker is legacy version 0 — existing files stay compatible,
@@ -306,10 +304,10 @@ ns_retention_days() {
       return 0
       ;;
   esac
-  if [ -f "$f" ] && command -v jq >/dev/null 2>&1; then
-    raw="$(jq -r --arg k "$key" '.retention[$k] // 0' "$f" 2>/dev/null)" || raw=0
-  elif [ -f "$f" ]; then
-    raw="$(sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$f" | sed -n 1p)"
+  if [ -f "$f" ]; then
+    ns_rules_load "$f" && raw="$(_ns_rules_row retention "$key" "")" && {
+      raw="${raw#*"$_NS_RULES_TAB"}"
+    } || raw=0
   fi
   case "$raw" in
     '' | *[!0-9]*) printf '0' ;;

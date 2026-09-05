@@ -1,12 +1,12 @@
 # nightshift
 
-Nightshift gives [OpenAI Codex](https://openai.com/codex/) and
-[Claude Code](https://claude.com/claude-code) accountable, time-bounded engineering shifts. Hand it
-your own punch list or let it research the product, rank opportunities, and build the strongest
-complete improvements until quitting time. State stays on disk, owner-defined safety rules are
-enforced by hooks, and the morning handoff is reviewable. Codex and Claude Code cannot quietly
-clock out with open work; both keep the active objective and remaining work available on disk
-through compaction or resume. Product-evolution and owner-walkthrough shifts also record the exact
+Nightshift gives [Claude Code](https://claude.com/claude-code),
+[OpenAI Codex](https://openai.com/codex/), and [Cursor](https://cursor.com) accountable,
+time-bounded engineering shifts. Hand it your own punch list or let it research the product, rank
+opportunities, and build the strongest complete improvements until quitting time. State stays on
+disk, owner-defined safety rules are enforced by hooks, and the morning handoff is reviewable. No
+host quietly clocks out with open work; each keeps the active objective and remaining work
+available on disk through compaction or resume. Product-evolution and owner-walkthrough shifts also record the exact
 next action and verification still due.
 
 [Install](#install) · [Run a first shift](#run-a-first-shift) ·
@@ -138,6 +138,12 @@ Nightshift moves the contract outside the conversation so the list and decisions
 
 - **The list stays authoritative.** Open checkboxes remain open across compaction, restart, or
   recovery.
+- **Start asks nothing.** One native preflight prints a verdict per line — `ok`, `warn`, or
+  `refuse` — in the same words on every host, then arms or stops. A scheduled or headless start
+  behaves exactly like an interactive one.
+- **No Python, and no parser to install.** The plugin ships shell and PowerShell only. Hooks read
+  `rules.json` with a bundled reader that needs neither `jq` nor `python3`, and an unreadable rules
+  file fails closed instead of arming on a guess.
 - **Configured rules are mechanical.** Optional command, path, identity, and secret guards are off
   by default; hooks enforce the ones the owner chooses.
 - **One shift binds one session ID.** Start refuses to place a second agent beside a live shift; a
@@ -176,7 +182,9 @@ Nightshift moves the contract outside the conversation so the list and decisions
   remain in plain files.
 - **The owner can always stop it.** Use the host command or
   `runtime/stop-shift.sh --project /absolute/task/root` (native Windows: `stop-shift.ps1 -Project`)
-  to pause immediately even when the model is stuck. `touch .nightshift/STOP` in the
+  to pause immediately even when the model is stuck. That writes `STOP` and stands the
+  watchman down; hardhat stays until clock-out writes `ENDED`. Reset is the manual escape.
+  `touch .nightshift/STOP` in the
   folder that contains `.nightshift/` (not beside `.nightshift-link`) is the panic marker and
   waits for the next Stop event; unfinished boxes remain open.
 
@@ -234,19 +242,24 @@ receipts repo if you opt in at setup.
 When those files grow, `/nightshift:archive` moves completed items, handled snags, and the rotated
 journal into a dated archive without touching the active contract.
 
+Every shift also renders one compact [Morning receipt](docs/morning-receipt.md): what ran, what
+changed, what's parked, and what's next, in a view suited to owner, reviewer, or release reading.
+
 ## The ready shifts
 
 Named GitHub issues can be copied onto the drafting table with `/nightshift:import-issues` — explicit
 URLs or `owner/repo` plus numbers only. Nightshift never searches GitHub and never writes back.
 
 You do not have to invent the night's work. `/nightshift:hunt` reads the catalog and can either let
-you choose the work (**Guided**) or inspect the work target and rank the strongest applicable work
-for the time available (**Automatic**). Then choose when execution begins:
+you choose the work (**Guided**) or take your sentence as the objective and compose the entries that
+serve it (**Automatic**). In Automatic the objective is binding: quality, coverage, or dependency
+work never displaces a feature or design objective because its fingerprints were easy to find. Then
+choose when execution begins:
 
 | | **Review first** | **Run directly** |
 |---|---|---|
 | **Guided** | Pick one or more shifts, inspect the assembled order, then approve or park it. | Pick the shifts and let Nightshift discover, implement, and verify their work without another pause. |
-| **Automatic** | Set the hours; Nightshift scans and ranks the work, but waits for approval before the clock starts. | Set the hours and leave; Nightshift starts the clock, selects the highest-value applicable work, and keeps shipping until quitting time. |
+| **Automatic** | Say what you want and set the hours; Nightshift composes the work that serves it, but waits for approval before the clock starts. | Say what you want, set the hours, and leave; Nightshift starts the clock, works the entries that serve your objective, and keeps shipping until quitting time. |
 
 Copyable owner requests for each cell are in [Shift modes](docs/shift-modes.md).
 
@@ -267,8 +280,7 @@ list and end when it is clear, so hours are a cap rather than a requirement.
 
 The entries live one per file in
 [`shifts/`](plugins/nightshift/skills/nightshift/references/shifts/) — read that directory for the current set
-and the exact contract of each. Nothing enumerates them, deliberately: a page listing the catalog
-would put every contributor in the same diff.
+and the exact contract of each. No page enumerates them.
 
 **Running a night that isn't in there? Add it.** Catalog entries are the easiest contributions to
 review and merge: one Markdown contract and its focused test, with no shared hook change. Each
@@ -277,10 +289,10 @@ The [contribution map](docs/contribution-map.md) and
 [`catalog-recipe.md`](plugins/nightshift/skills/nightshift/references/catalog-recipe.md) show the
 two files and checks.
 
-## Built into both hosts, not pasted into a prompt
+## Built into every host, not pasted into a prompt
 
-Nightshift ships native skills and hook wiring for Codex and Claude Code from one package. It wraps
-nothing and proxies nothing. The skills carry the working method, disk files keep the objective,
+Nightshift ships native skills and hook wiring for Claude Code, Codex, and Cursor from one package.
+It wraps nothing and proxies nothing. The skills carry the working method, disk files keep the objective,
 evidence, and decisions available across compaction or resume, and hooks enforce the boundaries
 each host exposes.
 
@@ -295,6 +307,10 @@ independent of that history. The precise boundaries are in
 
 ## Documentation
 
+- [**Evidence and receipts**](docs/evidence-capabilities.md) — the ledger, receipt templates,
+  profiles, tooling policy, artifact mode, and cross-host handoff.
+- [**Maintainer verification matrix**](docs/maintainer-verification-matrix.md) — where each shipped
+  surface lives and which tests hold it.
 - [**Why Nightshift exists**](docs/why-nightshift.md) — the failure modes behind the contract.
 - [**How Nightshift works**](docs/how-it-works.md) — files, gates, recovery, host differences,
   workspace layouts, guarantees, and limits.
@@ -321,7 +337,11 @@ independent of that history. The precise boundaries are in
   when project tooling cannot.
 - Ticks are self-reported. The gate re-injects the working contract at every blocked stop, but item
   checks and human review still determine whether the work is good.
-- Guards are owner-configured pattern rules, not a security sandbox.
+- Hardhat is hardening, not a sandbox: it matches command text. Default `rules.json` denies five
+  elevation categories — `sudo`, containers (Docker socket and create-state verbs), global
+  packages, daemons, and external services — unless the owner explicitly allows them. Read-only
+  forms such as `docker ps` and `brew list` are not elevation. The patterns stop accidental drift
+  by a cooperative agent; they are not unbypassable isolation.
 - Completion beats cost by default: a stuck finite shift is held and flagged rather than silently
   ended. Bound it with a deadline, `NIGHTSHIFT_STALL_MAX`, or both when cost matters more.
 - The stall guard treats ticks, commits, and artifact receipts as progress, so failed-attempt commits can look alive;
@@ -334,12 +354,11 @@ independent of that history. The precise boundaries are in
 
 The complete behavior and trade-offs are in [How Nightshift works](docs/how-it-works.md).
 
-## Roadmap
+## Codex wedge detection
 
-**Codex support** is complete for the night: gate, guards, skills, scheduling and the watchman
-all run on OpenAI Codex from the same package. The one open edge is wedge detection — a Codex
-session alive at an API error is stood by, not revived, until that transcript signature has been
-observed during an outage — see
+Gate, guards, skills, scheduling and the watchman all run on OpenAI Codex from the same package.
+The one open edge is wedge detection: a Codex session alive at an API error is stood by, not
+revived, until that transcript signature has been observed during an outage — see
 [#41](https://github.com/orwa-mahmoud/nightshift/issues/41).
 
 ## Contributing

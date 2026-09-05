@@ -6,19 +6,15 @@ description: Set a shift to start at a fixed time — check the work is queued, 
 Get the host-opened project ready to start on a clock, then hand the owner the config. Work through
 these in order; each one is a check the owner would otherwise discover at 4am.
 
-Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
-Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
-otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
-present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
-
-Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
-`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
-`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
-short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
-`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
-Never search or guess. The shell's working directory persists
-between Bash calls, so never use a bare path.
+Bind once, then never search, guess, or re-resolve. `$TASK_ROOT` is the host-opened project
+folder: `${CLAUDE_PROJECT_DIR}` on Claude Code; on Codex the `CODEX_PROJECT_DIR` recovery override
+when Nightshift set it, otherwise `pwd -P` captured before any other shell call.
+`$NIGHTSHIFT_WORKSPACE` is the validated absolute target of `$TASK_ROOT/.nightshift-link` when that
+link exists, otherwise `$TASK_ROOT`. Then `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"` (native Windows:
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`), and every Nightshift file is `$NS/<name>`
+for the rest of the run; helpers taking `--project` or `-Project` receive
+`"$NIGHTSHIFT_WORKSPACE"`. The shell's working directory persists between calls, so a bare path is
+never safe.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 `${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
@@ -52,10 +48,8 @@ Count the open `- [ ]` in `$NS/punch-list.md`:
  Hunt (answer **later**, not **now** — a shift started here defeats scheduling it), cut an
  ordinary draft from `$NS/drafting-table.md`, cut a `Status: proposed` import with
  `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/import-issues.sh" --project "$NIGHTSHIFT_WORKSPACE" --promote …`
- (on native Windows,
- `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\import-issues.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`),
- or write an item by hand. Then re-check. Never schedule an empty list without saying it
- will do nothing.
+ (native Windows: `import-issues.ps1 -Project "$NIGHTSHIFT_WORKSPACE" -Promote …`), or write an
+ item by hand. Then re-check. Never schedule an empty list without saying it will do nothing.
 
 A parked work order is not queued work. If one exists, say so: it must be moved into the punch list
 before the scheduled time, because start will not promote it.

@@ -1,7 +1,7 @@
 # How Nightshift works
 
-Nightshift is a native plugin for Codex and Claude Code. It adds no proxy, hosted service, or
-second agent runtime. Skills define the working method, files preserve the contract, hooks enforce
+Nightshift is a native plugin for Claude Code, Codex, and Cursor. It adds no proxy, hosted
+service, or second agent runtime. Skills define the working method, files preserve the contract, hooks enforce
 the host-specific boundaries that are available, and local shell or PowerShell processes handle
 scheduling and recovery when no live session can act.
 
@@ -36,13 +36,22 @@ exact next action, and remaining verification in `opportunity-map.md`.
 
 Only checkboxes under `## Items` in `punch-list.md` belong to the active contract. A list alone does
 not activate hooks: Start, or a Hunt or Quality path that starts immediately, creates
-`.shift-armed` after preflight. The clock-out gate and owner rules are active only while that marker
-exists, open Items remain, and the shift has not ended.
+`.shift-armed` after preflight. The clock-out gate and owner rules are active while that marker
+exists and the shift has not ended. A `STOP` order keeps hardhat on until clock-out writes
+`.nightshift/.ended`; open boxes stay as the record. Reset is the manual escape.
 
 Archive files ticked items and never resets the leftover Shift contract or Gates. An empty
 `## Items` section still binds the next Hunt or Start cut — review those sections before
 composing a new campaign. Status and Doctor report the leftover; Archive writes a Notes reminder
 when a campaign is fully filed.
+
+Start asks nothing. Before it arms, it runs one native preflight —
+`runtime/start-preflight.sh` (native Windows: `runtime/windows/start-preflight.ps1`) — which prints
+one verdict per line: `ok` for a fact worth stating, `warn` for something the owner should hear
+while the shift still arms, and `refuse` for a condition that stops it. The sentences are
+byte-identical on POSIX and native Windows, so a scheduled or headless run behaves exactly like an
+interactive one. Host-specific detail behind a verdict lives in
+[`start-hosts.md`](../plugins/nightshift/skills/nightshift/references/start-hosts.md).
 
 Immediately after arming, Start — and Hunt or Quality when they start immediately — make a
 harmless host-shell probe—Bash on POSIX, PowerShell on
@@ -63,16 +72,54 @@ the helper can chat and ask freely, but it is not a safe channel for commands th
 that receives code changes when state lives in a parent workspace. `state-version` prevents newer
 or malformed state from being interpreted by older hooks; unsupported versions fail closed.
 
+## Three policy layers and one resolved view
+
+Nightshift separates **what the project always forbids**, **what the owner usually prefers**, and
+**what tonight's shift authorizes**:
+
+| File | Role |
+| --- | --- |
+| `rules.json` | Permanent boundaries: tool denies, commit guards, retention, and the five elevation categories (`sudo`, containers, global-packages, daemons, external-services). The shipped template denies each by default. Containers cover the Docker socket and create-state verbs (`run`, `create`, `compose up`, `start`, `build`); read-only forms such as `docker ps` and `brew list` are not gated. Hardhat is hardening, not a sandbox. |
+| `shift-defaults.json` | Remembered convenience: verification profile, typical hours, tooling policy, execution mode. Prefills Hunt and Quality; never appears as the source of an effective value. |
+| `shift-policy.json` | Tonight's authoritative snapshot: deadline, verification level, tooling policy, one-shift elevation allowances with provenance, and the shift identity they bind to. Written by composition or Start; guarded while armed. |
+
+Status and Doctor render **one resolved policy block**: every effective setting, its source file,
+and each elevation category with whether it is allowed permanently, for one shift, or denied.
+Preflight compares punch-list needs against that view before arming.
+
+**Verification profiles** (`fast`, `balanced`, `strict`, `custom`) live in
+`references/profiles/`. `fast` is first-class: no automated checks, items and receipts only.
+`balanced` runs existing fast checks per item and a full suite at the end. `strict` runs applicable
+checks per item and at the end. Profiles propose defaults during Setup; owner rules remain
+authoritative.
+
+**Tooling policies** are `existing-tools` (scan with what is already installed),
+`review-missing` (hold the clock until the owner approves a plan for what is missing), and
+`auto-add` (add tools under the elevation categories the shift already allows). Artifact mode is
+always `existing-tools`. Start never asks: a composition step records the choice on the policy
+snapshot, and Start works with what it finds.
+
+**Parsers.** The plugin ships no Python. POSIX hooks read `rules.json` with a bundled reader that
+needs neither `jq` nor `python3`; an unreadable or unsupported rules file fails closed and does not
+arm. `shift-policy.json` is JSON that the bash helpers read with `jq`, falling back to an inline
+`python3` program when `jq` is absent — with neither installed, Start says so and arms from
+`rules.json` alone rather than asking the owner to install anything. An MCP payload the hardhat
+cannot decode is treated as if it addressed the process lease, so an opaque call is denied rather
+than waved through. Native Windows uses PowerShell's built-in `ConvertFrom-Json` throughout and
+needs no third-party parser.
+
 ## Mechanical gates and owner rules
 
-On both Claude Code and Codex, an attempted stop with open punch-list items receives the focused
-contract again. On both hosts, hook-backed rules can deny commands, protected paths, suspicious
-secret patterns, or commits under the wrong identity.
+On Claude Code, Codex, and Cursor, an attempted stop with open punch-list items receives the
+focused contract again. On every host, hook-backed rules can deny commands, protected paths,
+suspicious secret patterns, or commits under the wrong identity.
 
-Optional command, path, identity, and secret guards are off by default; Setup proposes them and the
-owner chooses. The two explicit question-tool entries are the exception: the shipped rules park
-questions so an unattended shift does not wait, and the owner may set either value to an empty
-string to allow that host's question tool. Active rules hold in every permission mode, including a
+The five elevation categories deny by default. Optional command, path, identity, and secret
+guards (`forbiddenCommands`, `protectedDirs`, `expectedEmail`, `neverCommitPatterns`) stay empty
+until the owner sets them; Setup proposes them and the owner chooses. The three explicit
+question-tool entries are the exception: the shipped rules park questions so an unattended shift
+does not wait, and the owner may set any of them to an empty string to allow that host's
+question tool. Active rules hold in every permission mode, including a
 broadly permitted unattended session. That combination lets the host run without approval prompts
 while hooks still enforce the owner's configured boundaries—a frictionless permission mode plus
 an owner-specific denylist that host permissions alone do not express.
@@ -89,11 +136,12 @@ owner. An owner watching live can answer immediately; otherwise the decision rem
 morning review.
 
 That mechanical policy is explicit in `rules.json`: `toolDeny.AskUserQuestion` controls Claude
-Code and `toolDeny.request_user_input` controls Codex. A non-empty value denies that exact tool
-with the owner's message; an empty value allows it. The [tool-rules reference](knobs.md#tool-rules)
-explains the remaining contract text an owner changes for an interactive, ask-and-wait shift.
-Existing workspaces should re-run Setup after upgrade and accept the offered
-`request_user_input` entry; Nightshift never inserts it without confirmation.
+Code, `toolDeny.request_user_input` controls Codex, and `toolDeny.AskQuestion` controls Cursor.
+A non-empty value denies that exact tool with the owner's message; an empty value allows it. The
+[tool-rules reference](knobs.md#tool-rules) explains the remaining contract text an owner changes
+for an interactive, ask-and-wait shift. Existing workspaces should re-run Setup after upgrade and
+accept the offered `request_user_input` or `AskQuestion` entry; Nightshift never inserts either
+without confirmation.
 
 Run directly authorizes reasonable, reversible implementation defaults without a second approval
 pause. Significant decisions, rejected paths, and rollback instructions stay in `parking-lot.md`
@@ -235,10 +283,11 @@ Native Windows PowerShell:
 plugins\nightshift\runtime\windows\stop-shift.ps1 -Project C:\absolute\task\root
 ```
 
-That writes `STOP`, kills only a verified watchman, removes `.shift-armed`, and releases the
-lease immediately. Hooks stay installed and become inert. The deadline and punch list stay. Reset
-(`reset-shift.sh` / `reset-shift.ps1`) also drops the deadline. Purge deletes that project's
-`.nightshift/` after an exact `--confirm-path`. None of them uninstall the plugin.
+That writes `STOP` and kills only a verified watchman. `.shift-armed` stays, so hardhat
+remains until clock-out writes `.nightshift/.ended`. Reset is the manual escape. The deadline and punch list
+stay. Reset (`reset-shift.sh` / `reset-shift.ps1`) drops runtime markers and the deadline. Purge
+deletes that project's `.nightshift/` after an exact `--confirm-path`. None of them uninstall the
+plugin.
 
 The panic form in the folder that contains `.nightshift/` (not beside `.nightshift-link`) still
 works, but it waits for the next Stop event:
@@ -296,7 +345,7 @@ marketplace and local plugin hooks and only runs project `.cursor/hooks.json`. S
 copy the shipped Cursor hook file there on an explicit yes; that is a Cursor limitation,
 not a Nightshift skip.
 
-The differences among Claude Code and Codex are in recovery evidence. Claude Code exposes Escape,
+The differences among the hosts are in recovery evidence. Claude Code exposes Escape,
 clean session-end, process, transcript, pulse, and API-error signals. Codex exposes SessionEnd
 (reason `other`), pulse, process, and rollout activity, but not Escape or a verified API-wedge
 signature. Cursor liveness is pulse plus recorded pid plus transcript growth plus lease pid;
@@ -478,8 +527,8 @@ and the refused split-runtime boundary are in [Remote environments](remote-envir
 - **Progress is approximate:** the stall guard treats ticks, commits, and artifact receipts as progress, so a failed
   attempt committed by the agent can look alive. Item checks and the deadline remain the backstop.
 - **No built-in push block:** pushing is allowed unless the owner adds it to the shift rules.
-- **Guards are not a sandbox:** shell-command rules match command text. The pattern rules prevent
-  accidental drift by a cooperative agent, not deliberate evasion.
+- **Hardhat is hardening, not a sandbox:** shell-command rules match command text. The pattern
+  rules prevent accidental drift by a cooperative agent; they are not unbypassable isolation.
 - **The process lease fences observed tools:** it rejects stale-process calls delivered to the
   host's PreToolUse hook after ownership transfers. It cannot revoke a call already admitted,
   refresh the IDE, terminate a host process, suppress generated text, or control commands a human

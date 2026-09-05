@@ -4,8 +4,8 @@
 
 Only the latest release is supported. Nightshift itself has no telemetry and
 does not phone home. A running shift does launch the coding agent selected by
-the owner (`claude` or `codex`), whose own network behaviour and policies still
-apply. If the owner configures `notifyCommand`, Nightshift also executes that
+the owner (`claude`, `codex`, or Cursor's `agent`), whose own network behaviour
+and policies still apply. If the owner configures `notifyCommand`, Nightshift also executes that
 command locally at the documented shift-ending or recovery-failure events; the
 command may access the network because it is unrestricted owner-provided shell.
 

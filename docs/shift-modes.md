@@ -6,6 +6,10 @@ This page is one copyable walkthrough per combination. Setup must already have b
 project you want changed — a Git repository or a persistent folder, never a ChatGPT scratch
 workspace.
 
+A third independent choice is the tooling policy, asked before scanning: **Existing tools only**,
+**Review missing tools first**, or **Automatically add standard development tools**. Artifact mode
+keeps Existing tools only. Details live in the same modes contract.
+
 Morning review is local: work-target commits in repository mode, or files under
 `.nightshift/receipts/` in artifact mode (Doctor names the most recently written filename).
 Doctor warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts.
@@ -38,8 +42,10 @@ are not questions.
 
 ## Automatic + Review first
 
-Nightshift inspects the work target and ranks applicable catalog entries. Hours are required.
-Discovery stays read-only until you approve.
+Your sentence is the objective. Nightshift reads every catalog entry, inspects the work target,
+and composes the entries that serve what you asked for — quality, coverage, or dependency work
+does not hijack a feature or design objective because fingerprints were easy to find. Hours are
+required. Discovery stays read-only until you approve.
 
 Claude Code: `/nightshift:hunt`, then **Automatic**, set the hours, then **Review first**.
 
@@ -57,7 +63,9 @@ The clock starts only after approval.
 
 ## Automatic + Run directly
 
-The same ranking, with immediate authority to cut and arm. Hours are required.
+The same composition, with immediate authority to cut and arm. Hours are required. A request that
+already carries a time budget, an actionable objective, and clear direct-execution intent runs here
+without another question.
 
 Claude Code: `/nightshift:hunt`, then **Automatic**, set the hours, then **Run directly**.
 

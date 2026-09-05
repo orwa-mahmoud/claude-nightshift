@@ -1,0 +1,2 @@
+webpack 5.90.0 compiled with 1 error
+ERROR in ./src/app.js 12:4

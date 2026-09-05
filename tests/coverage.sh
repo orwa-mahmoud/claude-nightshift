@@ -31,6 +31,8 @@ for cls in root.iter('class'):
     path, lines = cls.get('filename'), cls.find('lines')
     if not path or lines is None:
         continue
+    if path.startswith(('runtime/', 'hooks/')):
+        path = 'plugins/nightshift/' + path
     out.append(f'  <file path="{path}">')
     for ln in lines.iter('line'):
         covered = 'true' if int(ln.get('hits', '0')) > 0 else 'false'

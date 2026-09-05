@@ -3,7 +3,7 @@
 #
 # Explicit owner repair only. Hooks, start, status, archive, and recovery must never
 # invoke this. The migration preserves every existing file and unknown owner field;
-# it writes only the schema marker.
+# it writes the schema marker and nothing else.
 #
 #   migrate-state.sh [--project DIR]
 #

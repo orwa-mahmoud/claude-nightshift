@@ -213,26 +213,13 @@ function Test-NSNightshiftDirContext {
     return $false
 }
 
-function Test-NSControlRewritePath {
+# The shift policy, the remembered defaults and the derived deadline are control files too:
+# tonight's authority is written before arming, so an armed agent that could rewrite it could
+# widen its own permissions. Regex is a pre-filter; a write is a hit only when the
+# target's canonical absolute path equals $ns/<control-file>.
+function Test-NSControlPrefilter {
     param([AllowEmptyString()][string]$Target)
-    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)(/|$|[^A-Za-z0-9_.-])'
-}
-
-function Test-NSControlListPath {
-    param([AllowEmptyString()][string]$Target)
-    $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    return $normalized -match '(?i)(^|/|\.)nightshift/punch-list\.md(/|$|[^A-Za-z0-9_.-])'
-}
-
-function Test-NSControlRewriteName {
-    param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|work-target|work-mode)([;&|()\s]|$)'
-}
-
-function Test-NSControlListName {
-    param([AllowEmptyString()][string]$Target)
-    return $Target -match '(?i)(^|[;&|()\s])(\./)?punch-list\.md([;&|()\s]|$)'
+    return $Target -match '(?i)(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline|punch-list\.md)'
 }
 
 function Test-NSControlDeleteVerb {
@@ -240,20 +227,170 @@ function Test-NSControlDeleteVerb {
     return $Target -match '(?i)(^|[;&|()\s])(rm|rmdir|unlink|mv|Remove-Item|Move-Item|Rename-Item)([\s]|$)'
 }
 
+function Test-NSControlBareName {
+    param([AllowEmptyString()][string]$Token)
+    return $Token -match '(?i)^(\./)?(STOP|\.shift-armed|\.ended|\.shift-session|\.shift-worker|work-target|work-mode|shift-policy\.json|shift-defaults\.json|deadline|punch-list\.md)$'
+}
+
+# Physical directory path, including symlink and junction ancestors. Matches POSIX cd -P.
+function Resolve-NSPhysicalDirectory {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $full = [IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $full -PathType Container)) {
+        throw 'not a directory'
+    }
+    if (Test-Path -LiteralPath '/bin/pwd' -PathType Leaf) {
+        $here = Get-Location
+        try {
+            Set-Location -LiteralPath $full
+            $physical = & /bin/pwd -P
+            if (-not [string]::IsNullOrWhiteSpace($physical)) {
+                return [string]$physical
+            }
+        }
+        finally {
+            Set-Location $here
+        }
+    }
+    $root = [IO.Path]::GetPathRoot($full)
+    $relative = $full.Substring($root.Length).Trim([char]'\', [char]'/')
+    if ($root -eq '/' -or $root -eq '\') {
+        $acc = '/'
+    }
+    else {
+        $acc = $root
+    }
+    if (-not [string]::IsNullOrEmpty($relative)) {
+        foreach ($part in ($relative -split '[\\/]+')) {
+            if ([string]::IsNullOrEmpty($part) -or $part -eq '.') {
+                continue
+            }
+            $next = if ($acc -eq '/') { "/$part" } else { Join-Path $acc $part }
+            $item = Get-Item -LiteralPath $next -Force
+            $target = $null
+            if ($item.PSObject.Properties['LinkType'] -and $item.LinkType) {
+                $raw = $item.Target
+                $target = if ($raw -is [System.Array]) { [string]$raw[0] } else { [string]$raw }
+            }
+            elseif ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                $raw = $item.Target
+                $target = if ($raw -is [System.Array]) { [string]$raw[0] } else { [string]$raw }
+            }
+            if (-not [string]::IsNullOrEmpty($target)) {
+                if (-not [IO.Path]::IsPathRooted($target)) {
+                    $target = Join-Path (Split-Path -Parent $next) $target
+                }
+                $acc = [IO.Path]::GetFullPath($target)
+            }
+            else {
+                $acc = $item.FullName
+            }
+        }
+    }
+    return [IO.Path]::GetFullPath($acc)
+}
+
+function Resolve-NSWriteTarget {
+    param([AllowEmptyString()][string]$Target)
+    $normalized = $Target.Replace('"', '').Replace("'", '')
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $null
+    }
+    if (-not [IO.Path]::IsPathRooted($normalized)) {
+        $base = $null
+        if (-not [string]::IsNullOrEmpty($script:cwd)) {
+            $base = $script:cwd
+        }
+        elseif (-not [string]::IsNullOrEmpty($script:ns)) {
+            $base = Split-Path -Parent $script:ns
+        }
+        if ([string]::IsNullOrEmpty($base)) {
+            return $null
+        }
+        $normalized = Join-Path $base $normalized
+    }
+    $full = [IO.Path]::GetFullPath($normalized)
+    $parent = Split-Path -Parent $full
+    $leaf = Split-Path -Leaf $full
+    if ([string]::IsNullOrEmpty($parent) -or -not (Test-Path -LiteralPath $parent -PathType Container)) {
+        return $null
+    }
+    try {
+        $parentCanon = Resolve-NSPhysicalDirectory $parent
+    }
+    catch {
+        try {
+            $parentCanon = Resolve-NSCanonicalPath $parent
+        }
+        catch {
+            return $null
+        }
+    }
+    return (Join-Path $parentCanon $leaf)
+}
+
+function Test-NSControlRewriteHit {
+    param([AllowEmptyString()][string]$Canon)
+    if ([string]::IsNullOrEmpty($Canon) -or [string]::IsNullOrEmpty($script:ns)) {
+        return $false
+    }
+    foreach ($name in @(
+            'STOP', '.shift-armed', '.ended', '.shift-session', '.shift-worker',
+            'work-target', 'work-mode', 'shift-policy.json', 'shift-defaults.json', 'deadline'
+        )) {
+        $expected = Resolve-NSWriteTarget (Join-Path $script:ns $name)
+        if ($null -ne $expected -and $Canon -ceq $expected) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Test-NSControlListHit {
+    param([AllowEmptyString()][string]$Canon)
+    if ([string]::IsNullOrEmpty($Canon) -or [string]::IsNullOrEmpty($script:ns)) {
+        return $false
+    }
+    $expected = Resolve-NSWriteTarget (Join-Path $script:ns 'punch-list.md')
+    return ($null -ne $expected -and $Canon -ceq $expected)
+}
+
+function Test-NSControlCandidateHits {
+    param(
+        [AllowEmptyString()][string]$Candidate,
+        [AllowEmptyString()][string]$Full
+    )
+    $leaf = Split-Path -Leaf ($Candidate.Replace('/', [IO.Path]::DirectorySeparatorChar))
+    $canon = $null
+    if ((Test-NSControlBareName $Candidate) -and (Test-NSNightshiftDirContext $Full)) {
+        $canon = Resolve-NSWriteTarget (Join-Path $script:ns $leaf)
+    }
+    else {
+        $canon = Resolve-NSWriteTarget $Candidate
+    }
+    if (Test-NSControlRewriteHit $canon) {
+        return $true
+    }
+    return (Test-NSControlListHit $canon) -and (Test-NSControlDeleteVerb $Full)
+}
+
 function Test-NSControlTarget {
     param([AllowEmptyString()][string]$Target)
     $normalized = $Target.Replace('\', '/').Replace('"', '').Replace("'", '')
-    if (Test-NSControlRewritePath $normalized) {
-        return $true
+    if (-not (Test-NSControlPrefilter $normalized)) {
+        return $false
     }
-    if ((Test-NSControlListPath $normalized) -and (Test-NSControlDeleteVerb $normalized)) {
-        return $true
+    if ([string]::IsNullOrEmpty($script:ns)) {
+        return $false
     }
-    if (Test-NSNightshiftDirContext $normalized) {
-        if (Test-NSControlRewriteName $normalized) {
-            return $true
+    if ($normalized -notmatch '[\s;&|<>()]') {
+        return Test-NSControlCandidateHits $normalized $normalized
+    }
+    foreach ($candidate in ($normalized -split '[\s;&|<>()]+')) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
         }
-        if ((Test-NSControlListName $normalized) -and (Test-NSControlDeleteVerb $normalized)) {
+        if (Test-NSControlCandidateHits $candidate $normalized) {
             return $true
         }
     }
@@ -468,6 +605,56 @@ function Get-NSProspectiveGitPaths {
     }
 }
 
+# A simple quoted payload after eval or a shell -c. Hardening only: one pair of
+# quotes, no nested parser, not a sandbox.
+function Get-NSElevationInner {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Command)
+    if ($Command -notmatch '(^|[;&|()\s])(eval|[A-Za-z0-9./_-]*sh\s+-[a-zA-Z]*c)\s') {
+        return ''
+    }
+    if ($Command -match "eval\s+'([^']*)'") { return $Matches[1] }
+    if ($Command -match 'eval\s+"([^"]*)"') { return $Matches[1] }
+    if ($Command -match "[A-Za-z0-9./_-]*sh\s+-[a-zA-Z]*c\s+'([^']*)'") { return $Matches[1] }
+    if ($Command -match '[A-Za-z0-9./_-]*sh\s+-[a-zA-Z]*c\s+"([^"]*)"') { return $Matches[1] }
+    return ''
+}
+
+# Elevation gates creating system state, never using what already runs. The category patterns come
+# from rules.elevation (or the shipped defaults) through Get-NSElevationPattern, which the
+# permission preflight reads too, so the guard and the preflight cannot disagree about what a
+# command needs. Whether tonight lifts a deny is Test-NSPolicyAllowed's answer alone - it carries
+# the whole precedence table, including the exact-plan binding. A pattern the owner broke denies.
+# A simple eval / sh -c quoted payload is matched as well as the outer text; that is hardening,
+# not isolation.
+function Get-NSElevationDenyReason {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Scrubbed,
+        [Parameter(Mandatory = $true)][string]$Workspace
+    )
+    $subject = $Scrubbed
+    $inner = Get-NSElevationInner $Scrubbed
+    if (-not [string]::IsNullOrEmpty($inner)) { $subject = "$Scrubbed $inner" }
+    foreach ($category in @('sudo', 'containers', 'global-packages', 'daemons', 'external-services')) {
+        $pattern = [string](Get-NSElevationPattern -Workspace $Workspace -Category $category)
+        if ([string]::IsNullOrEmpty($pattern)) { continue }
+        try {
+            $regex = New-NSRegex $pattern
+        }
+        catch {
+            return "BLOCKED: elevation.$category.pattern is not a valid extended regular expression, so the guard it configures cannot run. Fix the pattern in .nightshift/rules.json."
+        }
+        if (-not $regex.IsMatch($subject)) { continue }
+        $status = Test-NSPolicyAllowed -Workspace $Workspace -Category $category -Command $Scrubbed
+        if ($status -eq 0) { continue }
+        $reason = "BLOCKED: this command needs the '$category' elevation category, which is denied for this shift."
+        if ($status -eq 2) {
+            return "$reason An exact-plan allowance exists but this command is not one of its approved commands."
+        }
+        return "$reason The owner allows it in .nightshift/rules.json (elevation.$category.policy) or for one shift in shift-policy.json before arming. Park the item in .nightshift/parking-lot.md as `"needs allowance: $category`" and keep working."
+    }
+    return ''
+}
+
 function Get-NSCommandDenyReason {
     param(
         [Parameter(Mandatory = $true)][string]$Command,
@@ -575,7 +762,10 @@ function Get-NSCommandDenyReason {
     if ($null -ne $forbiddenRegex -and $forbiddenRegex.IsMatch($Scrubbed)) {
         return "BLOCKED: the command matches the owner's forbidden list for this shift. Find another way, or park the task with a note in .nightshift/parking-lot.md and keep working. Do not retry a rephrased form."
     }
-    return ''
+
+    # forbiddenCommands is the owner's own list and stays independent of the categories: a command
+    # can clear it and still need an allowance the shift does not hold.
+    return (Get-NSElevationDenyReason -Scrubbed $Scrubbed -Workspace $Workspace)
 }
 
 if ($env:NIGHTSHIFT_HARDHAT_LIB -eq '1') {
@@ -629,13 +819,23 @@ if ($stateKind -in @('malformed', 'future')) {
 }
 
 $ns = Join-Path $workspace '.nightshift'
+$script:cwd = $cwd
+try {
+    $script:ns = Resolve-NSPhysicalDirectory $ns
+}
+catch {
+    try {
+        $script:ns = Resolve-NSCanonicalPath $ns
+    }
+    catch {
+        $script:ns = $ns
+    }
+}
 $punch = Join-Path $ns 'punch-list.md'
 $armed = Join-Path $ns '.shift-armed'
 $ended = Join-Path $ns '.ended'
 $endedReal = (Test-Path -LiteralPath $ended -PathType Leaf) -and -not (Test-NSReparsePoint $ended)
-$counts = Get-NSBoxCounts $punch
-$active = (Test-Path -LiteralPath $armed -PathType Leaf) -and (Test-Path -LiteralPath $punch -PathType Leaf) `
-    -and -not $endedReal -and $counts.Open -gt 0
+$active = Test-NSHardhatActive $ns
 
 $nonce = [string]$env:NIGHTSHIFT_LEASE_NONCE
 $generation = [string]$env:NIGHTSHIFT_LEASE_GENERATION
@@ -685,7 +885,7 @@ $processStart = if ($null -eq $hostProcess) { '' } else { [string]$hostProcess.S
 $bindingProbe = ($tool -in @('Bash', 'PowerShell')) -and (
     $command.Trim() -in @(': nightshift-binding-probe', "`$null = 'nightshift-binding-probe'")
 )
-$bindingTools = @('Bash', 'PowerShell', 'AskUserQuestion', 'request_user_input', 'apply_patch', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
+$bindingTools = @('Bash', 'PowerShell', 'AskQuestion', 'AskUserQuestion', 'request_user_input', 'apply_patch', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit')
 
 $session = Read-NSSession $ns
 if ($null -eq $session -and -not [string]::IsNullOrEmpty($sessionId) -and $tool -in $bindingTools) {
@@ -732,17 +932,17 @@ foreach ($target in $targets) {
 
 $controlPassive = $tool -in @(
     'Read', 'Grep', 'Glob', 'LS', 'WebFetch', 'WebSearch', 'Task', 'TodoWrite',
-    'AskUserQuestion', 'request_user_input', 'NotebookRead'
+    'AskQuestion', 'AskUserQuestion', 'request_user_input', 'NotebookRead'
 ) -or $tool -match '(?i)read'
 if (-not $controlPassive) {
     foreach ($target in $targets) {
         if (Test-NSControlTarget ([string]$target)) {
-            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
+            Write-Deny 'BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, work-mode, shift-policy.json, shift-defaults.json, or deadline, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working.'
         }
     }
 }
 
-if ($tool -in @('AskUserQuestion', 'request_user_input')) {
+if ($tool -in @('AskQuestion', 'AskUserQuestion', 'request_user_input')) {
     $property = if ($null -eq $toolRules) { $null } else { $toolRules.PSObject.Properties[$tool] }
     if ($null -eq $property) {
         Write-Deny "BLOCKED: toolDeny is missing the required '$tool' entry. Add that exact host tool name to .nightshift/rules.json with a denial message, or use an empty string to allow it; run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex) to review the current template."

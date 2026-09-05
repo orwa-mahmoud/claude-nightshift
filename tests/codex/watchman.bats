@@ -337,7 +337,9 @@ STUB
     "$WATCHMAN" --project "$P" --interval 20 --max-wakes 1
   [ "$(reason)" = "fresh-fallback" ]
   [ "$(calls)" -ge 1 ]
-  ! grep -q 'exec resume' "$P/.nightshift/agent-calls"
+  if grep -q 'exec resume' "$P/.nightshift/agent-calls"; then
+    return 1
+  fi
 }
 
 @test "a resumable UUID is passed to exec resume and not replaced" {
@@ -396,4 +398,31 @@ STUB
   [ "$status" -eq 0 ]
   [ "$(calls)" -ge 1 ]
   grep -q 'resume attempt 1' "$P/.nightshift/shift-log.md"
+}
+
+# Disarm is total on every host: with the marker gone there is no shift to revive, and the
+# lease a failed ladder took goes back to the recorded conversation.
+@test "a missing armed marker stands the Codex watchman down" {
+  rm -f "$P/.nightshift/.shift-armed"
+  run watch --max-wakes 3
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 0 ]
+  grep -qF 'watchman: the armed marker is gone — standing down' "$P/.nightshift/shift-log.md"
+  [ "$(reason)" = "owner-disarm" ]
+  [ ! -e "$P/.nightshift/.shift-armed" ]
+}
+
+@test "an exhausted Codex ladder hands the lease back to the recorded conversation" {
+  cat >"$BIN/fail.sh" <<'STUB'
+#!/usr/bin/env bash
+echo called >>.nightshift/agent-calls
+exit 1
+STUB
+  chmod +x "$BIN/fail.sh"
+  run env NIGHTSHIFT_WATCH_SLEEP=0 NIGHTSHIFT_WATCH_RETRY="0" \
+    "$WATCHMAN" --project "$P" --interval 20 --agent "bash $BIN/fail.sh" --max-wakes 1
+  [ "$status" -eq 0 ]
+  [ "$(reason)" = "exhausted-retry" ]
+  [ "$(sed -n 1p "$P/.nightshift/.shift-lease")" = "dead-sid" ]
+  [ -z "$(sed -n 4p "$P/.nightshift/.shift-lease")" ]
 }

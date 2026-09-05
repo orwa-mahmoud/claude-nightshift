@@ -39,7 +39,9 @@ cursor_pulse() {
   cursor_pulse "$p" bound-id
   [ "$(wc -l <"$p/.nightshift/.shift-pulse" | tr -d ' ')" -eq 1 ]
   grep -qE '^[0-9]+ bound-id$' "$p/.nightshift/.shift-pulse"
-  ! grep -q leftover "$p/.nightshift/.shift-pulse"
+  if grep -q leftover "$p/.nightshift/.shift-pulse"; then
+    return 1
+  fi
 }
 
 @test "cursor stop pulse produces no stdout" {

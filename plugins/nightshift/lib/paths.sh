@@ -1,6 +1,65 @@
 #!/usr/bin/env bash
 # Workspace resolution and canonical path helpers shared by Nightshift hooks.
 
+# ns_msys_path <path>
+# Git Bash cannot cd to D:/foo; it wants /d/foo. Do not call cygpath -u here:
+# it remaps Windows Temp to /tmp, which is a different directory, so helpers
+# refuse a project PowerShell just created.
+ns_msys_path() {
+  local p d
+  p="${1//\\//}"
+  case "$p" in
+    [A-Za-z]:/*)
+      d=$(printf '%s' "${p%"${p#?}"}" | tr '[:upper:]' '[:lower:]')
+      printf '%s' "/${d}${p#?:}"
+      ;;
+    *)
+      printf '%s' "$p"
+      ;;
+  esac
+}
+
+# ns_native_display_path <path>
+# Receipts print the native Windows form so the bash and PowerShell renderers
+# stay byte-identical when Git Bash is the twin. POSIX paths are unchanged.
+ns_native_display_path() {
+  local p d rest converted
+  p="$1"
+  [ -n "$p" ] || return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    converted="$(cygpath -w -- "$p" 2>/dev/null)" || converted=""
+    if [ -n "$converted" ]; then
+      printf '%s' "$converted"
+      return 0
+    fi
+  fi
+  case "$(uname -s 2>/dev/null)" in
+    MINGW* | MSYS* | CYGWIN*) ;;
+    *)
+      printf '%s' "$p"
+      return 0
+      ;;
+  esac
+  p="${p//\\//}"
+  case "$p" in
+    /[A-Za-z]/*)
+      d="${p#/}"
+      d="${d%"${d#?}"}"
+      d=$(printf '%s' "$d" | tr '[:lower:]' '[:upper:]')
+      rest="${p#/?}"
+      printf '%s' "${d}:${rest//\//\\}"
+      ;;
+    [A-Za-z]:/*)
+      d=$(printf '%s' "${p%"${p#?}"}" | tr '[:lower:]' '[:upper:]')
+      rest="${p#?:}"
+      printf '%s' "${d}:${rest//\//\\}"
+      ;;
+    *)
+      printf '%s' "${p//\//\\}"
+      ;;
+  esac
+}
+
 # ns_workspace_root <host-root>
 #
 # Resolve the one workspace that owns Nightshift state. Normally that is the task root itself.
@@ -9,7 +68,9 @@
 # directories: an absent link means local state; a malformed link returns 2 so callers can fail
 # closed instead of silently running without the owner's contract.
 ns_workspace_root() {
-  local host="$1" link="$1/.nightshift-link" target="" lines="" canonical=""
+  local host link target="" lines="" canonical=""
+  host="$(ns_msys_path "$1")"
+  link="$host/.nightshift-link"
   canonical="$(cd -P "$host" 2>/dev/null && pwd)" || {
     return 2
   }
@@ -164,6 +225,7 @@ ns_work_mode() {
     return 0
   fi
   IFS= read -r mode <"$record" || true
+  mode="${mode%$'\r'}"
   case "$mode" in
     repository | artifact)
       printf '%s' "$mode"

@@ -70,6 +70,10 @@ PSM1="$BATS_TEST_DIRNAME/../plugins/nightshift/lib/Nightshift.psm1"
   grep -qF 'Restore-NSLeaseInteractive $ns' "$HELPER"
   grep -qF 'Release-NSLease $ns' "$HELPER"
   grep -qF 'ns_lease_release' "$OWNERSHIP"
-  ! grep -q 'retrying next wake' "$CLAUDE"
-  ! grep -q 'retrying next wake' "$CODEX"
+  if grep -q 'retrying next wake' "$CLAUDE"; then
+    return 1
+  fi
+  if grep -q 'retrying next wake' "$CODEX"; then
+    return 1
+  fi
 }

@@ -6,8 +6,14 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
+@test "coverage hunt maps behavior risks before writing tests" {
+  grep -qi 'receipt-templates.md' "$E"
+  grep -qi 'red state' "$E"
+  grep -qi 'containing suites' "$E"
+}
+
 @test "coverage hunt chooses valuable untested behaviour" {
-  grep -qi 'highest-value untested behaviour' "$E"
+  grep -qi 'highest-priority uncovered cluster' "$E"
   grep -qi 'behavior-protecting tests' "$E"
 }
 

@@ -39,10 +39,13 @@ The native path uses the same on-disk contract and marker names as macOS and Lin
   child's environment, and runs recovery in the persisted work target;
 - the scheduler emits a daily Task Scheduler definition with `IgnoreNew`, so Task Scheduler and
   the process lease both refuse overlapping starts;
+- Start runs the same preflight through `runtime/windows/start-preflight.ps1`, and its `ok`,
+  `warn` and `refuse` sentences are byte-identical to the POSIX helper's;
 - Doctor, status's lease inspector, import-issues, archive retention, migrate-state,
   apply-profile, and export-support use bundled PowerShell helpers beside the POSIX scripts.
   Native Windows does not call `.sh` for those, and does not require `jq`, Python, Node, or a
   package manager. If `gh` is already on PATH, import-issues uses it; Nightshift never installs it.
+  Hunt and Quality compose in the skill on every host. Native Windows has no planner or preview.
 
 Claude Code has no Windows-only command field in a plugin hook manifest. Nightshift therefore
 dot-sources a small shell/PowerShell launcher from the shared manifest. POSIX hosts continue into
@@ -135,6 +138,17 @@ profiles, a local support bundle, and artifact-mode completion receipts:
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\archive-receipts.ps1" -Project C:\path\to\workspace
 & "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\check-report.ps1" -Project C:\path\to\workspace -Report C:\path\to\report.md -Manifest C:\path\to\sources.tsv -Output C:\path\to\report.md
 ```
+
+Two optional read-only reports ship beside them and never need `jq` on this host:
+
+```powershell
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\normalize-output.ps1" -Format eslint-json -InputPath C:\path\to\eslint.json
+& "$env:CLAUDE_PLUGIN_ROOT\runtime\windows\inventory.ps1" -Project C:\path\to\workspace
+```
+
+`normalize-output.ps1` prints one compact summary of a tool's raw output — the same bytes the POSIX
+helper prints for the same file — and `inventory.ps1` prints one table per workspace package. Both
+write nothing, and both print one `unavailable` line and exit 3 rather than an empty report.
 
 Missing or empty receipts create no dated receipts folder.
 

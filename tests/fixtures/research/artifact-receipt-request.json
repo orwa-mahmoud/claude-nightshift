@@ -1,0 +1,10 @@
+{
+  "workMode": "artifact",
+  "item": "Compare export versions into one cited brief",
+  "verify": "check-report green",
+  "outputs": ["brief.md", "notes.md"],
+  "manifest": "sources.tsv",
+  "notes": "notes.md",
+  "sourcePolicy": "connected-corpus",
+  "sources": ["file:exports/research/page-report.csv"]
+}

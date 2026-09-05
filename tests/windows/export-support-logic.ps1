@@ -1,4 +1,4 @@
-# Portable PowerShell coverage for Windows export-support redaction.
+# Portable PowerShell coverage for Windows export-support allowlist.
 # Run on macOS or Windows: pwsh -File tests/windows/export-support-logic.ps1
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -83,6 +83,10 @@ try {
     elseif (-not [string]::IsNullOrEmpty($env:HOME)) {
         $homeRoot = $env:HOME
     }
+    $plantedGhp = 'ghp_' + 'PLANTEDTOKENVALUE0000000000000000'
+    $plantedAkia = 'AKIA' + 'IOSFODNN7EXAMPLE'
+    $plantedPemOpen = '-----BEGIN RSA ' + 'PRIVATE KEY-----'
+    $plantedPemClose = '-----END RSA ' + 'PRIVATE KEY-----'
     $log = @(
         'password=supersecret'
         'https://user:hunter2@example.com/hook'
@@ -90,6 +94,11 @@ try {
         $(if ($homeRoot) { Join-Path $homeRoot 'secret-dir/key.pem' } else { '/tmp/secret-dir/key.pem' })
         '/etc/shadow leaked'
         "normal schedule line at $root"
+        $plantedGhp
+        $plantedAkia
+        $plantedPemOpen
+        'PLANTEDKEYMATERIAL'
+        $plantedPemClose
     ) -join "`n"
     [IO.File]::WriteAllText((Join-Path $ns 'scheduled.log'), $log + "`n")
 
@@ -119,9 +128,13 @@ try {
     Expect-True ($text.Contains('session_record: present')) 'bundle reports the session record without copying it'
     Expect-True ($text -match 'keys:') 'bundle lists rule key names'
     Expect-True ($text.Contains('notifyCommand')) 'bundle lists notifyCommand as a key'
-    Expect-True ($text -match 'normal schedule line at \$(WORKSPACE|WORK_TARGET)') `
-        'runtime log tokenizes the workspace path'
+    Expect-True ($text.Contains('== runtime log ==')) 'bundle names the omitted runtime log'
+    Expect-True ($text -match '(?m)^omitted\r?$') 'runtime log section is omitted'
+    Expect-True (-not $text.Contains('normal schedule line')) 'bundle omits scheduled.log text'
     Expect-True ($text -match 'task: \$(WORKSPACE|WORK_TARGET|HOME)') 'task identity is tokenized'
+    Expect-True (-not $exported.Stdout.Contains('Omitted: secrets')) 'footer does not claim secrets were scanned'
+    Expect-True ($exported.Stdout -notmatch '(?i)sanitized') 'footer does not claim sanitization'
+    Expect-True ($exported.Stdout -notmatch '(?i)secret scanner') 'footer has no secret-scanner sentence'
 
     foreach ($secret in @(
             'supersecret',
@@ -134,7 +147,11 @@ try {
             'PROMPT: do not copy me',
             'should-never-appear',
             '/etc/shadow',
-            'DO NOT STOP'
+            'DO NOT STOP',
+            $plantedGhp,
+            $plantedAkia,
+            'PLANTEDKEYMATERIAL',
+            'PRIVATE KEY'
         )) {
         Expect-True (-not $text.Contains($secret)) "bundle omits $secret"
     }

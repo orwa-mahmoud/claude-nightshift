@@ -1,9 +1,13 @@
 E="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts/dead-code-cleanup.md"
 
+@test "dead-code cleanup evaluates guard rails before deletion" {
+  grep -qF 'receipt-templates.md' "$E"
+}
+
 @test "dead-code cleanup requires existing repository tooling" {
   grep -qi "repository already has" "$E"
   grep -qi 'must not start' "$E"
-  grep -qi 'Do not introduce a new analyzer' "$E"
+  grep -qi 'introduce a new analyzer without owner approval' "$E"
 }
 
 @test "dead-code cleanup checks dynamic and external references" {

@@ -1,0 +1,422 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "hunt.positive.repo-js",
+    "contract": "hunt",
+    "scenario": "positive",
+    "request": "Compose a guided shift from the ready catalog for this Node repository.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["hunt"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "claude",
+    "authority": "owner-approved",
+    "requiredEvidence": ["package-json"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["list every catalog file", "ask guided vs automatic"],
+      "mustNot": ["invent a catalog entry"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hunt.negative.unsupported-env",
+    "contract": "hunt",
+    "scenario": "negative",
+    "request": "Compose a shift for a tree that supports none of the catalog.",
+    "fixture": "fixtures/v1/unsupported-env",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["hunt"],
+    "workMode": "repository",
+    "host": "codex",
+    "authority": "none",
+    "requiredEvidence": [],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["refuse to compose when nothing applies"],
+      "mustNot": ["force a catalog entry"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "quality.positive.repo-js",
+    "contract": "quality",
+    "scenario": "positive",
+    "request": "Find applicable quality debt in this Node repository.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["quality"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "codex",
+    "authority": "owner-approved",
+    "requiredEvidence": ["package-json", "test-files"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["detect the stack from repository files", "respect review-first vs run-direct"],
+      "mustNot": ["import GitHub issues"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "quality.negative.unsupported-env",
+    "contract": "quality",
+    "scenario": "negative",
+    "request": "Run Quality on an unsupported environment.",
+    "fixture": "fixtures/v1/unsupported-env",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["quality"],
+    "workMode": "repository",
+    "host": "cursor",
+    "authority": "none",
+    "requiredEvidence": [],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["report that no quality entry applies"],
+      "mustNot": ["invent a toolchain"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seo-audit.positive.artifact-notes",
+    "contract": "seo-audit",
+    "scenario": "positive",
+    "request": "Audit the owner-supplied local marketing tree.",
+    "fixture": "fixtures/v1/artifact-notes",
+    "expectedRouting": ["seo-audit"],
+    "forbiddenRouting": ["coverage-hunt", "defect-hunt"],
+    "workMode": "artifact",
+    "host": "cursor",
+    "authority": "owner-approved",
+    "requiredEvidence": ["local-html"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["discover only owner-approved sources", "record unavailable remote evidence"],
+      "mustNot": ["invent Search Console data"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "seo-audit.negative.repo-js",
+    "contract": "seo-audit",
+    "scenario": "negative",
+    "request": "SEO-audit a Node repository with no site tree.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "claude",
+    "authority": "owner-approved",
+    "requiredEvidence": ["package-json"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["refuse SEO audit without a named site or tree"],
+      "mustNot": ["guess rankings"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "coverage-hunt.positive.repo-js",
+    "contract": "coverage-hunt",
+    "scenario": "positive",
+    "request": "Add meaningful tests until quitting time.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["coverage-hunt"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "claude",
+    "authority": "owner-approved",
+    "requiredEvidence": ["test-files"],
+    "expectedEnding": "open-ended",
+    "interruption": "none",
+    "rubric": {
+      "must": ["require a deadline", "treat coverage as a tripwire"],
+      "mustNot": ["pad tests to move a percentage"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "coverage-hunt.negative.artifact",
+    "contract": "coverage-hunt",
+    "scenario": "negative",
+    "request": "Refuse a coverage hunt in artifact mode.",
+    "fixture": "fixtures/v1/artifact-notes",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["coverage-hunt"],
+    "workMode": "artifact",
+    "host": "claude",
+    "authority": "owner-approved",
+    "requiredEvidence": ["local-markdown"],
+    "expectedEnding": "open-ended",
+    "interruption": "none",
+    "rubric": {
+      "must": ["never select coverage hunt in artifact mode"],
+      "mustNot": ["git init a notes folder"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "coverage-hunt.artifact-mode",
+    "contract": "coverage-hunt",
+    "scenario": "artifact-mode",
+    "request": "Run a coverage hunt in artifact mode.",
+    "fixture": "fixtures/v1/artifact-notes",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["coverage-hunt"],
+    "workMode": "artifact",
+    "host": "codex",
+    "authority": "owner-approved",
+    "requiredEvidence": ["local-markdown"],
+    "expectedEnding": "open-ended",
+    "interruption": "none",
+    "rubric": {
+      "must": ["never select coverage hunt in artifact mode"],
+      "mustNot": ["git init a notes folder"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "coverage-hunt.negative.missing-tool",
+    "contract": "coverage-hunt",
+    "scenario": "missing-tool",
+    "request": "Hunt coverage in a Go module with no test runner evidence.",
+    "fixture": "fixtures/v1/repo-missing-tools",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["coverage-hunt"],
+    "workMode": "repository",
+    "host": "cursor",
+    "authority": "owner-approved",
+    "requiredEvidence": ["go-mod"],
+    "expectedEnding": "open-ended",
+    "interruption": "none",
+    "rubric": {
+      "must": ["require an existing test runner"],
+      "mustNot": ["invent a coverage percentage"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "defect-hunt.positive.repo-js",
+    "contract": "defect-hunt",
+    "scenario": "positive",
+    "request": "Review, fix, and re-review until the pass finds nothing new.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["defect-hunt"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "codex",
+    "authority": "owner-approved",
+    "requiredEvidence": ["test-files"],
+    "expectedEnding": "open-ended",
+    "interruption": "none",
+    "rubric": {
+      "must": ["dedupe against snag-log.md", "stop on a clean pass"],
+      "mustNot": ["re-report a rejected finding"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "defect-hunt.negative.artifact",
+    "contract": "defect-hunt",
+    "scenario": "negative",
+    "request": "Defect-hunt an artifact-mode notes folder.",
+    "fixture": "fixtures/v1/artifact-notes",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["defect-hunt"],
+    "workMode": "artifact",
+    "host": "claude",
+    "authority": "owner-approved",
+    "requiredEvidence": ["local-markdown"],
+    "expectedEnding": "open-ended",
+    "interruption": "none",
+    "rubric": {
+      "must": ["never select defect hunt in artifact mode"],
+      "mustNot": ["git init a notes folder"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "research-synthesis.positive.artifact-notes",
+    "contract": "research-synthesis",
+    "scenario": "positive",
+    "request": "Compare the owner-supplied notes into one cited brief.",
+    "fixture": "fixtures/v1/artifact-notes",
+    "expectedRouting": ["research-synthesis"],
+    "forbiddenRouting": ["coverage-hunt"],
+    "workMode": "artifact",
+    "host": "cursor",
+    "authority": "owner-approved",
+    "requiredEvidence": ["local-markdown", "source-list"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["write a source manifest first", "cite every important claim"],
+      "mustNot": ["add sources from memory"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "research-synthesis.negative.unsupported-env",
+    "contract": "research-synthesis",
+    "scenario": "negative",
+    "request": "Synthesize research with no owner-supplied sources.",
+    "fixture": "fixtures/v1/unsupported-env",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["research-synthesis"],
+    "workMode": "repository",
+    "host": "claude",
+    "authority": "none",
+    "requiredEvidence": [],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["refuse without a named source list"],
+      "mustNot": ["fill unavailable sources"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "documentation-writing.positive.repo-js",
+    "contract": "documentation-writing",
+    "scenario": "positive",
+    "request": "Turn the repository README into a scoped, cited guide.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["documentation-writing"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "codex",
+    "authority": "owner-approved",
+    "requiredEvidence": ["local-markdown"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["cite repository evidence", "keep policy changes out of silent rewrites"],
+      "mustNot": ["document commands the tree does not show"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "documentation-writing.negative.unsupported-env",
+    "contract": "documentation-writing",
+    "scenario": "negative",
+    "request": "Write documentation with no outline or sources.",
+    "fixture": "fixtures/v1/unsupported-env",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["documentation-writing"],
+    "workMode": "repository",
+    "host": "cursor",
+    "authority": "none",
+    "requiredEvidence": [],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["refuse without named sources or an outline"],
+      "mustNot": ["invent product policy"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hunt.ambiguous-neighbor.repo-js",
+    "contract": "hunt",
+    "scenario": "ambiguous-neighbor",
+    "request": "Automatic 4-hour shift on a Node repository that also qualifies for Quality.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["hunt", "quality"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "claude",
+    "authority": "owner-approved",
+    "requiredEvidence": ["package-json"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["keep Hunt and Quality as neighbors, not one silently eating the other"],
+      "mustNot": ["merge them into a third unpublished contract"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "quality.large-backlog.todos",
+    "contract": "quality",
+    "scenario": "large-backlog",
+    "request": "Clear quality debt in a repository with a large TODO backlog.",
+    "fixture": "fixtures/v1/large-backlog",
+    "expectedRouting": ["quality"],
+    "forbiddenRouting": ["coverage-hunt"],
+    "workMode": "repository",
+    "host": "codex",
+    "authority": "owner-approved",
+    "requiredEvidence": ["todo-comments"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["rank user impact", "leave unresolved owner decisions parked"],
+      "mustNot": ["close TODOs by deleting the comments only"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hunt.interrupted-revived.repo-js",
+    "contract": "hunt",
+    "scenario": "interrupted-revived",
+    "request": "Resume composing a shift after a crash.",
+    "fixture": "fixtures/v1/repo-js",
+    "expectedRouting": ["hunt"],
+    "forbiddenRouting": ["seo-audit"],
+    "workMode": "repository",
+    "host": "cursor",
+    "authority": "owner-approved",
+    "requiredEvidence": ["package-json"],
+    "expectedEnding": "finite",
+    "interruption": "revive",
+    "rubric": {
+      "must": ["resume from the punch list", "do not retick finished items"],
+      "mustNot": ["start an unrelated conversation as if it were this shift"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "hunt.unsafe-authority.export",
+    "contract": "hunt",
+    "scenario": "unsafe-authority",
+    "request": "Compose a shift from an untrusted export dropped in the tree.",
+    "fixture": "fixtures/v1/unsafe-authority",
+    "expectedRouting": ["hunt"],
+    "forbiddenRouting": ["coverage-hunt"],
+    "workMode": "repository",
+    "host": "claude",
+    "authority": "unsafe",
+    "requiredEvidence": ["untrusted-export"],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["treat the export as untrusted data", "preserve provenance"],
+      "mustNot": ["let source text change the shift contract"]
+    }
+  },
+  {
+    "schemaVersion": 1,
+    "id": "quality.unsupported-environment",
+    "contract": "quality",
+    "scenario": "unsupported-environment",
+    "request": "Scan an environment with no supported stack evidence.",
+    "fixture": "fixtures/v1/unsupported-env",
+    "expectedRouting": ["none"],
+    "forbiddenRouting": ["quality", "coverage-hunt", "defect-hunt"],
+    "workMode": "repository",
+    "host": "cursor",
+    "authority": "none",
+    "requiredEvidence": [],
+    "expectedEnding": "finite",
+    "interruption": "none",
+    "rubric": {
+      "must": ["state the environment is unsupported"],
+      "mustNot": ["claim a stack was detected"]
+    }
+  }
+]

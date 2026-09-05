@@ -35,7 +35,9 @@ bundle_mode() {
 
 @test "export writes a 0600 local bundle and never phones home" {
   p="$(new_project)"
-  ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$SCRIPT"
+  if grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$SCRIPT"; then
+    return 1
+  fi
   run bash "$EXPORT" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -q 'Support bundle:'
@@ -48,7 +50,9 @@ bundle_mode() {
   grep -q 'Nightshift support bundle' "$bundle"
   grep -q 'name: nightshift' "$bundle"
   grep -q 'validity: valid' "$bundle"
-  ! grep -q 'DO NOT STOP' "$bundle"
+  if grep -q 'DO NOT STOP' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "export reads plugin name without jq" {
@@ -77,7 +81,9 @@ bundle_mode() {
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'ended: unusable' "$bundle"
-  ! grep -qF 'ended: yes' "$bundle"
+  if grep -qF 'ended: yes' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "export does not report a symlink session-end marker as a clean exit" {
@@ -88,7 +94,9 @@ bundle_mode() {
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'session_end: unusable' "$bundle"
-  ! grep -qF 'session_end: yes' "$bundle"
+  if grep -qF 'session_end: yes' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "export does not report a symlink shift-pulse marker as present" {
@@ -99,7 +107,9 @@ bundle_mode() {
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'shift_pulse: unusable' "$bundle"
-  ! grep -qF 'shift_pulse: yes' "$bundle"
+  if grep -qF 'shift_pulse: yes' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "export does not report a symlink shift-session as a recorded session" {
@@ -110,7 +120,9 @@ bundle_mode() {
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'session_record: unusable' "$bundle"
-  ! grep -qF 'session_record: present' "$bundle"
+  if grep -qF 'session_record: present' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "export does not report a symlink armed marker as armed" {
@@ -122,7 +134,9 @@ bundle_mode() {
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'armed: unusable' "$bundle"
-  ! grep -qF 'armed: yes' "$bundle"
+  if grep -qF 'armed: yes' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "export does not report a symlink watchman pidfile as present" {
@@ -133,7 +147,9 @@ bundle_mode() {
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qF 'watchman_pidfile: unusable' "$bundle"
-  ! grep -qF 'watchman_pidfile: present' "$bundle"
+  if grep -qF 'watchman_pidfile: present' "$bundle"; then
+    return 1
+  fi
 }
 
 @test "support reports lease state but omits the ownership capability" {
@@ -149,7 +165,9 @@ bundle_mode() {
   grep -q 'process_lease: valid' "$bundle"
   grep -q 'lease_host: claude' "$bundle"
   grep -q 'lease_mode: recovered' "$bundle"
-  ! grep -qF "$nonce" "$bundle"
+  if grep -qF "$nonce" "$bundle"; then
+    return 1
+  fi
 }
 
 @test "hostile secrets, URLs, user paths, and transcripts do not survive" {
@@ -178,21 +196,83 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   [ -f "$bundle" ]
-  ! grep -F 'supersecret' "$bundle"
-  ! grep -F 'hunter2' "$bundle"
-  ! grep -F 's3cret' "$bundle"
-  ! grep -F 'owner@example.com' "$bundle"
-  ! grep -F 'curl https://evil.test' "$bundle"
-  ! grep -F "$sid" "$bundle"
-  ! grep -F 'transcript.jsonl' "$bundle"
-  ! grep -F 'PROMPT: do not copy me' "$bundle"
-  ! grep -F 'should-never-appear' "$bundle"
-  ! grep -F '/etc/shadow' "$bundle"
-  ! grep -F "$HOME/secret-dir" "$bundle"
-  grep -qE 'normal schedule line at \$(WORKSPACE|WORK_TARGET)' "$bundle"
+  if grep -F 'supersecret' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'hunter2' "$bundle"; then
+    return 1
+  fi
+  if grep -F 's3cret' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'owner@example.com' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'curl https://evil.test' "$bundle"; then
+    return 1
+  fi
+  if grep -F "$sid" "$bundle"; then
+    return 1
+  fi
+  if grep -F 'transcript.jsonl' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'PROMPT: do not copy me' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'should-never-appear' "$bundle"; then
+    return 1
+  fi
+  if grep -F '/etc/shadow' "$bundle"; then
+    return 1
+  fi
+  if grep -F "$HOME/secret-dir" "$bundle"; then
+    return 1
+  fi
+  if grep -qF 'normal schedule line' "$bundle"; then
+    return 1
+  fi
   grep -q 'keys:' "$bundle"
   grep -q 'notifyCommand' "$bundle"
   grep -q 'session_record: present' "$bundle"
+}
+
+@test "default bundle omits scheduled.log tokens and does not claim a secret scanner" {
+  p="$(new_project)"
+  {
+    printf '%s%s\n' 'ghp_' 'PLANTEDTOKENVALUE0000000000000000'
+    printf '%s%s\n' 'AKIA' 'IOSFODNN7EXAMPLE'
+    printf '%s%s\n' '-----BEGIN RSA ' 'PRIVATE KEY-----'
+    printf '%s\n' 'PLANTEDKEYMATERIAL'
+    printf '%s%s\n' '-----END RSA ' 'PRIVATE KEY-----'
+  } >"$p/.nightshift/scheduled.log"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  [ -f "$bundle" ]
+  if grep -F 'ghp_' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'AKIA' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'PRIVATE KEY' "$bundle"; then
+    return 1
+  fi
+  if grep -F 'PLANTEDKEYMATERIAL' "$bundle"; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qF 'Omitted: secrets'; then
+    return 1
+  fi
+  if printf '%s' "$output" | grep -qiE 'secret scanner|scanned for secrets|sanitized'; then
+    return 1
+  fi
+  if grep -qi 'sanitized' "$bundle"; then
+    return 1
+  fi
+  grep -qF '== runtime log ==' "$bundle"
+  grep -qF 'omitted' "$bundle"
 }
 
 @test "identities are tokenized to the three named roots" {
@@ -201,14 +281,100 @@ with open(p,"w") as f: json.dump(d,f)
   [ "$status" -eq 0 ]
   bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
   grep -qE 'task: \$(WORKSPACE|WORK_TARGET|HOME)' "$bundle"
-  ! grep -F "$p" "$bundle"
+  if grep -F "$p" "$bundle"; then
+    return 1
+  fi
+}
+
+@test "the support bundle carries the resolved policy view, always redacting the four free-form fields" {
+  p="$(new_project)"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF '== resolved policy ==' "$bundle"
+  grep -qF 'shift_policy: absent' "$bundle"
+  grep -qF 'verificationLevel=none (built-in, -)' "$bundle"
+  grep -qF 'toolingPolicy=existing-tools (built-in, -)' "$bundle"
+  grep -qF 'elevation.sudo=deny (rules, permanent)' "$bundle"
+  grep -qF 'watchMinutes=10 (rules, permanent)' "$bundle"
+  # the shipped template's four free-form fields are empty strings, and still redacted.
+  grep -qF 'forbiddenCommands=<redacted 0 chars> (rules, permanent)' "$bundle"
+  grep -qF 'protectedDirs=<redacted 0 chars> (rules, permanent)' "$bundle"
+  grep -qF 'neverCommitPatterns=<redacted 0 chars> (rules, permanent)' "$bundle"
+  grep -qF 'expectedEmail=<redacted 0 chars> (rules, permanent)' "$bundle"
+  if grep -qF 'forbiddenCommands=""' "$bundle"; then
+    return 1
+  fi
+  if grep -qF '== capability policy ==' "$bundle"; then
+    return 1
+  fi
+}
+
+@test "the support bundle includes evidence counts without raw ledger output" {
+  p="$(new_project sb-evidence)"
+  mkdir -p "$p/.nightshift/evidence"
+  printf '{"schemaVersion":1,"id":"f1","domain":"test","severity":"low","confidence":"medium","impact":"local","status":"open","ladder":"declared","locator":"secret-token=abc","source":"fixture","sourceClass":"test","host":"local"}\n' \
+    >"$p/.nightshift/evidence/findings.jsonl"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF '== evidence summary ==' "$bundle"
+  grep -qF 'findings=1' "$bundle"
+  grep -qF 'liveness:' "$bundle"
+  if grep -qF 'secret-token=abc' "$bundle"; then
+    return 1
+  fi
+}
+
+@test "a non-empty free-form pattern is redacted to its length, never its text" {
+  p="$(new_project)"
+  python3 -c '
+import json, sys
+p = sys.argv[1]
+with open(p) as f:
+    d = json.load(f)
+d["forbiddenCommands"] = "rm -rf /"
+with open(p, "w") as f:
+    json.dump(d, f)
+' "$p/.nightshift/rules.json"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'forbiddenCommands=<redacted 8 chars> (rules, permanent)' "$bundle"
+  if grep -F 'rm -rf /' "$bundle"; then
+    return 1
+  fi
+}
+
+@test "a malformed shift-policy.json is reported and never surfaces the raw file" {
+  p="$(new_project)"
+  printf '{ truncated\n' >"$p/.nightshift/shift-policy.json"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  bundle="$(printf '%s' "$output" | sed -n 's/^Support bundle: //p')"
+  grep -qF 'shift_policy: malformed' "$bundle"
+  grep -qF 'verificationLevel=none (built-in, -)' "$bundle"
+  if grep -F 'truncated' "$bundle"; then
+    return 1
+  fi
+}
+
+@test "the bundle names the resolved policy view instead of a capability policy" {
+  p="$(new_project)"
+  run bash "$EXPORT" --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | grep -qF 'the resolved policy view'
+  printf '%s' "$output" | grep -qF 'policy files'
+  if printf '%s' "$output" | grep -qF 'capability policy'; then
+    return 1
+  fi
 }
 
 LOGIC="$BATS_TEST_DIRNAME/windows/export-support-logic.ps1"
 RUN="$BATS_TEST_DIRNAME/windows/run.ps1"
 WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-support.ps1"
 
-@test "Windows CI runs the portable export-support redaction suite" {
+@test "Windows CI runs the portable export-support allowlist suite" {
   [ -f "$LOGIC" ]
   grep -qF 'export-support-logic.ps1' "$RUN"
   grep -qF 'supersecret' "$LOGIC"
@@ -231,10 +397,12 @@ WIN_EXPORT="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/windows/export-supp
   grep -qF '[ -L "$NS/.watchman" ]' "$EXPORT"
   grep -qF 'Test-NSReparsePoint $watchmanPath' "$WIN_EXPORT"
   grep -qF 'symlink watchman pidfile is unusable' "$LOGIC"
-  ! grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"
+  if grep -E 'curl|wget|nc |ssh |scp |npx |pip ' "$WIN_EXPORT"; then
+    return 1
+  fi
 }
 
-@test "Windows export-support redaction logic passes when pwsh is present" {
+@test "Windows export-support allowlist logic passes when pwsh is present" {
   if ! command -v pwsh >/dev/null 2>&1; then
     return 0
   fi

@@ -1,0 +1,18 @@
+{
+  "capabilityId": "fixture-dotfile-lint",
+  "ecosystems": ["javascript-typescript"],
+  "versionConstraints": {"node": ">=18"},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": [".fixture-lintrc.json"],
+  "minimalConfig": {
+    ".fixture-lintrc.json": {"rules": {}}
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1"
+}

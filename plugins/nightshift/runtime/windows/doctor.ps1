@@ -12,6 +12,7 @@ $here = $PSScriptRoot
 $facts = New-Object Collections.Generic.List[string]
 $warns = New-Object Collections.Generic.List[string]
 $actions = New-Object Collections.Generic.List[string]
+$policyLines = New-Object Collections.Generic.List[string]
 
 function Add-NSFact { param([string]$Message) $null = $script:facts.Add($Message) }
 function Add-NSWarn { param([string]$Message) $null = $script:warns.Add($Message) }
@@ -88,6 +89,9 @@ function Write-NSDoctorReport {
     Write-Output 'Facts'
     if ($facts.Count -eq 0) { Write-Output 'none' } else { $facts | ForEach-Object { Write-Output $_ } }
     Write-Output ''
+    Write-Output 'resolved policy'
+    if ($policyLines.Count -eq 0) { Write-Output 'none' } else { $policyLines | ForEach-Object { Write-Output $_ } }
+    Write-Output ''
     Write-Output 'Warnings'
     if ($warns.Count -eq 0) { Write-Output 'none' } else { $warns | ForEach-Object { Write-Output $_ } }
     Write-Output ''
@@ -103,6 +107,7 @@ if (-not (Test-Path -LiteralPath $ns -PathType Container)) {
 }
 
 $unusableRecv = $false
+$reportedMode = ''
 try {
     $reportedMode = Get-NSWorkMode $workspace
     Add-NSFact "work mode $reportedMode"
@@ -147,6 +152,53 @@ catch {
     }
     else {
         Add-NSWarn 'work target could not be resolved; treating workspace as the code root'
+    }
+}
+
+# The one resolver renders the one view: every effective setting, where it came
+# from, and when it expires. Doctor reads it and never re-derives precedence.
+$resolution = $null
+try {
+    $resolution = Get-NSPolicyResolution $workspace
+}
+catch {
+    Add-NSWarn 'the shift policy could not be resolved; treat the shift as built-in defaults plus rules'
+}
+if ($null -ne $resolution) {
+    foreach ($policyLine in (Format-NSPolicyTable $resolution)) { $null = $policyLines.Add($policyLine) }
+    if ($resolution['policyState'] -ceq 'malformed') {
+        Add-NSWarn "shift-policy.json is malformed ($($resolution['policyError'])); the shift resolves to built-in defaults and rules only"
+        Add-NSAct confirm 'repair the named field in shift-policy.json, or delete the file so the next Start writes safe defaults'
+    }
+    $deadlineFileEpoch = $resolution['deadlineFile']
+    $deadlinePolicyEpoch = $resolution['deadlinePolicy']
+    if ($null -ne $deadlineFileEpoch -and $null -ne $deadlinePolicyEpoch -and [long]$deadlineFileEpoch -ne [long]$deadlinePolicyEpoch) {
+        Add-NSWarn "deadline file $deadlineFileEpoch does not match shift-policy deadlineEpoch $deadlinePolicyEpoch; the gate honours the earlier value"
+        Add-NSAct confirm 'synchronize the deadline projection with the policy before the next arm; Doctor rewrites neither'
+    }
+}
+
+# An interrupted provisioning transaction is the one piece of state that can
+# leave a half-installed tool behind. Doctor reads the same diagnosis the
+# recovery helper prints, and restores nothing.
+$provisionRepair = 'inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.ps1 rollback after fixing the target, then Start again'
+$provision = $null
+try {
+    $provision = Get-NSProvisionDiagnosis $workspace
+}
+catch {
+    Add-NSWarn 'provision-transaction.json cannot be read; Start will refuse to arm'
+    Add-NSAct confirm $provisionRepair
+}
+if (($null -ne $provision) -and $provision['present']) {
+    $provisionLine = Get-NSProvisionDiagnosisLine $provision
+    if ((Get-NSProvisionDiagnosisClass $provision) -ceq 'provable') {
+        Add-NSFact $provisionLine
+        Add-NSAct confirm "run $(Join-Path $here 'provision.ps1') -Project $hostPath recover before the next Start; Doctor never recovers"
+    }
+    else {
+        Add-NSWarn ($provisionLine + '; Start will refuse to arm')
+        Add-NSAct confirm $provisionRepair
     }
 }
 
@@ -351,7 +403,7 @@ else {
         if ($null -ne $rules.PSObject.Properties['toolDeny']) {
             $toolDeny = $rules.toolDeny
         }
-        foreach ($tool in @('AskUserQuestion', 'request_user_input')) {
+        foreach ($tool in @('AskUserQuestion', 'request_user_input', 'AskQuestion')) {
             $toolState = 'invalid'
             if ($null -eq $toolDeny -or $toolDeny -is [Array] -or $toolDeny -is [string] -or $toolDeny -is [ValueType]) {
                 $toolState = 'invalid'
@@ -471,6 +523,8 @@ if (Test-NSPathEntry $leasePath) {
         $noncePresent = -not [string]::IsNullOrEmpty([string]$lease.Nonce)
         $holderAlive = -not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
             -and ((Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)) -eq 'Alive')
+        $holderDead = -not [string]::IsNullOrEmpty([string]$lease.ProcessId) `
+            -and ((Test-NSRecordedProcess ([string]$lease.ProcessId) ([string]$lease.Start)) -eq 'Dead')
         if ($rcodeEarly -eq 'clock-out-failed') {
             Add-NSWarn 'terminal clock-out failed without releasing the shift'
             if ($noncePresent) {
@@ -490,6 +544,9 @@ if (Test-NSPathEntry $leasePath) {
         elseif ($noncePresent -and $holderAlive) {
             Add-NSFact 'recovery worker is alive; the recorded conversation cannot reclaim yet'
             Add-NSAct confirm "wait until the recovery worker exits, or run $(Join-Path $here 'stop-shift.ps1') -Project $hostPath; reopening the recorded conversation stays blocked while that worker holds the lease"
+        }
+        elseif ($noncePresent -and $holderDead -and -not [string]::IsNullOrEmpty($sid)) {
+            Add-NSFact "lease held by a dead recovery attempt (generation $leaseGeneration, pid $($lease.ProcessId)); the recorded conversation reclaims it on its next tool call"
         }
     }
     else {
@@ -556,7 +613,7 @@ if (-not [string]::IsNullOrEmpty($tpath) -and -not (Test-Path -LiteralPath $tpat
     Add-NSWarn 'recorded transcript/rollout path is not a readable file'
 }
 
-Add-NSAct confirm "export a redacted local support bundle with $(Join-Path $here 'export-support.ps1') - written under $(Join-Path $ns 'support'), never uploaded"
+Add-NSAct confirm "export a local support bundle with $(Join-Path $here 'export-support.ps1') - written under $(Join-Path $ns 'support'), never uploaded"
 Add-NSAct blocked 'Doctor never repairs, arms, stops, revives, or deletes'
 
 Write-NSDoctorReport -NightshiftLabel 'present' -Target $target -HostRec $hostRec `

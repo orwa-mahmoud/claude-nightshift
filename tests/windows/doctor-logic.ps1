@@ -168,6 +168,25 @@ try {
     Expect-True ($clockDoctor.Stdout -match 'process lease restored to the interactive shift; the recorded conversation can operate') `
         'Doctor says the recorded conversation can operate after restore'
 
+    $deadHolder = $root + '-dead-holder'
+    $deadHolderNs = Join-Path $deadHolder '.nightshift'
+    $null = New-Item -ItemType Directory -Path $deadHolderNs -Force
+    Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $deadHolderNs 'rules.json')
+    [IO.File]::WriteAllText((Join-Path $deadHolderNs 'punch-list.md'),
+        "## Items`n- [ ] **1.**`n")
+    [IO.File]::WriteAllText((Join-Path $deadHolderNs '.shift-armed'), '')
+    # A real, live pid ($PID, this test process) whose birthday can never match the bogus
+    # one on the lease - the same fixture technique run.ps1 uses to prove death.
+    [IO.File]::WriteAllText((Join-Path $deadHolderNs '.shift-session'), "dead-recorded`n`n$PID`n`ncodex`n")
+    [IO.File]::WriteAllText((Join-Path $deadHolderNs '.shift-lease'), "dead-recorded`ncodex`n2`nnonce1`n$PID`n2000-01-01`n")
+    $deadHolderDoctor = Invoke-Doctor $deadHolder
+    Expect-True ($deadHolderDoctor.ExitCode -eq 0) `
+        "dead-holder doctor exits 0 (got $($deadHolderDoctor.ExitCode) $($deadHolderDoctor.Stderr))"
+    Expect-True ($deadHolderDoctor.Stdout -match [regex]::Escape("lease held by a dead recovery attempt (generation 2, pid $PID); the recorded conversation reclaims it on its next tool call")) `
+        "Doctor names a dead recovery attempt as reclaimable ($($deadHolderDoctor.Stdout))"
+    Expect-True ($deadHolderDoctor.Stdout -notmatch 'recovery worker is alive') `
+        'Doctor does not claim a dead recovery worker is alive'
+
     $notes = $root + '-notes'
     $null = New-Item -ItemType Directory -Path (Join-Path $notes '.nightshift') -Force
     Copy-Item -LiteralPath $rulesTemplate -Destination (Join-Path $notes '.nightshift/rules.json')

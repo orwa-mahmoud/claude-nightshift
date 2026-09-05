@@ -6,10 +6,26 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 
+@test "documentation drift uses claim-to-authority matrix" {
+  grep -qF 'receipt-templates.md' "$E"
+}
+
 @test "documentation drift discovers local references against the tree" {
   grep -qi 'Discovery' "$E"
   grep -qi 'relative links' "$E"
   grep -qi 'Do not query the network' "$E"
+}
+
+@test "documentation drift content-architecture mode uses specialist helper" {
+  grep -qi 'Content-architecture mode' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+}
+
+@test "documentation drift public-claims mode uses release-readiness matrix" {
+  grep -qi 'Public-claims mode' "$E"
+  grep -qF 'receipt-templates.md' "$E"
+  grep -qi 'Never publish or deploy from this shift' "$E"
+  grep -qi 'Route full baseline-vs-candidate release comparison to release-readiness' "$E"
 }
 
 @test "documentation drift refuses to invent commands or change product behaviour" {

@@ -1,7 +1,7 @@
 # Nightshift
 
-Accountable, time-bounded engineering shifts for Codex and Claude Code. Progress
-stays on disk; the morning is reviewable.
+Accountable, time-bounded engineering shifts for Claude Code, Codex, and Cursor.
+Progress stays on disk; the morning is reviewable.
 
 This folder is the installable plugin. The full README, install, and docs live
 in the public repository:

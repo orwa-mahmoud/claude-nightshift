@@ -1,0 +1,24 @@
+{
+  "capabilityId": "fixture-recover",
+  "ecosystems": ["*"],
+  "versionConstraints": {},
+  "detect": {"command": "true"},
+  "probe": {"command": "true"},
+  "packageManagerAdditions": [],
+  "allowedFiles": [
+    "nightshift-keep.txt",
+    "nightshift-config.json",
+    "generated/nested/nightshift-fake.txt"
+  ],
+  "minimalConfig": {
+    "nightshift-keep.txt": "baseline\n",
+    "nightshift-config.json": "{\"ok\":true}\n",
+    "generated/nested/nightshift-fake.txt": "new\n"
+  },
+  "smoke": {"command": "true"},
+  "rollback": {"command": "true"},
+  "enabledShifts": ["quality"],
+  "safetyClass": "local-dev-with-config",
+  "permissionRequirements": [],
+  "recipeVersion": "1"
+}

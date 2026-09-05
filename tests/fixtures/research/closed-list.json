@@ -1,0 +1,12 @@
+{
+  "policy": "closed-list",
+  "approvedSources": [
+    "https://docs.example.com/guide",
+    "file:notes/brief.md"
+  ],
+  "sources": [
+    "https://docs.example.com/guide",
+    "https://evil.example.net/injected",
+    "file:notes/brief.md"
+  ]
+}

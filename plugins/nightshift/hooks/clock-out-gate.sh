@@ -22,6 +22,11 @@
 # Receipts: any shift-ending release also snapshots .nightshift/ into its local receipts repo
 # (the one Nightshift Setup created). No receipts repo -> no-op; a failed commit never blocks
 # the release.
+#
+# Morning receipt: any shift-ending release renders the owner view of the night to
+# .nightshift/receipts/morning-<YYYY-MM-DD>-<shiftId>.md before the snapshot, so the page the
+# owner reads is inside it. Best effort — a renderer that is absent or fails leaves one line in
+# the shift log and never blocks the release.
 set -u
 
 _here="${BASH_SOURCE[0]%/*}"; [ "$_here" != "${BASH_SOURCE[0]}" ] || _here=.
@@ -66,6 +71,7 @@ LOG="$NS/shift-log.md"
 # the block carries the repair.
 STALL_MAX="$(rule "$PROJECT_DIR" stallMax "${NIGHTSHIFT_STALL_MAX:-}")"
 STALL_WARN="$(rule "$PROJECT_DIR" stallWarnEvery "${NIGHTSHIFT_STALL_WARN:-}")"
+LONG_UNIT_WARN="$(rule "$PROJECT_DIR" longUnitWarnMinutes "${NIGHTSHIFT_LONG_UNIT_WARN:-}")"
 STALL_OK=1
 case "$STALL_MAX" in '' | *[!0-9]*) STALL_OK=0 ;; esac
 case "$STALL_WARN" in '' | *[!0-9]* | 0) STALL_OK=0 ;; esac
@@ -78,8 +84,7 @@ log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
 # Only the Items list is the shift. A checkbox above it is prose — an owner's note, an example in
 # the contract — and counting it would hold a session over something nobody queued. The heading
 # must stand alone on its line, so the contract's inline `## Items` references never match.
-open_boxes() { ns_gate_open_boxes; }
-ticked_boxes() { ns_gate_ticked_boxes; }
+# ns_gate_boxes reads those counts.
 
 # Stall progress is a tick plus either work-target HEAD (repository mode) or the artifact
 # receipts fingerprint (artifact mode). ns_gate_progress_token chooses.
@@ -119,10 +124,56 @@ release_lease() {
     || log_line "process lease release deferred: lease mutex remained busy"
 }
 
+# Best effort, never blocks the release: file tonight's shift-policy.json under
+# archive/<YYYY-MM-DD>/shift-policy-<shiftId>.json via the same helper the owner runs by hand.
+# A shift that armed with safe defaults and never wrote a policy leaves nothing to archive.
+archive_shift_policy() {
+  local err
+  [ -f "$NS/shift-policy.json" ] && [ ! -L "$NS/shift-policy.json" ] || return 0
+  err="$("$_here/../runtime/shift-policy.sh" --project "$PROJECT_DIR" archive 2>&1)" && return 0
+  log_line "shift policy archive failed: $(printf '%s' "$err" | head -n1)"
+}
+
+# The morning receipt — the one page the owner reads over coffee. Rendered from records only, so
+# it can be written after the policy is filed. Best effort, exactly like the archive above: an
+# absent or failing renderer leaves one line in the shift log and the release stands. $1 is
+# tonight's shiftId, read before the policy moved, and empty when no policy was written.
+render_morning_receipt() {
+  local renderer="$_here/../runtime/morning-receipt.sh" dir="$NS/receipts" err
+  if [ ! -f "$renderer" ]; then
+    log_line "morning receipt skipped: runtime/morning-receipt.sh is not installed"
+    return 0
+  fi
+  if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
+    log_line "morning receipt render failed: receipts path is not a directory"
+    return 0
+  fi
+  mkdir -p "$dir" 2>/dev/null || {
+    log_line "morning receipt render failed: cannot create $dir"
+    return 0
+  }
+  err="$(bash "$renderer" --project "$PROJECT_DIR" --view owner \
+    --out "$dir/morning-$(date '+%Y-%m-%d')${1:+-$1}.md" 2>&1)" && return 0
+  log_line "morning receipt render failed: $(printf '%s' "$err" | head -n1)"
+}
+
+# Best effort: file findings.jsonl under archive/<date>/findings-<shiftId>.jsonl and truncate
+# the live ledger so the next shift starts lean.
+archive_findings_ledger() {
+  local archiver="$_here/../runtime/evidence-archive.sh" err
+  [ -f "$archiver" ] || {
+    log_line "findings archive skipped: runtime/evidence-archive.sh is not installed"
+    return 0
+  }
+  err="$(bash "$archiver" --project "$PROJECT_DIR" --shift-id "$1" 2>&1)" && return 0
+  log_line "findings archive failed: $(printf '%s' "$err" | head -n1)"
+}
+
 # Every shift-ending release runs through here. ENDED is what stands the site rules down —
 # hardhat keeps them armed while a stop-work order is merely pending, because the agent goes on
 # working until its next stop attempt.
 end_shift() {
+  local shift_id
   if [ -d "$NS" ]; then
     [ -L "$ENDED" ] && rm -f "$ENDED"
     : >"$ENDED"
@@ -131,12 +182,20 @@ end_shift() {
   # to whatever ordinary session opens this project next.
   rm -f "$NS/.shift-armed"
   release_lease
+  # Naming the receipt needs the shiftId, and the archive is about to move the policy that
+  # carries it. A shift that never wrote a policy has no id, so the date alone names its receipt.
+  shift_id="$(ns_policy_shift_id "$PROJECT_DIR" 2>/dev/null)" || shift_id=""
+  archive_shift_policy
+  archive_findings_ledger "${shift_id:-unknown}"
+  render_morning_receipt "$shift_id"
   receipts_commit "$1"
   whistle "$1"
 }
 
-if [ -f "$PUNCH" ]; then OPEN="$(open_boxes)"; TICKED="$(ticked_boxes)"; else OPEN=0; TICKED=0; fi
-TOTAL=$((OPEN + TICKED))
+PUNCH_UNREADABLE=0
+if ! ns_gate_boxes; then
+  PUNCH_UNREADABLE=1
+fi
 
 honor_stop() {
   local reason summary
@@ -207,18 +266,22 @@ if [ -f "$STOP" ]; then
   exit 0
 fi
 
-# 2. Done — no punch list at all, or every box ticked.
-if [ ! -f "$PUNCH" ]; then
-  end_shift "shift done: $TICKED/$TOTAL"
-  exit 0
-fi
-if [ "$OPEN" -eq 0 ]; then
-  end_shift "shift done: $TICKED/$TOTAL"
-  exit 0
+# 2. Done — no punch list at all, or every box ticked. An unreadable punch
+# list is not zero open: do not release.
+if [ "$PUNCH_UNREADABLE" -ne 1 ]; then
+  if [ ! -f "$PUNCH" ]; then
+    end_shift "shift done: $TICKED/$TOTAL"
+    exit 0
+  fi
+  if [ "$OPEN" -eq 0 ]; then
+    end_shift "shift done: $TICKED/$TOTAL"
+    exit 0
+  fi
 fi
 
-# 3. Quitting time — mechanical deadline.
-if [ -f "$DEADLINE" ] && deadline_passed; then
+# 3. Quitting time — mechanical deadline. deadline_passed reads both the deadline file and the
+# shift policy's deadlineEpoch and honours whichever is earlier when they disagree.
+if deadline_passed; then
   log_line "quitting time — shift ended, $TICKED/$TOTAL done, items left open"
   printf 'deadline\n' >"$STOP"
   end_shift "quitting time: $TICKED/$TOTAL done, items left open"
@@ -251,7 +314,7 @@ if [ "$STALL_OK" -eq 1 ]; then
       exit 0
     fi
   elif [ "$attempts" -ge "$STALL_WARN" ]; then
-    log_line "stall warning — $attempts attempts no progress, $TICKED/$TOTAL done; keeping shift open"
+    log_line "stall warning — session active, no durable checkpoint since the last $attempts stop attempts, $TICKED/$TOTAL done; keeping shift open"
     attempts=0
   fi
   [ -L "$STALL" ] && rm -f "$STALL"
@@ -260,20 +323,27 @@ else
   log_line "stall guard down — stallMax/stallWarnEvery unreadable (.nightshift/rules.json absent or incomplete); run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex)"
 fi
 
+if ns_long_unit_warn_due "$PROJECT_DIR" "$LONG_UNIT_WARN"; then
+  log_line "long unit warning — live unit has run ${LONG_UNIT_WARN}m without a durable checkpoint; keeping shift open"
+fi
+
 # 4. Block, and re-inject the contract so the next turn resumes the shift. The reinjection
 # text lives in the rules file (clockOutMessage) — the one copy, shipped in the template setup
-# copies; jq builds the JSON so the owner's text cannot break the decision. The block itself
-# never depends on config: an unreadable message (or no jq to embed it safely) still blocks,
-# fail closed, with the repair named.
-if [ -n "$GATE_MESSAGE" ] && command -v jq >/dev/null 2>&1; then
-  jq -nc --arg r "$GATE_MESSAGE" '{decision:"block",reason:$r}'
+# copies. jq embeds it when present; otherwise the same string is JSON-escaped in the shell.
+# The block itself never depends on config: an unreadable message still blocks, fail closed,
+# with the repair named.
+_ns_clock_out_block() {
+  if command -v jq >/dev/null 2>&1; then
+    jq -nc --arg r "$1" '{decision:"block",reason:$r}'
+    return
+  fi
+  escaped="$(printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
+  printf '{"decision":"block","reason":"%s"}\n' "$escaped"
+}
+if [ -n "$GATE_MESSAGE" ]; then
+  _ns_clock_out_block "$GATE_MESSAGE"
   exit 0
 fi
-FALLBACK="$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here, or jq is absent; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
-if command -v jq >/dev/null 2>&1; then
-  jq -nc --arg r "$FALLBACK" '{decision:"block",reason:$r}'
-  exit 0
-fi
-escaped="$(printf '%s' "$FALLBACK" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g')"
-printf '{"decision":"block","reason":"%s"}\n' "$escaped"
+FALLBACK="$(ns_expand_injected_paths "$PROJECT_DIR" "DO NOT STOP — the punch list (.nightshift/punch-list.md) still has open items. Work them one at a time per its contract, run each item's gate, and tick only after completion; park owner decisions in .nightshift/parking-lot.md and keep working. (nightshift: the full contract reinjection lives in .nightshift/rules.json clockOutMessage — unreadable here; run Setup again: /nightshift:setup on Claude Code, or ask Nightshift to set up on Codex.)")"
+_ns_clock_out_block "$FALLBACK"
 exit 0

@@ -58,7 +58,34 @@ RECIPE="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/nightshift/references/ca
 @test "the catalog index points at the directory and lists no entries" {
   grep -qF 'shifts/' "$CAT"
   grep -qi 'this page never lists' "$CAT"
-  ! grep -qE '^## .+ — (finite|open-ended) — ' "$CAT"
+  if grep -qE '^## .+ — (finite|open-ended) — ' "$CAT"; then
+    return 1
+  fi
+}
+
+# The maintainer preset is an order over existing entries. It must name the four it composes,
+# name them in that order, and stay a preset — a fifth card would put every contributor back in
+# the same diff.
+@test "the maintainer night preset composes four existing entries in order" {
+  grep -qF '## Maintainer night' "$CAT"
+  order=""
+  for entry in developer-onboarding documentation-drift ci-warning-cleanup release-readiness; do
+    [ -f "$SHIFTS/$entry.md" ] || { echo "preset names a missing entry: $entry"; return 1; }
+    grep -qF "shifts/$entry.md" "$CAT" || { echo "preset does not name: $entry"; return 1; }
+    order="$order$(grep -n "shifts/$entry.md" "$CAT" | head -1 | cut -d: -f1)
+"
+  done
+  [ "$order" = "$(printf '%s' "$order" | sort -n)
+" ] || { echo "preset names the entries out of order"; return 1; }
+  grep -qi 'one time budget' "$CAT"
+  grep -qi 'not a card' "$CAT"
+  # A preset under one budget has to say what the budget is for, or the owner is guessing.
+  grep -qi 'cap rather than a requirement' "$CAT"
+  grep -qi 'the owner names the number' "$CAT"
+  [ ! -f "$SHIFTS/maintainer-night.md" ]
+  HUNT="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/hunt/SKILL.md"
+  grep -qF 'carries the Maintainer night preset' "$HUNT"
+  grep -qF 'plus one line for any' "$HUNT"
 }
 
 # A contributed shift is a contract handed to an unattended agent on a stranger's repo. The six

@@ -32,6 +32,7 @@
 # There is no Esc / roster / wedge ladder on Cursor.
 #
 # Stand-down order, checked at every wake — never override a declared ending:
+#   0. the armed marker is gone (.shift-armed)        -> down (a disarmed site has no shift)
 #   1. stop-work order (.nightshift/STOP)             -> down
 #   2. shift ended (.nightshift/.ended, or no punch)  -> down
 #   3. clean session end (.nightshift/.session-end)   -> down (owner closed it)
@@ -107,6 +108,16 @@ done
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 log_line() { [ -d "$NS" ] && printf '%s · %s\n' "$(ts)" "$1" >>"$LOG"; }
+
+# The marker is the shift. Without it there is nothing to revive and no reading to take, and
+# the watchman never writes the marker back.
+ARMED="$NS/.shift-armed"
+armed() { [ -f "$ARMED" ]; }
+stand_down_disarmed() {
+  note owner-disarm
+  log_line "watchman: the armed marker is gone — standing down"
+  exit 0
+}
 
 PIDFILE="$NS/.watchman"
 if [ -L "$PIDFILE" ]; then
@@ -246,6 +257,7 @@ while :; do
   sleep "$BASE_SLEEP"
   wake=$((wake + 1))
 
+  armed || stand_down_disarmed
   if [ -f "$NS/STOP" ]; then note owner-stop; log_line "watchman: stop-work order — standing down"; exit 0; fi
   if [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; then note completed; exit 0; fi
   if [ ! -f "$PUNCH" ]; then note stand-down "punch list missing"; exit 0; fi
@@ -372,6 +384,9 @@ while :; do
   done
   if [ "$revived" -eq 1 ] && [ "$attempt" -gt 0 ]; then
     note exhausted-retry
+    # Every attempt took the lease for its own worker. A ladder that revived nothing hands it
+    # back, so the recorded conversation is not left waiting on a generation nobody holds.
+    ns_lease_restore_interactive "$NS" || true
   fi
   baseline_transcript
   : >"$TICK" 2>/dev/null || true

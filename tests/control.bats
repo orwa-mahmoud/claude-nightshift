@@ -18,7 +18,9 @@ stop_cmd() { # <project>
   [ -x "$STOP" ]
   [ -x "$RESET" ]
   [ -x "$PURGE" ]
-  ! grep -R --include='*.sh' -F 'lib/control.sh' "$PLUGIN/hooks"
+  if grep -R --include='*.sh' -F 'lib/control.sh' "$PLUGIN/hooks"; then
+    return 1
+  fi
 }
 
 @test "start refuses a paused shift with an expired deadline" {
@@ -27,7 +29,7 @@ stop_cmd() { # <project>
   grep -qi 'deadline is cleared only if it has already passed' "$START"
 }
 
-@test "Stop immediately makes hooks inert without waiting for a Stop event" {
+@test "Stop writes STOP and keeps hardhat armed until ENDED" {
   p="$(new_project)"
   punch_open "$p"
   future=$(( $(date +%s) + 3600 ))
@@ -37,7 +39,7 @@ stop_cmd() { # <project>
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'deadline preserved'
   [ -f "$p/.nightshift/STOP" ]
-  [ ! -f "$p/.nightshift/.shift-armed" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
   [ ! -f "$p/.nightshift/.ended" ]
   [ -f "$p/.nightshift/deadline" ]
   [ "$(cat "$p/.nightshift/deadline")" = "$future" ]
@@ -45,6 +47,12 @@ stop_cmd() { # <project>
   [ -f "$p/.nightshift/punch-list.md" ]
   [ -f "$p/.nightshift/rules.json" ]
   grep -q 'stopped by owner' "$p/.nightshift/shift-log.md"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  punch_done "$p"
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  : >"$p/.nightshift/.ended"
   run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
   is_allow
   run "$STOP" --project "$p"
@@ -66,7 +74,9 @@ stop_cmd() { # <project>
   run "$STOP" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'watchman stopped'
-  ! kill -0 "$wpid" 2>/dev/null
+  if kill -0 "$wpid" 2>/dev/null; then
+    return 1
+  fi
   [ ! -f "$p/.nightshift/.watchman" ]
 
   p2="$(new_project unverified)"
@@ -79,7 +89,7 @@ stop_cmd() { # <project>
   printf '%s' "$output" | grep -qF 'watchman unverified'
   kill -0 "$spid"
   [ -f "$p2/.nightshift/.watchman" ]
-  [ ! -f "$p2/.nightshift/.shift-armed" ]
+  [ -f "$p2/.nightshift/.shift-armed" ]
   kill "$spid"
   wait "$spid" 2>/dev/null || true
 
@@ -96,7 +106,7 @@ stop_cmd() { # <project>
   wait "$rpid" 2>/dev/null || true
 }
 
-@test "Stop releases a valid lease and recovers a failed terminal clock-out nonce" {
+@test "Stop keeps the lease and still allows the trusted helper through a recovery nonce" {
   p="$(new_project)"
   punch_open "$p"
   bash -c '. "$1"; ns_lease_takeover "$2/.nightshift" shift-session claude' \
@@ -104,7 +114,8 @@ stop_cmd() { # <project>
   [ -f "$p/.nightshift/.shift-lease" ]
   run "$STOP" --project "$p"
   [ "$status" -eq 0 ]
-  [ ! -e "$p/.nightshift/.shift-lease" ]
+  [ -e "$p/.nightshift/.shift-lease" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
 
   q="$(new_project nonce)"
   punch_open "$q"
@@ -127,9 +138,9 @@ stop_cmd() { # <project>
   is_deny "$out"
   run "$STOP" --project "$q"
   [ "$status" -eq 0 ]
-  [ ! -e "$q/.nightshift/.shift-lease" ]
-  [ ! -f "$q/.nightshift/.shift-armed" ]
-  [ ! -f "$q/.nightshift/.shift-session" ]
+  [ -e "$q/.nightshift/.shift-lease" ]
+  [ -f "$q/.nightshift/.shift-armed" ]
+  [ -f "$q/.nightshift/.shift-session" ]
 }
 
 @test "hardhat allows only the trusted Stop helper and still protects the lease" {
@@ -193,6 +204,10 @@ stop_cmd() { # <project>
   printf 'log\n' >"$p/.nightshift/shift-log.md"
   printf 'artifact\n' >"$p/.nightshift/work-mode"
   : >"$p/.nightshift/.shift-session"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    >"$p/.nightshift/shift-policy.json"
+  printf '{"schemaVersion":1,"verificationProfile":"fast","hours":null,"toolingPolicy":"existing-tools","execution":"review-first","updatedAt":"2026-09-02T02:30:00Z"}\n' \
+    >"$p/.nightshift/shift-defaults.json"
   run "$RESET" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'deadline removed'
@@ -201,6 +216,8 @@ stop_cmd() { # <project>
   [ ! -f "$p/.nightshift/STOP" ]
   [ ! -f "$p/.nightshift/.shift-armed" ]
   [ ! -f "$p/.nightshift/.shift-session" ]
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+  [ -f "$p/.nightshift/shift-defaults.json" ]
   [ -f "$p/.nightshift/punch-list.md" ]
   grep -q '\- \[ \]' "$p/.nightshift/punch-list.md"
   [ -f "$p/.nightshift/rules.json" ]
@@ -213,14 +230,42 @@ stop_cmd() { # <project>
   [ -f "$p/.nightshift/snag-log.md" ]
   [ -f "$p/.nightshift/shift-log.md" ]
   [ -f "$p/.nightshift/work-mode" ]
+  grep -q 'shift policy cleared' "$p/.nightshift/shift-log.md"
   run "$RESET" --project "$p"
   [ "$status" -eq 0 ]
+}
+
+@test "Reset refuses while provision-transaction.json is open" {
+  p="$(new_project)"
+  printf '{"schemaVersion":1,"stage":"apply","capabilityId":"test","failed":false}\n' \
+    >"$p/.nightshift/provision-transaction.json"
+  run "$RESET" --project "$p"
+  [ "$status" -eq 1 ]
+  printf '%s' "$output" | grep -qF 'provision-transaction.json'
+  [ -f "$p/.nightshift/provision-transaction.json" ]
+}
+
+@test "Stop preserves tonight's shift policy; only Reset clears it" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    >"$p/.nightshift/shift-policy.json"
+  run "$STOP" --project "$p"
+  [ "$status" -eq 0 ]
+  [ -f "$p/.nightshift/shift-policy.json" ]
+  run "$RESET" --project "$p"
+  [ "$status" -eq 0 ]
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
 }
 
 @test "Purge deletes only the validated .nightshift directory and requires exact confirmation" {
   p="$(new_project)"
   punch_open "$p"
   printf 'secret\n' >"$p/README.md"
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":null,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    >"$p/.nightshift/shift-policy.json"
+  printf '{"schemaVersion":1,"verificationProfile":"fast","hours":null,"toolingPolicy":"existing-tools","execution":"review-first","updatedAt":"2026-09-02T02:30:00Z"}\n' \
+    >"$p/.nightshift/shift-defaults.json"
   ns="$(cd -P "$p/.nightshift" && pwd -P)"
   run "$PURGE" --project "$p"
   [ "$status" -eq 1 ]
@@ -232,6 +277,8 @@ stop_cmd() { # <project>
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'plugin install was not touched'
   [ ! -e "$p/.nightshift" ]
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+  [ ! -e "$p/.nightshift/shift-defaults.json" ]
   [ -f "$p/README.md" ]
   [ -d "$p/.git" ]
   run "$PURGE" --project "$p" --confirm-path "$ns"
@@ -276,7 +323,7 @@ stop_cmd() { # <project>
   run "$STOP" --project "$host"
   [ "$status" -eq 0 ]
   [ -f "$workspace/.nightshift/STOP" ]
-  [ ! -f "$workspace/.nightshift/.shift-armed" ]
+  [ -f "$workspace/.nightshift/.shift-armed" ]
   [ -f "$workspace/.nightshift/deadline" ]
   [ -f "$host/.nightshift-link" ]
   ns="$(cd -P "$workspace/.nightshift" && pwd -P)"

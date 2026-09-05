@@ -1,5 +1,63 @@
 load helpers
 
+# A valid tonight's snapshot, standing in for what composition or Start would have written.
+write_policy_with_deadline() { # <project> <deadlineEpoch-or-null>
+  printf '{"schemaVersion":1,"shiftId":"9f2c40ab77e51d63","createdAt":"2026-09-02T02:30:00Z","source":"composition","deadlineEpoch":%s,"verificationLevel":"final","toolingPolicy":"existing-tools"}\n' \
+    "$2" >"$1/.nightshift/shift-policy.json"
+}
+
+# ---------------------------------------------------------------------------------------------
+# Morning-receipt fixtures. The gate resolves the renderer beside itself, so these tests run a
+# copied plugin tree and decide which runtime helpers exist in it.
+
+# plugin_copy <name> — a private copy of the plugin, echoing its nightshift root.
+plugin_copy() {
+  local d="$BATS_TEST_TMPDIR/$1"
+  mkdir -p "$d"
+  cp -R "$BATS_TEST_DIRNAME/../plugins" "$d/plugins"
+  printf '%s' "$d/plugins/nightshift"
+}
+
+# gate_from <plugin-root> <project> [ENV=VAL ...] — the shared Stop payload, against a copy.
+gate_from() {
+  local root="$1" p="$2"
+  shift 2
+  jq -nc '{hook_event_name:"Stop",session_id:"test-shift-session",transcript_path:""}' |
+    env "$@" CLAUDE_PROJECT_DIR="$p" bash "$root/hooks/clock-out-gate.sh"
+}
+
+# renderer_ok <plugin-root> — a renderer that writes its own arguments into the file it was
+# told to write, so a test can read back both the path and the view the gate asked for.
+renderer_ok() {
+  cat >"$1/runtime/morning-receipt.sh" <<'SH'
+#!/usr/bin/env bash
+set -u
+args="$*"
+out=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out)
+      out="$2"
+      shift 2
+      ;;
+    *) shift ;;
+  esac
+done
+[ -n "$out" ] || exit 1
+printf '%s\n' "$args" >"$out"
+printf '%s\n' "$out"
+SH
+}
+
+# renderer_fail <plugin-root> — a renderer that writes nothing and fails.
+renderer_fail() {
+  cat >"$1/runtime/morning-receipt.sh" <<'SH'
+#!/usr/bin/env bash
+printf 'morning-receipt: no ledger to read\n' >&2
+exit 2
+SH
+}
+
 @test "blocks while a box is open" {
   p="$(new_project)"
   punch_open "$p"
@@ -15,7 +73,9 @@ load helpers
   printf '%s' "$output" | grep -qF "$p/.nightshift/punch-list.md"
   printf '%s' "$output" | grep -qF "$p/.nightshift/parking-lot.md"
   printf '%s' "$output" | grep -qF "$p/.nightshift/STOP"
-  ! printf '%s' "$output" | grep -qF '$NIGHTSHIFT_WORKSPACE'
+  if printf '%s' "$output" | grep -qF '$NIGHTSHIFT_WORKSPACE'; then
+    return 1
+  fi
 }
 
 @test "releases when every box is ticked" {
@@ -31,6 +91,17 @@ load helpers
   is_release
   [ -f "$p/.nightshift/.ended" ]
   [ ! -f "$p/.nightshift/.shift-armed" ]
+}
+
+@test "an unreadable punch list does not clock out as 0 open" {
+  p="$(new_project)"
+  punch_open "$p"
+  chmod 000 "$p/.nightshift/punch-list.md"
+  run gate "$p"
+  chmod 644 "$p/.nightshift/punch-list.md"
+  is_block "$output"
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
 }
 
 @test "clock-out replaces a symlink ended marker with a regular file" {
@@ -64,6 +135,24 @@ load helpers
   : >"$p/.nightshift/STOP"
   run gate "$p"
   is_release
+}
+
+@test "stop-shift keeps hardhat until the gate writes ENDED" {
+  p="$(new_project)"
+  punch_open "$p"
+  run "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/stop-shift.sh" --project "$p"
+  [ "$status" -eq 0 ]
+  [ -f "$p/.nightshift/STOP" ]
+  [ -f "$p/.nightshift/.shift-armed" ]
+  [ ! -f "$p/.nightshift/.ended" ]
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_deny "$output"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+  run hardhat_bash "$p" "git push" NIGHTSHIFT_FORBIDDEN_COMMANDS='git push'
+  is_allow
 }
 
 @test "panic STOP releases a leftover recovery nonce" {
@@ -163,6 +252,180 @@ load helpers
   run gate "$p"
   is_block "$output"
   [ ! -f "$p/.nightshift/STOP" ]
+}
+
+@test "clock-out archives tonight's shift policy under archive/<date>" {
+  p="$(new_project)"
+  punch_done "$p"
+  write_policy_with_deadline "$p" null
+  today="$(date '+%Y-%m-%d')"
+  run gate "$p"
+  is_release
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+  [ -f "$p/.nightshift/archive/$today/shift-policy-9f2c40ab77e51d63.json" ]
+}
+
+@test "clock-out archives non-empty findings and truncates the live ledger" {
+  p="$(new_project)"
+  punch_done "$p"
+  write_policy_with_deadline "$p" null
+  mkdir -p "$p/.nightshift/evidence"
+  printf '{"schemaVersion":1,"id":"f1","domain":"test","severity":"low","confidence":"medium","impact":"local","status":"open","ladder":"declared","locator":"x","source":"fixture","sourceClass":"test","host":"local"}\n' \
+    >"$p/.nightshift/evidence/findings.jsonl"
+  today="$(date '+%Y-%m-%d')"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/archive/$today/findings-9f2c40ab77e51d63.jsonl" ]
+  [ ! -s "$p/.nightshift/evidence/findings.jsonl" ]
+}
+
+@test "clock-out releases normally when there is no shift policy to archive" {
+  p="$(new_project)"
+  punch_done "$p"
+  run gate "$p"
+  is_release
+  [ ! -e "$p/.nightshift/shift-policy.json" ]
+}
+
+@test "clock-out renders the owner receipt into receipts/, named for tonight's shift" {
+  root="$(plugin_copy receipt-ok)"
+  renderer_ok "$root"
+  p="$(new_project gate-receipt)"
+  punch_done "$p"
+  write_policy_with_deadline "$p" null
+  today="$(date '+%Y-%m-%d')"
+
+  run gate_from "$root" "$p"
+  is_release
+  out="$p/.nightshift/receipts/morning-$today-9f2c40ab77e51d63.md"
+  [ -f "$out" ]
+  grep -qF -- '--view owner' "$out"
+  grep -qF -- "--out " "$out"
+  grep -qF "morning-$today-9f2c40ab77e51d63.md" "$out"
+  # The policy is filed first, so the receipt is named from a shiftId that was still readable.
+  [ -f "$p/.nightshift/archive/$today/shift-policy-9f2c40ab77e51d63.json" ]
+  if [ -f "$p/.nightshift/shift-log.md" ]; then
+    if grep -qF 'morning receipt' "$p/.nightshift/shift-log.md"; then
+      return 1
+    fi
+  fi
+}
+
+@test "a shift that never wrote a policy names its receipt for the date alone" {
+  root="$(plugin_copy receipt-unknown)"
+  renderer_ok "$root"
+  p="$(new_project gate-receipt-unknown)"
+  punch_done "$p"
+  today="$(date '+%Y-%m-%d')"
+
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/receipts/morning-$today.md" ]
+  [ ! -e "$p/.nightshift/receipts/morning-$today-unknown.md" ]
+}
+
+@test "an absent morning-receipt renderer never blocks the release" {
+  root="$(plugin_copy receipt-absent)"
+  rm -f "$root/runtime/morning-receipt.sh"
+  p="$(new_project gate-receipt-absent)"
+  punch_done "$p"
+
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  [ ! -f "$p/.nightshift/.shift-armed" ]
+  grep -qF 'morning receipt skipped: runtime/morning-receipt.sh is not installed' \
+    "$p/.nightshift/shift-log.md"
+  [ ! -e "$p/.nightshift/receipts" ]
+}
+
+@test "a failing morning-receipt renderer never blocks the release" {
+  root="$(plugin_copy receipt-fail)"
+  renderer_fail "$root"
+  p="$(new_project gate-receipt-fail)"
+  punch_done "$p"
+  today="$(date '+%Y-%m-%d')"
+
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/.ended" ]
+  grep -qF 'morning receipt render failed: morning-receipt: no ledger to read' \
+    "$p/.nightshift/shift-log.md"
+  [ ! -e "$p/.nightshift/receipts/morning-$today.md" ]
+}
+
+@test "a deadline release and a stop-work order both leave the receipt behind" {
+  root="$(plugin_copy receipt-deadline)"
+  renderer_ok "$root"
+  today="$(date '+%Y-%m-%d')"
+
+  p="$(new_project gate-receipt-deadline)"
+  punch_open "$p"
+  printf '%s\n' "$(( $(date +%s) - 60 ))" >"$p/.nightshift/deadline"
+  run gate_from "$root" "$p"
+  is_release
+  [ -f "$p/.nightshift/receipts/morning-$today.md" ]
+
+  q="$(new_project gate-receipt-stop)"
+  punch_open "$q"
+  : >"$q/.nightshift/STOP"
+  run gate_from "$root" "$q"
+  is_release
+  [ -f "$q/.nightshift/receipts/morning-$today.md" ]
+}
+
+@test "every host gate renders the morning receipt the same way" {
+  hooks="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks"
+  for h in "$hooks/clock-out-gate.sh" "$hooks/codex/clock-out-gate.sh" \
+    "$hooks/cursor/clock-out-gate.sh"; do
+    grep -qF 'render_morning_receipt "$shift_id"' "$h" \
+      || { echo "no receipt render in end_shift: $h"; return 1; }
+    grep -qF -- '--view owner' "$h" || { echo "no owner view: $h"; return 1; }
+    grep -qF 'morning receipt render failed:' "$h" || { echo "no failure line: $h"; return 1; }
+    grep -qF 'morning receipt skipped: runtime/morning-receipt.sh is not installed' "$h" \
+      || { echo "no absent-renderer line: $h"; return 1; }
+    awk '/render_morning_receipt "\$shift_id"/{r=NR} /receipts_commit "\$1"/{c=NR} END{exit !(r && c && r<c)}' "$h" \
+      || { echo "the receipt is written after the snapshot: $h"; return 1; }
+  done
+}
+
+@test "the gate honours the earlier of the deadline file and the shift-policy deadlineEpoch" {
+  p="$(new_project)"
+  punch_open "$p"
+  future=$(( $(date +%s) + 3600 ))
+  past=$(( $(date +%s) - 60 ))
+  printf '%s\n' "$future" >"$p/.nightshift/deadline"
+  write_policy_with_deadline "$p" "$past"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/STOP" ]
+  grep -qF "deadline mismatch — deadline file $future does not match shift-policy deadlineEpoch $past; honoring the earlier value" \
+    "$p/.nightshift/shift-log.md"
+  grep -q 'quitting time' "$p/.nightshift/shift-log.md"
+}
+
+@test "a shift-policy deadlineEpoch alone ends the shift when the projected file is absent" {
+  p="$(new_project)"
+  punch_open "$p"
+  past=$(( $(date +%s) - 60 ))
+  write_policy_with_deadline "$p" "$past"
+  run gate "$p"
+  is_release
+  [ -f "$p/.nightshift/STOP" ]
+  grep -q 'quitting time' "$p/.nightshift/shift-log.md"
+}
+
+@test "a matching deadline file and shift-policy deadlineEpoch never log a mismatch" {
+  p="$(new_project)"
+  punch_open "$p"
+  future=$(( $(date +%s) + 3600 ))
+  printf '%s\n' "$future" >"$p/.nightshift/deadline"
+  write_policy_with_deadline "$p" "$future"
+  run gate "$p"
+  is_block "$output"
+  if grep -q 'deadline mismatch' "$p/.nightshift/shift-log.md"; then
+    return 1
+  fi
 }
 
 @test "an unparseable deadline never ends the shift by accident" {
@@ -367,7 +630,9 @@ load helpers
   is_release
   [ "$(git -C "$p/.nightshift" rev-list --count HEAD)" -eq 2 ]
   git -C "$p/.nightshift" log -1 --format=%s | grep -q 'shift done: 2/2'
-  ! git -C "$p/.nightshift" ls-tree -r --name-only HEAD | grep -qxF '.shift-lease'
+  if git -C "$p/.nightshift" ls-tree -r --name-only HEAD | grep -qxF '.shift-lease'; then
+    return 1
+  fi
 }
 
 @test "a stop-work release snapshots the receipts repo when receiptsAutoCommit is true" {
@@ -500,7 +765,7 @@ load helpers
   run gate "$p" NIGHTSHIFT_STALL_WARN=2
   run gate "$p" NIGHTSHIFT_STALL_WARN=2
   is_block "$output"
-  grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
+  grep -q 'stall warning — session active, no durable checkpoint since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
 }
 
 @test "the gate reads the stall cadence from the rules file" {
@@ -510,7 +775,7 @@ load helpers
   run gate "$p"
   run gate "$p"
   is_block "$output"
-  grep -q 'stall warning — 2 attempts' "$p/.nightshift/shift-log.md"
+  grep -q 'stall warning — session active, no durable checkpoint since the last 2 stop attempts' "$p/.nightshift/shift-log.md"
 }
 
 # The block never depends on config: unreadable knobs still gate, fail closed, repair named.
@@ -523,4 +788,74 @@ load helpers
   printf '%s' "$output" | grep -qF '/nightshift:setup'
   printf '%s' "$output" | grep -qF 'ask Nightshift to set up on Codex'
   grep -q 'stall guard down' "$p/.nightshift/shift-log.md"
+}
+
+# ---- a dead recovery attempt never decides the clock-out ----
+
+FOREIGN_NONCE=claude.2.4711.8.9
+
+@test "the recorded conversation takes its shift back at clock-out and is held to the list" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" test-shift-session "" "$$" "$(process_start "$$")" claude
+  lease_record "$p" test-shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+
+  run gate "$p"
+  is_block "$output"
+  [ "$(lease_generation "$p")" = "3" ]
+  [ -z "$(lease_nonce "$p")" ]
+  [ "$(reclaim_log_count "$p" 2 3)" -eq 1 ]
+  [ ! -f "$p/.nightshift/.ended" ]
+}
+
+@test "a live recovery worker still keeps the recorded conversation out of the clock-out" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" test-shift-session "" "$$" "$(process_start "$$")" claude
+  lease_record "$p" test-shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+
+  run gate "$p"
+  is_release
+  [ "$(lease_generation "$p")" = "2" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+# Disarm is total on this side too: the gate holds nobody once the marker is gone, and a
+# leftover lease — live holder or dead — is not a reason to hold a session or to end a shift.
+@test "an unarmed site holds nobody at clock-out, whatever the lease still says" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" test-shift-session "" "" "" claude
+  lease_record "$p" test-shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+  rm "$p/.nightshift/.shift-armed"
+
+  run gate "$p"
+  is_release
+  [ ! -f "$p/.nightshift/.ended" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+
+  q="$(new_project unarmed-dead-holder)"
+  punch_open "$q"
+  dead="$(reaped_pid)"
+  session_record "$q" test-shift-session "" "" "" claude
+  lease_record "$q" test-shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+  rm "$q/.nightshift/.shift-armed"
+
+  run gate "$q"
+  is_release
+  [ ! -f "$q/.nightshift/.ended" ]
+  [ "$(reclaim_log_count "$q")" -eq 0 ]
 }

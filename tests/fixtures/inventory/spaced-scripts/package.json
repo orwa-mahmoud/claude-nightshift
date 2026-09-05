@@ -1,0 +1,13 @@
+{
+  "name": "spaced",
+  "private": true,
+  "scripts": {
+    "lint all": "eslint .",
+    "check types": "tsc --noEmit",
+    "build all": "tsup src/index.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

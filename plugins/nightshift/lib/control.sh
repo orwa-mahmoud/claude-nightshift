@@ -201,8 +201,9 @@ ns_control_log() { # <ns> <line>
   printf '%s · %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$2" >>"$1/shift-log.md"
 }
 
-# Pause: disarm now, keep durable files and deadline. Idempotent.
-# Prints a short status. Return 0 · 1 usage/resolve · 2 unverified watchman (still disarmed)
+# Stop-work order: write STOP and stand the watchman down. Keep .shift-armed so
+# hardhat stays until clock-out writes ENDED. Reset is the manual escape.
+# Prints a short status. Return 0 · 1 usage/resolve · 2 unverified watchman (STOP still written)
 ns_control_stop() { # <host-path> [reason]
   local host="$1" reason="${2:-stopped by owner}" rc=0 watch="absent" open=0
   ns_control_resolve "$host" || return 1
@@ -222,7 +223,6 @@ ns_control_stop() { # <host-path> [reason]
     watch="unverified"
     rc=2
   fi
-  ns_control_drop_runtime_markers "$NS_CONTROL_NS"
   ns_record_reason "$NS_CONTROL_NS" owner-stop 2>/dev/null || true
   ns_control_log "$NS_CONTROL_NS" "stopped by owner"
   if [ -f "$NS_CONTROL_NS/punch-list.md" ]; then
@@ -237,17 +237,26 @@ ns_control_stop() { # <host-path> [reason]
   return "$rc"
 }
 
-# Reset: Stop teardown plus drop deadline and leftover STOP/reason. Preserve durable content.
+# Reset: Stop teardown plus drop deadline, leftover STOP/reason, and tonight's shift policy.
+# shift-defaults.json (remembered convenience) and rules.json (permanent boundaries) survive a
+# reset exactly like the punch list and parking lot do.
 ns_control_reset() { # <host-path>
   local host="$1" rc=0
+  ns_control_resolve "$host" || return $?
+  if [ -e "$NS_CONTROL_NS/provision-transaction.json" ] || [ -L "$NS_CONTROL_NS/provision-transaction.json" ]; then
+    printf 'reset-shift: refuse while provision-transaction.json is open; run provision recover or rollback first\n' >&2
+    return 1
+  fi
   ns_control_stop "$host" "reset by owner" || {
     rc=$?
     [ "$rc" -eq 2 ] || return "$rc"
   }
+  ns_control_drop_runtime_markers "$NS_CONTROL_NS"
   ns_control_drop "$NS_CONTROL_NS/STOP"
   ns_control_drop "$NS_CONTROL_NS/deadline"
   ns_control_drop "$NS_CONTROL_NS/.watch-reason"
-  ns_control_log "$NS_CONTROL_NS" "reset by owner — runtime markers and deadline cleared"
+  ns_control_drop "$NS_CONTROL_NS/shift-policy.json"
+  ns_control_log "$NS_CONTROL_NS" "reset by owner — runtime markers, deadline, and shift policy cleared"
   printf 'reset %s\n' "$NS_CONTROL_NS"
   printf 'deadline removed\n'
   return "$rc"

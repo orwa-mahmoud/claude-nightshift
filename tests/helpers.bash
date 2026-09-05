@@ -83,6 +83,15 @@ hardhat_bash() {
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
 }
 
+# hardhat_sid_bash <project> <session-id> <command> [ENV=VAL ...]
+hardhat_sid_bash() {
+  local p="$1" sid="$2" c="$3"
+  shift 3
+  jq -nc --arg sid "$sid" --arg c "$c" \
+    '{tool_name:"Bash",session_id:$sid,tool_input:{command:$c}}' |
+    env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
+}
+
 # hardhat_bash_cwd <project> <cwd> <command> [ENV=VAL ...]
 hardhat_bash_cwd() {
   local p="$1" w="$2" c="$3"
@@ -99,6 +108,55 @@ hardhat_ask() {
     env "$@" CLAUDE_PROJECT_DIR="$p" bash "$HOOKS/hardhat.sh"
 }
 
+# ---------------------------------------------------------------------------------------------
+# Shift-ownership fixtures. The conversation record and the process lease are line-oriented
+# files the runtime reads by position, so a test that plants one states every line. These write
+# the file directly — a fixture must be able to describe states the write helpers refuse.
+
+# session_record <project> <sid> <transcript> <pid> <start> <host>
+session_record() {
+  local f="$1/.nightshift/.shift-session"
+  printf '%s\n%s\n%s\n%s\n%s\n' "$2" "$3" "$4" "$5" "$6" >"$f"
+  chmod 600 "$f"
+}
+
+# lease_record <project> <sid> <host> <generation> <nonce> <pid> <start>
+lease_record() {
+  local f="$1/.nightshift/.shift-lease"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n' "$2" "$3" "$4" "$5" "$6" "$7" >"$f"
+  chmod 600 "$f"
+}
+
+lease_scope()      { sed -n 1p "$1/.nightshift/.shift-lease"; }
+lease_generation() { sed -n 3p "$1/.nightshift/.shift-lease"; }
+lease_nonce()      { sed -n 4p "$1/.nightshift/.shift-lease"; }
+lease_holder_pid() { sed -n 5p "$1/.nightshift/.shift-lease"; }
+
+# process_start <pid> — the start-time line the runtime pairs with a pid, in its own format.
+process_start() {
+  ps -o lstart= -p "$1" 2>/dev/null | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
+}
+
+# reaped_pid — a pid whose process has exited and been waited for: provably dead.
+reaped_pid() {
+  local pid
+  bash -c ':' &
+  pid=$!
+  wait "$pid" 2>/dev/null || true
+  printf '%s' "$pid"
+}
+
+# reclaim_log_count <project> [old-generation new-generation]
+# How many times the shift log records a lease reclaim: any reclaim with no generations given,
+# or the exact sentence for that one transition when both are.
+reclaim_log_count() {
+  local log="$1/.nightshift/shift-log.md"
+  local needle='lease reclaimed by the recorded conversation after a dead recovery attempt'
+  [ -f "$log" ] || { printf '0'; return 0; }
+  if [ "$#" -eq 3 ]; then needle="$needle (generation $2 → $3)"; fi
+  grep -cF "$needle" "$log" || true
+}
+
 is_block() { printf '%s' "$1" | grep -q '"decision":"block"' && printf '%s' "$1" | jq -e . >/dev/null; }
 is_deny() { printf '%s' "$1" | grep -q '"permissionDecision":"deny"' && printf '%s' "$1" | jq -e . >/dev/null; }
 
@@ -108,3 +166,67 @@ is_deny() { printf '%s' "$1" | grep -q '"permissionDecision":"deny"' && printf '
 # assertion at all. These read bats' own $status/$output, so call them with no arguments.
 is_allow() { [ "$status" -eq 0 ] && [ -z "$output" ]; }
 is_release() { [ "$status" -eq 0 ] && [ -z "$output" ]; }
+
+# ---------------------------------------------------------------------------------------------
+# Engine-parity helpers, shared by any suite comparing a native (bash/PowerShell) reimplementation
+# against the Python reference: building a controlled, minimal PATH of symlinks to real tools so
+# a script can be run against an exact, known toolset (with or without jq/python3) and compared
+# byte-for-byte across engines. A test file that uses these sets its own `PWSH_BIN` (empty when no
+# pwsh binary exists on the real PATH) before relying on `have_pwsh`.
+
+have_pwsh() { [ -n "$PWSH_BIN" ]; }
+
+# controlled_bin <dir-name> — makes and echoes an empty $BATS_TEST_TMPDIR/<dir-name> for a
+# test to drop fake executables into.
+controlled_bin() {
+  local d="$BATS_TEST_TMPDIR/$1"
+  mkdir -p "$d"
+  printf '%s' "$d"
+}
+
+# fake_exe <dir> <name> <script-line...> — writes an executable POSIX shell script.
+fake_exe() {
+  local dir="$1" name="$2"
+  shift 2
+  {
+    printf '#!/bin/sh\n'
+    printf '%s\n' "$@"
+  } >"$dir/$name"
+  chmod +x "$dir/$name"
+}
+
+# resolve_tool_path <tool> — prints an absolute path for <tool>. Bypasses any shell function
+# or alias of the same name in the calling shell (a wrapped `grep`/`find`, say) so it can never
+# leak into a fixture's controlled PATH, and falls back to /bin or /usr/bin for builtins like
+# `test`, `printf`, `true`, `false` that `command -v` reports by bare name only.
+resolve_tool_path() {
+  local tool="$1" real cand
+  real="$(unset -f "$tool" 2>/dev/null; command -v "$tool" 2>/dev/null)"
+  case "$real" in
+  */*)
+    printf '%s' "$real"
+    return 0
+    ;;
+  esac
+  for cand in "/bin/$tool" "/usr/bin/$tool"; do
+    if [ -x "$cand" ]; then
+      printf '%s' "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# build_toolset_bin <dir-name> <tool...> — makes $BATS_TEST_TMPDIR/<dir-name> containing a
+# symlink to each named tool's real, resolved location. Echoes the dir path.
+build_toolset_bin() {
+  local d tool real
+  d="$BATS_TEST_TMPDIR/$1"
+  shift
+  mkdir -p "$d"
+  for tool in "$@"; do
+    real="$(resolve_tool_path "$tool")" || { echo "test host is missing required tool: $tool" >&2; return 1; }
+    ln -s "$real" "$d/$tool"
+  done
+  printf '%s' "$d"
+}

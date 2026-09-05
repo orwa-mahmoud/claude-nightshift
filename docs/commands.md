@@ -10,7 +10,7 @@
 /nightshift:start      # asks nothing: cuts what is queued, arms the site, works the list
 /nightshift:status     # morning: what got done, what got parked, what got stuck
 /nightshift:doctor     # diagnose the site: facts, warnings, classified next actions; never repairs
-                       # optional follow-up: export a redacted local support bundle (never uploaded)
+                       # optional follow-up: export a local support bundle (never uploaded)
 /nightshift:stop       # pause now; open boxes stay open; deadline is preserved
 /nightshift:reset      # drop runtime markers and the deadline; keep punch list and history
 /nightshift:purge      # delete this project's .nightshift/; does not uninstall the plugin
@@ -18,8 +18,17 @@
 # you review the local commits or artifact receipts — push only in repository mode, or forbid pushing outright (one env line below)
 ```
 
+Start asks nothing. It runs one native preflight —
+`plugins/nightshift/runtime/start-preflight.sh`, or
+`plugins\nightshift\runtime\windows\start-preflight.ps1` on native Windows — which prints one
+verdict per line (`ok`, `warn`, `refuse`) and exits non-zero when the site must not arm. Those
+sentences are identical on every host, so a scheduled run behaves like an interactive one. Detail
+behind a host-specific verdict is in
+[`start-hosts.md`](../plugins/nightshift/skills/nightshift/references/start-hosts.md).
+
 Quality uses the same Guided or Automatic selection and Review first or Run directly launch modes
-as Hunt. Copyable owner requests for each combination are in [Shift modes](shift-modes.md). A review-first survey is read-only until the owner chooses what happens next: **fix now**
+as Hunt. Both compose in the skill; the model plans. Copyable owner requests for each combination
+are in [Shift modes](shift-modes.md). A review-first survey is read-only until the owner chooses what happens next: **fix now**
 appends a Hunt work order then cuts and starts it, **draft for later** writes only to the drafting
 table, and **ignore** writes nothing. Run directly composes that same work order, arms, and starts
 the selected work without a second approval pause.
@@ -80,9 +89,9 @@ plugins\nightshift\runtime\windows\purge-workspace.ps1 -Project C:\absolute\task
   -ConfirmPath C:\absolute\workspace\.nightshift
 ```
 
-Stop pauses and disarms immediately: hooks become inert, the watchman is killed only when
-verified, the lease is released, and the deadline is preserved. Reset does that teardown and also
-removes the deadline and leftover STOP. Purge does Reset, then deletes only that project's
+Stop writes `STOP` and stands a verified watchman down. Hardhat stays until clock-out writes
+`.nightshift/.ended`; Reset is the manual escape. The deadline is preserved. Reset also removes runtime
+markers, the deadline, and leftover STOP. Purge does Reset, then deletes only that project's
 `.nightshift/` after an exact `--confirm-path` match. None of them uninstall the plugin.
 
 A panic `touch .nightshift/STOP` (POSIX) or `New-Item -ItemType File -Force .nightshift\STOP`
@@ -105,7 +114,8 @@ In artifact mode it also reports `artifact receipts N`, `latest artifact receipt
 filename of the most recently written receipt when any exist, and warns `artifact mode has ticked items but no receipts` when boxes
 were ticked without `write-receipt`. It warns `artifact receipts path is not a usable directory` when that path exists but is not a usable directory, and offers a confirm action to replace it rather than write-receipt. Start, Hunt, Quality, and Schedule refuse when that path is unusable rather than begin a notes-folder night that cannot land receipts.
 
-A redacted local support bundle from a terminal (never uploaded):
+A local support bundle from a terminal (never uploaded). Known sensitive fields
+are omitted:
 
 ```bash
 plugins/nightshift/runtime/export-support.sh --project .

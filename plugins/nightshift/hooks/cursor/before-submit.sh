@@ -18,7 +18,10 @@ PUNCH="$NS/punch-list.md"
 
 [ -f "$NS/.shift-armed" ] && [ -f "$PUNCH" ] || exit 0
 { [ -f "$NS/.ended" ] && [ ! -L "$NS/.ended" ]; } && exit 0
-[ "$(ns_open_boxes "$PUNCH")" -gt 0 ] || exit 0
+# A count that fails is not a verdict. An unreadable punch list is not proof the work is
+# done, so the pointer still stands — the same reading the clock-out gate takes.
+OPEN="$(ns_open_boxes "$PUNCH")" || OPEN=1
+[ "$OPEN" -gt 0 ] || exit 0
 
 if ns_cursor_stale_origin "$NS" "$SID"; then
   if ns_cursor_stop_request "${CURSOR_PROMPT:-}"; then

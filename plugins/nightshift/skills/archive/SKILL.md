@@ -11,19 +11,15 @@ shift work, never ticks a box, never touches the contract.
 decisions plus the default chosen so work continues; `work-orders.md` → timed catalog work composed
 only through Hunt. Archive each by its own lifecycle; never reclassify one as another.
 
-Resolve the host-opened project folder to an absolute `$TASK_ROOT`: use `${CLAUDE_PROJECT_DIR}` on
-Claude Code; on Codex honor Nightshift's `${CODEX_PROJECT_DIR}` recovery override when present,
-otherwise capture `pwd -P` before any other shell call. Resolve `$TASK_ROOT/.nightshift-link` when
-present and call the validated absolute target `$NIGHTSHIFT_WORKSPACE`; otherwise set
-`NIGHTSHIFT_WORKSPACE="$TASK_ROOT"`.
-
-Bind the Nightshift directory once: `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"`. On native Windows,
-`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`. After this bind, Nightshift files are
-`$NS/<name>` for every read, write, and shell command. Catalog and owner-facing prose may use the
-short names (`punch-list.md`, `parking-lot.md`, `STOP`). Never re-resolve. Helpers that take
-`--project` or `-Project` still receive `"$NIGHTSHIFT_WORKSPACE"`.
-Never search or guess. The shell's working directory persists
-between Bash calls, so never use a bare path.
+Bind once, then never search, guess, or re-resolve. `$TASK_ROOT` is the host-opened project
+folder: `${CLAUDE_PROJECT_DIR}` on Claude Code; on Codex the `CODEX_PROJECT_DIR` recovery override
+when Nightshift set it, otherwise `pwd -P` captured before any other shell call.
+`$NIGHTSHIFT_WORKSPACE` is the validated absolute target of `$TASK_ROOT/.nightshift-link` when that
+link exists, otherwise `$TASK_ROOT`. Then `NS="$NIGHTSHIFT_WORKSPACE/.nightshift"` (native Windows:
+`$NS = Join-Path $NIGHTSHIFT_WORKSPACE '.nightshift'`), and every Nightshift file is `$NS/<name>`
+for the rest of the run; helpers taking `--project` or `-Project` receive
+`"$NIGHTSHIFT_WORKSPACE"`. The shell's working directory persists between calls, so a bare path is
+never safe.
 
 Resolve the installed plugin root to an absolute `$NIGHTSHIFT_PLUGIN_ROOT`: use
 `${CLAUDE_PLUGIN_ROOT}` on Claude Code; on Codex use `$PLUGIN_ROOT` when available, otherwise derive
@@ -136,6 +132,16 @@ are old enough, resolved under `$NS/`, not symlinks, and free of still-open work
 Never call `retain-history.sh` or `retain-history.ps1` from start, hooks, status, Doctor, or recovery. Never call `archive-receipts.sh` or `archive-receipts.ps1` from start, hooks, status, Doctor, or recovery. Never delete
 the live punch list, drafting table, parking lot, rules, current shift files, or owner-authored
 files.
+
+## Index
+
+After filing, write a lightweight private index of archived shifts for later comparison
+using the history-context template in
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md`.
+The index lists each archived shift's objective, contracts, host, work target, outcome, evidence
+locators, verification, commits or artifacts, duration, and ending. Corrupt or missing fields are
+recorded — never invented. Compare prior shifts from that index to reuse evidence locators and
+plans only; never replay side effects. Render audience-specific handoffs from one evidence truth.
 
 ## Summarize
 

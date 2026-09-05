@@ -94,7 +94,9 @@ planted_repo() {
   run bash "$DOCTOR" --project "$p"
   [ "$status" -eq 0 ]
   printf '%s' "$output" | grep -qF 'work target could not be resolved; treating workspace as the code root'
-  ! printf '%s' "$output" | grep -qF "work target $planted"
+  if printf '%s' "$output" | grep -qF "work target $planted"; then
+    return 1
+  fi
 }
 
 @test "unstored resolve skips a symlink child git repository" {
@@ -124,4 +126,14 @@ planted_repo() {
   run bash -c '. "$1"; repo_root "$2"' _ "$LIB" "$w"
   [ "$status" -eq 0 ]
   [ "$output" = "$planted" ]
+}
+
+@test "a persisted work-target still resolves after a Windows CRLF write" {
+  p="$(new_project target-crlf)"
+  expected="$(git -C "$p" rev-parse --show-toplevel)"
+  printf '%s\r\n' "$expected" >"$p/.nightshift/work-target"
+  printf 'repository\r\n' >"$p/.nightshift/work-mode"
+  run resolve_target "$p"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
 }

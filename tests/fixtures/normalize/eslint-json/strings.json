@@ -1,0 +1,28 @@
+[
+  {
+    "filePath": "src/app.js",
+    "messages": [
+      {
+        "ruleId": "no-unused-vars",
+        "severity": "2",
+        "message": "'config' is assigned a value but never used.",
+        "line": 12,
+        "column": 7
+      },
+      {
+        "ruleId": "eqeqeq",
+        "severity": "1",
+        "message": "Expected '===' and instead saw '=='.",
+        "line": 48,
+        "column": 12
+      },
+      {
+        "ruleId": "no-console",
+        "severity": 0,
+        "message": "Unexpected console statement.",
+        "line": 3,
+        "column": 5
+      }
+    ]
+  }
+]

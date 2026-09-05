@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "kind": "connected-export",
+  "evidenceMode": "connected",
+  "generatedAt": "2026-09-02T12:10:00Z",
+  "searchConsole": {
+    "source": "file:search-console-export.json",
+    "format": "json",
+    "period": {
+      "start": "2026-08-01",
+      "end": "2026-08-31"
+    },
+    "property": "https://docs.example.test/",
+    "rows": [
+      {
+        "query": "acme docs install",
+        "page": "https://docs.example.test/guides/install",
+        "clicks": 842,
+        "impressions": 12400,
+        "ctr": 0.0679,
+        "position": 4.2,
+        "device": "mobile",
+        "country": "usa",
+        "searchAppearance": "rich result"
+      },
+      {
+        "query": "seo audit checklist",
+        "page": "https://docs.example.test/guides/seo-audit",
+        "clicks": 310,
+        "impressions": 8900,
+        "ctr": 0.0348,
+        "position": 8.7,
+        "device": "desktop",
+        "country": "gbr",
+        "searchAppearance": "standard"
+      },
+      {
+        "query": "seo audit checklist",
+        "page": "https://docs.example.test/guides/seo-audit-checklist",
+        "clicks": 95,
+        "impressions": 4100,
+        "ctr": 0.0232,
+        "position": 11.4,
+        "device": "desktop",
+        "country": "gbr",
+        "searchAppearance": "standard"
+      },
+      {
+        "query": "acme release notes",
+        "page": "https://docs.example.test/blog/release-notes",
+        "clicks": 128,
+        "impressions": 2200,
+        "ctr": 0.0582,
+        "position": 6.1,
+        "device": "tablet",
+        "country": "deu",
+        "searchAppearance": "standard"
+      }
+    ]
+  },
+  "analytics": {
+    "source": "file:analytics-export.csv",
+    "format": "csv",
+    "period": {
+      "start": "2026-08-01",
+      "end": "2026-08-31"
+    },
+    "property": "docs.example.test",
+    "rows": [
+      {
+        "page": "/guides/install",
+        "sessions": 1120,
+        "users": 980,
+        "engagementRate": 0.71,
+        "device": "mobile",
+        "country": "United States"
+      },
+      {
+        "page": "/guides/seo-audit",
+        "sessions": 540,
+        "users": 505,
+        "engagementRate": 0.63,
+        "device": "desktop",
+        "country": "United Kingdom"
+      },
+      {
+        "page": "/guides/seo-audit-checklist",
+        "sessions": 210,
+        "users": 198,
+        "engagementRate": 0.58,
+        "device": "desktop",
+        "country": "United Kingdom"
+      },
+      {
+        "page": "/blog/release-notes",
+        "sessions": 180,
+        "users": 165,
+        "engagementRate": 0.66,
+        "device": "tablet",
+        "country": "Germany"
+      }
+    ]
+  },
+  "periodComparison": {
+    "current": {
+      "start": "2026-08-01",
+      "end": "2026-08-31"
+    },
+    "previous": {
+      "start": "2026-07-01",
+      "end": "2026-07-31"
+    },
+    "deltas": [
+      {
+        "metric": "search-console.clicks",
+        "current": 1375,
+        "previous": 1190,
+        "changePct": 15.5,
+        "source": "search-console"
+      },
+      {
+        "metric": "search-console.impressions",
+        "current": 27600,
+        "previous": 25100,
+        "changePct": 10.0,
+        "source": "search-console"
+      },
+      {
+        "metric": "analytics.sessions",
+        "current": 2050,
+        "previous": 1980,
+        "changePct": 3.5,
+        "source": "analytics"
+      },
+      {
+        "metric": "analytics.engagementRate",
+        "current": 0.645,
+        "previous": 0.612,
+        "changePct": 5.4,
+        "source": "analytics"
+      }
+    ]
+  },
+  "segmentation": {
+    "dimensions": ["query", "page", "device", "country", "searchAppearance"],
+    "highlights": [
+      {
+        "dimension": "query",
+        "segment": "seo audit checklist",
+        "metric": "clicks",
+        "value": 405,
+        "source": "search-console"
+      },
+      {
+        "dimension": "page",
+        "segment": "/guides/install",
+        "metric": "sessions",
+        "value": 1120,
+        "source": "analytics"
+      },
+      {
+        "dimension": "device",
+        "segment": "mobile",
+        "metric": "clicks",
+        "value": 842,
+        "source": "search-console"
+      },
+      {
+        "dimension": "country",
+        "segment": "gbr",
+        "metric": "impressions",
+        "value": 13000,
+        "source": "search-console"
+      },
+      {
+        "dimension": "searchAppearance",
+        "segment": "rich result",
+        "metric": "ctr",
+        "value": 0.0679,
+        "source": "search-console"
+      }
+    ]
+  },
+  "metricsDisclaimer": {
+    "clicksNotSessions": true,
+    "text": "Search Console clicks and analytics sessions measure different things. Never equate them or infer rankings from session counts alone."
+  },
+  "notMeasured": [
+    {
+      "surface": "live-crawl",
+      "reason": "Connected mode uses owner-supplied exports only; no crawl was run in this fixture."
+    },
+    {
+      "surface": "backlinks",
+      "reason": "No backlink export was supplied."
+    },
+    {
+      "surface": "field-performance",
+      "reason": "No CrUX export was supplied."
+    }
+  ]
+}

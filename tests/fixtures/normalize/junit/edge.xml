@@ -1,0 +1,1 @@
+<testsuite name="pytest" tests="3" failures="0" errors="0" skipped="0" time="0.412"><testcase classname="tests.test_api" name="test_health" time="0.010"/><testcase classname="tests.test_api" name="test_index" time="0.121"/><testcase classname="tests.test_api" name="test_search" time="0.281"/></testsuite>

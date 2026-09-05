@@ -40,6 +40,7 @@ Start can enforce the deadline after Hunt moves the item away from its catalog h
 
 **2. Discovery — how the work is found.** Name the mechanism: the project's own gate commands, a
 scan of a directory, a rotating set of lenses. "Look for problems" is not a discovery method.
+Do not require a `.py` helper. The model writes receipts from `receipt-templates.md`.
 
 **3. Definition of done.** What ends the shift, precisely. *"A full scan reports nothing new"* is
 testable. *"The code is better"* is not.

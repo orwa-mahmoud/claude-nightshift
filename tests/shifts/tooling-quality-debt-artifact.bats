@@ -5,6 +5,7 @@ COMMANDS="$BATS_TEST_DIRNAME/../../docs/commands.md"
 HOW="$BATS_TEST_DIRNAME/../../docs/how-it-works.md"
 SHIFT_MODES="$BATS_TEST_DIRNAME/../../docs/shift-modes.md"
 SHIFTS="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references/shifts"
+CLEAR="$SHIFTS/clear-quality-debt.md"
 
 @test "tooling quality-debt entries are skipped in artifact mode" {
   for name in flaky-test-repair ci-warning-cleanup vulnerability-sweep \
@@ -24,4 +25,11 @@ SHIFTS="$BATS_TEST_DIRNAME/../../plugins/nightshift/skills/nightshift/references
   grep -qi 'skips tooling quality-debt entries in artifact mode' "$COMMANDS"
   grep -qi 'skips tooling quality-debt entries in artifact mode' "$HOW"
   grep -qF 'Tooling quality-debt entries are skipped in artifact mode' "$SHIFT_MODES"
+}
+
+@test "artifact quality uses source-policy receipts without git tooling" {
+  grep -qF 'receipt-templates.md' "$CLEAR"
+  grep -qF 'git init' "$CLEAR"
+  grep -qi 'artifact mode' "$CLEAR"
+  grep -qi 'untrusted' "$CLEAR"
 }

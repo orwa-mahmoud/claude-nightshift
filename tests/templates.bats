@@ -72,6 +72,7 @@ OPEN_BOX='^[[:space:]]*-[[:space:]]*\[[[:space:]]\]'
   done
   jq -e '.toolDeny.AskUserQuestion | length > 0' "$t" >/dev/null
   jq -e '.toolDeny.request_user_input | length > 0' "$t" >/dev/null
+  jq -e '.toolDeny.AskQuestion | length > 0' "$t" >/dev/null
   jq -r '.freshRevivalPrompt' "$t" | grep -qF 'commit or artifact receipt'
   jq -r '.clockOutMessage' "$t" | grep -qF '.nightshift/receipts/'
 }

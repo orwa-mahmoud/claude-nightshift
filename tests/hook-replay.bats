@@ -123,3 +123,31 @@ assert_expect() { # expect  (reads $status/$output)
   run replay "$p" codex-stop "$FIX/codex/stop-valid.json"
   assert_expect codex-release
 }
+
+# Disarm is total, through the real wire format: a lease left behind by a recovery attempt is
+# not a rule, and an unarmed site applies none of them on either host.
+@test "the fixture corpus passes every rule once the shift is disarmed" {
+  p="$(new_project)"
+  punch_open "$p"
+  session_record "$p" fixture-session "" "" "" claude
+  lease_record "$p" fixture-session claude 2 claude.2.4711.8.9 4711 ""
+  rm "$p/.nightshift/.shift-armed"
+  for f in bash-forbidden bash-reordered ask-valid; do
+    run replay "$p" claude-hardhat "$FIX/claude/$f.json"
+    assert_expect claude-allow || { echo "rule applied to a disarmed site: $f -> $output"; return 1; }
+  done
+  run replay "$p" claude-stop "$FIX/claude/stop-valid.json"
+  assert_expect claude-allow
+
+  c="$(new_project codex-disarmed)"
+  punch_open "$c"
+  session_record "$c" fixture-session "" "" "" codex
+  lease_record "$c" fixture-session codex 2 codex.2.4711.8.9 4711 ""
+  rm "$c/.nightshift/.shift-armed"
+  for f in bash-forbidden ask-valid; do
+    run replay "$c" codex-hardhat "$FIX/codex/$f.json"
+    assert_expect claude-allow || { echo "rule applied to a disarmed site: $f -> $output"; return 1; }
+  done
+  run replay "$c" codex-stop "$FIX/codex/stop-valid.json"
+  assert_expect codex-release
+}

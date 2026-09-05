@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "stage": "half-way",
+  "capabilityId": "fixture-recover",
+  "baseline": {},
+  "touched": [],
+  "failed": false
+}

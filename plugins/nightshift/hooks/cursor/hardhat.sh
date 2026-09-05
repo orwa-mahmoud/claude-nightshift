@@ -4,13 +4,18 @@
 #
 # Every rule is shift-scoped and read from the owner's .nightshift/rules.json. toolDeny
 # uses exact Cursor tool names: a non-empty message denies, an empty message allows, and
-# an unlisted optional tool is allowed. request_user_input and its AskUserQuestion
-# compatibility alias are explicit entries so neither gets a hidden fallback:
+# an unlisted optional tool is allowed. AskQuestion is Cursor's native question tool;
+# request_user_input and AskUserQuestion are explicit entries so none gets a hidden fallback:
 #   protectedDirs        space/pipe-separated dir names never to git add/commit/tag/remote
 #   expectedEmail        commits must be authored by this identity
 #   neverCommitPatterns  staged diff (git diff --cached) must not match this grep -E pattern
 #   forbiddenCommands    deny any command matching this grep -E pattern during a shift
 #                        (the no-push recipe: set it to 'git .*push')
+#   elevation            per-category policy and grep -E pattern for the five categories that
+#                        create system state (sudo, containers, global-packages, daemons,
+#                        external-services); denied by default, lifted by the owner in
+#                        rules.json or for one shift in shift-policy.json. Hardhat is
+#                        hardening, not a sandbox.
 # An env var of the matching NIGHTSHIFT_ name overrides the file for the session; the file
 # itself is guarded during a shift, so only the owner sets or lifts a rule.
 #
@@ -100,7 +105,7 @@ own_rc=$?
 [ "$own_rc" -eq 2 ] && deny "$NS_SHIFT_FAIL"
 if ! ns_session_present "$NS" && [ -n "${SID:-}" ]; then
   case "$TOOL" in
-    Shell | Bash | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
+    Shell | Bash | AskQuestion | AskUserQuestion | request_user_input | apply_patch | Edit | Write)
       ns_session_claim "$NS" "$SID" "${TPATH:-}" "" "" cursor || true
       ;;
   esac
@@ -134,9 +139,6 @@ own_rc=$?
 # observable PreToolUse call here; hosted tools that Codex does not expose remain outside it.
 TOOL_RULES="$(ns_tool_rules "$PROJECT_DIR" "${NIGHTSHIFT_TOOL_RULES:-}")"
 if ns_hardhat_tool_deny_broken; then
-  if [ "$TOOL_RULES" = "__nightshift_tool_rules_parser_missing__" ]; then
-    deny "BLOCKED: toolDeny cannot be read exactly because neither jq nor python3 is available. Install one parser before running an armed shift."
-  fi
   deny "BLOCKED: the toolDeny rules are not a JSON object, so the tool rules cannot run. Fix .nightshift/rules.json or run Setup again (/nightshift:setup on Claude Code; ask Nightshift to set up on Codex or Cursor)."
 fi
 
@@ -146,9 +148,14 @@ if ns_hardhat_payload_targets_rules "$TOOL" "$CURSOR_RAW" "$CMD"; then
   deny "BLOCKED: the rules file is the owner's — the night neither reads nor rewrites its own rules. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 if ns_hardhat_payload_targets_control "$TOOL" "$CURSOR_RAW" "$CMD"; then
-  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, or work-mode, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
+  deny "BLOCKED: shift control files are owner-owned while the night is armed. Do not delete or forge .shift-armed, .ended, STOP, .shift-session, work-target, work-mode, shift-policy.json, shift-defaults.json, or deadline, and do not delete the punch list. Park the need in .nightshift/parking-lot.md and keep working."
 fi
 
+if [ "$TOOL" = "AskQuestion" ] \
+  || { [ -z "$TOOL" ] && cursor_input_mentions_tool "AskQuestion"; }; then
+  if m="$(ns_hardhat_required_tool_deny_reason AskQuestion)"; then deny "$m"; fi
+  exit 0 # a permitted question is not a command; the command guards have no business with it
+fi
 if [ "$TOOL" = "request_user_input" ] \
   || { [ -z "$TOOL" ] && cursor_input_mentions_tool "request_user_input"; }; then
   if m="$(ns_hardhat_required_tool_deny_reason request_user_input)"; then deny "$m"; fi

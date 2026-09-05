@@ -82,6 +82,9 @@ if [ ! -d "$NS" ]; then
   emit "Facts"
   printf '%s\n' "${FACTS:-none}"
   emit ""
+  emit "resolved policy"
+  emit "none"
+  emit ""
   emit "Warnings"
   printf '%s\n' "${WARNS:-none}"
   emit ""
@@ -131,6 +134,42 @@ else
   fi
 fi
 
+# The one resolver renders the one view: every effective setting, where it came from, and when
+# it expires. Doctor reads it and never re-derives precedence — same order and wording as the
+# PowerShell Doctor, so both hosts print the same lines.
+POLICY_LINES=""
+POLICY_OUT="$(ns_policy_read_shift "$WORKSPACE")"
+POLICY_RC=$?
+if [ "$POLICY_RC" -eq 2 ]; then
+  warn "shift-policy.json is malformed ($POLICY_OUT); the shift resolves to built-in defaults and rules only"
+  act confirm "repair the named field in shift-policy.json, or delete the file so the next Start writes safe defaults"
+fi
+if POLICY_LINES="$(ns_policy_resolve_table "$WORKSPACE" 2>/dev/null)"; then
+  :
+else
+  POLICY_LINES=""
+  warn "the shift policy could not be resolved; treat the shift as built-in defaults plus rules"
+fi
+# A provisioning transaction on disk means an install stopped mid-flight. The recovery helper
+# owns the reading and the proof; Doctor prints its one diagnosis line and never settles it.
+if [ -e "$NS/provision-transaction.json" ] || [ -L "$NS/provision-transaction.json" ]; then
+  PROVISION_TAB=$(printf '\t')
+  if PROVISION_LINE="$("$_here/provision-recover.sh" --project "$WORKSPACE" --diagnose 2>/dev/null)" &&
+    [ -n "$PROVISION_LINE" ]; then
+    PROVISION_KIND="${PROVISION_LINE%%"$PROVISION_TAB"*}"
+    PROVISION_TEXT="${PROVISION_LINE#*"$PROVISION_TAB"}"
+    if [ "$PROVISION_KIND" = provable ]; then
+      fact "$PROVISION_TEXT"
+    else
+      warn "$PROVISION_TEXT; Start will refuse to arm"
+      act confirm "inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again"
+    fi
+  else
+    warn "provision-transaction.json cannot be read; Start will refuse to arm"
+    act confirm "inspect .nightshift/provision-transaction.json and provision-baseline/, restore by hand or run provision.sh rollback after fixing the target, then Start again"
+  fi
+fi
+
 PUNCH="$NS/punch-list.md"
 OPEN=0
 TICKED=0
@@ -140,6 +179,16 @@ if [ -f "$PUNCH" ]; then
   fact "punch list open=$OPEN ticked=$TICKED"
 else
   warn "punch-list.md is missing"
+fi
+
+# Reports gaps between what open items need and what the resolver allows; it never refuses —
+# a gap is parked, not blocked.
+if ns_policy_json_tool >/dev/null 2>&1; then
+  PREFLIGHT_OUT="$("$_here/preflight-needs.sh" --project "$WORKSPACE" 2>/dev/null)" || PREFLIGHT_OUT=""
+  if [ -n "$PREFLIGHT_OUT" ]; then
+    fact "$(printf '%s\n' "$PREFLIGHT_OUT" | sed -n '1p')"
+    fact "$(printf '%s\n' "$PREFLIGHT_OUT" | tail -n1)"
+  fi
 fi
 
 if [ "$MODE" = artifact ]; then
@@ -217,6 +266,7 @@ esac
 [ -n "$STALL" ] && fact "stall count $STALL"
 
 DEADLINE="$NS/deadline"
+dl_raw=""
 if [ -L "$DEADLINE" ]; then
   warn "deadline path is not a usable file"
 elif [ ! -f "$DEADLINE" ]; then
@@ -232,7 +282,16 @@ else
     fi
   else
     warn "deadline is not a UNIX epoch — watchmen compare integer seconds"
+    dl_raw=""
   fi
+fi
+
+# shift-policy.json is authoritative for the deadline; the file is a derived projection. A
+# mismatch is tampering or a stale projection either way, so Doctor names both values.
+POLICY_DEADLINE="$(ns_policy_deadline_epoch "$WORKSPACE" 2>/dev/null)" || POLICY_DEADLINE=""
+if [ -n "$dl_raw" ] && [ -n "$POLICY_DEADLINE" ] && [ "$dl_raw" != "$POLICY_DEADLINE" ]; then
+  warn "deadline file $dl_raw does not match shift-policy deadlineEpoch $POLICY_DEADLINE; the gate honours the earlier value"
+  act confirm "synchronize the deadline projection with the policy before the next arm; Doctor rewrites neither"
 fi
 
 if [ "$ARMED" -eq 1 ] && [ "$OPEN" -eq 0 ] && [ "$ENDED" -eq 0 ]; then
@@ -262,39 +321,17 @@ if [ "$DRAFTS" -gt 0 ] && [ "$ARMED" -eq 0 ]; then
 fi
 
 json_is_object() {
-  if command -v jq >/dev/null 2>&1; then
-    jq -e 'type == "object"' "$1" >/dev/null 2>&1
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d, dict) else 1)' "$1" 2>/dev/null
-  else
-    return 1
-  fi
+  ns_rules_load "$1"
 }
 
 json_tool_rule_state() { # $1 = rules file, $2 = exact tool name
-  if command -v jq >/dev/null 2>&1; then
-    jq -r --arg tool "$2" '
-      if (.toolDeny | type) != "object" then "invalid"
-      elif (.toolDeny | has($tool) | not) then "missing"
-      elif (.toolDeny[$tool] | type) != "string" then "invalid"
-      elif .toolDeny[$tool] == "" then "allow"
-      else "deny"
-      end
-    ' "$1" 2>/dev/null
-  elif command -v python3 >/dev/null 2>&1; then
-    python3 -c 'import json,sys
-d=json.load(open(sys.argv[1])); rules=d.get("toolDeny"); tool=sys.argv[2]
-print("invalid" if not isinstance(rules,dict) else "missing" if tool not in rules else "invalid" if not isinstance(rules[tool],str) else "allow" if rules[tool]=="" else "deny")' "$1" "$2" 2>/dev/null
-  fi
+  ns_rules_tool_state "$1" "$2"
 }
 
 RULES="$NS/rules.json"
 if [ ! -f "$RULES" ]; then
   warn "rules.json is missing — watchman will refuse to arm"
   act confirm "re-run setup and accept the shipped rules template"
-elif ! command -v jq >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
-  warn "rules.json cannot be validated — neither jq nor python3 is available"
-  act blocked "install jq or python3 before arming; toolDeny never falls back to text matching"
 elif json_is_object "$RULES"; then
   fact "rules.json is a JSON object"
   wm="$(rule "$WORKSPACE" watchMinutes "")"
@@ -317,7 +354,7 @@ elif json_is_object "$RULES"; then
     warn "freshRevivalPrompt is empty — watchman will refuse to arm"
     act confirm "restore freshRevivalPrompt from the shipped template"
   fi
-  for tool in AskUserQuestion request_user_input; do
+  for tool in AskUserQuestion request_user_input AskQuestion; do
     tool_state="$(json_tool_rule_state "$RULES" "$tool")"
     case "$tool_state" in
       allow) fact "toolDeny.$tool explicitly allows the question tool" ;;
@@ -329,7 +366,11 @@ elif json_is_object "$RULES"; then
     esac
   done
 else
-  warn "rules.json is unreadable or not a JSON object"
+  if [ -n "$NS_RULES_ERR" ]; then
+    warn "rules.json is unreadable or not a JSON object ($NS_RULES_ERR)"
+  else
+    warn "rules.json is unreadable or not a JSON object"
+  fi
   act confirm "fix $NS/rules.json or re-run setup — never half-apply a broken file"
 fi
 
@@ -415,6 +456,12 @@ if [ -e "$NS/.shift-lease" ] || [ -L "$NS/.shift-lease" ]; then
     elif [ -n "$LEASE_NONCE" ] && [ -n "$LEASE_PID" ] && ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"; then
       fact "recovery worker is alive; the recorded conversation cannot reclaim yet"
       act confirm "wait until the recovery worker exits, or run $_here/stop-shift.sh --project $HOST; reopening the recorded conversation stays blocked while that worker holds the lease"
+    elif [ -n "$LEASE_NONCE" ] && [ -n "$LEASE_PID" ] && [ -n "$SID" ]; then
+      ns_recorded_process "$LEASE_PID" "$NS_LEASE_START"
+      rc=$?
+      if [ "$rc" -eq 1 ]; then
+        fact "lease held by a dead recovery attempt (generation $LEASE_GENERATION, pid $LEASE_PID); the recorded conversation reclaims it on its next tool call"
+      fi
     fi
   else
     LEASE_STATE="malformed"
@@ -458,9 +505,26 @@ if [ "$ARMED" -eq 1 ] && [ "$OPEN" -gt 0 ] && [ -z "$WPID" ] && [ "$WATCHMAN_UNU
   act confirm "re-run start so the host watchman is armed, or work the list in the live session"
 fi
 
+fact "evidence $(ns_evidence_counts "$WORKSPACE")"
+fact "liveness $(ns_status_liveness "$NS" "$(rule "$WORKSPACE" watchMinutes "${NIGHTSHIFT_WATCH:-}")")"
+activity="$(ns_status_last_activity "$NS")"
+if [ -n "$activity" ]; then
+  fact "last activity epoch $activity"
+else
+  fact "last activity none"
+fi
+fact "last checkpoint $(ns_status_last_checkpoint "$WORKSPACE")"
+fact "stall attempts $(ns_status_stall_attempts "$NS")"
+
+# capabilities.json is the tooling cache the shift keeps after a tooling commit lands.
+if [ -f "$NS/capabilities.json" ] && [ ! -L "$NS/capabilities.json" ] && command -v jq >/dev/null 2>&1; then
+  inv_n="$(jq '.items | length' "$NS/capabilities.json" 2>/dev/null || printf 0)"
+  fact "tooling cache items=$inv_n"
+fi
+
 [ -n "$TPATH" ] && [ ! -f "$TPATH" ] && warn "recorded transcript/rollout path is not a readable file"
 
-act confirm "export a redacted local support bundle with $_here/export-support.sh — written under $NS/support/, never uploaded"
+act confirm "export a local support bundle with $_here/export-support.sh — written under $NS/support/, never uploaded"
 act blocked "Doctor never repairs, arms, stops, revives, or deletes"
 
 emit "Nightshift Doctor"
@@ -475,6 +539,9 @@ emit "Armed:       $ARMED  Open: $OPEN  Ticked: $TICKED  STOP: $STOP  Ended: $EN
 emit ""
 emit "Facts"
 printf '%s\n' "${FACTS:-none}"
+emit ""
+emit "resolved policy"
+printf '%s\n' "${POLICY_LINES:-none}"
 emit ""
 emit "Warnings"
 printf '%s\n' "${WARNS:-none}"

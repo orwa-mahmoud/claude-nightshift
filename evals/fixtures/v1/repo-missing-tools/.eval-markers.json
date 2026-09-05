@@ -1,0 +1,6 @@
+{
+  "workMode": "repository",
+  "applicable": ["hunt", "quality", "defect-hunt"],
+  "notApplicable": ["coverage-hunt"],
+  "evidence": ["go-mod"]
+}

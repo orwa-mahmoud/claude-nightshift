@@ -40,15 +40,11 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
 
 # Imported issues carry review flags the helper enforces. A hand-edit of the two markdown files
 # would skip that, so empty-list Start must use the same promote path Hunt already names.
-@test "start cuts a proposed import through the promote helper" {
+@test "start cuts a proposed import in the skill" {
   grep -qF 'Status: proposed' "$START"
-  grep -qF 'runtime/import-issues.sh' "$START"
-  grep -qF -- '--promote' "$START"
-  grep -qF 'runtime\windows\import-issues.ps1' "$START"
-  grep -qF -- '-Promote' "$START"
-  grep -qF -- '--allow-flagged' "$START"
-  grep -qF -- '-AllowFlagged' "$START"
-  grep -qi 'never by editing the two markdown files by hand' "$START"
+  grep -qF 'drafting table' "$START"
+  grep -qi 'Do not require Python' "$START"
+  grep -qi 'flagged import stays refused' "$START"
 }
 
 # Hunt writes a heading plus hours plus the item. Cutting only the checkbox leaves an empty
@@ -140,6 +136,40 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'gate green at every commit or artifact receipt' "$HUNT"
 }
 
+@test "hunt Automatic treats a complete prompt as binding intent" {
+  grep -qF 'use the next 20 hours adding features and enhancing existing ones' "$HUNT"
+  grep -qF '8 hours clear lint and test debt' "$HUNT"
+  grep -qF 'Ask only a field that is still missing' "$HUNT"
+  if grep -qF 'shift-planner' "$HUNT"; then
+    return 1
+  fi
+  if grep -qF 'shift-preview' "$HUNT"; then
+    return 1
+  fi
+  if grep -qF 'python3' "$HUNT"; then
+    return 1
+  fi
+}
+
+@test "quality routes a feature objective to Hunt and drops Python compose" {
+  quality="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/quality/SKILL.md"
+  grep -qF 'continue as Hunt / Product Evolution' "$quality"
+  grep -qF 'Do not show Quality catalog cards' "$quality"
+  if grep -qF 'shift-planner' "$quality"; then
+    return 1
+  fi
+  if grep -qF 'shift-preview' "$quality"; then
+    return 1
+  fi
+  grep -qF 'unavailable' "$quality"
+  if grep -qF 'python3' "$quality"; then
+    return 1
+  fi
+  if grep -qF 'runtime/quality-workflow.sh' "$quality"; then
+    return 1
+  fi
+}
+
 @test "hunt separates selection mode from launch mode" {
   grep -qi 'Guided' "$HUNT"
   grep -qi 'Automatic' "$HUNT"
@@ -179,8 +209,9 @@ START="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/start/SKILL.md"
   grep -qF 'Refuse to compose, cut, or arm when the work target cannot be resolved' "$quality"
   grep -qi 'artifact mode' "$quality"
   grep -qF 'Do not `git init` a notes folder' "$quality"
-  grep -qi 'user or production impact' "$mode"
-  grep -qi 'strength of work-target evidence' "$mode"
+  grep -qi 'owner'\''s sentence is binding intent' "$mode"
+  grep -qi 'model is the planner' "$mode"
+  grep -qi 'do not hijack' "$mode"
   grep -qi 'Remove overlaps' "$mode"
   grep -qi 'Run finite entries first' "$mode"
   grep -qi 'at most one open-ended entry' "$mode"

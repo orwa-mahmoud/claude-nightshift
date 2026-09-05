@@ -3,7 +3,7 @@ STATUS="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/status/SKILL.md"
 DOCTOR="$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/doctor.sh"
 DOCTOR_SKILL="$BATS_TEST_DIRNAME/../plugins/nightshift/skills/doctor/SKILL.md"
 
-CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-wedge revived stand-down wrong-host deadline clean-session-end esc-standby silent-standby non-resumable-session unreadable-rules fresh-fallback unsupported-state process-evidence-unavailable clock-out-failed"
+CODES="completed owner-stop owner-disarm stale-pid invalid-session exhausted-retry unknown-wedge revived stand-down wrong-host deadline clean-session-end esc-standby silent-standby non-resumable-session unreadable-rules fresh-fallback unsupported-state process-evidence-unavailable clock-out-failed"
 
 @test "every shipped reason code has a stable label" {
   for c in $CODES; do
@@ -43,7 +43,9 @@ CODES="completed owner-stop stale-pid invalid-session exhausted-retry unknown-we
   mkdir -p "$ns"
   bash -c '. "$1"; ns_record_reason "$2" revived "$(printf "ok\tdetail\nextra")"' _ "$LIB" "$ns"
   [ "$(sed -n 1p "$ns/.watch-reason")" = "revived" ]
-  ! grep -q $'\t' "$ns/.watch-reason"
+  if grep -q $'\t' "$ns/.watch-reason"; then
+    return 1
+  fi
   bash -c '. "$1"; ns_record_reason "$2" not-a-real-code' _ "$LIB" "$ns"
   [ "$(sed -n 1p "$ns/.watch-reason")" = "stand-down" ]
 }

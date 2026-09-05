@@ -581,13 +581,13 @@ STUB
   [ -f "$p/.nightshift/.shift-lease" ]
 }
 
-@test "the Python payload fallback distinguishes commands from static commit messages" {
+@test "the payload decoder distinguishes commands from static commit messages" {
   p="$(new_project)"
   punch_open "$p"
   claude_bind "$p" shift-session
-  nojq="$BATS_TEST_TMPDIR/python-lease-parser"
+  nojq="$BATS_TEST_TMPDIR/mcp-lease-parser"
   mkdir -p "$nojq"
-  for tool in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git ln mv python3; do
+  for tool in bash grep sed cat printf env sh ps dirname head tail tr awk date mkdir rm cut wc sleep kill git ln mv jq; do
     command -v "$tool" >/dev/null && ln -sf "$(command -v "$tool")" "$nojq/$tool"
   done
 
@@ -611,7 +611,7 @@ STUB
   is_allow
 }
 
-@test "both payload decoders preserve trailing command newlines" {
+@test "the payload decoder preserves trailing command newlines" {
   # shellcheck source=plugins/nightshift/hooks/shared/hardhat-core.sh
   . "$HOOKS/shared/hardhat-core.sh"
   command=$'printf safe\n\n'
@@ -627,17 +627,16 @@ STUB
   [ "$status" -eq 1 ]
   cmp "$expected" "$captured"
 
-  nojq="$BATS_TEST_TMPDIR/trailing-python-parser"
-  mkdir -p "$nojq"
-  ln -sf "$(command -v bash)" "$nojq/bash"
-  ln -sf "$(command -v python3)" "$nojq/python3"
-  run env PATH="$nojq" CAPTURED_TARGET="$captured" bash -c '
+  # Without jq there is no general JSON reader, so an opaque payload fails closed.
+  noparser="$BATS_TEST_TMPDIR/trailing-no-parser"
+  mkdir -p "$noparser"
+  ln -sf "$(command -v bash)" "$noparser/bash"
+  run env PATH="$noparser" CAPTURED_TARGET="$captured" bash -c '
     . "$1"
     capture_target() { printf "%s" "$1" >"$CAPTURED_TARGET"; return 1; }
     ns_hardhat_payload_targets mcp__shell__run "$2" "" capture_target
   ' nightshift "$HOOKS/shared/hardhat-core.sh" "$payload"
-  [ "$status" -eq 1 ]
-  cmp "$expected" "$captured"
+  [ "$status" -eq 2 ]
 }
 
 @test "a recovered lease fails closed when a hook payload omits session identity" {
@@ -660,6 +659,20 @@ STUB
       CODEX_PROJECT_DIR="$1" bash "$2/codex/hardhat.sh"' \
     nightshift "$c" "$HOOKS"
   is_deny "$output"
+}
+
+@test "fence-check reads the on-disk lease and refuses when it is missing" {
+  p="$(new_project fence-missing)"
+  punch_open "$p"
+  run bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/continuity-handoff.sh" \
+    fence-check --project "$p"
+  [ "$status" -eq 2 ]
+  printf '%s' "$output" | jq -e '.takeoverAllowed == false' >/dev/null
+  take_lease "$p" shift-session claude >/dev/null
+  run bash "$BATS_TEST_DIRNAME/../plugins/nightshift/runtime/continuity-handoff.sh" \
+    fence-check --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '.takeoverAllowed == true and .priorOwnerFenced == true' >/dev/null
 }
 
 @test "normal completion and STOP release the process lease on both hosts" {
@@ -712,4 +725,126 @@ STUB
   [ -f "$c/.nightshift/.ended" ]
   [ ! -e "$c/.nightshift/.shift-armed" ]
   [ ! -e "$c/.nightshift/.shift-lease" ]
+}
+
+# ---- a recovery attempt that died owns nothing ----
+#
+# A watchman transfers the lease before it spawns, so a failed attempt leaves a foreign
+# generation, a foreign nonce, and the pid of a process that is gone. Nobody holds the site
+# then, and the conversation the record names has to be able to pick the shift back up. The
+# evidence is the pid and its start time — the same evidence Start uses.
+
+FOREIGN_NONCE=claude.2.4711.8.9
+
+@test "the recorded conversation reclaims a lease left by a dead recovery attempt" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" shift-session "" "$$" "$(process_start "$$")" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+
+  run claude_read "$p" shift-session
+  is_allow
+  [ "$(lease_scope "$p")" = "shift-session" ]
+  [ "$(lease_generation "$p")" = "3" ]
+  [ -z "$(lease_nonce "$p")" ]
+  [ "$(lease_holder_pid "$p")" = "$$" ]
+  [ "$(reclaim_log_count "$p" 2 3)" -eq 1 ]
+
+  # The fence lifts once. Every later call is an ordinary owned call, not another reclaim.
+  run claude_read "$p" shift-session
+  is_allow
+  [ "$(lease_generation "$p")" = "3" ]
+  [ "$(reclaim_log_count "$p")" -eq 1 ]
+}
+
+@test "a live recovery worker keeps the fence and keeps its own lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  sleep 300 &
+  holder=$!
+  session_record "$p" shift-session "" "$$" "$(process_start "$$")" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" "$holder" "$(process_start "$holder")"
+
+  run claude_read "$p" shift-session
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "being recovered in another process"
+  printf '%s' "$output" | grep -q "stays blocked"
+  [ "$(lease_generation "$p")" = "2" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+  [ "$(lease_holder_pid "$p")" = "$holder" ]
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+}
+
+@test "a dead recovery attempt is not reclaimable by a conversation the record no longer names" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" recovered-session "" "" "" claude
+  lease_record "$p" original-session claude 2 "$FOREIGN_NONCE" "$dead" ""
+
+  run claude_read "$p" original-session
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "continued in a recovered process"
+  [ "$(lease_scope "$p")" = "original-session" ]
+  [ "$(lease_generation "$p")" = "2" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+
+  run claude_read "$p" helper-session
+  is_allow
+}
+
+@test "a recovery attempt with no attached process keeps the fence" {
+  p="$(new_project)"
+  punch_open "$p"
+  claude_bind "$p" shift-session
+  take_lease "$p" shift-session claude >/dev/null
+
+  run claude_read "$p" shift-session
+  is_deny "$output"
+  printf '%s' "$output" | grep -q "continued in a recovered process"
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+}
+
+@test "a holder the host cannot classify keeps the fence rather than reading as dead" {
+  p="$(new_project)"
+  punch_open "$p"
+  session_record "$p" shift-session "" "" "" claude
+  lease_record "$p" shift-session claude 2 "$FOREIGN_NONCE" 4711 ""
+
+  # An EPERM or an unrecognised kill error is missing evidence, not death.
+  runner="$BATS_TEST_TMPDIR/unclassifiable-holder"
+  cat >"$runner" <<'RUNNER'
+#!/usr/bin/env bash
+set -u
+. "$1"
+ns_pid_alive() { return 3; }
+ns_lease_reclaim_recorded "$2/.nightshift" shift-session claude "$$" ""
+RUNNER
+  chmod +x "$runner"
+
+  run bash "$runner" "$LIB" "$p"
+  [ "$status" -eq 1 ]
+  [ "$(lease_generation "$p")" = "2" ]
+  [ "$(lease_nonce "$p")" = "$FOREIGN_NONCE" ]
+  [ "$(reclaim_log_count "$p")" -eq 0 ]
+}
+
+@test "Codex reclaims a dead recovery attempt without inventing process ancestry" {
+  p="$(new_project)"
+  punch_open "$p"
+  dead="$(reaped_pid)"
+  session_record "$p" shift-session "" "" "" codex
+  lease_record "$p" shift-session codex 4 codex.4.4711.8.9 "$dead" ""
+
+  run codex_read "$p" shift-session
+  is_allow
+  [ "$(lease_generation "$p")" = "5" ]
+  [ -z "$(lease_nonce "$p")" ]
+  [ -z "$(lease_holder_pid "$p")" ]
+  [ "$(reclaim_log_count "$p" 4 5)" -eq 1 ]
 }

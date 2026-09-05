@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Validate one JSON document against a local Draft-07 subset schema.
 
-Supports type, properties, additionalProperties, required, minimum, minLength,
-pattern, and patternProperties. Enough to test Nightshift's rules schema without
-an extra package. Exit 0 on success, 1 on validation or usage failure.
+Supports type, properties, additionalProperties, required, enum, items, minItems,
+minimum, maximum, minLength, maxLength, pattern, and patternProperties. Enough to
+test Nightshift's rules and eval schemas without an extra package. Exit 0 on
+success, 1 on validation or usage failure.
 """
 from __future__ import print_function
 
@@ -48,17 +49,35 @@ def validate(instance, schema, path="$"):
         ok = check_type(instance, expected, path) and ok
         if not ok:
             return False
+    if "enum" in schema:
+        if instance not in schema["enum"]:
+            ok = fail(path, "not in enum")
     if "minimum" in schema:
         if isinstance(instance, bool) or not isinstance(instance, (int, float)):
             return fail(path, "minimum requires a number")
         if instance < schema["minimum"]:
             ok = fail(path, "below minimum %s" % schema["minimum"])
+    if "maximum" in schema:
+        if isinstance(instance, bool) or not isinstance(instance, (int, float)):
+            return fail(path, "maximum requires a number")
+        if instance > schema["maximum"]:
+            ok = fail(path, "above maximum %s" % schema["maximum"])
     if "minLength" in schema and isinstance(instance, str):
         if len(instance) < schema["minLength"]:
             ok = fail(path, "shorter than minLength %s" % schema["minLength"])
+    if "maxLength" in schema and isinstance(instance, str):
+        if len(instance) > schema["maxLength"]:
+            ok = fail(path, "longer than maxLength %s" % schema["maxLength"])
     if "pattern" in schema and isinstance(instance, str):
         if re.search(schema["pattern"], instance) is None:
             ok = fail(path, "does not match %s" % schema["pattern"])
+    if isinstance(instance, list):
+        if "minItems" in schema and len(instance) < schema["minItems"]:
+            ok = fail(path, "fewer than minItems %s" % schema["minItems"])
+        item_schema = schema.get("items")
+        if isinstance(item_schema, dict):
+            for i, value in enumerate(instance):
+                ok = validate(value, item_schema, "%s[%s]" % (path, i)) and ok
     if isinstance(instance, dict):
         required = schema.get("required") or []
         for key in required:

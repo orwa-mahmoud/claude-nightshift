@@ -42,9 +42,11 @@ Bash. Once the workspace and work target are resolved, the bundled mechanical sc
 ```
 
 It copies only absent files, writes state version 1 for a new site, persists the work target and
-work mode (`-Mode repository` or `-Mode artifact`), and
-keeps `$NS/` private. It refuses a notes folder under default repository mode: `pass -Mode artifact for a notes folder that is not a Git repository`. The skill still owns every owner choice below; the script asks
-nothing and never invents gates, permissions, profiles, migration approval, or a receipts choice.
+work mode (`-Mode repository` or `-Mode artifact`), and keeps `$NS/` private. It refuses a notes
+folder under default repository mode: `pass -Mode artifact for a notes folder that is not a Git repository`.
+Read its output back rather than restating it. The skill still owns every owner choice below; the
+script asks nothing and never invents gates, permissions, profiles, migration approval, a receipts
+choice, or a tooling policy.
 
 If the user explicitly identifies a different existing workspace containing `.nightshift/`, show
 both absolute paths and ask for confirmation. On yes, run
@@ -189,6 +191,22 @@ The `## Gates` block is plain markdown the owner may edit anytime — run Setup 
 (`/nightshift:setup` on Claude Code, or ask Nightshift to set up on Codex) to re-detect after a
 stack change. The contract's immutability binds the agent, not the owner.
 
+**Project defaults — ask once.** Independent from gates. Ask one question covering the verification
+profile (`fast`, `balanced`, `strict`, or `custom`), typical hours, and tooling policy (existing
+tools only, review missing tools first, or automatically add standard development tools). Persist
+the answer with
+`"$NIGHTSHIFT_PLUGIN_ROOT/runtime/shift-policy.sh" --project "$NIGHTSHIFT_WORKSPACE" defaults-set --verificationProfile <name> --hours <n|null> --toolingPolicy <name> --execution review-first|run-direct`
+(native Windows: `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\shift-policy.ps1" -Project "$NIGHTSHIFT_WORKSPACE" defaults-set -VerificationProfile <name> -Hours <n|null> -ToolingPolicy <name> -Execution review-first|run-direct`).
+The helper writes `$NS/shift-defaults.json` and reports what it stored; never put the answer in
+the punch list. It only prefills the one question Hunt and Quality ask before composing — it
+decides nothing on its own, and either skill may change it for a single shift.
+
+- **Artifact** — do not ask. Persist `fast` and existing-tools only, without prompting. A notes
+ folder has no repository toolchain to add; repository-tool policies (`auto-add` and
+ `review-missing`) are invalid there.
+- **Repository** — ask the full question above (including review-first vs run-direct), then
+ persist the answer.
+
 ## 4. Permissions — the night cannot click Allow
 
 An unattended shift stalls forever on a permission prompt, and a watchman revival runs headless —
@@ -218,64 +236,69 @@ denied means denied. Ask one question:
 ## 5. The rules file — every knob in one place
 
 Copy `$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/nightshift-rules-template.json` to
-`$NS/rules.json` as-is, if it does not already exist — the owner's one config file,
-defaults inline. It lives in nightshift's own folder on purpose: everything nightshift is in
-one place, kept out of repo history by the same `.nightshift/` gitignore, versioned by the
-receipts repo when one exists — and deleting `$NS/` removes all of nightshift, rules
-included. Validate the file with `jq -e 'type == "object"'` and report a broken one plainly —
-never half-apply it. The template's `$schema` field points at
-`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/nightshift-rules.schema.json` so editors
-catch invalid names, types, and values; it is ignored at runtime. Editor discovery, including a
-`json.schemas` workspace setting for copies that lack `$schema`, is documented in
-https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md.
-On native Windows, validate with
-`Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json`;
+`$NS/rules.json` as-is, if it does not already exist — the owner's one config file, defaults
+inline. It lives in nightshift's own folder on purpose: everything nightshift is in one place,
+kept out of repo history by the same `.nightshift/` gitignore, versioned by the receipts repo when
+one exists — and deleting `$NS/` removes all of nightshift, rules included. Validate the file with
+`jq -e 'type == "object"'` and report a broken one plainly — never half-apply it. On native
+Windows, validate with `Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json`;
 PowerShell's JSON parser is built in, so native setup has no `jq` or Python prerequisite.
 
-The rules file is portable across hosts, so never generate a host-specific copy. Its `toolDeny`
-map carries both native question names: `AskUserQuestion` for Claude Code and
-`request_user_input` for Codex. A non-empty value denies that exact tool with the owner's message;
-an empty value allows it. Both entries stay present so deleting a key can never activate an
-invisible default. JSON has no comments; the schema descriptions and
-https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md#tool-rules
-are the inline help and examples.
+The template's `$schema` field points at
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/nightshift-rules.schema.json` so editors
+catch invalid names, types, and values; it is ignored at runtime. Editor discovery is documented
+in https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md.
 
-The hooks read this file directly on every tool call: an owner's edit applies from their very
-next action. Nothing is synced anywhere, nothing needs a restart, and there is no second copy.
-Env vars of the matching names (`NIGHTSHIFT_FORBIDDEN_COMMANDS`, `NIGHTSHIFT_TOOL_RULES`, …)
-remain session-start overrides for tests and one-off exceptions — say so only if asked. If
-Claude Code's `$TASK_ROOT/.claude/settings.local.json` still carries `NIGHTSHIFT_*` env keys that an
-earlier version synced from this file, offer to remove them: the file is the one copy.
+The rules file is portable across hosts, so never generate a host-specific copy. Its `toolDeny`
+map carries three native question names: `AskUserQuestion` for Claude Code, `request_user_input`
+for Codex, and `AskQuestion` for Cursor. A non-empty value denies that exact tool with the owner's
+message; an empty value allows it. All three entries stay present so deleting a key can never
+activate an invisible default. JSON has no comments; the schema descriptions and
+https://github.com/orwa-mahmoud/nightshift/blob/main/docs/knobs.md#tool-rules are the inline help.
+
+The hooks read this file directly on every tool call: an owner's edit applies from their very next
+action. Nothing is synced anywhere, nothing needs a restart, and there is no second copy. Env vars
+of the matching names (`NIGHTSHIFT_FORBIDDEN_COMMANDS`, `NIGHTSHIFT_TOOL_RULES`, …) remain
+session-start overrides for tests and one-off exceptions — say so only if asked. If Claude Code's
+`$TASK_ROOT/.claude/settings.local.json` still carries `NIGHTSHIFT_*` env keys an earlier version
+synced from this file, offer to remove them: the file is the one copy.
 
 **Local rule profiles — offer, never impose.** Setup may list the shipped examples in
-`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 JSON file there) and preview
-one with
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/profiles/` (every version-1 or version-2 JSON
+file there) and preview one with
 `"$NIGHTSHIFT_PLUGIN_ROOT/runtime/apply-profile.sh" --project "$NIGHTSHIFT_WORKSPACE" --profile <name> --mode fill|replace`.
 On native Windows, preview with
 `& "$NIGHTSHIFT_PLUGIN_ROOT\runtime\windows\apply-profile.ps1" -Project "$NIGHTSHIFT_WORKSPACE" -Profile <name> -Mode fill|replace`.
-Applying requires an explicit yes and `--apply` / `-Apply`. Fill never overwrites an owner value. Replace
-shows the complete next file first. Profiles are a one-time local copy — no network, no
-subscription. Refuse `--apply` / `-Apply` while armed.
+The helper prints the preview and the complete next file; read it out rather than describing it.
+Applying requires an explicit yes and `--apply` / `-Apply`.
+Refuse `--apply` / `-Apply` while armed. Profiles are a one-time local copy — no network, no
+subscription. After applying a profile,
+write a preset receipt from
+`$NIGHTSHIFT_PLUGIN_ROOT/skills/nightshift/references/receipt-templates.md` so branch mode,
+allowed sources, verification profile, receipt retention, resource limits, and direct-mode
+boundaries trace to `rules.json` and `shift-defaults.json`. Owner rules remain authoritative;
+presets never capture hidden policy.
 
-**Template evolution — offer, never impose.** On a re-run with the file already present,
-compare the shipped template's top-level keys and its nested `toolDeny` keys to the owner's file
-(`jq -r 'keys[]'` on each object, or equivalent Python when jq is absent; on native Windows,
+**Template evolution — offer, never impose.** On a re-run with the file already present, compare
+the shipped template's top-level keys and its nested `toolDeny` keys to the owner's file (read the
+JSON in the skill; do not ask the owner to install `jq` or Python; on native Windows,
 `(Get-Content -Raw -LiteralPath "$NS\rules.json" | ConvertFrom-Json).PSObject.Properties.Name`
 and the same for `.toolDeny`): offer any missing key with its default — "this version added
 `request_user_input`; add it?" — and never touch a value the owner already has. A missing native
-question key is a configuration error, not permission to invent a fallback. Same posture for the
-contract: if the shipped punch-list template's contract (the text above `## Items`) has changed
-since the owner's copy was scaffolded, show the diff and offer a merge — the owner's
-wording wins every conflict, and a punch list with open boxes is never touched at all.
-The same empty-Items offer applies when the owner's contract is leftover campaign text
-(a finished branch, release, or issue-close list) even if the shipped template has not
-changed: show the diff and offer to restore the template contract, or keep theirs.
-Never rewrite without an explicit yes.
+question key is a configuration error, not permission to invent a fallback.
+
+Same posture for the contract: if the shipped punch-list template's contract (the text above
+`## Items`) has changed since the owner's copy was scaffolded, show the diff and offer a merge —
+the owner's wording wins every conflict, and a punch list with open boxes is never touched at all.
+The same offer applies when the owner's contract is leftover campaign text (a finished branch,
+release, or issue-close list) even if the shipped template has not changed: show the diff and offer
+to restore the template contract, or keep theirs. Never rewrite without an explicit yes.
 
 ## 6. Summarize
 
 Print the workspace-state path and resolved work target, what was scaffolded, whether a receipts
-repo was created, and the gates that were written (or that none were). Tell the user to draft items in `$NS/drafting-table.md`, promote them into
+repo was created, the gates that were written (or that none were), and the project defaults stored
+in `$NS/shift-defaults.json`. Tell the user to draft items in `$NS/drafting-table.md`, promote them into
 the punch list, then start the shift (`/nightshift:start` on Claude Code, or ask Nightshift to start
 on Codex). Mention that the open-ended product-evolution shift keeps its evidence and ranked work in
 `$NS/product-research.md` and `$NS/opportunity-map.md`, while the quality skill can

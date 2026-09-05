@@ -1,0 +1,6 @@
+{
+  "nights": [
+    {"id": "night-1", "archivedOrAccepted": true, "sharedMutablePunchList": false},
+    {"id": "night-2", "archivedOrAccepted": true, "sharedMutablePunchList": false}
+  ]
+}

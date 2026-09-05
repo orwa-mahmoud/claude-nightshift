@@ -1,8 +1,7 @@
 name: ci
 
-# A branch push and its pull request are the same commit, so an unfiltered `push` ran every job
-# twice for no extra signal. Branch work is covered by `pull_request`; `push` is here for main,
-# where there is no PR to carry it — and where a green run is what lets release publish.
+# Branch work is covered by `pull_request`; `push` covers main, where there is no PR to carry it
+# and where a green run is what lets release publish.
 on:
   push:
     branches: [main]
@@ -34,28 +33,35 @@ jobs:
 
   bats:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install bats and shellcheck
         run: sudo apt-get update && sudo apt-get install -y bats shellcheck
-      - name: Run the bats suite
+      - name: Run bats shard ${{ matrix.shard }}/6
         run: |
           set -eu
           if ! ls tests/*.bats >/dev/null 2>&1; then
             echo "no bats tests yet"
             exit 0
           fi
-          # -r so tests/shifts/ runs too: a contributed shift brings its own test file, and a
-          # suite that skipped the subdirectory would report green on an entry nobody checked.
-          bats -r tests/
+          chmod +x tests/run-shard.sh
+          tests/run-shard.sh "${{ matrix.shard }}" 6
 
   bats-macos:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install bats
         run: brew install bats-core
-      - name: Run the bats suite under macOS system bash
+      - name: Run bats shard ${{ matrix.shard }}/6 under macOS system bash
         run: |
           set -eu
           bats_bin="$(command -v bats)"
@@ -63,7 +69,8 @@ jobs:
           export PATH
           command -v bash
           bash --version
-          "$bats_bin" -r tests/
+          chmod +x tests/run-shard.sh
+          tests/run-shard.sh "${{ matrix.shard }}" 6
 
   windows-native:
     runs-on: windows-latest

@@ -1,0 +1,19 @@
+{
+  "policy": "bounded-discovery",
+  "bounds": {
+    "allowedDomains": ["docs.example.com", "example.com"],
+    "allowedClasses": ["primary", "secondary"],
+    "maxSources": 2
+  },
+  "sourceClassByLocator": {
+    "https://docs.example.com/a": "primary",
+    "https://forum.example.com/b": "community",
+    "https://other.net/c": "primary"
+  },
+  "sources": [
+    "https://docs.example.com/a",
+    "https://forum.example.com/b",
+    "https://other.net/c",
+    "https://docs.example.com/extra"
+  ]
+}

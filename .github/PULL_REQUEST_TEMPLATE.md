@@ -7,7 +7,7 @@
 ## Type of change
 
 - [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] Harness parity (shared Claude Code / Codex behaviour)
+- [ ] Harness parity (shared Claude Code / Codex / Cursor behaviour)
 - [ ] Docs / chore / refactor (no behaviour change)
 - [ ] Gate behaviour change (discussed in an issue first — see CONTRIBUTING)
 
