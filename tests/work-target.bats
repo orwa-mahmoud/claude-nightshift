@@ -127,3 +127,13 @@ planted_repo() {
   [ "$status" -eq 0 ]
   [ "$output" = "$planted" ]
 }
+
+@test "a persisted work-target still resolves after a Windows CRLF write" {
+  p="$(new_project target-crlf)"
+  expected="$(git -C "$p" rev-parse --show-toplevel)"
+  printf '%s\r\n' "$expected" >"$p/.nightshift/work-target"
+  printf 'repository\r\n' >"$p/.nightshift/work-mode"
+  run resolve_target "$p"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$expected" ]
+}

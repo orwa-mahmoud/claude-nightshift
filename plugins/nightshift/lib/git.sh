@@ -60,6 +60,8 @@ ns_work_target() {
   fi
   if [ -s "$record" ]; then
     IFS= read -r target <"$record" || true
+    target="${target%$'\r'}"
+    target="$(ns_msys_path "$target")"
     case "$target" in /*) ;; *) target="$project/$target" ;; esac
     top="$(cd -P "$target" 2>/dev/null && pwd)" || return 1
     if ns_is_scratch_path "$top"; then

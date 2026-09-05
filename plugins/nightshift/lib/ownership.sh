@@ -134,6 +134,13 @@ ns_lease_load() { # $1 = the .nightshift dir; one descriptor gives one coherent 
       IFS= read -r NS_LEASE_START || return 1
     if IFS= read -r _; then return 1; fi
   } <"$f"
+  # Native Windows writers use CRLF; read -r keeps the CR and the line checks refuse it.
+  NS_LEASE_SID="${NS_LEASE_SID%$'\r'}"
+  NS_LEASE_HOST="${NS_LEASE_HOST%$'\r'}"
+  NS_LEASE_GENERATION="${NS_LEASE_GENERATION%$'\r'}"
+  NS_LEASE_NONCE="${NS_LEASE_NONCE%$'\r'}"
+  NS_LEASE_PID="${NS_LEASE_PID%$'\r'}"
+  NS_LEASE_START="${NS_LEASE_START%$'\r'}"
   ns_lease_safe_line "$NS_LEASE_SID" && ns_lease_safe_line "$NS_LEASE_HOST" \
     && ns_lease_safe_line "$NS_LEASE_GENERATION" && ns_lease_safe_line "$NS_LEASE_NONCE" \
     && ns_lease_safe_line "$NS_LEASE_PID" && ns_lease_safe_line "$NS_LEASE_START" || return 1

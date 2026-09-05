@@ -32,6 +32,9 @@ _here="$(cd -P -- "$(dirname -- "$_ns_src")" && pwd)" || exit 2
 . "$_here/../lib/lib.sh"
 
 EMIT_JQ="$_here/morning-receipt-emit.jq"
+# Native Windows jq.exe cannot open a /d/... program path. The display form is
+# the Windows path here and the same POSIX path everywhere else.
+EMIT_JQ="$(ns_native_display_path "$EMIT_JQ")"
 COMPARE="${NIGHTSHIFT_COMPARE_HELPER:-$_here/evidence-compare.sh}"
 
 NL='
@@ -954,7 +957,7 @@ _load_comparison_merged() {
       continue
     fi
     if [ "$JSON_TOOL" = jq ]; then
-      jq -r '.summary.selectedDebtOutstanding[]? // empty' "$TMPD/cmp.json" >>"$TMPD/cmp-debt" 2>/dev/null ||
+      jq -r '.summary.selectedDebtOutstanding[]? // empty' <"$TMPD/cmp.json" >>"$TMPD/cmp-debt" 2>/dev/null ||
         :
     else
       python3 -c 'import json,sys

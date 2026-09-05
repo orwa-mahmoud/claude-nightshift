@@ -56,6 +56,15 @@ LIB="$ROOT/plugins/nightshift/lib/lib.sh"
   printf '%s' "$output" | jq -e '.takeoverAllowed == false and .priorWorkerActive == true' >/dev/null
 }
 
+@test "fence-check accepts a CRLF empty-pid lease" {
+  p="$(new_project)"
+  punch_open "$p"
+  printf 'shift-session\r\nclaude\r\n1\r\nfence.1\r\n\r\n\r\n' >"$p/.nightshift/.shift-lease"
+  run bash "$CH" fence-check --project "$p"
+  [ "$status" -eq 0 ]
+  printf '%s' "$output" | jq -e '.takeoverAllowed == true and .priorOwnerFenced == true' >/dev/null
+}
+
 @test "start status and doctor keep native fence and drop leftover python commands" {
   grep -qF 'runtime/continuity-handoff.sh" fence-check --project' "$START"
   if grep -qF 'handoff-package' "$START"; then

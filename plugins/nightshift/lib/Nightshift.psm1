@@ -920,6 +920,7 @@ function Write-NSAtomicLines {
             )
             $createdHere = $true
             $writer = [IO.StreamWriter]::new($stream, $encoding)
+            $writer.NewLine = "`n"
             foreach ($line in $Lines) {
                 $writer.WriteLine($line)
             }

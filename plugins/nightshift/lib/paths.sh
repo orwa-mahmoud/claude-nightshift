@@ -225,6 +225,7 @@ ns_work_mode() {
     return 0
   fi
   IFS= read -r mode <"$record" || true
+  mode="${mode%$'\r'}"
   case "$mode" in
     repository | artifact)
       printf '%s' "$mode"
