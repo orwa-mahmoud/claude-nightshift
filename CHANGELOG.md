@@ -3,6 +3,13 @@
 Installs pin to the `version` in `plugins/nightshift/.claude-plugin/plugin.json`, so every entry here is a
 version users receive. Dates are release dates; the tags carry the exact trees.
 
+## [0.20.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.19.0...v0.20.0) (2026-09-05)
+
+
+### Features
+
+* run intent-first shifts without python or jq ([e46fd81](https://github.com/orwa-mahmoud/nightshift/commit/e46fd814c941c88eabd6a9ad89320fd6c41e189c))
+
 ## [0.19.0](https://github.com/orwa-mahmoud/nightshift/compare/v0.18.1...v0.19.0) (2026-09-01)
 
 
