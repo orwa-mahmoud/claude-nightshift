@@ -384,29 +384,31 @@ sys.stdout.write("".join(
 # _ns_policy_facts <operation> <python-program> <file> — the fact stream on stdout.
 # Status 1 when the file is not JSON, 2 when no parser is installed.
 _ns_policy_facts() {
-  local tool src prog
+  local tool win
   tool="$(ns_policy_json_tool)" || return 2
-  src="$(ns_native_display_path "$3")"
+  # Bash opens the document. jq -f still needs a path the jq binary can open:
+  # Git's jq wants /d/..., native jq.exe wants D:\...
   if [ "$tool" = jq ]; then
-    prog="$(ns_native_display_path "$NS_POLICY_EMIT_JQ")"
-    jq -r --arg op "$1" -f "$prog" "$src" 2>/dev/null || return 1
-  else
-    python3 -c "$2" "$src" 2>/dev/null || return 1
+    jq -r --arg op "$1" -f "$NS_POLICY_EMIT_JQ" <"$3" 2>/dev/null && return 0
+    win="$(ns_native_display_path "$NS_POLICY_EMIT_JQ")"
+    jq -r --arg op "$1" -f "$win" <"$3" 2>/dev/null || return 1
+    return 0
   fi
+  python3 -c "$2" "$3" 2>/dev/null && return 0
+  python3 -c "$2" "$(ns_native_display_path "$3")" 2>/dev/null || return 1
 }
 
 # ns_policy_canon_json <file> — the document as compact canonical JSON: sorted keys, \uXXXX
 # escaping. The one wire form the bash and PowerShell resolvers both emit.
 ns_policy_canon_json() {
-  local tool src
+  local tool
   tool="$(ns_policy_json_tool)" || return 2
-  src="$(ns_native_display_path "$1")"
   if [ "$tool" = jq ]; then
-    jq -caS . "$src" 2>/dev/null || return 1
+    jq -caS . <"$1" 2>/dev/null || return 1
   else
     python3 -c 'import json, sys
-sys.stdout.write(json.dumps(json.load(open(sys.argv[1])), sort_keys=True, separators=(",", ":")) + "\n")' \
-      "$src" 2>/dev/null || return 1
+sys.stdout.write(json.dumps(json.load(sys.stdin), sort_keys=True, separators=(",", ":")) + "\n")' \
+      <"$1" 2>/dev/null || return 1
   fi
 }
 
@@ -849,6 +851,7 @@ _ns_policy_load_shift_file() {
   fi
   facts="$(_ns_policy_facts shift "$NS_POLICY_SHIFT_PY" "$f")"
   rc=$?
+  facts="$(printf '%s' "$facts" | tr -d '\r')"
   if [ "$rc" -eq 2 ]; then
     NS_POLICY_SHIFT_STATE=noparser
     NS_POLICY_SHIFT_ERR="JSON parser unavailable; composition writes shift-policy.json and Start already has rules.json"
@@ -994,6 +997,7 @@ ns_policy_read_defaults() {
   if [ -f "$f" ]; then
     facts="$(_ns_policy_facts defaults "$NS_POLICY_DEFAULTS_PY" "$f")"
     rc=$?
+    facts="$(printf '%s' "$facts" | tr -d '\r')"
     if [ "$rc" -ne 0 ]; then
       bad=1
     else
