@@ -59,11 +59,14 @@ Shell must stay Python-free: the plugin ships no `.py` file, and `tests/armed-no
 holds that line together with an armed shift that has neither `jq` nor `python3` installed.
 
 CI ([`ci.yaml`](.github/workflows/ci.yaml)) runs shellcheck, the bats suite, and plugin validation
-on every push. Bats runs as six parallel shards on both Ubuntu and macOS (same partition as
-`tests/run-shard.sh`); the macOS job keeps the system Bash 3.2 first on `PATH`. A `windows-native`
-job runs `tests/windows/run.ps1` under Windows PowerShell 5.1 and PowerShell 7. A `remote-ssh` job
-crosses an ephemeral OpenSSH connection; a `devcontainer` job starts the checked-in fixture. Both
-compare sanitized receipts — they do not load an authenticated host session.
+when the matching trees change. A docs-only edit runs `tests/run-docs-contract.sh` instead of the
+full shard matrix. A Release Please version bump validates manifests and skips Windows, remote, and
+shards. Required job names still report, so merge is not left waiting. Bats runs as six parallel
+shards on both Ubuntu and macOS (same partition as `tests/run-shard.sh`); the macOS job keeps the
+system Bash 3.2 first on `PATH`. A `windows-native` job runs `tests/windows/run.ps1` under Windows
+PowerShell 5.1 and PowerShell 7. A `remote-ssh` job crosses an ephemeral OpenSSH connection; a
+`devcontainer` job starts the checked-in fixture. Both compare sanitized receipts — they do not
+load an authenticated host session.
 
 ## Releasing
 

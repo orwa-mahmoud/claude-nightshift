@@ -12,14 +12,71 @@ on:
 permissions:
   contents: read
 
+# Path buckets decide which expensive steps run. Required job names (shellcheck, validate,
+# bats (1-6), bats-macos (1-6)) always start so a docs-only or Release Please pull request is
+# not left waiting on a check that never reported. Workflow-level `paths` would skip the whole
+# workflow and revive that pending state.
 jobs:
-  shellcheck:
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      suite: ${{ steps.filter.outputs.runtime == 'true' || steps.filter.outputs.workflow == 'true' }}
+      lint: ${{ steps.filter.outputs.shell == 'true' || steps.filter.outputs.workflow == 'true' }}
+      validate: ${{ steps.filter.outputs.runtime == 'true' || steps.filter.outputs.manifest == 'true' || steps.filter.outputs.workflow == 'true' }}
+      docs: ${{ steps.filter.outputs.docs == 'true' && steps.filter.outputs.runtime != 'true' && steps.filter.outputs.workflow != 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        with:
+          filters: |
+            workflow:
+              - '.github/workflows/ci.yaml'
+            shell:
+              - '**/*.sh'
+            runtime:
+              - 'plugins/**'
+              - '!plugins/nightshift/.claude-plugin/plugin.json'
+              - '!plugins/nightshift/.codex-plugin/plugin.json'
+              - '!plugins/nightshift/.cursor-plugin/plugin.json'
+              - 'tests/**'
+              - 'evals/**'
+              - '.claude-plugin/**'
+              - '.agents/**'
+              - '.cursor-plugin/**'
+            docs:
+              - 'README.md'
+              - 'CONTRIBUTING.md'
+              - 'SECURITY.md'
+              - 'docs/**'
+              - 'examples/**'
+              - '.github/ISSUE_TEMPLATE/**'
+              - '.github/PULL_REQUEST_TEMPLATE.md'
+            manifest:
+              - 'plugins/nightshift/.claude-plugin/plugin.json'
+              - 'plugins/nightshift/.codex-plugin/plugin.json'
+              - 'plugins/nightshift/.cursor-plugin/plugin.json'
+              - '.release-please-manifest.json'
+              - 'release-please-config.json'
+              - 'CHANGELOG.md'
+              - '.claude-plugin/marketplace.json'
+              - '.agents/plugins/marketplace.json'
+              - '.cursor-plugin/marketplace.json'
+
+  shellcheck:
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip lint
+        if: needs.changes.outputs.lint != 'true'
+        run: echo 'No shell or workflow paths; shellcheck not executed.'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.lint == 'true'
       - name: Install shellcheck
+        if: needs.changes.outputs.lint == 'true'
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Lint every shell script
+        if: needs.changes.outputs.lint == 'true'
         run: |
           set -eu
           files=$(git ls-files '*.sh')
@@ -32,16 +89,23 @@ jobs:
           echo "$files" | xargs shellcheck -x
 
   bats:
+    needs: changes
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
+      - name: Skip shard
+        if: needs.changes.outputs.suite != 'true' && (needs.changes.outputs.docs != 'true' || matrix.shard != 1)
+        run: echo 'No suite paths for this shard.'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.suite == 'true' || (needs.changes.outputs.docs == 'true' && matrix.shard == 1)
       - name: Install bats and shellcheck
+        if: needs.changes.outputs.suite == 'true'
         run: sudo apt-get update && sudo apt-get install -y bats shellcheck
       - name: Run bats shard ${{ matrix.shard }}/6
+        if: needs.changes.outputs.suite == 'true'
         run: |
           set -eu
           if ! ls tests/*.bats >/dev/null 2>&1; then
@@ -50,18 +114,34 @@ jobs:
           fi
           chmod +x tests/run-shard.sh
           tests/run-shard.sh "${{ matrix.shard }}" 6
+      - name: Install bats
+        if: needs.changes.outputs.suite != 'true' && needs.changes.outputs.docs == 'true' && matrix.shard == 1
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: Run docs contract
+        if: needs.changes.outputs.suite != 'true' && needs.changes.outputs.docs == 'true' && matrix.shard == 1
+        run: |
+          set -eu
+          chmod +x tests/run-docs-contract.sh
+          tests/run-docs-contract.sh
 
   bats-macos:
+    needs: changes
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
+      - name: Skip shard
+        if: needs.changes.outputs.suite != 'true'
+        run: echo 'No suite paths; macOS shard not executed.'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.suite == 'true'
       - name: Install bats
+        if: needs.changes.outputs.suite == 'true'
         run: brew install bats-core
       - name: Run bats shard ${{ matrix.shard }}/6 under macOS system bash
+        if: needs.changes.outputs.suite == 'true'
         run: |
           set -eu
           bats_bin="$(command -v bats)"
@@ -73,6 +153,8 @@ jobs:
           tests/run-shard.sh "${{ matrix.shard }}" 6
 
   windows-native:
+    needs: changes
+    if: needs.changes.outputs.suite == 'true'
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
@@ -88,6 +170,8 @@ jobs:
         run: ./tests/windows/run.ps1
 
   remote-ssh:
+    needs: changes
+    if: needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -123,6 +207,8 @@ jobs:
           if-no-files-found: ignore
 
   devcontainer:
+    needs: changes
+    if: needs.changes.outputs.suite == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -177,13 +263,21 @@ jobs:
           if-no-files-found: ignore
 
   validate:
+    needs: changes
     runs-on: ubuntu-latest
     steps:
+      - name: Skip validate
+        if: needs.changes.outputs.validate != 'true'
+        run: echo 'No manifest, runtime, or workflow paths; validate not executed.'
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.validate == 'true'
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: needs.changes.outputs.validate == 'true'
         with:
           node-version: 20
       - name: Install Claude Code
+        if: needs.changes.outputs.validate == 'true'
         run: npm install -g @anthropic-ai/claude-code
       - name: Validate plugin and marketplace manifests
+        if: needs.changes.outputs.validate == 'true'
         run: claude plugin validate . --strict

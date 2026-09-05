@@ -6,7 +6,19 @@ name: HOL Plugin Scanner
 on:
   push:
     branches: [main]
+    paths:
+      - 'plugins/**'
+      - '.claude-plugin/**'
+      - '.agents/**'
+      - '.cursor-plugin/**'
+      - '.github/workflows/hol-plugin-scanner.yml'
   pull_request:
+    paths:
+      - 'plugins/**'
+      - '.claude-plugin/**'
+      - '.agents/**'
+      - '.cursor-plugin/**'
+      - '.github/workflows/hol-plugin-scanner.yml'
 
 permissions:
   contents: read

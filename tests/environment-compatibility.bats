@@ -45,6 +45,12 @@ ENVIRONMENTS="$BATS_TEST_DIRNAME/environments"
   grep -qF 'cmp tests/environments/receipts/devcontainer-linux.json' "$CI"
 }
 
+@test "CI keeps required job names reporting when only docs or manifests change" {
+  grep -qF 'dorny/paths-filter' "$CI"
+  grep -qF 'run-docs-contract.sh' "$CI"
+  grep -qF '!plugins/nightshift/.claude-plugin/plugin.json' "$CI"
+}
+
 @test "devcontainer fixture is native Linux with the required local tools" {
   jq -e '
     .workspaceFolder == "/workspaces/nightshift"
