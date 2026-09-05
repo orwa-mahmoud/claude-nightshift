@@ -150,6 +150,25 @@ function Test-NSBytesEqual {
     return $true
 }
 
+function Get-NSReceiptWorkTargetLine {
+    param([string]$Text)
+    foreach ($line in ($Text -split "`n")) {
+        if ($line.StartsWith('- Work target: ')) { return $line }
+    }
+    return ''
+}
+
+function Expect-NSRendererParity {
+    param($Native, $Bash, [string]$Message)
+    if ($Bash.ExitCode -ne 0) {
+        Expect-True $false "$Message (bash exit=$($Bash.ExitCode) stderr=$($Bash.StderrText))"
+        return
+    }
+    if (Test-NSBytesEqual $Native.StdoutBytes $Bash.StdoutBytes) { return }
+    Expect-True $false ("$Message (nativeLen=$($Native.StdoutBytes.Length) bashLen=$($Bash.StdoutBytes.Length) " +
+        "nativeWork='$(Get-NSReceiptWorkTargetLine $Native.StdoutText)' bashWork='$(Get-NSReceiptWorkTargetLine $Bash.StdoutText)')")
+}
+
 function Get-SectionOrder {
     param([Parameter(Mandatory = $true)][string]$Text)
     $found = New-Object Collections.Generic.List[string]
@@ -443,8 +462,7 @@ try {
                 MSYS_NO_PATHCONV        = '1'
                 MSYS2_ARG_CONV_EXCL     = '*'
             }
-        Expect-True (Test-NSBytesEqual $plainRun.StdoutBytes $plainBash.StdoutBytes) `
-            'both renderers report a policy-free shift the same way'
+        Expect-NSRendererParity $plainRun $plainBash 'both renderers report a policy-free shift the same way'
     }
 
     # The gate names that receipt for the date alone: there is no shift id.
@@ -581,7 +599,7 @@ try {
                     MSYS2_ARG_CONV_EXCL     = '*'
                 }
             $nativeRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $project, '-View', $view)
-            Expect-True (Test-NSBytesEqual $nativeRun.StdoutBytes $bashRun.StdoutBytes) `
+            Expect-NSRendererParity $nativeRun $bashRun `
                 "the native renderer and the bash renderer are byte-identical for the $view view"
         }
     }

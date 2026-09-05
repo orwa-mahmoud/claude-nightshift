@@ -2,16 +2,11 @@
 # Workspace resolution and canonical path helpers shared by Nightshift hooks.
 
 # ns_msys_path <path>
-# Git Bash cannot cd to D:/foo; it wants /d/foo. Leave POSIX paths unchanged.
+# Git Bash cannot cd to D:/foo; it wants /d/foo. Do not call cygpath -u here:
+# it remaps Windows Temp to /tmp, which is a different directory, so helpers
+# refuse a project PowerShell just created.
 ns_msys_path() {
-  local p d converted
-  if command -v cygpath >/dev/null 2>&1; then
-    converted="$(cygpath -u -- "$1" 2>/dev/null)" || converted=""
-    if [ -n "$converted" ]; then
-      printf '%s' "$converted"
-      return 0
-    fi
-  fi
+  local p d
   p="${1//\\//}"
   case "$p" in
     [A-Za-z]:/*)

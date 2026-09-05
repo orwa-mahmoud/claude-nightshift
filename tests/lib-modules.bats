@@ -44,3 +44,15 @@ LIB_DIR="$BATS_TEST_DIRNAME/../plugins/nightshift/lib"
     [ "$n" -eq 1 ] || { echo "expected one $fn, got $n"; return 1; }
   done
 }
+
+@test "ns_msys_path converts a drive letter without remapping Temp through cygpath" {
+  run bash -c '. "$1"; ns_msys_path "$2"' _ "$LIB" 'D:/a/_temp/ns-fence'
+  [ "$status" -eq 0 ]
+  [ "$output" = "/d/a/_temp/ns-fence" ]
+  run bash -c '. "$1"; ns_msys_path "$2"' _ "$LIB" 'C:\Users\runner\AppData\Local\Temp\ns-fence'
+  [ "$status" -eq 0 ]
+  [ "$output" = "/c/Users/runner/AppData/Local/Temp/ns-fence" ]
+  run bash -c '. "$1"; ns_msys_path "$2"' _ "$LIB" '/tmp/foo'
+  [ "$status" -eq 0 ]
+  [ "$output" = "/tmp/foo" ]
+}
