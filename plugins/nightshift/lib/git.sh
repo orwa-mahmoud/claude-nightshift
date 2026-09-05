@@ -72,7 +72,8 @@ ns_work_target() {
       printf '%s' "$top"
       return 0
     fi
-    top="$(git -C "$target" rev-parse --show-toplevel 2>/dev/null)" || return 1
+    # git.exe's -C rejects /c/Users/... even when bash can cd there. Run from inside.
+    top="$(cd -P "$target" 2>/dev/null && git rev-parse --show-toplevel)" || return 1
     printf '%s' "$top"
     return 0
   fi

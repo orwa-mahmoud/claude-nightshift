@@ -158,6 +158,18 @@ function Get-NSReceiptWorkTargetLine {
     return ''
 }
 
+function Get-NSReceiptLinesOnlyIn {
+    param([string]$Left, [string]$Right)
+    $inRight = @{}
+    foreach ($line in ($Right -split "`n")) { $inRight[$line] = $true }
+    $only = New-Object Collections.Generic.List[string]
+    foreach ($line in ($Left -split "`n")) {
+        if (-not $inRight.ContainsKey($line)) { $only.Add($line) }
+        if ($only.Count -ge 6) { break }
+    }
+    return ($only -join ' || ')
+}
+
 function Expect-NSRendererParity {
     param($Native, $Bash, [string]$Message)
     if ($Bash.ExitCode -ne 0) {
@@ -166,7 +178,9 @@ function Expect-NSRendererParity {
     }
     if (Test-NSBytesEqual $Native.StdoutBytes $Bash.StdoutBytes) { return }
     Expect-True $false ("$Message (nativeLen=$($Native.StdoutBytes.Length) bashLen=$($Bash.StdoutBytes.Length) " +
-        "nativeWork='$(Get-NSReceiptWorkTargetLine $Native.StdoutText)' bashWork='$(Get-NSReceiptWorkTargetLine $Bash.StdoutText)')")
+        "nativeWork='$(Get-NSReceiptWorkTargetLine $Native.StdoutText)' bashWork='$(Get-NSReceiptWorkTargetLine $Bash.StdoutText)' " +
+        "nativeOnly='$(Get-NSReceiptLinesOnlyIn $Native.StdoutText $Bash.StdoutText)' " +
+        "bashOnly='$(Get-NSReceiptLinesOnlyIn $Bash.StdoutText $Native.StdoutText)')")
 }
 
 function Get-SectionOrder {

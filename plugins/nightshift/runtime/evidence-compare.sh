@@ -62,7 +62,7 @@ esac
 _here="$(cd -P -- "$(dirname -- "$_ns_src")" && pwd)" || exit 2
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
-EC_JQ="$_here/evidence-compare.jq"
+EC_JQ="$(ns_native_display_path "$_here/evidence-compare.jq")"
 
 EC_NL='
 '
@@ -853,7 +853,7 @@ done
 [ -n "$PROJECT_ARG" ] || usage
 [ -n "$BASELINE" ] || usage
 
-PROJECT="$(cd -P "$(ns_msys_path "$PROJECT_ARG")" 2>/dev/null && pwd -P)"
+PROJECT="$(cd -P "$(ns_msys_path "$PROJECT_ARG")" 2>/dev/null && pwd)"
 [ -n "$PROJECT" ] || die "cannot read $PROJECT_ARG" 2
 JSONL="$PROJECT/.nightshift/evidence/findings.jsonl"
 [ -f "$JSONL" ] || die "no ledger at $JSONL" 2

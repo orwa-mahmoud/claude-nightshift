@@ -237,7 +237,8 @@ _commit_count() {
   [ -n "$P_CREATEDAT" ] || return 0
   target="$(ns_work_target "$WORKSPACE" 2>/dev/null)" || target=""
   [ -n "$target" ] || return 0
-  count="$(git -C "$target" rev-list --count --since "$P_CREATEDAT" HEAD 2>/dev/null)" || return 0
+  target="$(ns_msys_path "$target")"
+  count="$(cd -P "$target" 2>/dev/null && git rev-list --count --since "$P_CREATEDAT" HEAD)" || return 0
   case "$count" in
     '' | *[!0-9]*) return 0 ;;
   esac
