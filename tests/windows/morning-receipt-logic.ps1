@@ -436,7 +436,11 @@ try {
     if ((Test-Path -LiteralPath $bashReceipt -PathType Leaf) -and $null -ne $bashCommand) {
         $plainBash = Invoke-ProcessBytes -FileName $bashCommand.Source `
             -Arguments @($bashReceipt, '--project', $plainProject, '--view', 'owner') `
-            -EnvOverrides @{ NIGHTSHIFT_EVIDENCE_NOW = $fixedNow }
+            -EnvOverrides @{
+                NIGHTSHIFT_EVIDENCE_NOW = $fixedNow
+                LANG                    = 'C.UTF-8'
+                LC_ALL                  = 'C.UTF-8'
+            }
         Expect-True (Test-NSBytesEqual $plainRun.StdoutBytes $plainBash.StdoutBytes) `
             'both renderers report a policy-free shift the same way'
     }
@@ -515,7 +519,7 @@ try {
         'a receipt render failure still clocks the shift out'
 
     # === 6b. An unreadable punch list is never reported as done ===
-    $onWindows = [bool](Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -and $IsWindows
+    $onWindows = $env:OS -eq 'Windows_NT'
     if (-not $onWindows) {
         $unreadProject = Join-Path $root 'unreadable-punch'
         $unreadNs = New-ReceiptProject -Path $unreadProject
@@ -567,7 +571,11 @@ try {
         foreach ($view in @('owner', 'reviewer', 'release', 'artifact')) {
             $bashRun = Invoke-ProcessBytes -FileName $bashCommand.Source `
                 -Arguments @($bashReceipt, '--project', $project, '--view', $view) `
-                -EnvOverrides @{ NIGHTSHIFT_EVIDENCE_NOW = $fixedNow }
+                -EnvOverrides @{
+                    NIGHTSHIFT_EVIDENCE_NOW = $fixedNow
+                    LANG                    = 'C.UTF-8'
+                    LC_ALL                  = 'C.UTF-8'
+                }
             $nativeRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $project, '-View', $view)
             Expect-True (Test-NSBytesEqual $nativeRun.StdoutBytes $bashRun.StdoutBytes) `
                 "the native renderer and the bash renderer are byte-identical for the $view view"

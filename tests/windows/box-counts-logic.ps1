@@ -38,7 +38,7 @@ try {
         'a missing punch list counts as zero'
     Expect-True $missing.Readable 'a missing punch list is readable-as-absent, not unreadable'
 
-    $onWindows = [bool](Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -and $IsWindows
+    $onWindows = $env:OS -eq 'Windows_NT'
     if (-not $onWindows) {
         $locked = Join-Path $root 'locked-punch.md'
         [IO.File]::WriteAllText($locked, "## Items`n- [ ] **1. real.**`n")

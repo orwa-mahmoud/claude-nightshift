@@ -638,6 +638,9 @@ while :; do
         total=$#
         for spacing in "$@"; do
           attempt=$((attempt + 1))
+          # Disarming mid-ladder ends it here: the fresh-session rung, which starts a worker on
+          # nothing but the punch list, must never fire at a site the owner just stood down.
+          armed || stand_down_disarmed
           if [ "$attempt" -gt 1 ]; then
             # Re-check the whole ladder: a site that came back to life mid-wake — or an owner
             # who acted — cancels the remaining attempts.
@@ -647,9 +650,6 @@ while :; do
               break
             fi
           fi
-          # Disarming mid-ladder ends it here: the fresh-session rung, which starts a worker on
-          # nothing but the punch list, must never fire at a site the owner just stood down.
-          armed || stand_down_disarmed
           log_line "watchman: site quiet ${INTERVAL_MIN}m+ with open boxes — resume attempt $attempt ($(rung_label "$attempt" "$total"))"
           if spawn "$(rung_agent "$attempt" "$total")" "$(rung_prompt "$attempt" "$total")"; then
             revived=0

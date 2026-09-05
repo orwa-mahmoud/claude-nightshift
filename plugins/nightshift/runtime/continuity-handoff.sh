@@ -10,7 +10,14 @@
 # Exit: 0 ok · 1 refuse/usage · 2 unavailable/missing runtime
 set -u
 
-_here="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]//\\//}")" && pwd)" || exit 2
+_ns_src="${BASH_SOURCE[0]//\\//}"
+case "$_ns_src" in
+  [A-Za-z]:/*)
+    _ns_drive=$(printf '%s' "${_ns_src%"${_ns_src#?}"}" | tr '[:upper:]' '[:lower:]')
+    _ns_src="/${_ns_drive}${_ns_src#?:}"
+    ;;
+esac
+_here="$(cd -P -- "$(dirname -- "$_ns_src")" && pwd)" || exit 2
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
 
@@ -22,7 +29,7 @@ usage() {
 ns_handoff_resolve_ns() { # <host-or-workspace>
   local host workspace
   [ -n "$1" ] || return 1
-  host="$(cd -P "$1" 2>/dev/null && pwd)" || return 1
+  host="$(cd -P "$(ns_msys_path "$1")" 2>/dev/null && pwd)" || return 1
   workspace="$(ns_workspace_root "$host" 2>/dev/null)" || return 1
   [ -d "$workspace/.nightshift" ] && [ ! -L "$workspace/.nightshift" ] || return 1
   printf '%s' "$workspace/.nightshift"

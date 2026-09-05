@@ -30,6 +30,9 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
     return 0
   fi
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  if [ "$status" -ne 0 ]; then
+    printf '%s\n' "$output"
+  fi
   [ "$status" -eq 0 ]
 }
 
@@ -98,5 +101,8 @@ WRAPPER="$BATS_TEST_DIRNAME/../plugins/nightshift/hooks/hardhat.sh"
     return 0
   fi
   run pwsh -NoProfile -NonInteractive -File "$LOGIC"
+  if [ "$status" -ne 0 ]; then
+    printf '%s\n' "$output"
+  fi
   [ "$status" -eq 0 ]
 }

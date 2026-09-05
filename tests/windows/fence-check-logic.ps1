@@ -27,6 +27,15 @@ $null = New-Item -ItemType File -Path (Join-Path $ns '.shift-armed') -Force
 $wrapper = Join-Path $plugin 'runtime/windows/continuity-handoff.ps1'
 $bashFence = Join-Path $plugin 'runtime/continuity-handoff.sh'
 
+function Convert-NSGitBashPath {
+    param([string]$Path)
+    $normalized = $Path -replace '\\', '/'
+    if ($normalized -match '^([A-Za-z]):/(.*)$') {
+        return '/{0}/{1}' -f $Matches[1].ToLowerInvariant(), $Matches[2]
+    }
+    return $normalized
+}
+
 try {
     $missing = Test-NSHandoffFence -Project $root
     Expect-True ($missing.ExitCode -eq 2 -and -not $missing.takeoverAllowed) `
@@ -60,7 +69,7 @@ try {
         -Generation 1 -Nonce 'fence.1' -ProcessId '' -Start ''
     Expect-True $ok 'restore fenced lease'
     if (Get-Command bash -ErrorAction SilentlyContinue) {
-        $bashLines = @(& bash $bashFence fence-check --project $root)
+        $bashLines = @(& bash (Convert-NSGitBashPath $bashFence) fence-check --project (Convert-NSGitBashPath $root))
         $bashCode = $LASTEXITCODE
         $pwsh = Test-NSHandoffFence -Project $root
         Expect-True ($bashCode -eq $pwsh.ExitCode) "twins share exit: bash=$bashCode pwsh=$($pwsh.ExitCode)"

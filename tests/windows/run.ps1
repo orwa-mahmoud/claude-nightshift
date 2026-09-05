@@ -953,15 +953,18 @@ exit 0
     Assert-True ($null -ne $postRecoveryLease -and -not [string]::IsNullOrEmpty($postRecoveryLease.Nonce)) `
         "recovery leaves a nonce lease before fencing ($(if ($null -eq $postRecoveryLease) { 'missing' } else { $postRecoveryLease.Nonce }))"
     $staleTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' }
-    Assert-True ($staleTool.Stdout -match 'recovered process|being recovered') `
-        "the pre-recovery process is fenced after lease takeover ($(Format-HookResult $staleTool))"
+    Assert-True ([string]::IsNullOrWhiteSpace($staleTool.Stdout)) `
+        "the recorded conversation reclaims a dead recovery holder ($(Format-HookResult $staleTool))"
+    $reclaimedLease = Read-NSLease (Join-Path $recoveryWorkspace '.nightshift')
+    Assert-True ($null -ne $reclaimedLease -and [string]::IsNullOrEmpty($reclaimedLease.Nonce)) `
+        "reclaim clears the recovery nonce once the revival child has exited (nonce='$($reclaimedLease.Nonce)')"
     $recoveredTool = Invoke-Hardhat $recoveryWorkspace $recoverySession 'Bash' @{ command = 'Get-Location' } @{
         NIGHTSHIFT_REVIVAL = '1'
         NIGHTSHIFT_LEASE_GENERATION = $receiptLines[2]
         NIGHTSHIFT_LEASE_NONCE = $receiptLines[3]
     }
-    Assert-True ([string]::IsNullOrWhiteSpace($recoveredTool.Stdout)) `
-        'the child carrying the recovery capability remains allowed'
+    Assert-True ($recoveredTool.Stdout -match 'recovered process|being recovered') `
+        "stale revival credentials do not unlock a reclaimed lease ($(Format-HookResult $recoveredTool))"
     Assert-True ((Get-Content -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/parking-lot.md') -Raw) `
         -match 'the watchman revived it') 'revival writes an owner-facing parking-lot notice'
 
@@ -1057,9 +1060,9 @@ exit 1
     $freshGuardWatch = Invoke-TestScript $watchman `
         @('-Project', $freshGuardWorkspace, '-HostName', 'codex', '-IntervalMinutes', '1', '-Agent', $freshGuardStub, '-MaxWakes', '1') `
         '' @{ NIGHTSHIFT_WATCH_SLEEP = '0'; NIGHTSHIFT_WATCH_RETRY = '0' }
-    Assert-Equal 7 $freshGuardWatch.ExitCode "fresh-rung guard fixture reaches its test cap: $($freshGuardWatch.Stderr)"
+    Assert-Equal 0 $freshGuardWatch.ExitCode "fresh-rung guard stands down once the marker is gone: $($freshGuardWatch.Stderr)"
     $freshGuardLog = Get-Content -LiteralPath (Join-Path $freshGuardWorkspace '.nightshift/shift-log.md') -Raw
-    Assert-True ($freshGuardLog -match 'the armed marker is gone - holding the remaining attempts') `
+    Assert-True ($freshGuardLog -match 'the armed marker is gone') `
         "the fresh-session rung is skipped once the armed marker disappears mid-ladder: $freshGuardLog"
     Write-Host 'Checking default Codex recovery through an npm-style command shim'
     $codexRecoveryWorkspace = Join-Path $root 'codex shim recovery workspace'

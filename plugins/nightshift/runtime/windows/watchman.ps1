@@ -842,17 +842,19 @@ try {
                     if ($gap -gt 0) {
                         Start-Sleep -Seconds $gap
                     }
-                    $aborted = Get-NSHoldReason
-                    if (-not [string]::IsNullOrEmpty($aborted)) {
-                        Write-NSLogLine "watchman: $aborted during retries - holding the remaining attempts"
-                        break
-                    }
                 }
                 # The marker is the shift: gone mid-ladder means nothing is left to revive.
                 if (-not (Test-Path -LiteralPath $armedMarker -PathType Leaf)) {
                     Write-NSReason $ns 'owner-disarm'
                     Write-NSLogLine "watchman: the armed marker is gone $([char]0x2014) standing down"
                     exit 0
+                }
+                if ($attempt -gt 1) {
+                    $aborted = Get-NSHoldReason
+                    if (-not [string]::IsNullOrEmpty($aborted)) {
+                        Write-NSLogLine "watchman: $aborted during retries - holding the remaining attempts"
+                        break
+                    }
                 }
                 Write-NSLogLine "watchman: site dead quiet with open boxes - resume attempt $attempt"
                 if (Start-NSAgent $attempt $totalAttempts) {

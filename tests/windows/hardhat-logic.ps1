@@ -68,7 +68,7 @@ try {
 
     # Only a readable list with every box ticked takes the hardhat off; a list that
     # will not count is not zero open work.
-    $onWindows = [bool](Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -and $IsWindows
+    $onWindows = $env:OS -eq 'Windows_NT'
     if (-not $onWindows) {
         $lockedPunch = Join-Path $script:ns 'punch-list.md'
         & chmod 000 $lockedPunch

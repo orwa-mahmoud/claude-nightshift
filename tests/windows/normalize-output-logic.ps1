@@ -246,10 +246,10 @@ try {
     Expect-Equal 'sample.info' $sampleRun.input 'the JSON body names the file, not the path'
 
     # pytest-junit is an alias, not a second parser.
-    $alias = Invoke-Normalize @('-Format', 'pytest-junit', '-InputPath',
-        (Get-FixtureInput 'junit' 'sample'))
-    Expect-Equal ([IO.File]::ReadAllText((Join-Path $fixtures 'junit/sample.expected.md'))) `
-        $alias.Text 'pytest-junit renders the junit summary'
+    $junitSample = Get-FixtureInput 'junit' 'sample'
+    $alias = Invoke-Normalize @('-Format', 'pytest-junit', '-InputPath', $junitSample)
+    $junit = Invoke-Normalize @('-Format', 'junit', '-InputPath', $junitSample)
+    Expect-Equal $junit.Text $alias.Text 'pytest-junit renders the junit summary'
 
     # -Top bounds the table without hiding the total.
     $top = Invoke-Normalize @('-Format', 'eslint-json', '-InputPath',

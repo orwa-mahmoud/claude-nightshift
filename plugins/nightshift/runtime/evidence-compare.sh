@@ -52,7 +52,14 @@
 # halves emit the same bytes for the same ledger.
 set -u
 
-_here="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]//\\//}")" && pwd)" || exit 2
+_ns_src="${BASH_SOURCE[0]//\\//}"
+case "$_ns_src" in
+  [A-Za-z]:/*)
+    _ns_drive=$(printf '%s' "${_ns_src%"${_ns_src#?}"}" | tr '[:upper:]' '[:lower:]')
+    _ns_src="/${_ns_drive}${_ns_src#?:}"
+    ;;
+esac
+_here="$(cd -P -- "$(dirname -- "$_ns_src")" && pwd)" || exit 2
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
 EC_JQ="$_here/evidence-compare.jq"
@@ -846,7 +853,7 @@ done
 [ -n "$PROJECT_ARG" ] || usage
 [ -n "$BASELINE" ] || usage
 
-PROJECT="$(cd -P "$PROJECT_ARG" 2>/dev/null && pwd -P)"
+PROJECT="$(cd -P "$(ns_msys_path "$PROJECT_ARG")" 2>/dev/null && pwd -P)"
 [ -n "$PROJECT" ] || die "cannot read $PROJECT_ARG" 2
 JSONL="$PROJECT/.nightshift/evidence/findings.jsonl"
 [ -f "$JSONL" ] || die "no ledger at $JSONL" 2

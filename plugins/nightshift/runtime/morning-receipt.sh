@@ -20,7 +20,14 @@
 # Exit: 0 ok · 1 usage · 2 contract failure
 set -u
 
-_here="$(cd -P -- "$(dirname -- "${BASH_SOURCE[0]//\\//}")" && pwd)" || exit 2
+_ns_src="${BASH_SOURCE[0]//\\//}"
+case "$_ns_src" in
+  [A-Za-z]:/*)
+    _ns_drive=$(printf '%s' "${_ns_src%"${_ns_src#?}"}" | tr '[:upper:]' '[:lower:]')
+    _ns_src="/${_ns_drive}${_ns_src#?:}"
+    ;;
+esac
+_here="$(cd -P -- "$(dirname -- "$_ns_src")" && pwd)" || exit 2
 # shellcheck source=plugins/nightshift/lib/lib.sh
 . "$_here/../lib/lib.sh"
 
@@ -31,7 +38,7 @@ NL='
 '
 FS=$(printf '\037')
 RS=$(printf '\036')
-DASH='—'
+DASH=$(printf '\xe2\x80\x94')
 
 # The ledger cells the receipt draws, in slot order. morning-receipt-emit.jq is handed the same
 # list, so neither half hard-codes the other.
@@ -97,6 +104,7 @@ case "$VIEW" in
   *) die 'view must be owner, reviewer, release, or artifact' 1 ;;
 esac
 
+PROJECT="$(ns_msys_path "$PROJECT")"
 HOST_DIR="$(cd -P "$PROJECT" 2>/dev/null && pwd)" || die "cannot cd to $PROJECT" 1
 WORKSPACE="$HOST_DIR"
 if [ -e "$HOST_DIR/.nightshift-link" ] || [ -L "$HOST_DIR/.nightshift-link" ]; then
@@ -781,6 +789,7 @@ _lines_shift() {
   _session_host
   sec_field Host "$SESSION_HOST"
   target="$(ns_work_target "$WORKSPACE" 2>/dev/null)" || target=""
+  target="$(ns_native_display_path "$target")"
   sec_field 'Work target' "$target"
   sec_field Started "$P_CREATEDAT"
   _log_end
