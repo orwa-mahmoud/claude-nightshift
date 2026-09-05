@@ -2,6 +2,9 @@
 # Run on macOS or Windows: pwsh -File tests/windows/fence-check-logic.ps1
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) {
+    $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $repository = Resolve-Path (Join-Path $PSScriptRoot '../..')
 $plugin = Join-Path $repository 'plugins/nightshift'
@@ -27,13 +30,21 @@ $null = New-Item -ItemType File -Path (Join-Path $ns '.shift-armed') -Force
 $wrapper = Join-Path $plugin 'runtime/windows/continuity-handoff.ps1'
 $bashFence = Join-Path $plugin 'runtime/continuity-handoff.sh'
 
-function Convert-NSGitBashPath {
-    param([string]$Path)
-    $normalized = $Path -replace '\\', '/'
-    if ($normalized -match '^([A-Za-z]):/(.*)$') {
-        return '/{0}/{1}' -f $Matches[1].ToLowerInvariant(), $Matches[2]
+# Git Bash rewrites a leading /d/... argument as if it lived under the
+# Git install. Keep the Windows path and disable that conversion.
+function Invoke-NSGitBash {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    $savedNoConv = [Environment]::GetEnvironmentVariable('MSYS_NO_PATHCONV', 'Process')
+    $savedExcl = [Environment]::GetEnvironmentVariable('MSYS2_ARG_CONV_EXCL', 'Process')
+    [Environment]::SetEnvironmentVariable('MSYS_NO_PATHCONV', '1', 'Process')
+    [Environment]::SetEnvironmentVariable('MSYS2_ARG_CONV_EXCL', '*', 'Process')
+    try {
+        return @(& bash --noprofile --norc @Arguments)
     }
-    return $normalized
+    finally {
+        [Environment]::SetEnvironmentVariable('MSYS_NO_PATHCONV', $savedNoConv, 'Process')
+        [Environment]::SetEnvironmentVariable('MSYS2_ARG_CONV_EXCL', $savedExcl, 'Process')
+    }
 }
 
 try {
@@ -69,16 +80,25 @@ try {
         -Generation 1 -Nonce 'fence.1' -ProcessId '' -Start ''
     Expect-True $ok 'restore fenced lease'
     if (Get-Command bash -ErrorAction SilentlyContinue) {
-        $bashLines = @(& bash (Convert-NSGitBashPath $bashFence) fence-check --project (Convert-NSGitBashPath $root))
+        $bashLines = @(Invoke-NSGitBash @($bashFence, 'fence-check', '--project', $root))
         $bashCode = $LASTEXITCODE
         $pwsh = Test-NSHandoffFence -Project $root
-        Expect-True ($bashCode -eq $pwsh.ExitCode) "twins share exit: bash=$bashCode pwsh=$($pwsh.ExitCode)"
-        $bashDoc = ($bashLines -join "`n") | ConvertFrom-Json
-        Expect-True ($bashDoc.takeoverAllowed -eq $pwsh.takeoverAllowed) `
-            "twins share takeoverAllowed: bash=$($bashDoc.takeoverAllowed) pwsh=$($pwsh.takeoverAllowed)"
-        Expect-True ($bashDoc.priorOwnerFenced -eq $pwsh.priorOwnerFenced) `
-            "twins share priorOwnerFenced: bash=$($bashDoc.priorOwnerFenced) pwsh=$($pwsh.priorOwnerFenced)"
-        Expect-True ($bashDoc.action -eq $pwsh.action) "twins share action: bash=$($bashDoc.action) pwsh=$($pwsh.action)"
+        Expect-True ($bashCode -eq $pwsh.ExitCode) `
+            "twins share exit: bash=$bashCode pwsh=$($pwsh.ExitCode) out=$($bashLines -join ' | ')"
+        $bashDoc = $null
+        try {
+            $bashDoc = ($bashLines -join "`n") | ConvertFrom-Json
+        }
+        catch {
+            Expect-True $false "bash fence-check JSON: $($bashLines -join ' | ')"
+        }
+        if ($null -ne $bashDoc) {
+            Expect-True ($bashDoc.takeoverAllowed -eq $pwsh.takeoverAllowed) `
+                "twins share takeoverAllowed: bash=$($bashDoc.takeoverAllowed) pwsh=$($pwsh.takeoverAllowed)"
+            Expect-True ($bashDoc.priorOwnerFenced -eq $pwsh.priorOwnerFenced) `
+                "twins share priorOwnerFenced: bash=$($bashDoc.priorOwnerFenced) pwsh=$($pwsh.priorOwnerFenced)"
+            Expect-True ($bashDoc.action -eq $pwsh.action) "twins share action: bash=$($bashDoc.action) pwsh=$($pwsh.action)"
+        }
     }
 }
 finally {

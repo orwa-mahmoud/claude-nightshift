@@ -440,6 +440,8 @@ try {
                 NIGHTSHIFT_EVIDENCE_NOW = $fixedNow
                 LANG                    = 'C.UTF-8'
                 LC_ALL                  = 'C.UTF-8'
+                MSYS_NO_PATHCONV        = '1'
+                MSYS2_ARG_CONV_EXCL     = '*'
             }
         Expect-True (Test-NSBytesEqual $plainRun.StdoutBytes $plainBash.StdoutBytes) `
             'both renderers report a policy-free shift the same way'
@@ -575,6 +577,8 @@ try {
                     NIGHTSHIFT_EVIDENCE_NOW = $fixedNow
                     LANG                    = 'C.UTF-8'
                     LC_ALL                  = 'C.UTF-8'
+                    MSYS_NO_PATHCONV        = '1'
+                    MSYS2_ARG_CONV_EXCL     = '*'
                 }
             $nativeRun = Invoke-Script -Path $receiptHelper -Arguments @('-Project', $project, '-View', $view)
             Expect-True (Test-NSBytesEqual $nativeRun.StdoutBytes $bashRun.StdoutBytes) `

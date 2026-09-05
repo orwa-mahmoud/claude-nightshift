@@ -4,7 +4,14 @@
 # ns_msys_path <path>
 # Git Bash cannot cd to D:/foo; it wants /d/foo. Leave POSIX paths unchanged.
 ns_msys_path() {
-  local p d
+  local p d converted
+  if command -v cygpath >/dev/null 2>&1; then
+    converted="$(cygpath -u -- "$1" 2>/dev/null)" || converted=""
+    if [ -n "$converted" ]; then
+      printf '%s' "$converted"
+      return 0
+    fi
+  fi
   p="${1//\\//}"
   case "$p" in
     [A-Za-z]:/*)
@@ -21,9 +28,16 @@ ns_msys_path() {
 # Receipts print the native Windows form so the bash and PowerShell renderers
 # stay byte-identical when Git Bash is the twin. POSIX paths are unchanged.
 ns_native_display_path() {
-  local p d rest
+  local p d rest converted
   p="$1"
   [ -n "$p" ] || return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    converted="$(cygpath -w -- "$p" 2>/dev/null)" || converted=""
+    if [ -n "$converted" ]; then
+      printf '%s' "$converted"
+      return 0
+    fi
+  fi
   case "$(uname -s 2>/dev/null)" in
     MINGW* | MSYS* | CYGWIN*) ;;
     *)

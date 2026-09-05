@@ -241,7 +241,10 @@ try {
                 "apply_patch absolute twin $twinStop"
         }
         finally {
-            Remove-Item -LiteralPath $twin -Force -ErrorAction SilentlyContinue
+            try {
+                Remove-Item -LiteralPath $twin -Force -Confirm:$false -ErrorAction SilentlyContinue
+            }
+            catch { }
         }
     }
     $canonRoot = $null
@@ -409,7 +412,6 @@ function Invoke-NSLeaseHardhat {
 }
 
 $leaseRoot = Join-Path ([IO.Path]::GetTempPath()) ("ns-hardhat-lease-" + [guid]::NewGuid().ToString('N'))
-$sleepProcess = $null
 try {
     $leaseWorkspace = Join-Path $leaseRoot 'workspace'
     $leaseNs = Join-Path $leaseWorkspace '.nightshift'
@@ -448,21 +450,10 @@ try {
     Expect-True ($logText.Contains($expectedLogLine)) "the reclaim is recorded in the shift log: $logText"
 
     # A live recovery worker still fences the recorded conversation - only a dead one reclaims.
-    # Diagnostics.Process (not Start-Process -WindowStyle) so this runs unchanged on macOS,
-    # where this suite is also expected to pass, and on Windows.
-    $sleepPsi = [Diagnostics.ProcessStartInfo]::new()
-    $sleepPsi.FileName = $hostExe
-    $sleepPsi.UseShellExecute = $false
-    $sleepPsi.CreateNoWindow = $true
-    Set-ProcessArguments -StartInfo $sleepPsi -Arguments @(
-        '-NoProfile', '-NonInteractive', '-Command', 'Start-Sleep -Seconds 120'
-    )
-    $sleepProcess = [Diagnostics.Process]::Start($sleepPsi)
-    Start-Sleep -Milliseconds 500
-    $liveStart = Get-NSProcessStart $sleepProcess.Id
-    Expect-True (-not [string]::IsNullOrEmpty($liveStart)) 'live sleeping-process fixture reports a start time'
+    # This process is the holder: Linux Get-Process StartTime is not stable across
+    # processes, so a written 'o' stamp can read as PID reuse and look dead.
     Expect-True (Write-NSLease -NightshiftDir $leaseNs -SessionId $recordedSession -HostName 'codex' `
-        -Generation 10 -Nonce 'lease-logic-live-nonce' -ProcessId ([string]$sleepProcess.Id) -Start $liveStart) `
+        -Generation 10 -Nonce 'lease-logic-live-nonce' -ProcessId ([string]$PID) -Start '') `
         'live-holder lease fixture writes'
 
     $liveFence = Invoke-NSLeaseHardhat -Workspace $leaseWorkspace -SessionId $recordedSession -Tool 'PowerShell' `
@@ -532,15 +523,12 @@ try {
         'a disarmed pass-through never touches the lease'
 }
 finally {
-    if ($null -ne $sleepProcess) {
-        Stop-Process -Id $sleepProcess.Id -Force -ErrorAction SilentlyContinue
-    }
-    Remove-Item -LiteralPath $leaseRoot -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $leaseRoot -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue
 }
 }
 finally {
     Set-Location $repository
-    Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $root -Recurse -Force -Confirm:$false -ErrorAction SilentlyContinue
     Remove-Item Env:NIGHTSHIFT_HARDHAT_LIB -ErrorAction SilentlyContinue
 }
 

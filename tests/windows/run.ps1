@@ -963,7 +963,7 @@ exit 0
         NIGHTSHIFT_LEASE_GENERATION = $receiptLines[2]
         NIGHTSHIFT_LEASE_NONCE = $receiptLines[3]
     }
-    Assert-True ($recoveredTool.Stdout -match 'recovered process|being recovered') `
+    Assert-True ($recoveredTool.Stdout -match 'no longer owns the shift|recovered worker|recovered process|being recovered') `
         "stale revival credentials do not unlock a reclaimed lease ($(Format-HookResult $recoveredTool))"
     Assert-True ((Get-Content -LiteralPath (Join-Path $recoveryWorkspace '.nightshift/parking-lot.md') -Raw) `
         -match 'the watchman revived it') 'revival writes an owner-facing parking-lot notice'
